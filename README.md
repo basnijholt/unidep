@@ -28,7 +28,10 @@ To install `requirements_yaml`, run the following command:
 pip install -U requirements_yaml
 ```
 
-or 
+Or just copy the script to your computer:
+```bash
+wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/requirements_yaml.py
+```
 
 ## :memo: Usage
 
