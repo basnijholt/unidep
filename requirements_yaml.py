@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Sequence
 
 import yaml
 
@@ -41,7 +42,7 @@ def scan_requirements(
 
 
 def parse_requirements(
-    paths: list[Path],
+    paths: Sequence[Path],
     *,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
