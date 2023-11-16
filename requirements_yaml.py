@@ -88,11 +88,11 @@ def generate_conda_env_file(
         if verbose:
             print(f"Generating environment file at {output_file}")
         with open(output_file, "w") as f:  # noqa: PTH123
-            yaml.dump(env_data, f)
+            yaml.dump(env_data, f, sort_keys=False)
         if verbose:
             print("Environment file generated successfully.")
     else:
-        yaml.dump(env_data, sys.stdout)
+        yaml.dump(env_data, sys.stdout, sort_keys=False)
 
 
 def main() -> None:
