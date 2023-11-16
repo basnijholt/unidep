@@ -11,10 +11,15 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+- [:page_facing_up: Requirements File Structure](#page_facing_up-requirements-file-structure)
+  - [Basic Structure](#basic-structure)
+  - [Example](#example)
+  - [Explanation](#explanation)
 - [:package: Installation](#package-installation)
 - [:memo: Usage](#memo-usage)
-- [:wrench: Advanced Configuration](#wrench-advanced-configuration)
-- [:scroll: Output Options](#scroll-output-options)
+  - [:wrench: Advanced Configuration](#wrench-advanced-configuration)
+  - [:scroll: Output Options](#scroll-output-options)
+  - [:question: Help Menu](#question-help-menu)
 - [:warning: Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
