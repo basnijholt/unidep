@@ -33,9 +33,13 @@ def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
 
 def test_scan_requirements(tmp_path: Path, setup_test_files: tuple[Path, Path]) -> None:
     # Make sure to pass the depth argument correctly if your function expects it.
-    # Assuming your function scans only 1 level deep by default -> None.
-    results = scan_requirements(tmp_path, depth=1)
-    assert sorted(map(str, results)) == sorted(map(str, setup_test_files))
+    results = scan_requirements(tmp_path, depth=1, verbose=True)
+
+    # Convert results to absolute paths for comparison
+    absolute_results = sorted(str(p.resolve()) for p in results)
+    absolute_test_files = sorted(str(p.resolve()) for p in setup_test_files)
+
+    assert absolute_results == absolute_test_files
 
 
 @pytest.mark.parametrize("verbose", [True, False])

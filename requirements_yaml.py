@@ -37,7 +37,7 @@ def scan_requirements(
                 if verbose:
                     print(f"Found {filename} at {child}")
 
-    scan_dir(base_path, 1)
+    scan_dir(base_path, 0)
     return requirements_files
 
 
