@@ -1,0 +1,6 @@
+name: project1
+channels:
+  - conda-forge
+dependencies:
+  - pandas
+  - pip: qsimcirq
