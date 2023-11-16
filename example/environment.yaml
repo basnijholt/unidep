@@ -1,0 +1,9 @@
+channels:
+- conda-forge
+dependencies:
+- scipy
+- pandas
+- pip:
+  - qsimcirq
+  - adaptive
+name: some_name
