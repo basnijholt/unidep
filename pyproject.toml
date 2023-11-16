@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "requirements_yaml"
+name = "conda_merge"
 description = "Unified Conda and Pip requirements management."
 version = "0.1.0"
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
@@ -15,20 +15,20 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/basnijholt/requirements_yaml"
+Homepage = "https://github.com/basnijholt/conda_merge"
 
 [project.optional-dependencies]
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
 
 [project.scripts]
-requirements_yaml = "requirements_yaml:main"
+conda_merge = "conda_merge:main"
 
 [tool.setuptools]
-py-modules = ["requirements_yaml"]
+py-modules = ["conda_merge"]
 
 [tool.pytest.ini_options]
 addopts = """
-    --cov=requirements_yaml
+    --cov=conda_merge
     --cov-report term
     --cov-report html
     --cov-fail-under=70

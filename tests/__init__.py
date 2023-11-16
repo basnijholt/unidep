@@ -1,1 +1,1 @@
-"""Tests for the ``requirements_yaml`` package."""
+"""Tests for the ``conda_merge`` package."""

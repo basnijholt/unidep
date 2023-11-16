@@ -1,4 +1,4 @@
-"""requirements_yaml tests."""
+"""conda_merge tests."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from requirements_yaml import (
+from conda_merge import (
     generate_conda_env_file,
     parse_requirements,
     scan_requirements,
