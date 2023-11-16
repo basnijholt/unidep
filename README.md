@@ -19,6 +19,52 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+## :page_facing_up: Requirements File Structure
+
+The `requirements.yaml` files that `conda_join` processes should follow a specific structure for the tool to correctly interpret and combine them. Here's an overview of the expected format:
+
+### Basic Structure
+Each `requirements.yaml` file should contain the following key elements:
+
+- **name**: (Optional) A name for the environment. This is not used in the combined output but can be helpful for documentation purposes.
+- **channels**: A list of channels from which packages will be sourced. Commonly includes channels like `conda-forge`.
+- **dependencies**: A list of package dependencies. This can include both Conda and Pip packages.
+
+### Example
+Here is an example of a typical `requirements.yaml` file:
+
+```yaml
+name: example_environment
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - pandas
+  - conda: scipy
+    pip: scipy-package
+  - pip: package3
+```
+
+### Explanation
+- Dependencies listed as simple strings (e.g., `- numpy`) are assumed to be Conda packages.
+- If a package is available through both Conda and Pip but with different names, you can specify both using the `conda: <conda_package>` and `pip: <pip_package>` format.
+- Packages only available through Pip should be listed with the `pip:` prefix.
+
+`conda_join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
+
+```yaml
+name: some_name
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - pandas
+  - scipy
+  pip:
+    - scipy-package
+    - package3
+```
+
 
 ## :package: Installation
 
@@ -45,6 +91,26 @@ conda_join -d [DIRECTORY] --depth [DEPTH] -o [OUTPUT_FILE]
 - `--depth`: Specify the depth for scanning subdirectories (default is 1).
 - `-o` or `--output`: Specify the output file for the combined environment (default is `environment.yaml`).
 
+### :wrench: Advanced Configuration
+
+`conda_join` allows advanced configurations such as verbose output and printing to `stdout` instead of a file.
+
+- To enable verbose output, use the `-v` or `--verbose` flag.
+- To print the combined environment to `stdout` instead of saving to a file, use the `--stdout` flag.
+
+Example with advanced options:
+
+```bash
+conda_join -d src --depth 2 -o dev_environment.yaml --verbose
+```
+
+### :scroll: Output Options
+
+- The output `environment.yaml` file will contain a unified list of dependencies from all scanned `requirements.yaml` files.
+- If the `--stdout` flag is used, the combined environment will be printed to the console.
+
+### :question: Help Menu
+
 For more options, use:
 
 <!-- CODE:BASH:START -->
@@ -59,24 +125,6 @@ For more options, use:
 
 <!-- OUTPUT:END -->
 
-
-## :wrench: Advanced Configuration
-
-`conda_join` allows advanced configurations such as verbose output and printing to `stdout` instead of a file.
-
-- To enable verbose output, use the `-v` or `--verbose` flag.
-- To print the combined environment to `stdout` instead of saving to a file, use the `--stdout` flag.
-
-Example with advanced options:
-
-```bash
-conda_join -d src --depth 2 -o dev_environment.yaml --verbose
-```
-
-## :scroll: Output Options
-
-- The output `environment.yaml` file will contain a unified list of dependencies from all scanned `requirements.yaml` files.
-- If the `--stdout` flag is used, the combined environment will be printed to the console.
 
 ## :warning: Limitations
 
