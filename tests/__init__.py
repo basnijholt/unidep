@@ -1,1 +1,1 @@
-"""Tests for the ``conda_merge`` package."""
+"""Tests for the ``conda_join`` package."""

@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "conda_merge"
+name = "conda_join"
 description = "Unified Conda and Pip requirements management."
 version = "0.1.0"
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
@@ -15,20 +15,20 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/basnijholt/conda_merge"
+Homepage = "https://github.com/basnijholt/conda_join"
 
 [project.optional-dependencies]
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
 
 [project.scripts]
-conda_merge = "conda_merge:main"
+conda_join = "conda_join:main"
 
 [tool.setuptools]
-py-modules = ["conda_merge"]
+py-modules = ["conda_join"]
 
 [tool.pytest.ini_options]
 addopts = """
-    --cov=conda_merge
+    --cov=conda_join
     --cov-report term
     --cov-report html
     --cov-fail-under=70

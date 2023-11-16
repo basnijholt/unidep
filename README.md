@@ -1,10 +1,10 @@
-# :rocket: `conda-merge` - Unified Conda and Pip Requirements Management :rocket:
+# :rocket: `conda-join` - Unified Conda and Pip Requirements Management :rocket:
 
-[![PyPI](https://img.shields.io/pypi/v/conda_merge.svg)](https://pypi.python.org/pypi/conda_merge)
-[![Build Status](https://github.com/basnijholt/conda_merge/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda_merge/actions/workflows/pytest.yml)
-[![CodeCov](https://codecov.io/gh/basnijholt/conda_merge/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda_merge)
+[![PyPI](https://img.shields.io/pypi/v/conda_join.svg)](https://pypi.python.org/pypi/conda_join)
+[![Build Status](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml)
+[![CodeCov](https://codecov.io/gh/basnijholt/conda_join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda_join)
 
-`conda_merge` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`. This tool is ideal for projects with multiple subcomponents, each having its own dependencies, simplifying the process of creating a unified Conda environment. 🖥️🔥
+`conda_join` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`. This tool is ideal for projects with multiple subcomponents, each having its own dependencies, simplifying the process of creating a unified Conda environment. 🖥️🔥
 
 ## :books: Table of Contents
 
@@ -22,23 +22,23 @@
 
 ## :package: Installation
 
-To install `conda_merge`, run the following command:
+To install `conda_join`, run the following command:
 
 ```bash
-pip install -U conda_merge
+pip install -U conda_join
 ```
 
 Or just copy the script to your computer:
 ```bash
-wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_merge.py
+wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_join.py
 ```
 
 ## :memo: Usage
 
-After installation, you can use `conda_merge` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows:
+After installation, you can use `conda_join` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows:
 
 ```bash
-conda_merge -d [DIRECTORY] --depth [DEPTH] -o [OUTPUT_FILE]
+conda_join -d [DIRECTORY] --depth [DEPTH] -o [OUTPUT_FILE]
 ```
 
 - `-d` or `--directory`: Specify the base directory to scan (default is current directory).
@@ -49,7 +49,7 @@ For more options, use:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- conda_merge -h -->
+<!-- conda_join -h -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
@@ -62,7 +62,7 @@ For more options, use:
 
 ## :wrench: Advanced Configuration
 
-`conda_merge` allows advanced configurations such as verbose output and printing to `stdout` instead of a file.
+`conda_join` allows advanced configurations such as verbose output and printing to `stdout` instead of a file.
 
 - To enable verbose output, use the `-v` or `--verbose` flag.
 - To print the combined environment to `stdout` instead of saving to a file, use the `--stdout` flag.
@@ -70,7 +70,7 @@ For more options, use:
 Example with advanced options:
 
 ```bash
-conda_merge -d src --depth 2 -o dev_environment.yaml --verbose
+conda_join -d src --depth 2 -o dev_environment.yaml --verbose
 ```
 
 ## :scroll: Output Options
@@ -80,9 +80,9 @@ conda_merge -d src --depth 2 -o dev_environment.yaml --verbose
 
 ## :warning: Limitations
 
-- The current version of `conda_merge` does not support conflict resolution between different versions of the same package in multiple `requirements.yaml` files.
+- The current version of `conda_join` does not support conflict resolution between different versions of the same package in multiple `requirements.yaml` files.
 - Designed primarily for use with Conda environments; may not fully support other package management systems.
 
 * * *
 
-Try `conda_merge` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
+Try `conda_join` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
