@@ -105,37 +105,7 @@ In this configuration, `conda_join` is included as a build requirement, allowing
 
 ## :memo: Usage as a CLI
 
-After installation, you can use `conda_join` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows:
-
-```bash
-conda_join -d [DIRECTORY] --depth [DEPTH] -o [OUTPUT_FILE]
-```
-
-- `-d` or `--directory`: Specify the base directory to scan (default is current directory).
-- `--depth`: Specify the depth for scanning subdirectories (default is 1).
-- `-o` or `--output`: Specify the output file for the combined environment (default is `environment.yaml`).
-
-### :wrench: Advanced Configuration
-
-`conda_join` allows advanced configurations such as verbose output and printing to `stdout` instead of a file.
-
-- To enable verbose output, use the `-v` or `--verbose` flag.
-- To print the combined environment to `stdout` instead of saving to a file, use the `--stdout` flag.
-
-Example with advanced options:
-
-```bash
-conda_join -d src --depth 2 -o dev_environment.yaml --verbose
-```
-
-### :scroll: Output Options
-
-- The output `environment.yaml` file will contain a unified list of dependencies from all scanned `requirements.yaml` files.
-- If the `--stdout` flag is used, the combined environment will be printed to the console.
-
-### :question: Help Menu
-
-For more options, use:
+After installation, you can use `conda_join` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows (check `conda_join -h`):
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
