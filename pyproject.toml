@@ -8,7 +8,7 @@ description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = ["pyyaml"]
-requires-python = ">=3.8"
+requires-python = ">=3.7"
 
 [project.readme]
 file = "README.md"
@@ -54,7 +54,7 @@ line_length = 88
 
 [tool.ruff]
 line-length = 150
-target-version = "py38"
+target-version = "py37"
 select = ["ALL"]
 ignore = [
     "T20",     # flake8-print
@@ -77,7 +77,7 @@ ignore = [
 max-complexity = 18
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.7"
 
 # Use bump-my-version, e.g., call `bump-my-version bump minor`
 [tool.bumpversion]

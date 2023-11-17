@@ -7,12 +7,17 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import yaml
 
 if TYPE_CHECKING:
     from setuptools import Distribution
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:
+        from typing_extensions import Literal
 
 __version__ = "0.3.0"
 
