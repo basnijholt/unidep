@@ -210,7 +210,7 @@ def main() -> None:
             f.seek(0, 0)
             command_line_args = " ".join(sys.argv[1:])
             txt = [
-                "# This file is created and managed by `conda-join`.",
+                f"# This file is created and managed by `conda-join` {__version__}.",
                 "# For details see https://github.com/basnijholt/conda-join",
                 f"# File generated with: `conda-join {command_line_args}`",
             ]
