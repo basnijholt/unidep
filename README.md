@@ -19,9 +19,6 @@ This tool is ideal for projects with multiple subcomponents, each having its own
 - [:package: Installation](#package-installation)
 - [:memo: Usage with `pyproject.toml` or `setup.py`](#memo-usage-with-pyprojecttoml-or-setuppy)
 - [:memo: Usage as a CLI](#memo-usage-as-a-cli)
-  - [:wrench: Advanced Configuration](#wrench-advanced-configuration)
-  - [:scroll: Output Options](#scroll-output-options)
-  - [:question: Help Menu](#question-help-menu)
 - [:warning: Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
