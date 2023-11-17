@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Literal
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 
 def scan_requirements(
