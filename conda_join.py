@@ -146,7 +146,7 @@ def setuptools_finalizer(dist: Distribution) -> None:
     )
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
