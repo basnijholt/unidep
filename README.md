@@ -96,6 +96,9 @@ Here's an example `pyproject.toml` configuration:
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel", "conda_join"]
+
+[project]
+dynamic = ["dependencies"]
 ```
 
 In this configuration, `conda_join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
