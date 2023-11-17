@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "conda-join"
 description = "Unified Conda and Pip requirements management."
-version = "0.2.0"
+dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = ["pyyaml"]
 requires-python = ">=3.8"
@@ -29,6 +29,9 @@ conda-join = "conda_join:setuptools_finalizer"
 
 [tool.setuptools]
 py-modules = ["conda_join"]
+
+[tool.setuptools.dynamic]
+version = {attr = "conda_join.__version__"}
 
 [tool.pytest.ini_options]
 addopts = """
@@ -75,3 +78,16 @@ max-complexity = 18
 
 [tool.mypy]
 python_version = "3.8"
+
+# Use bump-my-version
+[tool.bumpversion]
+current_version = "0.2.0"
+commit = true
+commit_args = "--no-verify"
+tag = true
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "conda_join.py"
+replace = '__version__ = "{new_version}"'
+search = '__version__ = "{current_version}"'
