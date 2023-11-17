@@ -124,7 +124,10 @@ def extract_python_requires(
     verbose: bool = False,
 ) -> set[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
-    deps = parse_requirements([Path(filename)], pip_or_conda="pip", verbose=verbose)
+    p = Path(filename)
+    if not p.exists():
+        return set()
+    deps = parse_requirements([p], pip_or_conda="pip", verbose=verbose)
     return deps["pip"]
 
 
