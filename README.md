@@ -4,7 +4,7 @@
 [![Build Status](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml)
 [![CodeCov](https://codecov.io/gh/basnijholt/conda-join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda-join)
 
-`conda_join` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`, whilest also being able to import the `requirements.yaml` file in `setup.py` where it will add the Python PyPI dependencies to `requires`.
+`conda_join` is a Python package designed to streamline the management and combination of multiple (or single) `requirements.yaml` files into a single Conda `environment.yaml`, whilest also being able to import the `requirements.yaml` file in `setup.py` where it will add the Python PyPI dependencies to `requires`.
 This tool is ideal for projects with multiple subcomponents, each having its own dependencies, where some are only available on conda and some on PyPI (`pip`), simplifying the process of creating a unified Conda environment, while being pip installable with the Python only dependencies. 🖥️🔥
 
 ## :books: Table of Contents
@@ -102,7 +102,7 @@ In this configuration, `conda_join` is included as a build requirement, allowing
 
 ## :memo: Usage as a CLI
 
-After installation, you can use `conda_join` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows (check `conda_join -h`):
+After installation, you can use `conda_join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file. Basic usage is as follows (check `conda_join -h`):
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
