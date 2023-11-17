@@ -1,8 +1,8 @@
 # :rocket: `conda-join` - Unified Conda and Pip Requirements Management :rocket:
 
-[![PyPI](https://img.shields.io/pypi/v/conda_join.svg)](https://pypi.python.org/pypi/conda_join)
-[![Build Status](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml)
-[![CodeCov](https://codecov.io/gh/basnijholt/conda_join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda_join)
+[![PyPI](https://img.shields.io/pypi/v/conda-join.svg)](https://pypi.python.org/pypi/conda-join)
+[![Build Status](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml)
+[![CodeCov](https://codecov.io/gh/basnijholt/conda-join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda-join)
 
 `conda_join` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`, whilest also being able to import the `requirements.yaml` file in `setup.py` where it will add the Python PyPI dependencies to `requires`.
 This tool is ideal for projects with multiple subcomponents, each having its own dependencies, where some are only available on conda and some on PyPI (`pip`), simplifying the process of creating a unified Conda environment, while being pip installable with the Python only dependencies. 🖥️🔥
