@@ -94,12 +94,13 @@ def parse_requirements(
 def generate_conda_env_file(
     dependencies: dict[str, set[str]],
     output_file: str | None = "environment.yaml",
+    name: str = "myenv",
     *,
     verbose: bool = False,
 ) -> None:
     """Generate a conda environment.yaml file or print to stdout."""
     env_data = {
-        "name": "some_name",
+        "name": name,
         "channels": ["conda-forge"],
         "dependencies": [
             *list(dependencies["conda"]),
@@ -158,12 +159,6 @@ def main() -> None:
         help="Base directory to scan for requirements.yaml files, by default `.`",
     )
     parser.add_argument(
-        "--depth",
-        type=int,
-        default=1,
-        help="Depth to scan for requirements.yaml files, by default 1",
-    )
-    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -171,15 +166,28 @@ def main() -> None:
         help="Output file for the conda environment, by default `environment.yaml`",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print verbose output",
+        "-n",
+        "--name",
+        type=str,
+        default="myenv",
+        help="Name of the conda environment, by default `myenv`",
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=1,
+        help="Depth to scan for requirements.yaml files, by default 1",
     )
     parser.add_argument(
         "--stdout",
         action="store_true",
         help="Output to stdout instead of a file",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print verbose output",
     )
 
     args = parser.parse_args()
@@ -195,7 +203,7 @@ def main() -> None:
     combined_deps = parse_requirements(requirements_files, verbose=verbose)
 
     output_file = None if args.stdout else args.output
-    generate_conda_env_file(combined_deps, output_file, verbose=verbose)
+    generate_conda_env_file(combined_deps, output_file, args.name, verbose=verbose)
 
 
 if __name__ == "__main__":
