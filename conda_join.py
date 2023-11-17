@@ -7,7 +7,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Literal, Sequence
 
 import yaml
 
@@ -45,6 +45,7 @@ def parse_requirements(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
+    pip_or_conda: Literal["pip", "conda"] = "conda",
 ) -> dict[str, set[str]]:
     """Parse a list of requirements.yaml files."""
     combined_deps: dict[str, set[str]] = {
@@ -60,12 +61,23 @@ def parse_requirements(
             for channel in reqs.get("channels", []):
                 combined_deps["channels"].add(channel)
             for dep in reqs.get("dependencies", []):
-                if isinstance(dep, str):
-                    combined_deps["conda"].add(dep)
-                elif "conda" in dep:
-                    combined_deps["conda"].add(dep["conda"])
-                elif "pip" in dep:
-                    combined_deps["pip"].add(dep["pip"])
+                if pip_or_conda == "conda":
+                    if isinstance(dep, str):  # Prefer conda
+                        combined_deps["conda"].add(dep)
+                    elif "conda" in dep:
+                        combined_deps["conda"].add(dep["conda"])
+                    elif "pip" in dep:
+                        combined_deps["pip"].add(dep["pip"])
+                elif pip_or_conda == "pip":
+                    if isinstance(dep, str):  # Prefer pip
+                        combined_deps["pip"].add(dep)
+                    elif "pip" in dep:
+                        combined_deps["pip"].add(dep["pip"])
+                    elif "conda" in dep:
+                        combined_deps["conda"].add(dep["conda"])
+                else:
+                    msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
+                    raise ValueError(msg)
     return combined_deps
 
 
@@ -93,6 +105,16 @@ def generate_conda_env_file(
             print("Environment file generated successfully.")
     else:
         yaml.dump(env_data, sys.stdout, sort_keys=False)
+
+
+def extract_python_requires(
+    filename: str = "requirements.yaml",
+    *,
+    verbose: bool = False,
+) -> set[str]:
+    """Extract Python (pip) requirements from requirements.yaml file."""
+    deps = parse_requirements([Path(filename)], pip_or_conda="pip", verbose=verbose)
+    return deps["pip"]
 
 
 def main() -> None:

@@ -4,7 +4,8 @@
 [![Build Status](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda_join/actions/workflows/pytest.yml)
 [![CodeCov](https://codecov.io/gh/basnijholt/conda_join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda_join)
 
-`conda_join` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`. This tool is ideal for projects with multiple subcomponents, each having its own dependencies, simplifying the process of creating a unified Conda environment. 🖥️🔥
+`conda_join` is a Python package designed to streamline the management and combination of multiple `requirements.yaml` files into a single Conda `environment.yaml`, whilest also being able to import the `requirements.yaml` file in `setup.py` where it will add the Python PyPI dependencies to `requires`.
+This tool is ideal for projects with multiple subcomponents, each having its own dependencies, where some are only available on conda and some on PyPI (`pip`), simplifying the process of creating a unified Conda environment, while being pip installable with the Python only dependencies. 🖥️🔥
 
 ## :books: Table of Contents
 
@@ -43,11 +44,12 @@ name: example_environment
 channels:
   - conda-forge
 dependencies:
-  - numpy
-  - pandas
-  - conda: scipy
+  - numpy  # same name on conda and pip
+  - pandas  # same name on conda and pip
+  - conda: scipy  # different name on conda and pip
     pip: scipy-package
-  - pip: package3
+  - pip: package3  # only available on pip
+  - conda: mumps  # only available on conda
 ```
 
 ### Explanation
@@ -69,6 +71,7 @@ dependencies:
     - scipy-package
     - package3
 ```
+
 
 
 ## :package: Installation

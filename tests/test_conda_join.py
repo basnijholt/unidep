@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from conda_join import (
+    extract_python_requires,
     generate_conda_env_file,
     parse_requirements,
     scan_requirements,
@@ -21,7 +22,7 @@ def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
     d1 = tmp_path / "dir1"
     d1.mkdir()
     f1 = d1 / "requirements.yaml"
-    f1.write_text("dependencies:\n  - numpy")
+    f1.write_text("dependencies:\n  - numpy\n  - conda: mumps")
 
     d2 = tmp_path / "dir2"
     d2.mkdir()
@@ -49,6 +50,9 @@ def test_parse_requirements(
 ) -> None:
     combined_deps = parse_requirements(setup_test_files, verbose=verbose)
     assert "numpy" in combined_deps["conda"]
+    assert "mumps" in combined_deps["conda"]
+    assert len(combined_deps["conda"]) == 2  # noqa: PLR2004
+    assert len(combined_deps["pip"]) == 1
     assert "pandas" in combined_deps["pip"]
 
 
@@ -104,3 +108,11 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Generating environment file at" in captured.out
     assert "Environment file generated successfully." in captured.out
+
+
+def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
+    f1, f2 = setup_test_files
+    requires1 = extract_python_requires(str(f1))
+    assert requires1 == {"numpy"}
+    requires2 = extract_python_requires(str(f2))
+    assert requires2 == {"pandas"}
