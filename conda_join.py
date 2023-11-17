@@ -14,6 +14,8 @@ import yaml
 if TYPE_CHECKING:
     from setuptools import Distribution
 
+__version__ = "0.2.0"
+
 
 def scan_requirements(
     base_dir: str | Path,
