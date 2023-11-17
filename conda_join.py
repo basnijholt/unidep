@@ -204,6 +204,18 @@ def main() -> None:
 
     output_file = None if args.stdout else args.output
     generate_conda_env_file(combined_deps, output_file, args.name, verbose=verbose)
+    if output_file:
+        with open(output_file, "r+") as f:  # noqa: PTH123
+            content = f.read()
+            f.seek(0, 0)
+            command_line_args = " ".join(sys.argv[1:])
+            txt = [
+                "# This file is created and managed by `conda-join`.",
+                "# For details see https://github.com/basnijholt/conda-join",
+                f"# File generated with: `conda-join {command_line_args}`",
+            ]
+            content = "\n".join(txt) + "\n\n" + content
+            f.write(content)
 
 
 if __name__ == "__main__":
