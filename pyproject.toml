@@ -7,7 +7,7 @@ name = "conda-join"
 description = "Unified Conda and Pip requirements management."
 version = "0.2.0"
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
-dependencies = []
+dependencies = ["pyyaml"]
 requires-python = ">=3.8"
 
 [project.readme]
@@ -23,6 +23,9 @@ test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
 [project.scripts]
 conda-join = "conda_join:main"
 conda_join = "conda_join:main"
+
+[project.entry-points."setuptools.finalize_distribution_options"]
+conda-join = "conda_join:setuptools_finalizer"
 
 [tool.setuptools]
 py-modules = ["conda_join"]

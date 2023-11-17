@@ -72,8 +72,6 @@ dependencies:
     - package3
 ```
 
-
-
 ## :package: Installation
 
 To install `conda_join`, run the following command:
@@ -87,7 +85,24 @@ Or just copy the script to your computer:
 wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_join.py
 ```
 
-## :memo: Usage
+## :memo: Usage with `pyproject.toml` or `setup.py`
+
+To use `conda_join` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
+
+- **When using only `pyproject.toml`**: The `dependencies` field in `pyproject.toml` will be automatically populated based on the contents of `requirements.yaml`.
+- **When using `setup.py`**: The `install_requires` field in `setup.py` will be automatically populated, reflecting the dependencies defined in `requirements.yaml`.
+
+Here's an example `pyproject.toml` configuration:
+
+```toml
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel", "conda_join"]
+```
+
+In this configuration, `conda_join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
+
+## :memo: Usage as a CLI
 
 After installation, you can use `conda_join` to scan directories for `requirements.yaml` files and combine them into an `environment.yaml` file. Basic usage is as follows:
 

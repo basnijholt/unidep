@@ -7,9 +7,12 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import yaml
+
+if TYPE_CHECKING:
+    from setuptools import Distribution
 
 
 def scan_requirements(
@@ -115,6 +118,24 @@ def extract_python_requires(
     """Extract Python (pip) requirements from requirements.yaml file."""
     deps = parse_requirements([Path(filename)], pip_or_conda="pip", verbose=verbose)
     return deps["pip"]
+
+
+def setuptools_finalizer(dist: Distribution) -> None:
+    """The entry point called by setuptools to retrieve the dependencies for a project."""
+    # PEP 517 says that "All hooks are run with working directory set to the
+    # root of the source tree".
+    project_root = Path().resolve()
+    requirements_file = project_root / "requirements.yaml"
+    if requirements_file.exists() and dist.install_requires:
+        msg = (
+            "You have a requirements.yaml file in your project root, "
+            "but you are also using setuptools' install_requires. "
+            "Please use one or the other, but not both."
+        )
+        raise RuntimeError(msg)
+    dist.install_requires = list(
+        extract_python_requires(str(requirements_file)),
+    )
 
 
 def main() -> None:
