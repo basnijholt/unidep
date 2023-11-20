@@ -85,7 +85,7 @@ def parse_requirements(
                         combined_deps["pip"].add(dep["pip"])
                     elif "conda" in dep:
                         combined_deps["conda"].add(dep["conda"])
-                else:
+                else:  # pragma: no cover
                     msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
                     raise ValueError(msg)
     return combined_deps
@@ -131,7 +131,7 @@ def extract_python_requires(
     return deps["pip"]
 
 
-def setuptools_finalizer(dist: Distribution) -> None:
+def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     """The entry point called by setuptools to retrieve the dependencies for a project."""
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".
