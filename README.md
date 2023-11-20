@@ -4,10 +4,10 @@
 [![Build Status](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml)
 [![CodeCov](https://codecov.io/gh/basnijholt/conda-join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda-join)
 
-`conda_join` simplifies Python project dependency management by enabling a single `requirements.yaml` file to handle both Conda and Pip dependencies.
+`conda-join` simplifies Python project dependency management by enabling a single `requirements.yaml` file to handle both Conda and Pip dependencies.
 This streamlined approach allows for creating a unified Conda `environment.yaml`, while also seamlessly integrating with `setup.py` or `pyproject.toml`.
 In addition, it can be used as a CLI to combine multiple `requirements.yaml` files into a single `environment.yaml` file.
-Simplify your setup and maintain all your dependencies in one place with `conda_join`.
+Simplify your setup and maintain all your dependencies in one place with `conda-join`.
 
 ## :books: Table of Contents
 
@@ -27,10 +27,10 @@ Simplify your setup and maintain all your dependencies in one place with `conda_
 
 ## :package: Installation
 
-To install `conda_join`, run the following command:
+To install `conda-join`, run the following command:
 
 ```bash
-pip install -U conda_join
+pip install -U conda-join
 ```
 
 Or just copy the script to your computer:
@@ -40,7 +40,7 @@ wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_j
 
 ## :page_facing_up: `requirements.yaml` structure
 
-`conda_join` processes `requirements.yaml` files with a specific format:
+`conda-join` processes `requirements.yaml` files with a specific format:
 
 - **name** (Optional): For documentation, not used in the output.
 - **channels**: List of sources for packages, such as `conda-forge`.
@@ -69,9 +69,9 @@ dependencies:
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 
-**⚠️ `conda_join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
+**⚠️ `conda-join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
 
-Using the CLI `conda_join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
+Using the CLI `conda-join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
 
 ```yaml
 name: some_name
@@ -89,7 +89,7 @@ dependencies:
 
 ### With `pyproject.toml` or `setup.py`
 
-To use `conda_join` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
+To use `conda-join` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
 
 - **When using only `pyproject.toml`**: The `dependencies` field in `pyproject.toml` will be automatically populated based on the contents of `requirements.yaml`.
 - **When using `setup.py`**: The `install_requires` field in `setup.py` will be automatically populated, reflecting the dependencies defined in `requirements.yaml`.
@@ -99,17 +99,17 @@ Here's an example `pyproject.toml` configuration:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel", "conda_join"]
+requires = ["setuptools", "wheel", "conda-join"]
 
 [project]
 dynamic = ["dependencies"]
 ```
 
-In this configuration, `conda_join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
+In this configuration, `conda-join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
 
 ### :memo: As a CLI
 
-Use `conda_join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file. See[example](example/) for more information or check the output of `conda_join -h`:
+Use `conda-join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file. See[example](example/) for more information or check the output of `conda-join -h`:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
@@ -147,4 +147,4 @@ options:
 
 * * *
 
-Try `conda_join` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
+Try `conda-join` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
