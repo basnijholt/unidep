@@ -35,7 +35,7 @@ pip install -U conda-join
 
 Or just copy the script to your computer:
 ```bash
-wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_join.py
+wget https://raw.githubusercontent.com/basnijholt/conda-join/main/conda_join.py
 ```
 
 ## :page_facing_up: `requirements.yaml` structure
