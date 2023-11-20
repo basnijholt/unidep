@@ -109,7 +109,8 @@ In this configuration, `conda-join` is included as a build requirement, allowing
 
 ### :memo: As a CLI
 
-Use `conda-join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file. See[example](example/) for more information or check the output of `conda-join -h`:
+Use `conda-join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file.
+See [example](example/) for more information or check the output of `conda-join -h`:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
