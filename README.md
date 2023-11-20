@@ -16,9 +16,8 @@ Simplify your setup and maintain all your dependencies in one place with `conda_
 
   - [:package: Installation](#package-installation)
   - [:page_facing_up: `requirements.yaml` structure](#page_facing_up-requirementsyaml-structure)
-    - [Basic Structure](#basic-structure)
     - [Example](#example)
-    - [Explanation](#explanation)
+    - [Key Points](#key-points)
   - [:memo: Usage](#memo-usage)
 - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
   - [:memo: As a CLI](#memo-as-a-cli)
