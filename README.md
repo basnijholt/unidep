@@ -87,7 +87,7 @@ dependencies:
 
 ## :memo: Usage
 
-# With `pyproject.toml` or `setup.py`
+### With `pyproject.toml` or `setup.py`
 
 To use `conda_join` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
 
@@ -107,7 +107,7 @@ dynamic = ["dependencies"]
 
 In this configuration, `conda_join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
 
-## :memo: As a CLI
+### :memo: As a CLI
 
 Use `conda_join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file. See[example](example/) for more information or check the output of `conda_join -h`:
 
