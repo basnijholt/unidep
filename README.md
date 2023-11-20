@@ -62,14 +62,14 @@ dependencies:
   - conda: mumps  # conda-only
 ```
 
+**⚠️ `conda-join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
+
 ### Key Points
 
 - Standard names (e.g., `- numpy`) are assumed to be the same for Conda and Pip.
 - Use `conda: <package>` and `pip: <package>` to specify different names across platforms.
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
-
-**⚠️ `conda-join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
 
 Using the CLI `conda-join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
 
