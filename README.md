@@ -41,17 +41,15 @@ wget https://raw.githubusercontent.com/basnijholt/requirements.yaml/main/conda_j
 
 ## :page_facing_up: `requirements.yaml` structure
 
-The `requirements.yaml` files that `conda_join` processes should follow a specific structure for the tool to correctly interpret and combine them. Here's an overview of the expected format:
+`conda_join` processes `requirements.yaml` files with a specific format:
 
-### Basic Structure
-Each `requirements.yaml` file should contain the following key elements:
-
-- **name**: (Optional) A name for the environment. This is not used in the combined output but can be helpful for documentation purposes.
-- **channels**: A list of channels from which packages will be sourced. Commonly includes channels like `conda-forge`.
-- **dependencies**: A list of package dependencies. This can include both Conda and Pip packages.
+- **name** (Optional): For documentation, not used in the output.
+- **channels**: List of sources for packages, such as `conda-forge`.
+- **dependencies**: Mix of Conda and Pip packages.
 
 ### Example
-Example of a typical `requirements.yaml` file:
+
+Example of a `requirements.yaml` file:
 
 ```yaml
 name: example_environment
@@ -59,21 +57,22 @@ channels:
   - conda-forge
 dependencies:
   - numpy  # same name on conda and pip
-  - pandas  # same name on conda and pip
-  - conda: scipy  # different name on conda and pip
-    pip: scipy-package
-  - pip: package3  # only available on pip
-  - conda: mumps  # only available on conda
+  - conda: python-graphviz  # When names differ between Conda and Pip
+    pip: graphviz
+  - pip: slurm-usage  # pip-only
+  - conda: mumps  # conda-only
 ```
 
-### Explanation
+### Key Points
 
-- Dependencies listed as simple strings (e.g., `- numpy`) are assumed to be similarly named Conda and pip packages.
-- If a package is available through both Conda and Pip but with different names, you can specify both using the `conda: <conda_package>` and `pip: <pip_package>` format.
-- Packages only available through Pip should be listed with the `pip:` prefix.
-- Packages only available through Conda should be listed with the `conda:` prefix.
+- Standard names (e.g., `- numpy`) are assumed to be the same for Conda and Pip.
+- Use `conda: <package>` and `pip: <package>` to specify different names across platforms.
+- Use `pip:` to specify packages that are only available through Pip.
+- Use `conda:` to specify packages that are only available through Conda.
 
-`conda_join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
+**⚠️ `conda_join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
+
+Using the CLI `conda_join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
 
 ```yaml
 name: some_name
@@ -81,11 +80,10 @@ channels:
   - conda-forge
 dependencies:
   - numpy
-  - pandas
-  - scipy
+  - python-graphviz
+  - mumps
   pip:
-    - scipy-package
-    - package3
+    - slurm-usage
 ```
 
 ## :memo: Usage
