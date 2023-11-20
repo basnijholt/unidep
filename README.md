@@ -14,14 +14,14 @@ Simplify your setup and maintain all your dependencies in one place with `conda_
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-  - [:package: Installation](#package-installation)
-  - [:page_facing_up: `requirements.yaml` structure](#page_facing_up-requirementsyaml-structure)
-    - [Example](#example)
-    - [Key Points](#key-points)
-  - [:memo: Usage](#memo-usage)
-- [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
+- [:package: Installation](#package-installation)
+- [:page_facing_up: `requirements.yaml` structure](#page_facing_up-requirementsyaml-structure)
+  - [Example](#example)
+  - [Key Points](#key-points)
+- [:memo: Usage](#memo-usage)
+  - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
   - [:memo: As a CLI](#memo-as-a-cli)
-  - [Limitations](#limitations)
+- [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
