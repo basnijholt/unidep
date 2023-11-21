@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
-import yaml
+from ruamel.yaml import YAML
 
 if TYPE_CHECKING:
     from setuptools import Distribution
@@ -63,11 +63,12 @@ def parse_requirements(
         "pip": set(),
         "channels": set(),
     }
+    yaml = YAML(typ="safe")
     for p in paths:
         if verbose:
             print(f"Parsing {p}")
         with p.open() as f:
-            reqs = yaml.safe_load(f)
+            reqs = yaml.load(f)
             for channel in reqs.get("channels", []):
                 combined_deps["channels"].add(channel)
             for dep in reqs.get("dependencies", []):
@@ -107,15 +108,18 @@ def generate_conda_env_file(
             {"pip": list(dependencies["pip"])},
         ],
     }
+    yaml = YAML()
+    yaml.default_flow_style = False
+    yaml.indent(mapping=2, sequence=4, offset=2)
     if output_file:
         if verbose:
             print(f"Generating environment file at {output_file}")
         with open(output_file, "w") as f:  # noqa: PTH123
-            yaml.dump(env_data, f, sort_keys=False)
+            yaml.dump(env_data, f)
         if verbose:
             print("Environment file generated successfully.")
     else:
-        yaml.dump(env_data, sys.stdout, sort_keys=False)
+        yaml.dump(env_data, sys.stdout)
 
 
 def extract_python_requires(

@@ -7,7 +7,7 @@ name = "conda-join"
 description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
-dependencies = ["pyyaml"]
+dependencies = ["ruamel.yaml"]
 requires-python = ">=3.7"
 
 [project.readme]
