@@ -135,6 +135,35 @@ def test_generate_conda_env_stdout(
     assert "- pandas" in captured.out
 
 
+def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - yolo  # [arm64]
+                - foo  # [linux64]
+                - conda: bar  # [win]
+                - pip: pip-package
+                - pip: pip-package2  # [arm64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p])
+    env = create_conda_env_specification(requirements)
+    assert env.conda == [
+        {"sel(osx)": "yolo"},
+        {"sel(linux)": "foo"},
+        {"sel(win)": "bar"},
+    ]
+    assert env.pip == [
+        "yolo; sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "pip-package",
+        "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    ]
+
+
 def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     f = tmp_path / "dir3" / "requirements.yaml"
     f.parent.mkdir()
