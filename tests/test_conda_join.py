@@ -193,11 +193,24 @@ def test_surrounding_comments(tmp_path: Path) -> None:
                 - foo  # [linux]
                 # And this is a comment after
                 - bar  # [win]
+                # Next is an empty comment
+                - baz  #
+                - pip: pip-package
+                #
+                - pip: pip-package2  # [osx]
+                #
             """,
         ),
     )
     reqs = _parse_requirements([p], verbose=False)
-    assert reqs.conda == {"yolo": "# [osx]", "foo": "# [linux]", "bar": "# [win]"}
+    assert reqs.conda == {
+        "yolo": "# [osx]",
+        "foo": "# [linux]",
+        "bar": "# [win]",
+        "baz": "#",
+    }
+    assert reqs.pip == {"pip-package": None, "pip-package2": "# [osx]"}
+    _to_requirements(reqs)
 
 
 def test_filter_platform_selectors() -> None:
