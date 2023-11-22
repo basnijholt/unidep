@@ -104,10 +104,10 @@ The following selectors are supported:
 - `osx`: For all macOS systems.
 - `osx64`: Specifically for 64-bit macOS systems.
 - `arm64`: For macOS systems on ARM64 architectures (Apple Silicon).
+- `macos`: An alternative to `osx` for macOS systems.
+- `unix`: A general selector for all UNIX-like systems (includes Linux and macOS).
 - `win`: For all Windows systems.
 - `win64`: Specifically for 64-bit Windows systems.
-- `unix`: A general selector for all UNIX-like systems (includes Linux and macOS).
-- `macos`: An alternative to `osx` for macOS systems.
 
 #### Usage
 
