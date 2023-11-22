@@ -70,11 +70,12 @@ class RequirementsWithComments(NamedTuple):
 
 
 class Requirements(NamedTuple):
-    """Requirements as CommentedMap and CommentedSeq."""
+    """Requirements as CommentedSeq."""
 
-    channels: list[str]  # actually a CommentedSeq
-    conda: list[str]  # actually a CommentedSeq
-    pip: list[str]  # actually a CommentedSeq
+    # mypy doesn't support CommentedSeq[str], so we use list[str] instead.
+    channels: list[str]  # actually a CommentedSeq[str]
+    conda: list[str]  # actually a CommentedSeq[str]
+    pip: list[str]  # actually a CommentedSeq[str]
 
 
 def _parse_requirements(
