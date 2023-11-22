@@ -12,10 +12,10 @@ from conda_join import (
     CondaEnvironmentSpec,
     ParsedRequirements,
     _convert_to_commented_requirements,
-    _create_conda_env_specification,
     _remove_unsupported_platform_dependencies,
     _segregate_pip_conda_dependencies,
     build_pep508_environment_marker,
+    create_conda_env_specification,
     extract_matching_platforms,
     find_requirements_files,
     get_python_dependencies,
@@ -111,7 +111,7 @@ def test_generate_conda_env_file(
 ) -> None:
     output_file = tmp_path / "environment.yaml"
     combined_deps = parse_yaml_requirements(setup_test_files, verbose=verbose)
-    env_spec = _create_conda_env_specification(combined_deps)
+    env_spec = create_conda_env_specification(combined_deps)
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
 
@@ -127,7 +127,7 @@ def test_generate_conda_env_stdout(
     capsys: pytest.CaptureFixture,
 ) -> None:
     combined_deps = parse_yaml_requirements(setup_test_files)
-    env_spec = _create_conda_env_specification(combined_deps)
+    env_spec = create_conda_env_specification(combined_deps)
     write_conda_environment_file(env_spec, None)
 
     captured = capsys.readouterr()

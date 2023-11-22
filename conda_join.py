@@ -205,9 +205,10 @@ class CondaEnvironmentSpec(NamedTuple):
     pip: list[str]
 
 
-def _create_conda_env_specification(
+def create_conda_env_specification(
     requirements: ParsedRequirements,
 ) -> CondaEnvironmentSpec:
+    """Create a conda environment specification from `ParsedRequirements`."""
     conda: list[str | dict[str, str]] = []
     pip: list[str] = []
     for dependency, comment in requirements.conda.items():
@@ -491,7 +492,7 @@ def main() -> None:  # pragma: no cover
         verbose=verbose,
     )
     requirements = parse_yaml_requirements(found_files, verbose=verbose)
-    env_spec = _create_conda_env_specification(requirements)
+    env_spec = create_conda_env_specification(requirements)
     output_file = None if args.stdout else args.output
     write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
     if output_file:
