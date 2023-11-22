@@ -22,6 +22,15 @@ if TYPE_CHECKING:
         from typing import Literal
     else:
         from typing_extensions import Literal
+    Platforms = Literal[
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+        "win-64",
+    ]
+
 
 __version__ = "0.9.0"
 
@@ -68,8 +77,8 @@ def filter_platform_selectors(content: str) -> list[str]:
         "linux-ppc64le": {"ppc64le", "unix", "linux"},
         # "osx64" is a selector unique to conda-build referring to
         # platforms on macOS and the Python architecture is x86-64
-        "osx-64": {"osx64", "osx", "unix"},
-        "osx-arm64": {"arm64", "osx", "unix"},
+        "osx-64": {"osx64", "osx", "macos", "unix"},
+        "osx-arm64": {"arm64", "osx", "macos", "unix"},
         "win-64": {"win", "win64"},
     }
 
@@ -160,14 +169,7 @@ def _initial_parse_requirements(
 
 def _filter_unsupported_platforms(
     requirements: dict[str, str | None],
-    platform: Literal[
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-        "osx-64",
-        "osx-arm64",
-        "win-64",
-    ],
+    platform: Platforms,
 ) -> dict[str, str | None]:
     return {
         dependency: comment
@@ -181,15 +183,7 @@ def _filter_unsupported_platforms(
 def _filter_pip_and_conda(
     requirements_with_comments: RequirementsWithComments,
     pip_or_conda: Literal["pip", "conda"],
-    platform: Literal[
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-        "osx-64",
-        "osx-arm64",
-        "win-64",
-    ]
-    | None = None,
+    platform: Platforms | None = None,
 ) -> RequirementsWithComments:
     r = requirements_with_comments
     conda = _filter_unsupported_platforms(r.conda, platform) if platform else r.conda
@@ -209,10 +203,11 @@ def _parse_requirements(
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
+    platform: Platforms | None = None,
 ) -> RequirementsWithComments:
     """Parse a list of requirements.yaml files including comments."""
     requirements_with_comments = _initial_parse_requirements(paths, verbose=verbose)
-    return _filter_pip_and_conda(requirements_with_comments, pip_or_conda)
+    return _filter_pip_and_conda(requirements_with_comments, pip_or_conda, platform)
 
 
 def _to_requirements(
@@ -240,12 +235,14 @@ def parse_requirements(
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
+    platform: Platforms | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
     combined_deps = _parse_requirements(
         paths,
         verbose=verbose,
         pip_or_conda=pip_or_conda,
+        platform=platform,
     )
     return _to_requirements(combined_deps)
 
