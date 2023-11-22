@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -52,6 +53,50 @@ def scan_requirements(
 
     scan_dir(base_path, 0)
     return requirements_files
+
+
+def filter_platform_selectors(content: str) -> list[str]:
+    """Filter out lines from a requirements file that don't match the platform."""
+    # we support a very limited set of selectors that adhere to platform only
+    # refs:
+    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
+    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+
+    platform_sel = {
+        "linux-64": {"linux64", "unix", "linux"},
+        "linux-aarch64": {"aarch64", "unix", "linux"},
+        "linux-ppc64le": {"ppc64le", "unix", "linux"},
+        # "osx64" is a selector unique to conda-build referring to
+        # platforms on macOS and the Python architecture is x86-64
+        "osx-64": {"osx64", "osx", "unix"},
+        "osx-arm64": {"arm64", "osx", "unix"},
+        "win-64": {"win", "win64"},
+    }
+
+    # Reverse the platform_sel for easy lookup
+    reverse_platform_sel: dict[str, list[str]] = {}
+    for key, values in platform_sel.items():
+        for value in values:
+            reverse_platform_sel.setdefault(value, []).append(key)
+
+    sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+
+    matched_platforms = set()
+
+    for line in content.splitlines(keepends=False):
+        if multiple_brackets_pat.search(line):
+            msg = f"Multiple bracketed selectors found in line: '{line}'"
+            raise ValueError(msg)
+
+        m = sel_pat.search(line)
+        if m:
+            conds = m.group(1).split()
+            for cond in conds:
+                for platform in reverse_platform_sel.get(cond, []):
+                    matched_platforms.add(platform)
+
+    return list(matched_platforms)
 
 
 def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None:

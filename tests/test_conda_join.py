@@ -12,6 +12,7 @@ from conda_join import (
     _parse_requirements,
     _to_requirements,
     extract_python_requires,
+    filter_platform_selectors,
     generate_conda_env_file,
     parse_requirements,
     scan_requirements,
@@ -158,3 +159,56 @@ def test_surrounding_comments(tmp_path: Path) -> None:
     )
     reqs = _parse_requirements([p], verbose=False)
     assert reqs.conda == {"yolo": "# [osx]", "foo": "# [linux]", "bar": "# [win]"}
+
+
+def test_filter_platform_selectors() -> None:
+    # Test with a line having a linux selector
+    content_linux = "dependency1  # [linux]"
+    assert set(filter_platform_selectors(content_linux)) == {
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+    }
+
+    # Test with a line having a win selector
+    content_win = "dependency2  # [win]"
+    assert set(filter_platform_selectors(content_win)) == {"win-64"}
+
+    # Test with a line having an osx64 selector
+    content_osx64 = "dependency3  # [osx64]"
+    assert set(filter_platform_selectors(content_osx64)) == {"osx-64"}
+
+    # Test with a line having no selector
+    content_none = "dependency4"
+    assert filter_platform_selectors(content_none) == []
+
+    # Test with a comment line
+    content_comment = "# This is a comment"
+    assert filter_platform_selectors(content_comment) == []
+
+    # Test with a line having a unix selector
+    content_unix = "dependency5  # [unix]"
+    expected_unix = {
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    }
+    assert set(filter_platform_selectors(content_unix)) == expected_unix
+
+    # Test with a line having multiple selectors
+    content_multi = "dependency7  # [linux64 unix]"
+    expected_multi = {
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    }
+    assert set(filter_platform_selectors(content_multi)) == expected_multi
+
+    # Test with a line having multiple []
+    content_multi = "dependency7  # [linux64] [win]"
+    with pytest.raises(ValueError, match="Multiple bracketed selectors"):
+        filter_platform_selectors(content_multi)
