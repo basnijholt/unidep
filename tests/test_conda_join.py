@@ -11,15 +11,15 @@ import yaml
 from conda_join import (
     CondaEnvironmentSpec,
     ParsedRequirements,
+    _build_pep508_environment_marker,
     _convert_to_commented_requirements,
+    _identify_current_platform,
     _remove_unsupported_platform_dependencies,
     _segregate_pip_conda_dependencies,
-    build_pep508_environment_marker,
     create_conda_env_specification,
     extract_matching_platforms,
     find_requirements_files,
     get_python_dependencies,
-    identify_current_platform,
     parse_requirements_deduplicate,
     parse_yaml_requirements,
     write_conda_environment_file,
@@ -377,28 +377,28 @@ def test_filter_pip_and_conda() -> None:
         _segregate_pip_conda_dependencies(sample_requirements, "invalid_value", "linux-64")  # type: ignore[arg-type]
 
 
-def test_build_pep508_environment_marker() -> None:
+def test__build_pep508_environment_marker() -> None:
     # Test with a single platform
     assert (
-        build_pep508_environment_marker(["linux-64"])
+        _build_pep508_environment_marker(["linux-64"])
         == "sys_platform == 'linux' and platform_machine == 'x86_64'"
     )
 
     # Test with multiple platforms
     assert (
-        build_pep508_environment_marker(["linux-64", "osx-64"])
+        _build_pep508_environment_marker(["linux-64", "osx-64"])
         == "sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'x86_64'"
     )
 
     # Test with an empty list
-    assert not build_pep508_environment_marker([])
+    assert not _build_pep508_environment_marker([])
 
     # Test with a platform not in PEP508_MARKERS
-    assert not build_pep508_environment_marker(["unknown-platform"])  # type: ignore[list-item]
+    assert not _build_pep508_environment_marker(["unknown-platform"])  # type: ignore[list-item]
 
     # Test with a mix of valid and invalid platforms
     assert (
-        build_pep508_environment_marker(["linux-64", "unknown-platform"])  # type: ignore[list-item]
+        _build_pep508_environment_marker(["linux-64", "unknown-platform"])  # type: ignore[list-item]
         == "sys_platform == 'linux' and platform_machine == 'x86_64'"
     )
 
@@ -408,58 +408,58 @@ def test_detect_platform() -> None:
         "platform.machine",
         return_value="x86_64",
     ):
-        assert identify_current_platform() == "linux-64"
+        assert _identify_current_platform() == "linux-64"
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="aarch64",
     ):
-        assert identify_current_platform() == "linux-aarch64"
+        assert _identify_current_platform() == "linux-aarch64"
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="x86_64",
     ):
-        assert identify_current_platform() == "osx-64"
+        assert _identify_current_platform() == "osx-64"
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="arm64",
     ):
-        assert identify_current_platform() == "osx-arm64"
+        assert _identify_current_platform() == "osx-arm64"
 
     with patch("platform.system", return_value="Windows"), patch(
         "platform.machine",
         return_value="AMD64",
     ):
-        assert identify_current_platform() == "win-64"
+        assert _identify_current_platform() == "win-64"
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported Linux architecture"):
-        identify_current_platform()
+        _identify_current_platform()
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported macOS architecture"):
-        identify_current_platform()
+        _identify_current_platform()
 
     with patch("platform.system", return_value="Windows"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported Windows architecture"):
-        identify_current_platform()
+        _identify_current_platform()
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="ppc64le",
     ):
-        assert identify_current_platform() == "linux-ppc64le"
+        assert _identify_current_platform() == "linux-ppc64le"
 
     with patch("platform.system", return_value="Unknown"), patch(
         "platform.machine",
         return_value="x86_64",
     ), pytest.raises(ValueError, match="Unsupported operating system"):
-        identify_current_platform()
+        _identify_current_platform()

@@ -34,7 +34,15 @@ if TYPE_CHECKING:
 
 
 __version__ = "0.12.0"
-
+__all__ = [
+    "find_requirements_files",
+    "extract_matching_platforms",
+    "parse_yaml_requirements",
+    "create_conda_env_specification",
+    "write_conda_environment_file",
+    "parse_requirements_deduplicate",
+    "get_python_dependencies",
+]
 
 PEP508_MARKERS = {
     "linux-64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -121,7 +129,7 @@ def extract_matching_platforms(content: str) -> list[Platform]:
     return list(filtered_platforms)
 
 
-def build_pep508_environment_marker(platforms: list[Platform]) -> str:
+def _build_pep508_environment_marker(platforms: list[Platform]) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
     environment_markers = [
         PEP508_MARKERS[platform] for platform in platforms if platform in PEP508_MARKERS
@@ -226,7 +234,7 @@ def create_conda_env_specification(
         platforms = extract_matching_platforms(comment) if comment is not None else []
         if platforms:
             for _platform in platforms:
-                selector = build_pep508_environment_marker([_platform])
+                selector = _build_pep508_environment_marker([_platform])
                 dep = f"{dependency}; {selector}"
                 pip.append(dep)
         else:
@@ -377,7 +385,7 @@ def get_python_dependencies(
     return list(python_deps)
 
 
-def identify_current_platform() -> Platform:
+def _identify_current_platform() -> Platform:
     """Detect the current platform."""
     system = platform.system().lower()
     architecture = platform.machine().lower()
@@ -423,7 +431,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     dist.install_requires = list(
         get_python_dependencies(
             str(requirements_file),
-            platform=identify_current_platform(),
+            platform=_identify_current_platform(),
             raises_if_missing=False,
         ),
     )
