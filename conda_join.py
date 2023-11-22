@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import Literal
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 
 def scan_requirements(
