@@ -46,7 +46,7 @@ PEP508_MARKERS = {
 }
 
 
-def scan_requirements(
+def find_requirements_files(
     base_dir: str | Path,
     depth: int = 1,
     filename: str = "requirements.yaml",
@@ -75,7 +75,7 @@ def scan_requirements(
     return requirements_files
 
 
-def filter_platform_selectors(content: str) -> list[Platforms]:
+def extract_matching_platforms(content: str) -> list[Platforms]:
     """Filter out lines from a requirements file that don't match the platform."""
     # we support a very limited set of selectors that adhere to platform only
     # refs:
@@ -119,7 +119,7 @@ def filter_platform_selectors(content: str) -> list[Platforms]:
     return list(matched_platforms)
 
 
-def pep508_selector(platforms: list[Platforms]) -> str:
+def build_pep508_environment_marker(platforms: list[Platforms]) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
     selectors = [
         PEP508_MARKERS[platform] for platform in platforms if platform in PEP508_MARKERS
@@ -127,7 +127,10 @@ def pep508_selector(platforms: list[Platforms]) -> str:
     return " or ".join(selectors)
 
 
-def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None:
+def _extract_first_comment(
+    commented_map: CommentedMap,
+    index_or_key: int | str,
+) -> str | None:
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
@@ -140,7 +143,7 @@ def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None
     return "".join(comment_strings)
 
 
-class RequirementsWithComments(NamedTuple):
+class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
     channels: set[str]
@@ -157,11 +160,11 @@ class Requirements(NamedTuple):
     pip: list[str]  # actually a CommentedSeq[str]
 
 
-def _initial_parse_requirements(
+def parse_yaml_requirements(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
-) -> RequirementsWithComments:
+) -> ParsedRequirements:
     """Parse a list of requirements.yaml files including comments."""
     conda: dict[str, str | None] = {}
     pip: dict[str, str | None] = {}
@@ -178,18 +181,18 @@ def _initial_parse_requirements(
             dependencies = reqs.get("dependencies", [])
             for i, dep in enumerate(dependencies):
                 if isinstance(dep, str):
-                    comment = _comment(dependencies, i)
+                    comment = _extract_first_comment(dependencies, i)
                     conda[dep] = comment
                     pip[dep] = comment
                     continue
                 if "conda" in dep:
-                    conda[dep["conda"]] = _comment(dep, "conda")
+                    conda[dep["conda"]] = _extract_first_comment(dep, "conda")
                 if "pip" in dep:
-                    pip[dep["pip"]] = _comment(dep, "pip")
-    return RequirementsWithComments(channels, conda, pip)
+                    pip[dep["pip"]] = _extract_first_comment(dep, "pip")
+    return ParsedRequirements(channels, conda, pip)
 
 
-def _filter_unsupported_platforms(
+def _remove_unsupported_platform_dependencies(
     requirements: dict[str, str | None],
     platform: Platforms,
 ) -> dict[str, str | None]:
@@ -197,19 +200,27 @@ def _filter_unsupported_platforms(
         dependency: comment
         for dependency, comment in requirements.items()
         if comment is None
-        or not filter_platform_selectors(comment)
-        or platform in filter_platform_selectors(comment)
+        or not extract_matching_platforms(comment)
+        or platform in extract_matching_platforms(comment)
     }
 
 
-def _filter_pip_and_conda(
-    requirements_with_comments: RequirementsWithComments,
+def _segregate_pip_conda_dependencies(
+    requirements_with_comments: ParsedRequirements,
     pip_or_conda: Literal["pip", "conda"],
     platform: Platforms | None = None,
-) -> RequirementsWithComments:
+) -> ParsedRequirements:
     r = requirements_with_comments
-    conda = _filter_unsupported_platforms(r.conda, platform) if platform else r.conda
-    pip = _filter_unsupported_platforms(r.pip, platform) if platform else r.pip
+    conda = (
+        _remove_unsupported_platform_dependencies(r.conda, platform)
+        if platform
+        else r.conda
+    )
+    pip = (
+        _remove_unsupported_platform_dependencies(r.pip, platform)
+        if platform
+        else r.pip
+    )
     if pip_or_conda == "pip":
         conda = {k: v for k, v in conda.items() if k not in pip}
     elif pip_or_conda == "conda":
@@ -217,22 +228,26 @@ def _filter_pip_and_conda(
     else:  # pragma: no cover
         msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
         raise ValueError(msg)
-    return RequirementsWithComments(r.channels, conda, pip)
+    return ParsedRequirements(r.channels, conda, pip)
 
 
-def _parse_requirements_and_filter_duplicates(
+def parse_and_deduplicate_requirements(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
     platform: Platforms | None = None,
-) -> RequirementsWithComments:
+) -> ParsedRequirements:
     """Parse a list of requirements.yaml files including comments."""
-    requirements_with_comments = _initial_parse_requirements(paths, verbose=verbose)
-    return _filter_pip_and_conda(requirements_with_comments, pip_or_conda, platform)
+    requirements_with_comments = parse_yaml_requirements(paths, verbose=verbose)
+    return _segregate_pip_conda_dependencies(
+        requirements_with_comments,
+        pip_or_conda,
+        platform,
+    )
 
 
-class EnvSpec(NamedTuple):
+class CondaEnvironmentSpec(NamedTuple):
     """A conda environment."""
 
     channels: list[str]
@@ -240,14 +255,14 @@ class EnvSpec(NamedTuple):
     pip: list[str]
 
 
-def _prepare_for_conda_environment(
-    requirements_with_comments: RequirementsWithComments,
-) -> EnvSpec:
+def _create_conda_env_specification(
+    requirements_with_comments: ParsedRequirements,
+) -> CondaEnvironmentSpec:
     r = requirements_with_comments
     conda: list[str | dict[str, str]] = []
     pip: list[str] = []
     for dependency, comment in r.conda.items():
-        platforms = filter_platform_selectors(comment) if comment is not None else []
+        platforms = extract_matching_platforms(comment) if comment is not None else []
         if platforms:
             unique_platforms = {p.split("-", 1)[0] for p in platforms}
             dependencies = [
@@ -258,21 +273,21 @@ def _prepare_for_conda_environment(
             conda.append(dependency)
 
     for dependency, comment in r.pip.items():
-        platforms = filter_platform_selectors(comment) if comment is not None else []
+        platforms = extract_matching_platforms(comment) if comment is not None else []
         if platforms:
             for _platform in platforms:
-                selector = pep508_selector([_platform])
+                selector = build_pep508_environment_marker([_platform])
                 dep = f"{dependency}; {selector}"
                 pip.append(dep)
         else:
             pip.append(dependency)
     # Filter out duplicate packages that are both in conda and pip
     pip = [p for p in pip if p not in conda]
-    return EnvSpec(list(r.channels), conda, pip)
+    return CondaEnvironmentSpec(list(r.channels), conda, pip)
 
 
-def _to_requirements(
-    combined_deps: RequirementsWithComments,
+def _convert_to_commented_requirements(
+    combined_deps: ParsedRequirements,
 ) -> Requirements:
     conda = CommentedSeq()
     pip = CommentedSeq()
@@ -291,7 +306,7 @@ def _to_requirements(
     return Requirements(channels, conda, pip)
 
 
-def parse_requirements_and_filter_duplicates(
+def parse_requirements_deduplicate(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
@@ -299,17 +314,17 @@ def parse_requirements_and_filter_duplicates(
     platform: Platforms | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
-    combined_deps = _parse_requirements_and_filter_duplicates(
+    combined_deps = parse_and_deduplicate_requirements(
         paths,
         verbose=verbose,
         pip_or_conda=pip_or_conda,
         platform=platform,
     )
-    return _to_requirements(combined_deps)
+    return _convert_to_commented_requirements(combined_deps)
 
 
-def generate_conda_env_file(
-    env_spec: EnvSpec,
+def write_conda_environment_file(
+    env_spec: CondaEnvironmentSpec,
     output_file: str | None = "environment.yaml",
     name: str = "myenv",
     *,
@@ -339,7 +354,7 @@ def generate_conda_env_file(
         yaml.dump(env_data, sys.stdout)
 
 
-def extract_python_requires(
+def get_python_dependencies(
     filename: str = "requirements.yaml",
     *,
     verbose: bool = False,
@@ -353,7 +368,7 @@ def extract_python_requires(
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
         return []
-    deps = parse_requirements_and_filter_duplicates(
+    deps = parse_requirements_deduplicate(
         [p],
         pip_or_conda="pip",
         verbose=verbose,
@@ -362,7 +377,7 @@ def extract_python_requires(
     return list(deps.pip)
 
 
-def detect_platform() -> Platforms:
+def identify_current_platform() -> Platforms:
     """Detect the current platform."""
     system = platform.system().lower()
     architecture = platform.machine().lower()
@@ -406,9 +421,9 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
     dist.install_requires = list(
-        extract_python_requires(
+        get_python_dependencies(
             str(requirements_file),
-            platform=detect_platform(),
+            platform=identify_current_platform(),
             raises_if_missing=False,
         ),
     )
@@ -463,15 +478,15 @@ def main() -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = args.verbose and not args.stdout
 
-    requirements_files = scan_requirements(
+    requirements_files = find_requirements_files(
         args.directory,
         args.depth,
         verbose=verbose,
     )
-    combined_deps = _initial_parse_requirements(requirements_files, verbose=verbose)
-    env_spec = _prepare_for_conda_environment(combined_deps)
+    combined_deps = parse_yaml_requirements(requirements_files, verbose=verbose)
+    env_spec = _create_conda_env_specification(combined_deps)
     output_file = None if args.stdout else args.output
-    generate_conda_env_file(env_spec, output_file, args.name, verbose=verbose)
+    write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
     if output_file:
         with open(output_file, "r+") as f:  # noqa: PTH123
             content = f.read()
