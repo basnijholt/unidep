@@ -45,6 +45,8 @@ PEP508_MARKERS = {
     "win-64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
 }
 
+# Functions for setuptools and conda
+
 
 def find_requirements_files(
     base_dir: str | Path,
@@ -192,17 +194,7 @@ def parse_yaml_requirements(
     return ParsedRequirements(channels, conda, pip)
 
 
-def _remove_unsupported_platform_dependencies(
-    dependencies: dict[str, str | None],
-    platform: Platforms,
-) -> dict[str, str | None]:
-    return {
-        dependency: comment
-        for dependency, comment in dependencies.items()
-        if comment is None
-        or not extract_matching_platforms(comment)
-        or platform in extract_matching_platforms(comment)
-    }
+# Conda environment file generation functions
 
 
 class CondaEnvironmentSpec(NamedTuple):
@@ -243,26 +235,6 @@ def _create_conda_env_specification(
     return CondaEnvironmentSpec(list(requirements.channels), conda, pip)
 
 
-def _convert_to_commented_requirements(
-    parsed_requirements: ParsedRequirements,
-) -> Requirements:
-    conda = CommentedSeq()
-    pip = CommentedSeq()
-    channels = list(parsed_requirements.channels)
-
-    for i, (dependency, comment) in enumerate(parsed_requirements.conda.items()):
-        conda.append(dependency)
-        if comment is not None:
-            conda.yaml_add_eol_comment(comment, i)
-
-    for i, (dependency, comment) in enumerate(parsed_requirements.pip.items()):
-        pip.append(dependency)
-        if comment is not None:
-            pip.yaml_add_eol_comment(comment, i)
-
-    return Requirements(channels, conda, pip)
-
-
 def write_conda_environment_file(
     env_spec: CondaEnvironmentSpec,
     output_file: str | None = "environment.yaml",
@@ -295,6 +267,19 @@ def write_conda_environment_file(
 
 
 # Python setuptools integration functions
+
+
+def _remove_unsupported_platform_dependencies(
+    dependencies: dict[str, str | None],
+    platform: Platforms,
+) -> dict[str, str | None]:
+    return {
+        dependency: comment
+        for dependency, comment in dependencies.items()
+        if comment is None
+        or not extract_matching_platforms(comment)
+        or platform in extract_matching_platforms(comment)
+    }
 
 
 def _segregate_pip_conda_dependencies(
@@ -337,6 +322,26 @@ def parse_and_deduplicate_requirements(
         pip_or_conda,
         platform,
     )
+
+
+def _convert_to_commented_requirements(
+    parsed_requirements: ParsedRequirements,
+) -> Requirements:
+    conda = CommentedSeq()
+    pip = CommentedSeq()
+    channels = list(parsed_requirements.channels)
+
+    for i, (dependency, comment) in enumerate(parsed_requirements.conda.items()):
+        conda.append(dependency)
+        if comment is not None:
+            conda.yaml_add_eol_comment(comment, i)
+
+    for i, (dependency, comment) in enumerate(parsed_requirements.pip.items()):
+        pip.append(dependency)
+        if comment is not None:
+            pip.yaml_add_eol_comment(comment, i)
+
+    return Requirements(channels, conda, pip)
 
 
 def parse_requirements_deduplicate(
