@@ -23,7 +23,7 @@ if TYPE_CHECKING:
         from typing import Literal
     else:
         from typing_extensions import Literal
-    Platforms = Literal[
+    Platform = Literal[
         "linux-64",
         "linux-aarch64",
         "linux-ppc64le",
@@ -77,14 +77,14 @@ def find_requirements_files(
     return found_files
 
 
-def extract_matching_platforms(content: str) -> list[Platforms]:
+def extract_matching_platforms(content: str) -> list[Platform]:
     """Filter out lines from a requirements file that don't match the platform."""
     # we support a very limited set of selectors that adhere to platform only
     # refs:
     # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
 
-    platform_selector_map: dict[Platforms, set[str]] = {
+    platform_selector_map: dict[Platform, set[str]] = {
         "linux-64": {"linux64", "unix", "linux"},
         "linux-aarch64": {"aarch64", "unix", "linux"},
         "linux-ppc64le": {"ppc64le", "unix", "linux"},
@@ -96,7 +96,7 @@ def extract_matching_platforms(content: str) -> list[Platforms]:
     }
 
     # Reverse the platform_selector_map for easy lookup
-    reverse_selector_map: dict[str, list[Platforms]] = {}
+    reverse_selector_map: dict[str, list[Platform]] = {}
     for key, values in platform_selector_map.items():
         for value in values:
             reverse_selector_map.setdefault(value, []).append(key)
@@ -121,7 +121,7 @@ def extract_matching_platforms(content: str) -> list[Platforms]:
     return list(filtered_platforms)
 
 
-def build_pep508_environment_marker(platforms: list[Platforms]) -> str:
+def build_pep508_environment_marker(platforms: list[Platform]) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
     environment_markers = [
         PEP508_MARKERS[platform] for platform in platforms if platform in PEP508_MARKERS
@@ -272,7 +272,7 @@ def write_conda_environment_file(
 
 def _remove_unsupported_platform_dependencies(
     dependencies: dict[str, str | None],
-    platform: Platforms,
+    platform: Platform,
 ) -> dict[str, str | None]:
     return {
         dependency: comment
@@ -286,7 +286,7 @@ def _remove_unsupported_platform_dependencies(
 def _segregate_pip_conda_dependencies(
     requirements_with_comments: ParsedRequirements,
     pip_or_conda: Literal["pip", "conda"] = "conda",
-    platform: Platforms | None = None,
+    platform: Platform | None = None,
 ) -> ParsedRequirements:
     r = requirements_with_comments
     conda = (
@@ -312,6 +312,14 @@ def _segregate_pip_conda_dependencies(
 def _convert_to_commented_requirements(
     parsed_requirements: ParsedRequirements,
 ) -> Requirements:
+    """Convert a `ParsedRequirements` to a `Requirements` with comments.
+
+    Here we use `CommentedSeq` instead of `list` to preserve comments, but
+    `CommentedSeq` behaves just like a `list`.
+
+    Note that we're preserving the comments here, however, when writing the
+    environment file, we're not preserving the comments.
+    """
     conda = CommentedSeq()
     pip = CommentedSeq()
     channels = list(parsed_requirements.channels)
@@ -334,7 +342,7 @@ def parse_requirements_deduplicate(
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
-    platform: Platforms | None = None,
+    platform: Platform | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
     requirements_with_comments = parse_yaml_requirements(paths, verbose=verbose)
@@ -350,7 +358,7 @@ def get_python_dependencies(
     filename: str = "requirements.yaml",
     *,
     verbose: bool = False,
-    platform: Platforms | None = None,
+    platform: Platform | None = None,
     raises_if_missing: bool = True,
 ) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
@@ -369,7 +377,7 @@ def get_python_dependencies(
     return list(python_deps)
 
 
-def identify_current_platform() -> Platforms:
+def identify_current_platform() -> Platform:
     """Detect the current platform."""
     system = platform.system().lower()
     architecture = platform.machine().lower()
