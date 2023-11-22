@@ -60,20 +60,20 @@ def find_requirements_files(
     found_files = []
 
     # Define a helper function to recursively scan directories
-    def scan_dir(path: Path, current_depth: int) -> None:
+    def _scan_dir(path: Path, current_depth: int) -> None:
         if verbose:
             print(f"Scanning in {path} at depth {current_depth}")
         if current_depth > depth:
             return
         for child in path.iterdir():
             if child.is_dir():
-                scan_dir(child, current_depth + 1)
+                _scan_dir(child, current_depth + 1)
             elif child.name == filename:
                 found_files.append(child)
                 if verbose:
                     print(f"Found {filename} at {child}")
 
-    scan_dir(base_path, 0)
+    _scan_dir(base_path, 0)
     return found_files
 
 
@@ -285,7 +285,7 @@ def _remove_unsupported_platform_dependencies(
 
 def _segregate_pip_conda_dependencies(
     requirements_with_comments: ParsedRequirements,
-    pip_or_conda: Literal["pip", "conda"],
+    pip_or_conda: Literal["pip", "conda"] = "conda",
     platform: Platforms | None = None,
 ) -> ParsedRequirements:
     r = requirements_with_comments
@@ -307,22 +307,6 @@ def _segregate_pip_conda_dependencies(
         msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
         raise ValueError(msg)
     return ParsedRequirements(r.channels, conda, pip)
-
-
-def parse_and_deduplicate_requirements(
-    paths: Sequence[Path],
-    *,
-    verbose: bool = False,
-    pip_or_conda: Literal["pip", "conda"] = "conda",
-    platform: Platforms | None = None,
-) -> ParsedRequirements:
-    """Parse a list of requirements.yaml files including comments."""
-    requirements_with_comments = parse_yaml_requirements(paths, verbose=verbose)
-    return _segregate_pip_conda_dependencies(
-        requirements_with_comments,
-        pip_or_conda,
-        platform,
-    )
 
 
 def _convert_to_commented_requirements(
@@ -353,11 +337,11 @@ def parse_requirements_deduplicate(
     platform: Platforms | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
-    deduplicated_requirements = parse_and_deduplicate_requirements(
-        paths,
-        verbose=verbose,
-        pip_or_conda=pip_or_conda,
-        platform=platform,
+    requirements_with_comments = parse_yaml_requirements(paths, verbose=verbose)
+    deduplicated_requirements = _segregate_pip_conda_dependencies(
+        requirements_with_comments,
+        pip_or_conda,
+        platform,
     )
     return _convert_to_commented_requirements(deduplicated_requirements)
 

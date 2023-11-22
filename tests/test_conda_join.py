@@ -20,7 +20,6 @@ from conda_join import (
     find_requirements_files,
     get_python_dependencies,
     identify_current_platform,
-    parse_and_deduplicate_requirements,
     parse_requirements_deduplicate,
     parse_yaml_requirements,
     write_conda_environment_file,
@@ -178,7 +177,9 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
 def test_extract_comment(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("dependencies:\n  - numpy # [osx]\n  - conda: mumps  # [linux]")
-    reqs = parse_and_deduplicate_requirements([p], verbose=False)
+
+    requirements_with_comments = parse_yaml_requirements([p], verbose=False)
+    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
     assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
     commented_map = _convert_to_commented_requirements(reqs)
     assert commented_map.conda == ["numpy", "mumps"]
@@ -187,7 +188,8 @@ def test_extract_comment(tmp_path: Path) -> None:
 def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
-    reqs = parse_and_deduplicate_requirements([p], verbose=False)
+    requirements_with_comments = parse_yaml_requirements([p], verbose=False)
+    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
     assert reqs.conda == {}
     assert reqs.pip == {}
     assert reqs.channels == {"conda-forge", "defaults"}
@@ -215,7 +217,8 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    reqs = parse_and_deduplicate_requirements([p], verbose=False)
+    requirements_with_comments = parse_yaml_requirements([p], verbose=False)
+    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
     assert reqs.conda == {
         "yolo": "# [osx]",
         "foo": "# [linux]",
