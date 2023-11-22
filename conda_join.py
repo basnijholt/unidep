@@ -126,11 +126,10 @@ class Requirements(NamedTuple):
     pip: list[str]  # actually a CommentedSeq[str]
 
 
-def _parse_requirements(
+def _initial_parse_requirements(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
-    pip_or_conda: Literal["pip", "conda"] = "conda",
 ) -> RequirementsWithComments:
     """Parse a list of requirements.yaml files including comments."""
     conda: dict[str, str | None] = {}
@@ -147,24 +146,49 @@ def _parse_requirements(
                 channels.add(channel)
             dependencies = reqs.get("dependencies", [])
             for i, dep in enumerate(dependencies):
-                if pip_or_conda == "conda":
-                    if isinstance(dep, str):  # Prefer conda
-                        conda[dep] = _comment(dependencies, i)
-                    elif "conda" in dep:
-                        conda[dep["conda"]] = _comment(dep, "conda")
-                    elif "pip" in dep:
-                        pip[dep["pip"]] = _comment(dep, "pip")
-                elif pip_or_conda == "pip":
-                    if isinstance(dep, str):  # Prefer pip
-                        pip[dep] = _comment(dependencies, i)
-                    elif "pip" in dep:
-                        pip[dep["pip"]] = _comment(dep, "pip")
-                    elif "conda" in dep:
-                        conda[dep["conda"]] = _comment(dep, "conda")
-                else:  # pragma: no cover
-                    msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
-                    raise ValueError(msg)
+                if isinstance(dep, str):
+                    comment = _comment(dependencies, i)
+                    conda[dep] = comment
+                    pip[dep] = comment
+                    continue
+                if "conda" in dep:
+                    conda[dep["conda"]] = _comment(dep, "conda")
+                if "pip" in dep:
+                    pip[dep["pip"]] = _comment(dep, "pip")
     return RequirementsWithComments(channels, conda, pip)
+
+
+def _filter_pip_and_conda(
+    requirements_with_comments: RequirementsWithComments,
+    pip_or_conda: Literal["pip", "conda"],
+) -> RequirementsWithComments:
+    # Do not yet take into account platform selectors
+    r = requirements_with_comments
+    if pip_or_conda == "pip":
+        conda = {k: v for k, v in r.conda.items() if k not in r.pip}
+        pip = r.pip
+    elif pip_or_conda == "conda":
+        conda = r.conda
+        pip = {k: v for k, v in r.pip.items() if k not in r.conda}
+    else:  # pragma: no cover
+        msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
+        raise ValueError(msg)
+    return RequirementsWithComments(r.channels, conda, pip)
+
+
+def _parse_requirements(
+    paths: Sequence[Path],
+    *,
+    verbose: bool = False,
+    pip_or_conda: Literal["pip", "conda"] = "conda",
+) -> RequirementsWithComments:
+    """Parse a list of requirements.yaml files including comments."""
+    requirements_with_comments = _initial_parse_requirements(paths, verbose=verbose)
+    requirements_with_comments = _filter_pip_and_conda(
+        requirements_with_comments,
+        pip_or_conda,
+    )
+    return requirements_with_comments
 
 
 def _to_requirements(
