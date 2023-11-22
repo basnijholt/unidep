@@ -85,6 +85,51 @@ dependencies:
     - slurm-usage
 ```
 
+### Platform Selectors
+
+This tool supports a range of platform selectors that allow for specific handling of dependencies based on the user's operating system and architecture. This feature is particularly useful for managing conditional dependencies in diverse environments.
+
+#### Supported Selectors
+
+The following selectors are supported:
+
+- `linux`: For all Linux-based systems.
+- `linux64`: Specifically for 64-bit Linux systems.
+- `aarch64`: For Linux systems on ARM64 architectures.
+- `ppc64le`: For Linux on PowerPC 64-bit Little Endian architectures.
+- `osx`: For all macOS systems.
+- `osx64`: Specifically for 64-bit macOS systems.
+- `arm64`: For macOS systems on ARM64 architectures (Apple Silicon).
+- `win`: For all Windows systems.
+- `win64`: Specifically for 64-bit Windows systems.
+- `unix`: A general selector for all UNIX-like systems (includes Linux and macOS).
+- `macos`: An alternative to `osx` for macOS systems.
+
+#### Usage
+
+Selectors are used in `requirements.yaml` files to conditionally include dependencies based on the platform:
+
+```yaml
+dependencies:
+  - some-package  # [unix]
+  - another-package  # [win]
+  - special-package  # [osx64]
+  - pip: cirq  # [macos]
+    conda: cirq  # [linux]
+```
+
+In this example:
+- `some-package` is included only in UNIX-like environments (Linux and macOS).
+- `another-package` is specific to Windows.
+- `special-package` is included only for 64-bit macOS systems.
+- `cirq` is managed by `pip` on macOS and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
+
+#### Implementation
+
+The tool parses these selectors and filters dependencies according to the platform where it's being run.
+This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
+
+
 ## :memo: Usage
 
 ### With `pyproject.toml` or `setup.py`
