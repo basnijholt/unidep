@@ -343,6 +343,24 @@ def test_detect_platform() -> None:
     ), pytest.raises(ValueError, match="Unsupported Linux architecture"):
         detect_platform()
 
+    with patch("platform.system", return_value="Darwin"), patch(
+        "platform.machine",
+        return_value="unknown",
+    ), pytest.raises(ValueError, match="Unsupported macOS architecture"):
+        detect_platform()
+
+    with patch("platform.system", return_value="Windows"), patch(
+        "platform.machine",
+        return_value="unknown",
+    ), pytest.raises(ValueError, match="Unsupported Windows architecture"):
+        detect_platform()
+
+    with patch("platform.system", return_value="Linux"), patch(
+        "platform.machine",
+        return_value="ppc64le",
+    ):
+        assert detect_platform() == "linux-ppc64le"
+
     with patch("platform.system", return_value="Unknown"), patch(
         "platform.machine",
         return_value="x86_64",
