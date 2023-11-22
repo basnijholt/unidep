@@ -36,6 +36,16 @@ if TYPE_CHECKING:
 __version__ = "0.11.0"
 
 
+PEP508_MARKERS = {
+    "linux-64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "linux-aarch64": "sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "linux-ppc64le": "sys_platform == 'linux' and platform_machine == 'ppc64le'",
+    "osx-64": "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "osx-arm64": "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "win-64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
+}
+
+
 def scan_requirements(
     base_dir: str | Path,
     depth: int = 1,
