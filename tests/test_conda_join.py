@@ -523,38 +523,36 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements([p], verbose=False)
-
-    # First without filtering duplicates
-    env_spec = create_conda_env_specification(requirements)
-    assert env_spec.conda == [
-        {"sel(linux)": "foo >1"},
-        {"sel(linux)": "foo"},
-        "bar",
-    ]
-    assert env_spec.pip == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
-    ]
-
-    # Now with filtering duplicates
     requirements_filtered = ParsedRequirements(
         requirements.channels,
         filter_duplicates(requirements.conda),
         filter_duplicates(requirements.pip),
     )
-    assert requirements_filtered.conda == {
+
+    # Pip: First without filtering duplicates
+    deduplicated_requirements = _segregate_pip_conda_dependencies(
+        requirements,
+        "pip",
+        None,
+    )
+    assert deduplicated_requirements.conda == {}
+    assert deduplicated_requirements.pip == {
+        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
+        "foo": Meta(name="foo", comment="# [linux64]", pin=None),
+        "bar": Meta(name="bar", comment=None, pin=None),
+    }
+
+    # Pip: Now with filtering duplicates
+    deduplicated_requirements_filtered = _segregate_pip_conda_dependencies(
+        requirements_filtered,
+        "pip",
+        None,
+    )
+    assert deduplicated_requirements_filtered.conda == {}
+    assert deduplicated_requirements_filtered.pip == {
         "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
         "bar": Meta(name="bar", comment=None, pin=None),
     }
-    assert requirements_filtered.pip == {
-        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
-        "bar": Meta(name="bar", comment=None, pin=None),
-    }
-    env_spec_filtered = create_conda_env_specification(requirements_filtered)
-    assert env_spec_filtered.conda == [{"sel(linux)": "foo >1"}, "bar"]
-    assert env_spec_filtered.pip == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-    ]
 
 
 def test_filter_duplicates() -> None:
