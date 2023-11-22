@@ -20,6 +20,7 @@ from conda_join import (
     _segregate_pip_conda_dependencies,
     create_conda_env_specification,
     extract_matching_platforms,
+    filter_duplicates,
     find_requirements_files,
     get_python_dependencies,
     parse_requirements_deduplicate,
@@ -518,23 +519,63 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
                 - foo >1 # [linux64]
                 - foo # [linux64]
                 - bar
-                - baz
-                - pip: pip-package
-                - pip: pip-package2
             """,
         ),
     )
     requirements = parse_yaml_requirements([p], verbose=False)
+
+    # First without filtering duplicates
     env_spec = create_conda_env_specification(requirements)
     assert env_spec.conda == [
         {"sel(linux)": "foo >1"},
         {"sel(linux)": "foo"},
         "bar",
-        "baz",
     ]
     assert env_spec.pip == [
         "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "pip-package",
-        "pip-package2",
     ]
+
+    # Now with filtering duplicates
+    requirements_filtered = ParsedRequirements(
+        requirements.channels,
+        filter_duplicates(requirements.conda),
+        filter_duplicates(requirements.pip),
+    )
+    assert requirements_filtered.conda == {
+        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
+        "bar": Meta(name="bar", comment=None, pin=None),
+    }
+    assert requirements_filtered.pip == {
+        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
+        "bar": Meta(name="bar", comment=None, pin=None),
+    }
+    env_spec_filtered = create_conda_env_specification(requirements_filtered)
+    assert env_spec_filtered.conda == [{"sel(linux)": "foo >1"}, "bar"]
+    assert env_spec_filtered.pip == [
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
+
+
+def test_filter_duplicates() -> None:
+    input_requirements = {
+        "package1": Meta(name="package1"),
+        "package1 >=1.0": Meta(name="package1", pin=">=1.0"),
+        "package2": Meta(name="package2"),
+        "package3>=2.0": Meta(name="package3", pin=">=2.0"),
+        "package3<2.0": Meta(name="package3", pin="<2.0"),
+    }
+
+    with pytest.warns(UserWarning, match="Multiple different version requirements"):
+        filtered = filter_duplicates(input_requirements)
+
+    assert len(filtered) == 3  # noqa: PLR2004
+    assert "package1 >=1.0" in filtered
+
+    # Should pick this due to version pin
+    assert filtered["package1 >=1.0"].pin == ">=1.0"
+    assert "package2" in filtered
+    assert "package3>=2.0" in filtered
+
+    # Should warn and keep the first version pin
+    assert filtered["package3>=2.0"].pin == ">=2.0"

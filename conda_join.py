@@ -9,6 +9,7 @@ import argparse
 import platform
 import re
 import sys
+import warnings
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Sequence
@@ -234,6 +235,33 @@ def parse_yaml_requirements(
                     meta = _parse_dependency(dep["pip"], dep, "pip")
                     pip[dep["pip"]] = meta
     return ParsedRequirements(channels, conda, pip)
+
+
+def filter_duplicates(requirements: dict[str, Meta]) -> dict[str, Meta]:
+    filtered = {}
+    name_to_key_map = {}
+
+    for key, meta in requirements.items():
+        if meta.name not in name_to_key_map:
+            filtered[key] = meta
+            name_to_key_map[meta.name] = key
+        else:
+            # Handling duplicates
+            existing_key = name_to_key_map[meta.name]
+            existing_meta = filtered[existing_key]
+            if meta.pin and not existing_meta.pin:
+                # Replace with the one that has a version requirement
+                filtered[key] = meta
+                del filtered[existing_key]
+                name_to_key_map[meta.name] = key
+            elif meta.pin and existing_meta.pin and meta.pin != existing_meta.pin:
+                # Warn about multiple different version requirements
+                warnings.warn(
+                    f"Multiple different version requirements for {meta.name}: "
+                    f"'{existing_meta.pin}' and '{meta.pin}'. Keeping the first one.",
+                    stacklevel=2,
+                )
+    return filtered
 
 
 # Conda environment file generation functions
