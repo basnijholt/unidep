@@ -13,7 +13,7 @@ from conda_join import (
     RequirementsWithComments,
     _filter_pip_and_conda,
     _filter_unsupported_platforms,
-    _parse_requirements,
+    _parse_requirements_and_fillter_duplicates,
     _to_requirements,
     detect_platform,
     extract_python_requires,
@@ -158,14 +158,16 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
 
     # Test with a file that doesn't exist
     with pytest.raises(FileNotFoundError):
-        extract_python_requires("nonexistent_file.yaml", raises=True)
-    assert extract_python_requires("nonexistent_file.yaml", raises=False) == []
+        extract_python_requires("nonexistent_file.yaml", raises_if_missing=True)
+    assert (
+        extract_python_requires("nonexistent_file.yaml", raises_if_missing=False) == []
+    )
 
 
 def test_extract_comment(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("dependencies:\n  - numpy # [osx]\n  - conda: mumps  # [linux]")
-    reqs = _parse_requirements([p], verbose=False)
+    reqs = _parse_requirements_and_fillter_duplicates([p], verbose=False)
     assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
     commented_map = _to_requirements(reqs)
     assert commented_map.conda == ["numpy", "mumps"]
@@ -174,7 +176,7 @@ def test_extract_comment(tmp_path: Path) -> None:
 def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
-    reqs = _parse_requirements([p], verbose=False)
+    reqs = _parse_requirements_and_fillter_duplicates([p], verbose=False)
     assert reqs.conda == {}
     assert reqs.pip == {}
     assert reqs.channels == {"conda-forge", "defaults"}
@@ -202,7 +204,7 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    reqs = _parse_requirements([p], verbose=False)
+    reqs = _parse_requirements_and_fillter_duplicates([p], verbose=False)
     assert reqs.conda == {
         "yolo": "# [osx]",
         "foo": "# [linux]",

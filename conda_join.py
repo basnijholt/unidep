@@ -220,7 +220,7 @@ def _filter_pip_and_conda(
     return RequirementsWithComments(r.channels, conda, pip)
 
 
-def _parse_requirements(
+def _parse_requirements_and_fillter_duplicates(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
@@ -260,7 +260,7 @@ def parse_requirements(
     platform: Platforms | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
-    combined_deps = _parse_requirements(
+    combined_deps = _parse_requirements_and_fillter_duplicates(
         paths,
         verbose=verbose,
         pip_or_conda=pip_or_conda,
@@ -305,12 +305,12 @@ def extract_python_requires(
     *,
     verbose: bool = False,
     platform: Platforms | None = None,
-    raises: bool = True,
+    raises_if_missing: bool = True,
 ) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
-        if raises:
+        if raises_if_missing:
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
         return []
@@ -370,7 +370,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         extract_python_requires(
             str(requirements_file),
             platform=detect_platform(),
-            raises=False,
+            raises_if_missing=False,
         ),
     )
 
