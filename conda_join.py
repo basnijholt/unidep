@@ -58,10 +58,10 @@ def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
-    comment_strings = [
+    comment_strings = next(
         c.value.split("\n")[0].rstrip().lstrip() for c in comments if c is not None
-    ]
-    return " ".join(comment_strings)
+    )
+    return "".join(comment_strings)
 
 
 class RequirementsWithComments(NamedTuple):

@@ -1,6 +1,7 @@
 """conda_join tests."""
 from __future__ import annotations
 
+import textwrap
 from typing import TYPE_CHECKING
 
 import pytest
@@ -137,3 +138,23 @@ def test_channels(tmp_path: Path) -> None:
     assert reqs.conda == {}
     assert reqs.pip == {}
     assert reqs.channels == {"conda-forge", "defaults"}
+
+
+def test_surrounding_comments(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+            # This is a comment before
+                - yolo  # [osx]
+            # This is a comment after
+                # This is another comment
+                - foo  # [linux]
+                # And this is a comment after
+                - bar  # [win]
+            """,
+        ),
+    )
+    reqs = _parse_requirements([p], verbose=False)
+    assert reqs.conda == {"yolo": "# [osx]", "foo": "# [linux]", "bar": "# [win]"}
