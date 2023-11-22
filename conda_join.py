@@ -507,6 +507,9 @@ def main() -> None:  # pragma: no cover
     env_spec = create_conda_env_specification(requirements)
     output_file = None if args.stdout else args.output
     write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
+    if output_file:
+        found_files_str = ", ".join(str(f) for f in found_files)
+        print(f"✅ Generated environment file at `{output_file}` from {found_files_str}")
 
 
 if __name__ == "__main__":
