@@ -220,7 +220,7 @@ def _filter_pip_and_conda(
     return RequirementsWithComments(r.channels, conda, pip)
 
 
-def _parse_requirements_and_fillter_duplicates(
+def _parse_requirements_and_filter_duplicates(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
@@ -260,7 +260,7 @@ def parse_requirements(
     platform: Platforms | None = None,
 ) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
-    combined_deps = _parse_requirements_and_fillter_duplicates(
+    combined_deps = _parse_requirements_and_filter_duplicates(
         paths,
         verbose=verbose,
         pip_or_conda=pip_or_conda,
