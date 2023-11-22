@@ -153,12 +153,45 @@ def _extract_first_comment(
     return "".join(comment_strings)
 
 
+def _extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
+    """Splits a string into package name and version pinning."""
+    # Regular expression to match package name and version pinning
+    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
+    if match:
+        package_name = match.group(1).strip()
+        version_pin = match.group(2).strip()
+
+        # Return None if version pinning is missing or empty
+        if not version_pin:
+            return package_name, None
+        return package_name, version_pin
+
+    msg = f"Invalid package string: '{package_str}'"
+    raise ValueError(msg)
+
+
+def _parse_dependency(
+    dependency: str,
+    dependencies: CommentedMap,
+    index_or_key: int | str,
+) -> Meta:
+    comment = _extract_first_comment(dependencies, index_or_key)
+    name, pin = _extract_name_and_pin(dependency)
+    return Meta(name, comment, pin)
+
+
+class Meta(NamedTuple):
+    name: str
+    comment: str | None = None
+    pin: str | None = None
+
+
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
     channels: set[str]
-    conda: dict[str, str | None]  # values are comments
-    pip: dict[str, str | None]  # values are comments
+    conda: dict[str, Meta]
+    pip: dict[str, Meta]
 
 
 class Requirements(NamedTuple):
@@ -176,8 +209,8 @@ def parse_yaml_requirements(
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of requirements.yaml files including comments."""
-    conda: dict[str, str | None] = {}
-    pip: dict[str, str | None] = {}
+    conda: dict[str, Meta] = {}
+    pip: dict[str, Meta] = {}
     channels: set[str] = set()
 
     yaml = YAML(typ="rt")
@@ -191,14 +224,15 @@ def parse_yaml_requirements(
             dependencies = reqs.get("dependencies", [])
             for i, dep in enumerate(dependencies):
                 if isinstance(dep, str):
-                    comment = _extract_first_comment(dependencies, i)
-                    conda[dep] = comment
-                    pip[dep] = comment
+                    meta = _parse_dependency(dep, reqs.get("dependencies", []), i)
+                    conda[dep], pip[dep] = meta, meta
                     continue
                 if "conda" in dep:
-                    conda[dep["conda"]] = _extract_first_comment(dep, "conda")
+                    meta = _parse_dependency(dep["conda"], dep, "conda")
+                    conda[dep["conda"]] = meta
                 if "pip" in dep:
-                    pip[dep["pip"]] = _extract_first_comment(dep, "pip")
+                    meta = _parse_dependency(dep["pip"], dep, "pip")
+                    pip[dep["pip"]] = meta
     return ParsedRequirements(channels, conda, pip)
 
 
@@ -219,8 +253,10 @@ def create_conda_env_specification(
     """Create a conda environment specification from `ParsedRequirements`."""
     conda: list[str | dict[str, str]] = []
     pip: list[str] = []
-    for dependency, comment in requirements.conda.items():
-        platforms = extract_matching_platforms(comment) if comment is not None else []
+    for dependency, meta in requirements.conda.items():
+        platforms = (
+            extract_matching_platforms(meta.comment) if meta.comment is not None else []
+        )
         if platforms:
             unique_platforms = {p.split("-", 1)[0] for p in platforms}
             dependencies = [
@@ -230,8 +266,10 @@ def create_conda_env_specification(
         else:
             conda.append(dependency)
 
-    for dependency, comment in requirements.pip.items():
-        platforms = extract_matching_platforms(comment) if comment is not None else []
+    for dependency, meta in requirements.pip.items():
+        platforms = (
+            extract_matching_platforms(meta.comment) if meta.comment is not None else []
+        )
         if platforms:
             for _platform in platforms:
                 selector = _build_pep508_environment_marker([_platform])
@@ -291,15 +329,15 @@ def write_conda_environment_file(
 
 
 def _remove_unsupported_platform_dependencies(
-    dependencies: dict[str, str | None],
+    dependencies: dict[str, Meta],
     platform: Platform,
-) -> dict[str, str | None]:
+) -> dict[str, Meta]:
     return {
-        dependency: comment
-        for dependency, comment in dependencies.items()
-        if comment is None
-        or not extract_matching_platforms(comment)
-        or platform in extract_matching_platforms(comment)
+        dependency: meta
+        for dependency, meta in dependencies.items()
+        if meta.comment is None
+        or not extract_matching_platforms(meta.comment)
+        or platform in extract_matching_platforms(meta.comment)
     }
 
 
@@ -344,15 +382,15 @@ def _convert_to_commented_requirements(
     pip = CommentedSeq()
     channels = list(parsed_requirements.channels)
 
-    for i, (dependency, comment) in enumerate(parsed_requirements.conda.items()):
+    for i, (dependency, meta) in enumerate(parsed_requirements.conda.items()):
         conda.append(dependency)
-        if comment is not None:
-            conda.yaml_add_eol_comment(comment, i)
+        if meta.comment is not None:
+            conda.yaml_add_eol_comment(meta.comment, i)
 
-    for i, (dependency, comment) in enumerate(parsed_requirements.pip.items()):
+    for i, (dependency, meta) in enumerate(parsed_requirements.pip.items()):
         pip.append(dependency)
-        if comment is not None:
-            pip.yaml_add_eol_comment(comment, i)
+        if meta.comment is not None:
+            pip.yaml_add_eol_comment(meta.comment, i)
 
     return Requirements(channels, conda, pip)
 

@@ -10,9 +10,11 @@ import yaml
 
 from conda_join import (
     CondaEnvironmentSpec,
+    Meta,
     ParsedRequirements,
     _build_pep508_environment_marker,
     _convert_to_commented_requirements,
+    _extract_name_and_pin,
     _identify_current_platform,
     _remove_unsupported_platform_dependencies,
     _segregate_pip_conda_dependencies,
@@ -209,7 +211,10 @@ def test_extract_comment(tmp_path: Path) -> None:
 
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
     reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
-    assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
+    assert reqs.conda == {
+        "numpy": Meta(name="numpy", comment="# [osx]"),
+        "mumps": Meta(name="mumps", comment="# [linux]"),
+    }
     commented_map = _convert_to_commented_requirements(reqs)
     assert commented_map.conda == ["numpy", "mumps"]
 
@@ -249,12 +254,15 @@ def test_surrounding_comments(tmp_path: Path) -> None:
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
     reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
     assert reqs.conda == {
-        "yolo": "# [osx]",
-        "foo": "# [linux]",
-        "bar": "# [win]",
-        "baz": "#",
+        "yolo": Meta(name="yolo", comment="# [osx]"),
+        "foo": Meta(name="foo", comment="# [linux]"),
+        "bar": Meta(name="bar", comment="# [win]"),
+        "baz": Meta(name="baz", comment="#"),
     }
-    assert reqs.pip == {"pip-package": None, "pip-package2": "# [osx]"}
+    assert reqs.pip == {
+        "pip-package": Meta(name="pip-package", comment=None),
+        "pip-package2": Meta(name="pip-package2", comment="# [osx]"),
+    }
     _convert_to_commented_requirements(reqs)
 
 
@@ -316,16 +324,22 @@ def test_filter_pip_and_conda() -> None:
     sample_requirements = ParsedRequirements(
         channels={"some-channel"},
         conda={
-            "package1": "# [linux]",
-            "package2": "# [osx]",
-            "common_package": "# [unix]",
-            "shared_package": "# [linux]",  # Appears in both conda and pip with different selectors
+            "package1": Meta("package1", "# [linux]"),
+            "package2": Meta("package2", "# [osx]"),
+            "common_package": Meta("common_package", "# [unix]"),
+            "shared_package": Meta(
+                "shared_package",
+                "# [linux]",
+            ),  # Appears in both conda and pip with different selectors
         },
         pip={
-            "package3": "# [win]",
-            "package4": None,
-            "common_package": "# [unix]",
-            "shared_package": "# [win]",  # Appears in both conda and pip with different selectors
+            "package3": Meta("package3", "# [win]"),
+            "package4": Meta("package4", None),
+            "common_package": Meta("common_package", "# [unix]"),
+            "shared_package": Meta(
+                "shared_package",
+                "# [win]",
+            ),  # Appears in both conda and pip with different selectors
         },
     )
 
@@ -333,23 +347,29 @@ def test_filter_pip_and_conda() -> None:
         sample_requirements.conda,
         "linux-64",
     ) == {
-        "package1": "# [linux]",
-        "common_package": "# [unix]",
-        "shared_package": "# [linux]",
+        "package1": Meta("package1", "# [linux]"),
+        "common_package": Meta("common_package", "# [unix]"),
+        "shared_package": Meta("shared_package", "# [linux]"),
     }
     assert _remove_unsupported_platform_dependencies(
         sample_requirements.pip,
         "linux-64",
     ) == {
-        "common_package": "# [unix]",
-        "package4": None,
+        "common_package": Meta("common_package", "# [unix]"),
+        "package4": Meta("package4", None),
     }
 
     # Test filtering for pip on linux-64 platform
     expected_pip_linux = ParsedRequirements(
         channels={"some-channel"},
-        conda={"package1": "# [linux]", "shared_package": "# [linux]"},
-        pip={"common_package": "# [unix]", "package4": None},
+        conda={
+            "package1": Meta("package1", "# [linux]"),
+            "shared_package": Meta("shared_package", "# [linux]"),
+        },
+        pip={
+            "common_package": Meta("common_package", "# [unix]"),
+            "package4": Meta("package4", None),
+        },
     )
 
     assert (
@@ -361,11 +381,11 @@ def test_filter_pip_and_conda() -> None:
     expected_conda_linux = ParsedRequirements(
         channels={"some-channel"},
         conda={
-            "package1": "# [linux]",
-            "common_package": "# [unix]",
-            "shared_package": "# [linux]",
+            "package1": Meta("package1", "# [linux]"),
+            "common_package": Meta("common_package", "# [unix]"),
+            "shared_package": Meta("shared_package", "# [linux]"),
         },
-        pip={"package4": None},
+        pip={"package4": Meta("package4", None)},
     )
     assert (
         _segregate_pip_conda_dependencies(sample_requirements, "conda", "linux-64")
@@ -463,3 +483,53 @@ def test_detect_platform() -> None:
         return_value="x86_64",
     ), pytest.raises(ValueError, match="Unsupported operating system"):
         _identify_current_platform()
+
+
+def test_extract_name_and_pin() -> None:
+    # Test with version pin
+    assert _extract_name_and_pin("numpy >=1.20.0") == ("numpy", ">=1.20.0")
+    assert _extract_name_and_pin("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3")
+
+    # Test with multiple version conditions
+    assert _extract_name_and_pin("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3")
+
+    # Test with no version pin
+    assert _extract_name_and_pin("matplotlib") == ("matplotlib", None)
+
+    # Test with whitespace variations
+    assert _extract_name_and_pin("requests >= 2.25") == ("requests", ">= 2.25")
+
+    # Test with invalid input
+    with pytest.raises(ValueError, match="Invalid package string"):
+        _extract_name_and_pin(">=1.20.0 numpy")
+
+
+def test_duplicates_with_version(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo # [linux64]
+                - bar
+                - baz
+                - pip: pip-package
+                - pip: pip-package2
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    env_spec = create_conda_env_specification(requirements)
+    assert env_spec.conda == [
+        {"sel(linux)": "foo >1"},
+        {"sel(linux)": "foo"},
+        "bar",
+        "baz",
+    ]
+    assert env_spec.pip == [
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "pip-package",
+        "pip-package2",
+    ]
