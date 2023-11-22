@@ -135,6 +135,7 @@ def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None
         c.value.split("\n")[0].rstrip().lstrip() for c in comments if c is not None
     )
     if not comment_strings:
+        # empty string
         return None
     return "".join(comment_strings)
 
@@ -304,10 +305,14 @@ def extract_python_requires(
     *,
     verbose: bool = False,
     platform: Platforms | None = None,
+    raises: bool = True,
 ) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
+        if raises:
+            msg = f"File {filename} not found."
+            raise FileNotFoundError(msg)
         return []
     deps = parse_requirements(
         [p],
@@ -362,7 +367,11 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
     dist.install_requires = list(
-        extract_python_requires(str(requirements_file), platform=detect_platform()),
+        extract_python_requires(
+            str(requirements_file),
+            platform=detect_platform(),
+            raises=False,
+        ),
     )
 
 

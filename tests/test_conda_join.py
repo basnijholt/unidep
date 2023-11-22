@@ -54,6 +54,34 @@ def test_scan_requirements(tmp_path: Path, setup_test_files: tuple[Path, Path]) 
     assert absolute_results == absolute_test_files
 
 
+def test_scan_requirements_depth(tmp_path: Path) -> None:
+    # Create a nested directory structure
+    (tmp_path / "dir1").mkdir()
+    (tmp_path / "dir1/dir2").mkdir()
+    (tmp_path / "dir1/dir2/dir3").mkdir()
+
+    # Create test files
+    (tmp_path / "requirements.yaml").touch()
+    (tmp_path / "dir1/requirements.yaml").touch()
+    (tmp_path / "dir1/dir2/requirements.yaml").touch()
+    (tmp_path / "dir1/dir2/dir3/requirements.yaml").touch()
+
+    # Test depth=0
+    assert len(scan_requirements(tmp_path, depth=0)) == 1
+
+    # Test depth=1
+    assert len(scan_requirements(tmp_path, depth=1)) == 2  # noqa: PLR2004
+
+    # Test depth=2
+    assert len(scan_requirements(tmp_path, depth=2)) == 3  # noqa: PLR2004
+
+    # Test depth=3
+    assert len(scan_requirements(tmp_path, depth=3)) == 4  # noqa: PLR2004
+
+    # Test depth=4 (or more)
+    assert len(scan_requirements(tmp_path, depth=4)) == 4  # noqa: PLR2004
+
+
 @pytest.mark.parametrize("verbose", [True, False])
 def test_parse_requirements(
     verbose: bool,  # noqa: FBT001
@@ -127,6 +155,11 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     assert requires1 == ["numpy"]
     requires2 = extract_python_requires(str(f2))
     assert requires2 == ["pandas"]
+
+    # Test with a file that doesn't exist
+    with pytest.raises(FileNotFoundError):
+        extract_python_requires("nonexistent_file.yaml", raises=True)
+    assert extract_python_requires("nonexistent_file.yaml", raises=False) == []
 
 
 def test_extract_comment(tmp_path: Path) -> None:
