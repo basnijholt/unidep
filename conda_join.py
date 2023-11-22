@@ -271,6 +271,18 @@ def write_conda_environment_file(
             yaml.dump(env_data, f)
         if verbose:
             print("Environment file generated successfully.")
+
+        with open(output_file, "r+") as f:  # noqa: PTH123
+            content = f.read()
+            f.seek(0, 0)
+            command_line_args = " ".join(sys.argv[1:])
+            txt = [
+                f"# This file is created and managed by `conda-join` {__version__}.",
+                "# For details see https://github.com/basnijholt/conda-join",
+                f"# File generated with: `conda-join {command_line_args}`",
+            ]
+            content = "\n".join(txt) + "\n\n" + content
+            f.write(content)
     else:
         yaml.dump(env_data, sys.stdout)
 
@@ -363,7 +375,7 @@ def parse_requirements_deduplicate(
 
 
 def get_python_dependencies(
-    filename: str = "requirements.yaml",
+    filename: str | Path = "requirements.yaml",
     *,
     verbose: bool = False,
     platform: Platform | None = None,
@@ -430,7 +442,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         raise RuntimeError(msg)
     dist.install_requires = list(
         get_python_dependencies(
-            str(requirements_file),
+            requirements_file,
             platform=_identify_current_platform(),
             raises_if_missing=False,
         ),
@@ -495,18 +507,6 @@ def main() -> None:  # pragma: no cover
     env_spec = create_conda_env_specification(requirements)
     output_file = None if args.stdout else args.output
     write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
-    if output_file:
-        with open(output_file, "r+") as f:  # noqa: PTH123
-            content = f.read()
-            f.seek(0, 0)
-            command_line_args = " ".join(sys.argv[1:])
-            txt = [
-                f"# This file is created and managed by `conda-join` {__version__}.",
-                "# For details see https://github.com/basnijholt/conda-join",
-                f"# File generated with: `conda-join {command_line_args}`",
-            ]
-            content = "\n".join(txt) + "\n\n" + content
-            f.write(content)
 
 
 if __name__ == "__main__":
