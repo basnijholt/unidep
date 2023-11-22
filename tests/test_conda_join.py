@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import textwrap
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -14,10 +15,12 @@ from conda_join import (
     _filter_unsupported_platforms,
     _parse_requirements,
     _to_requirements,
+    detect_platform,
     extract_python_requires,
     filter_platform_selectors,
     generate_conda_env_file,
     parse_requirements,
+    pep508_selector,
     scan_requirements,
 )
 
@@ -275,3 +278,73 @@ def test_filter_pip_and_conda() -> None:
     # Test with invalid pip_or_conda value
     with pytest.raises(ValueError, match="Invalid value for `pip_or_conda`"):
         _filter_pip_and_conda(sample_requirements, "invalid_value", "linux-64")  # type: ignore[arg-type]
+
+
+def test_pep508_selector() -> None:
+    # Test with a single platform
+    assert (
+        pep508_selector(["linux-64"])
+        == "sys_platform == 'linux' and platform_machine == 'x86_64'"
+    )
+
+    # Test with multiple platforms
+    assert (
+        pep508_selector(["linux-64", "osx-64"])
+        == "sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'x86_64'"
+    )
+
+    # Test with an empty list
+    assert not pep508_selector([])
+
+    # Test with a platform not in PEP508_MARKERS
+    assert not pep508_selector(["unknown-platform"])  # type: ignore[list-item]
+
+    # Test with a mix of valid and invalid platforms
+    assert (
+        pep508_selector(["linux-64", "unknown-platform"])  # type: ignore[list-item]
+        == "sys_platform == 'linux' and platform_machine == 'x86_64'"
+    )
+
+
+def test_detect_platform() -> None:
+    with patch("platform.system", return_value="Linux"), patch(
+        "platform.machine",
+        return_value="x86_64",
+    ):
+        assert detect_platform() == "linux-64"
+
+    with patch("platform.system", return_value="Linux"), patch(
+        "platform.machine",
+        return_value="aarch64",
+    ):
+        assert detect_platform() == "linux-aarch64"
+
+    with patch("platform.system", return_value="Darwin"), patch(
+        "platform.machine",
+        return_value="x86_64",
+    ):
+        assert detect_platform() == "osx-64"
+
+    with patch("platform.system", return_value="Darwin"), patch(
+        "platform.machine",
+        return_value="arm64",
+    ):
+        assert detect_platform() == "osx-arm64"
+
+    with patch("platform.system", return_value="Windows"), patch(
+        "platform.machine",
+        return_value="AMD64",
+    ):
+        assert detect_platform() == "win-64"
+
+    with patch("platform.system", return_value="Linux"), patch(
+        "platform.machine",
+        return_value="unknown",
+    ), pytest.raises(ValueError, match="Unsupported Linux architecture"):
+        detect_platform()
+
+    with patch("platform.system", return_value="Unknown"), patch(
+        "platform.machine",
+        return_value="x86_64",
+    ), pytest.raises(ValueError, match="Unsupported operating system"):
+        detect_platform()
