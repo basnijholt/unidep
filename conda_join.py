@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import platform
 import re
 import sys
 from copy import deepcopy
@@ -102,8 +103,8 @@ def filter_platform_selectors(content: str) -> list[str]:
         if m:
             conds = m.group(1).split()
             for cond in conds:
-                for platform in reverse_platform_sel.get(cond, []):
-                    matched_platforms.add(platform)
+                for _platform in reverse_platform_sel.get(cond, []):
+                    matched_platforms.add(_platform)
 
     return list(matched_platforms)
 
@@ -282,13 +283,49 @@ def extract_python_requires(
     filename: str = "requirements.yaml",
     *,
     verbose: bool = False,
+    platform: Platforms | None = None,
 ) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
         return []
-    deps = parse_requirements([p], pip_or_conda="pip", verbose=verbose)
+    deps = parse_requirements(
+        [p],
+        pip_or_conda="pip",
+        verbose=verbose,
+        platform=platform,
+    )
     return list(deps.pip)
+
+
+def detect_platform() -> Platforms:
+    """Detect the current platform."""
+    system = platform.system().lower()
+    architecture = platform.machine().lower()
+
+    if system == "linux":
+        if architecture == "x86_64":
+            return "linux-64"
+        if architecture == "aarch64":
+            return "linux-aarch64"
+        if architecture == "ppc64le":
+            return "linux-ppc64le"
+        msg = "Unsupported Linux architecture"
+        raise ValueError(msg)
+    if system == "darwin":
+        if architecture == "x86_64":
+            return "osx-64"
+        if architecture == "arm64":
+            return "osx-arm64"
+        msg = "Unsupported macOS architecture"
+        raise ValueError(msg)
+    if system == "windows":
+        if "64" in architecture:
+            return "win-64"
+        msg = "Unsupported Windows architecture"
+        raise ValueError(msg)
+    msg = "Unsupported operating system"
+    raise ValueError(msg)
 
 
 def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
@@ -305,7 +342,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
     dist.install_requires = list(
-        extract_python_requires(str(requirements_file)),
+        extract_python_requires(str(requirements_file), platform=detect_platform()),
     )
 
 
