@@ -7,9 +7,10 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, NamedTuple, Sequence
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 if TYPE_CHECKING:
     from setuptools import Distribution
@@ -51,49 +52,94 @@ def scan_requirements(
     return requirements_files
 
 
-def parse_requirements(
+def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None:
+    comments = commented_map.ca.items.get(index_or_key, None)
+    if comments is None:
+        return None
+    comment_strings = [c.value.rstrip().lstrip() for c in comments if c is not None]
+    return " ".join(comment_strings)
+
+
+class RequirementsWithComments(NamedTuple):
+    """Requirements with comments."""
+
+    conda: dict[str, str | None]
+    pip: dict[str, str | None]
+    channels: set[str]
+
+
+def _parse_requirements(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
-) -> dict[str, set[str]]:
-    """Parse a list of requirements.yaml files."""
-    combined_deps: dict[str, set[str]] = {
-        "conda": set(),
-        "pip": set(),
-        "channels": set(),
-    }
-    yaml = YAML(typ="safe")
+) -> RequirementsWithComments:
+    """Parse a list of requirements.yaml files including comments."""
+    conda: dict[str, str | None] = {}
+    pip: dict[str, str | None] = {}
+    channels: set[str] = set()
+
+    yaml = YAML(typ="rt")
     for p in paths:
         if verbose:
             print(f"Parsing {p}")
         with p.open() as f:
             reqs = yaml.load(f)
             for channel in reqs.get("channels", []):
-                combined_deps["channels"].add(channel)
-            for dep in reqs.get("dependencies", []):
+                channels.add(channel)
+            dependencies = reqs.get("dependencies", [])
+            for i, dep in enumerate(dependencies):
                 if pip_or_conda == "conda":
                     if isinstance(dep, str):  # Prefer conda
-                        combined_deps["conda"].add(dep)
+                        conda[dep] = _comment(dependencies, i)
                     elif "conda" in dep:
-                        combined_deps["conda"].add(dep["conda"])
+                        conda[dep["conda"]] = _comment(dep, "conda")
                     elif "pip" in dep:
-                        combined_deps["pip"].add(dep["pip"])
+                        pip[dep["pip"]] = _comment(dep, "pip")
                 elif pip_or_conda == "pip":
                     if isinstance(dep, str):  # Prefer pip
-                        combined_deps["pip"].add(dep)
+                        pip[dep] = _comment(dependencies, i)
                     elif "pip" in dep:
-                        combined_deps["pip"].add(dep["pip"])
+                        pip[dep["pip"]] = _comment(dep, "pip")
                     elif "conda" in dep:
-                        combined_deps["conda"].add(dep["conda"])
+                        conda[dep["conda"]] = _comment(dep, "conda")
                 else:  # pragma: no cover
                     msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
                     raise ValueError(msg)
-    return combined_deps
+    return RequirementsWithComments(conda, pip, channels)
+
+
+def _to_commented_map(
+    combined_deps: RequirementsWithComments,
+) -> dict[str, list[str]]:
+    commented_map = CommentedMap()
+    commented_map["channels"] = combined_deps.channels
+    for which in ["pip", "conda"]:
+        dct = getattr(combined_deps, which)
+        for i, (dependency, comment) in enumerate(dct.items()):
+            commented_map.setdefault(which, CommentedSeq()).append(dependency)
+            if comment is not None:
+                commented_map[which].yaml_add_eol_comment(comment, i)
+    return commented_map
+
+
+def parse_requirements(
+    paths: Sequence[Path],
+    *,
+    verbose: bool = False,
+    pip_or_conda: Literal["pip", "conda"] = "conda",
+) -> dict[str, list[str]]:
+    """Parse a list of requirements.yaml files including comments."""
+    combined_deps = _parse_requirements(
+        paths,
+        verbose=verbose,
+        pip_or_conda=pip_or_conda,
+    )
+    return _to_commented_map(combined_deps)
 
 
 def generate_conda_env_file(
-    dependencies: dict[str, set[str]],
+    dependencies: dict[str, list[str]],
     output_file: str | None = "environment.yaml",
     name: str = "myenv",
     *,
@@ -126,13 +172,13 @@ def extract_python_requires(
     filename: str = "requirements.yaml",
     *,
     verbose: bool = False,
-) -> set[str]:
+) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
-        return set()
+        return []
     deps = parse_requirements([p], pip_or_conda="pip", verbose=verbose)
-    return deps["pip"]
+    return list(deps["pip"])
 
 
 def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover

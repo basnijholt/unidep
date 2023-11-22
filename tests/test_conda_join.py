@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from conda_join import (
+    _parse_requirements,
     extract_python_requires,
     generate_conda_env_file,
     parse_requirements,
@@ -102,7 +103,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     generate_conda_env_file(
-        {"conda": set(), "pip": set(), "channels": set()},
+        {"conda": [], "pip": [], "channels": []},
         verbose=True,
     )
     captured = capsys.readouterr()
@@ -113,6 +114,22 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
 def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     f1, f2 = setup_test_files
     requires1 = extract_python_requires(str(f1))
-    assert requires1 == {"numpy"}
+    assert requires1 == ["numpy"]
     requires2 = extract_python_requires(str(f2))
-    assert requires2 == {"pandas"}
+    assert requires2 == ["pandas"]
+
+
+def test_extract_comment(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text("dependencies:\n  - numpy # [osx]\n  - conda: mumps  # [linux]")
+    reqs = _parse_requirements([p], verbose=False)
+    assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
+
+
+def test_channels(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text("channels:\n  - conda-forge\n  - defaults")
+    reqs = _parse_requirements([p], verbose=False)
+    assert reqs.conda == {}
+    assert reqs.pip == {}
+    assert reqs.channels == {"conda-forge", "defaults"}
