@@ -499,6 +499,11 @@ def test_extract_name_and_pin() -> None:
     # Test with whitespace variations
     assert _extract_name_and_pin("requests >= 2.25") == ("requests", ">= 2.25")
 
+    # Test when installing from a URL
+    url = "https://github.com/python-adaptive/adaptive.git@main"
+    pin = f"@ git+{url}"
+    assert _extract_name_and_pin(f"adaptive {pin}") == ("adaptive", pin)
+
     # Test with invalid input
     with pytest.raises(ValueError, match="Invalid package string"):
         _extract_name_and_pin(">=1.20.0 numpy")
