@@ -9,6 +9,8 @@ import yaml
 
 from conda_join import (
     Requirements,
+    RequirementsWithComments,
+    _filter_pip_and_conda,
     _parse_requirements,
     _to_requirements,
     extract_python_requires,
@@ -212,3 +214,43 @@ def test_filter_platform_selectors() -> None:
     content_multi = "dependency7  # [linux64] [win]"
     with pytest.raises(ValueError, match="Multiple bracketed selectors"):
         filter_platform_selectors(content_multi)
+
+
+def test_filter_pip_and_conda() -> None:
+    # Setup a sample RequirementsWithComments instance with platform selectors
+    sample_requirements = RequirementsWithComments(
+        channels={"some-channel"},
+        conda={
+            "package1": "# [linux]",
+            "package2": "# [osx]",
+            "common_package": "# [unix]",
+        },
+        pip={"package3": "# [win]", "common_package": "# [unix]"},
+    )
+
+    # Test filtering for pip
+    expected_pip = RequirementsWithComments(
+        channels={"some-channel"},
+        conda={"package1": "# [linux]", "package2": "# [osx]"},
+        pip={"package3": "# [win]", "common_package": "# [unix]"},
+    )
+    assert _filter_pip_and_conda(sample_requirements, "pip") == expected_pip
+
+    # Test filtering for conda
+    expected_conda = RequirementsWithComments(
+        channels={"some-channel"},
+        conda={
+            "package1": "# [linux]",
+            "package2": "# [osx]",
+            "common_package": "# [unix]",
+        },
+        pip={"package3": "# [win]"},
+    )
+    assert _filter_pip_and_conda(sample_requirements, "conda") == expected_conda
+
+    # Test with invalid pip_or_conda value
+    with pytest.raises(ValueError, match="Invalid value for `pip_or_conda`"):
+        _filter_pip_and_conda(sample_requirements, "invalid_value")  # type: ignore[arg-type]
+
+
+# Add more tests as needed for other scenarios or edge cases

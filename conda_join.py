@@ -158,18 +158,46 @@ def _initial_parse_requirements(
     return RequirementsWithComments(channels, conda, pip)
 
 
+def _filter_unsupported_platforms(
+    requirements: dict[str, str | None],
+    platform: Literal[
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+        "win-64",
+    ],
+) -> dict[str, str | None]:
+    return {
+        dependency: comment
+        for dependency, comment in requirements.items()
+        if comment is None
+        or not filter_platform_selectors(comment)
+        or platform in filter_platform_selectors(comment)
+    }
+
+
 def _filter_pip_and_conda(
     requirements_with_comments: RequirementsWithComments,
     pip_or_conda: Literal["pip", "conda"],
+    platform: Literal[
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+        "win-64",
+    ]
+    | None = None,
 ) -> RequirementsWithComments:
-    # Do not yet take into account platform selectors
     r = requirements_with_comments
+    pip = _filter_unsupported_platforms(r.pip, platform) if platform else r.pip
+    conda = _filter_unsupported_platforms(r.conda, platform) if platform else r.conda
     if pip_or_conda == "pip":
-        conda = {k: v for k, v in r.conda.items() if k not in r.pip}
-        pip = r.pip
+        conda = {k: v for k, v in r.conda.items() if k not in pip}
     elif pip_or_conda == "conda":
-        conda = r.conda
-        pip = {k: v for k, v in r.pip.items() if k not in r.conda}
+        pip = {k: v for k, v in pip.items() if k not in conda}
     else:  # pragma: no cover
         msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
         raise ValueError(msg)
@@ -184,11 +212,7 @@ def _parse_requirements(
 ) -> RequirementsWithComments:
     """Parse a list of requirements.yaml files including comments."""
     requirements_with_comments = _initial_parse_requirements(paths, verbose=verbose)
-    requirements_with_comments = _filter_pip_and_conda(
-        requirements_with_comments,
-        pip_or_conda,
-    )
-    return requirements_with_comments
+    return _filter_pip_and_conda(requirements_with_comments, pip_or_conda)
 
 
 def _to_requirements(
