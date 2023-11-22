@@ -119,6 +119,14 @@ def filter_platform_selectors(content: str) -> list[str]:
     return list(matched_platforms)
 
 
+def pep508_selector(platforms: list[Platforms]) -> str:
+    """Generate a PEP 508 selector for a list of platforms."""
+    selectors = [
+        PEP508_MARKERS[platform] for platform in platforms if platform in PEP508_MARKERS
+    ]
+    return " or ".join(selectors)
+
+
 def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None:
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
