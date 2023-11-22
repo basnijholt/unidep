@@ -192,10 +192,10 @@ def _filter_pip_and_conda(
     | None = None,
 ) -> RequirementsWithComments:
     r = requirements_with_comments
-    pip = _filter_unsupported_platforms(r.pip, platform) if platform else r.pip
     conda = _filter_unsupported_platforms(r.conda, platform) if platform else r.conda
+    pip = _filter_unsupported_platforms(r.pip, platform) if platform else r.pip
     if pip_or_conda == "pip":
-        conda = {k: v for k, v in r.conda.items() if k not in pip}
+        conda = {k: v for k, v in conda.items() if k not in pip}
     elif pip_or_conda == "conda":
         pip = {k: v for k, v in pip.items() if k not in conda}
     else:  # pragma: no cover

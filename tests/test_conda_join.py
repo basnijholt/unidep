@@ -11,6 +11,7 @@ from conda_join import (
     Requirements,
     RequirementsWithComments,
     _filter_pip_and_conda,
+    _filter_unsupported_platforms,
     _parse_requirements,
     _to_requirements,
     extract_python_requires,
@@ -224,33 +225,53 @@ def test_filter_pip_and_conda() -> None:
             "package1": "# [linux]",
             "package2": "# [osx]",
             "common_package": "# [unix]",
+            "shared_package": "# [linux]",  # Appears in both conda and pip with different selectors
         },
-        pip={"package3": "# [win]", "common_package": "# [unix]"},
+        pip={
+            "package3": "# [win]",
+            "package4": None,
+            "common_package": "# [unix]",
+            "shared_package": "# [win]",  # Appears in both conda and pip with different selectors
+        },
     )
 
-    # Test filtering for pip
-    expected_pip = RequirementsWithComments(
+    assert _filter_unsupported_platforms(sample_requirements.conda, "linux-64") == {
+        "package1": "# [linux]",
+        "common_package": "# [unix]",
+        "shared_package": "# [linux]",
+    }
+    assert _filter_unsupported_platforms(sample_requirements.pip, "linux-64") == {
+        "common_package": "# [unix]",
+        "package4": None,
+    }
+
+    # Test filtering for pip on linux-64 platform
+    expected_pip_linux = RequirementsWithComments(
         channels={"some-channel"},
-        conda={"package1": "# [linux]", "package2": "# [osx]"},
-        pip={"package3": "# [win]", "common_package": "# [unix]"},
+        conda={"package1": "# [linux]", "shared_package": "# [linux]"},
+        pip={"common_package": "# [unix]", "package4": None},
     )
-    assert _filter_pip_and_conda(sample_requirements, "pip") == expected_pip
 
-    # Test filtering for conda
-    expected_conda = RequirementsWithComments(
+    assert (
+        _filter_pip_and_conda(sample_requirements, "pip", "linux-64")
+        == expected_pip_linux
+    )
+
+    # Test filtering for conda on linux-64 platform
+    expected_conda_linux = RequirementsWithComments(
         channels={"some-channel"},
         conda={
             "package1": "# [linux]",
-            "package2": "# [osx]",
             "common_package": "# [unix]",
+            "shared_package": "# [linux]",
         },
-        pip={"package3": "# [win]"},
+        pip={"package4": None},
     )
-    assert _filter_pip_and_conda(sample_requirements, "conda") == expected_conda
+    assert (
+        _filter_pip_and_conda(sample_requirements, "conda", "linux-64")
+        == expected_conda_linux
+    )
 
     # Test with invalid pip_or_conda value
     with pytest.raises(ValueError, match="Invalid value for `pip_or_conda`"):
-        _filter_pip_and_conda(sample_requirements, "invalid_value")  # type: ignore[arg-type]
-
-
-# Add more tests as needed for other scenarios or edge cases
+        _filter_pip_and_conda(sample_requirements, "invalid_value", "linux-64")  # type: ignore[arg-type]
