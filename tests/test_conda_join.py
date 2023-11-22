@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 import yaml
-from ruamel.yaml.comments import CommentedMap
 
 from conda_join import (
+    Requirements,
     _parse_requirements,
     _to_commented_map,
     extract_python_requires,
@@ -52,11 +52,11 @@ def test_parse_requirements(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     combined_deps = parse_requirements(setup_test_files, verbose=verbose)
-    assert "numpy" in combined_deps["conda"]
-    assert "mumps" in combined_deps["conda"]
-    assert len(combined_deps["conda"]) == 2  # noqa: PLR2004
-    assert len(combined_deps["pip"]) == 1
-    assert "pandas" in combined_deps["pip"]
+    assert "numpy" in combined_deps.conda
+    assert "mumps" in combined_deps.conda
+    assert len(combined_deps.conda) == 2  # noqa: PLR2004
+    assert len(combined_deps.pip) == 1
+    assert "pandas" in combined_deps.pip
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -105,7 +105,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     generate_conda_env_file(
-        {"conda": [], "pip": [], "channels": []},
+        Requirements(channels=[], conda=[], pip=[]),
         verbose=True,
     )
     captured = capsys.readouterr()
@@ -127,8 +127,7 @@ def test_extract_comment(tmp_path: Path) -> None:
     reqs = _parse_requirements([p], verbose=False)
     assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
     commented_map = _to_commented_map(reqs)
-    assert commented_map["conda"] == ["numpy", "mumps"]
-    assert isinstance(commented_map, CommentedMap)
+    assert commented_map.conda == ["numpy", "mumps"]
 
 
 def test_channels(tmp_path: Path) -> None:

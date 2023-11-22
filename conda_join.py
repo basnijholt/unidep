@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Sequence
 
@@ -63,9 +64,17 @@ def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None
 class RequirementsWithComments(NamedTuple):
     """Requirements with comments."""
 
+    channels: set[str]
     conda: dict[str, str | None]
     pip: dict[str, str | None]
-    channels: set[str]
+
+
+class Requirements(NamedTuple):
+    """Requirements as CommentedMap and CommentedSeq."""
+
+    channels: list[str]  # actually a CommentedSeq
+    conda: list[str]  # actually a CommentedSeq
+    pip: list[str]  # actually a CommentedSeq
 
 
 def _parse_requirements(
@@ -106,21 +115,27 @@ def _parse_requirements(
                 else:  # pragma: no cover
                     msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
                     raise ValueError(msg)
-    return RequirementsWithComments(conda, pip, channels)
+    return RequirementsWithComments(channels, conda, pip)
 
 
 def _to_commented_map(
     combined_deps: RequirementsWithComments,
-) -> dict[str, list[str]]:
-    commented_map = CommentedMap()
-    commented_map["channels"] = combined_deps.channels
-    for which in ["pip", "conda"]:
-        dct = getattr(combined_deps, which)
-        for i, (dependency, comment) in enumerate(dct.items()):
-            commented_map.setdefault(which, CommentedSeq()).append(dependency)
-            if comment is not None:
-                commented_map[which].yaml_add_eol_comment(comment, i)
-    return commented_map
+) -> Requirements:
+    conda = CommentedSeq()
+    pip = CommentedSeq()
+    channels = list(combined_deps.channels)
+
+    for i, (dependency, comment) in enumerate(combined_deps.conda.items()):
+        conda.append(dependency)
+        if comment is not None:
+            conda.yaml_add_eol_comment(comment, i)
+
+    for i, (dependency, comment) in enumerate(combined_deps.pip.items()):
+        pip.append(dependency)
+        if comment is not None:
+            pip.yaml_add_eol_comment(comment, i)
+
+    return Requirements(channels, conda, pip)
 
 
 def parse_requirements(
@@ -128,7 +143,7 @@ def parse_requirements(
     *,
     verbose: bool = False,
     pip_or_conda: Literal["pip", "conda"] = "conda",
-) -> dict[str, list[str]]:
+) -> Requirements:
     """Parse a list of requirements.yaml files including comments."""
     combined_deps = _parse_requirements(
         paths,
@@ -139,21 +154,22 @@ def parse_requirements(
 
 
 def generate_conda_env_file(
-    dependencies: dict[str, list[str]],
+    dependencies: Requirements,  # actually a CommentedMap with CommentedSeq
     output_file: str | None = "environment.yaml",
     name: str = "myenv",
     *,
     verbose: bool = False,
 ) -> None:
     """Generate a conda environment.yaml file or print to stdout."""
-    env_data = {
-        "name": name,
-        "channels": ["conda-forge"],
-        "dependencies": [
-            *list(dependencies["conda"]),
-            {"pip": list(dependencies["pip"])},
-        ],
-    }
+    _dependencies = deepcopy(dependencies.conda)
+    _dependencies.append({"pip": dependencies.pip})  # type: ignore[arg-type]
+    env_data = CommentedMap(
+        {
+            "name": name,
+            "channels": dependencies.channels,
+            "dependencies": _dependencies,
+        },
+    )
     yaml = YAML()
     yaml.default_flow_style = False
     yaml.indent(mapping=2, sequence=4, offset=2)
@@ -178,7 +194,7 @@ def extract_python_requires(
     if not p.exists():
         return []
     deps = parse_requirements([p], pip_or_conda="pip", verbose=verbose)
-    return list(deps["pip"])
+    return list(deps.pip)
 
 
 def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
