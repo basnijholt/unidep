@@ -116,6 +116,8 @@ def _comment(commented_map: CommentedMap, index_or_key: int | str) -> str | None
     comment_strings = next(
         c.value.split("\n")[0].rstrip().lstrip() for c in comments if c is not None
     )
+    if not comment_strings:
+        return None
     return "".join(comment_strings)
 
 
