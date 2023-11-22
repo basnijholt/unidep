@@ -38,7 +38,7 @@ addopts = """
     --cov=conda_join
     --cov-report term
     --cov-report html
-    --cov-fail-under=70
+    --cov-fail-under=95
 """
 
 [tool.coverage.report]
