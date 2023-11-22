@@ -9,7 +9,7 @@ import yaml
 from conda_join import (
     Requirements,
     _parse_requirements,
-    _to_commented_map,
+    _to_requirements,
     extract_python_requires,
     generate_conda_env_file,
     parse_requirements,
@@ -126,7 +126,7 @@ def test_extract_comment(tmp_path: Path) -> None:
     p.write_text("dependencies:\n  - numpy # [osx]\n  - conda: mumps  # [linux]")
     reqs = _parse_requirements([p], verbose=False)
     assert reqs.conda == {"numpy": "# [osx]", "mumps": "# [linux]"}
-    commented_map = _to_commented_map(reqs)
+    commented_map = _to_requirements(reqs)
     assert commented_map.conda == ["numpy", "mumps"]
 
 

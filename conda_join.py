@@ -119,7 +119,7 @@ def _parse_requirements(
     return RequirementsWithComments(channels, conda, pip)
 
 
-def _to_commented_map(
+def _to_requirements(
     combined_deps: RequirementsWithComments,
 ) -> Requirements:
     conda = CommentedSeq()
@@ -151,7 +151,7 @@ def parse_requirements(
         verbose=verbose,
         pip_or_conda=pip_or_conda,
     )
-    return _to_commented_map(combined_deps)
+    return _to_requirements(combined_deps)
 
 
 def generate_conda_env_file(
