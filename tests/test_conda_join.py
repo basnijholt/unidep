@@ -9,17 +9,19 @@ import pytest
 import yaml
 
 from conda_join import (
-    Requirements,
+    EnvSpec,
     RequirementsWithComments,
     _filter_pip_and_conda,
     _filter_unsupported_platforms,
+    _initial_parse_requirements,
     _parse_requirements_and_filter_duplicates,
+    _prepare_for_conda_environment,
     _to_requirements,
     detect_platform,
     extract_python_requires,
     filter_platform_selectors,
     generate_conda_env_file,
-    parse_requirements,
+    parse_requirements_and_filter_duplicates,
     pep508_selector,
     scan_requirements,
 )
@@ -87,7 +89,10 @@ def test_parse_requirements(
     verbose: bool,  # noqa: FBT001
     setup_test_files: tuple[Path, Path],
 ) -> None:
-    combined_deps = parse_requirements(setup_test_files, verbose=verbose)
+    combined_deps = parse_requirements_and_filter_duplicates(
+        setup_test_files,
+        verbose=verbose,
+    )
     assert "numpy" in combined_deps.conda
     assert "mumps" in combined_deps.conda
     assert len(combined_deps.conda) == 2  # noqa: PLR2004
@@ -102,8 +107,10 @@ def test_generate_conda_env_file(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     output_file = tmp_path / "environment.yaml"
-    combined_deps = parse_requirements(setup_test_files, verbose=verbose)
-    generate_conda_env_file(combined_deps, str(output_file), verbose=verbose)
+    combined_deps = _initial_parse_requirements(setup_test_files, verbose=verbose)
+    env_spec = _prepare_for_conda_environment(combined_deps)
+
+    generate_conda_env_file(env_spec, str(output_file), verbose=verbose)
 
     with output_file.open() as f:
         env_data = yaml.safe_load(f)
@@ -116,8 +123,9 @@ def test_generate_conda_env_stdout(
     setup_test_files: tuple[Path, Path],
     capsys: pytest.CaptureFixture,
 ) -> None:
-    combined_deps = parse_requirements(setup_test_files, verbose=False)
-    generate_conda_env_file(combined_deps, None)
+    combined_deps = _initial_parse_requirements(setup_test_files)
+    env_spec = _prepare_for_conda_environment(combined_deps)
+    generate_conda_env_file(env_spec, None)
 
     captured = capsys.readouterr()
     assert "dependencies" in captured.out
@@ -135,13 +143,13 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Scanning in" in captured.out
     assert str(tmp_path / "dir3") in captured.out
 
-    parse_requirements([f], verbose=True)
+    parse_requirements_and_filter_duplicates([f], verbose=True)
     captured = capsys.readouterr()
     assert "Parsing" in captured.out
     assert str(f) in captured.out
 
     generate_conda_env_file(
-        Requirements(channels=[], conda=[], pip=[]),
+        EnvSpec(channels=[], conda=[], pip=[]),
         verbose=True,
     )
     captured = capsys.readouterr()
