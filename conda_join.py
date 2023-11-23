@@ -10,12 +10,14 @@ import platform
 import re
 import sys
 import warnings
+from collections import defaultdict
+from contextlib import suppress
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Sequence
 
 from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.comments import CommentedMap
 
 if TYPE_CHECKING:
     from setuptools import Distribution
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
         "win-64",
     ]
 
+with suppress(ImportError):  # not a hard dependency, but nice to have
+    from rich import print
+
 
 __version__ = "0.12.0"
 __all__ = [
@@ -41,7 +46,6 @@ __all__ = [
     "parse_yaml_requirements",
     "create_conda_env_specification",
     "write_conda_environment_file",
-    "parse_requirements_deduplicate",
     "get_python_dependencies",
 ]
 
@@ -86,7 +90,7 @@ def find_requirements_files(
     return found_files
 
 
-def extract_matching_platforms(content: str) -> list[Platform]:
+def extract_matching_platforms(comment: str) -> list[Platform]:
     """Filter out lines from a requirements file that don't match the platform."""
     # we support a very limited set of selectors that adhere to platform only
     # refs:
@@ -115,7 +119,7 @@ def extract_matching_platforms(content: str) -> list[Platform]:
 
     filtered_platforms = set()
 
-    for line in content.splitlines(keepends=False):
+    for line in comment.splitlines(keepends=False):
         if multiple_brackets_pat.search(line):
             msg = f"Multiple bracketed selectors found in line: '{line}'"
             raise ValueError(msg)
@@ -124,7 +128,10 @@ def extract_matching_platforms(content: str) -> list[Platform]:
         if m:
             conds = m.group(1).split()
             for cond in conds:
-                for _platform in reverse_selector_map.get(cond, []):
+                if cond not in reverse_selector_map:
+                    msg = f"Unsupported platform specifier: '{comment}'"
+                    raise ValueError(msg)
+                for _platform in reverse_selector_map[cond]:
                     filtered_platforms.add(_platform)
 
     return list(filtered_platforms)
@@ -175,24 +182,53 @@ def _parse_dependency(
     dependency: str,
     dependencies: CommentedMap,
     index_or_key: int | str,
-) -> Meta:
+    which: Literal["conda", "pip", "both"],
+) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = _extract_name_and_pin(dependency)
-    return Meta(name, comment, pin)
+    if which == "both":
+        return [Meta(name, "conda", comment, pin), Meta(name, "pip", comment, pin)]
+    return [Meta(name, which, comment, pin)]
 
 
 class Meta(NamedTuple):
+    """Metadata for a dependency."""
+
     name: str
+    which: Literal["conda", "pip"]
     comment: str | None = None
     pin: str | None = None
+
+    def platforms(self) -> list[Platform] | None:
+        """Return the platforms for this dependency."""
+        if self.comment is None:
+            return None
+        return extract_matching_platforms(self.comment)
+
+    def pprint(self) -> str:
+        """Pretty print the dependency."""
+        result = f"{self.name}"
+        if self.pin is not None:
+            result += f" {self.pin}"
+        if self.comment is not None:
+            result += f" {self.comment}"
+        return result
+
+
+def _all_platforms_identical(metas: list[Meta]) -> bool:
+    """Check if all platforms are identical."""
+    platforms = {meta.comment for meta in metas}
+    if len(platforms) == 1:
+        return True
+    platform = metas[0].platforms()
+    return all(meta.platforms == platform for meta in metas)
 
 
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
     channels: set[str]
-    conda: dict[str, Meta]
-    pip: dict[str, Meta]
+    requirements: dict[str, list[Meta]]
 
 
 class Requirements(NamedTuple):
@@ -210,8 +246,7 @@ def parse_yaml_requirements(
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of requirements.yaml files including comments."""
-    conda: dict[str, Meta] = {}
-    pip: dict[str, Meta] = {}
+    requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
 
     yaml = YAML(typ="rt")
@@ -219,49 +254,121 @@ def parse_yaml_requirements(
         if verbose:
             print(f"Parsing {p}")
         with p.open() as f:
-            reqs = yaml.load(f)
-            for channel in reqs.get("channels", []):
+            data = yaml.load(f)
+            for channel in data.get("channels", []):
                 channels.add(channel)
-            dependencies = reqs.get("dependencies", [])
-            for i, dep in enumerate(dependencies):
+            if "dependencies" not in data:
+                continue
+            dependencies = data["dependencies"]
+            for i, dep in enumerate(data["dependencies"]):
                 if isinstance(dep, str):
-                    meta = _parse_dependency(dep, reqs.get("dependencies", []), i)
-                    conda[dep], pip[dep] = meta, meta
-                    continue
-                if "conda" in dep:
-                    meta = _parse_dependency(dep["conda"], dep, "conda")
-                    conda[dep["conda"]] = meta
-                if "pip" in dep:
-                    meta = _parse_dependency(dep["pip"], dep, "pip")
-                    pip[dep["pip"]] = meta
-    return ParsedRequirements(channels, conda, pip)
+                    metas = _parse_dependency(dep, dependencies, i, "both")
+                else:
+                    if "conda" in dep:
+                        metas = _parse_dependency(dep["conda"], dep, "conda", "conda")
+                    if "pip" in dep:
+                        metas = _parse_dependency(dep["pip"], dep, "pip", "pip")
+                for meta in metas:
+                    requirements[meta.name].append(meta)
+    return ParsedRequirements(channels, dict(requirements))
 
 
-def filter_duplicates(requirements: dict[str, Meta]) -> dict[str, Meta]:
-    filtered = {}
-    name_to_key_map = {}
+# Conflict resolution functions
 
-    for key, meta in requirements.items():
-        if meta.name not in name_to_key_map:
-            filtered[key] = meta
-            name_to_key_map[meta.name] = key
-        else:
-            # Handling duplicates
-            existing_key = name_to_key_map[meta.name]
-            existing_meta = filtered[existing_key]
-            if meta.pin and not existing_meta.pin:
-                # Replace with the one that has a version requirement
-                filtered[key] = meta
-                del filtered[existing_key]
-                name_to_key_map[meta.name] = key
-            elif meta.pin and existing_meta.pin and meta.pin != existing_meta.pin:
-                # Warn about multiple different version requirements
-                warnings.warn(
-                    f"Multiple different version requirements for {meta.name}: "
-                    f"'{existing_meta.pin}' and '{meta.pin}'. Keeping the first one.",
-                    stacklevel=2,
-                )
-    return filtered
+
+def _prepare_metas_for_conflict_resolution(
+    requirements: dict[str, list[Meta]],
+) -> dict[str, dict[str, dict[str, list[Meta]]]]:
+    """Prepare and group metadata for conflict resolution.
+
+    This function groups metadata by platform and source for each package.
+
+    :param requirements: Dictionary mapping package names to a list of Meta objects.
+    :return: Dictionary mapping package names to grouped metadata.
+    """
+    prepared_data = {}
+    for package, meta_list in requirements.items():
+        grouped_metas: dict[str, dict[str, list[Meta]]] = defaultdict(
+            lambda: defaultdict(list),
+        )
+        for meta in meta_list:
+            platforms = meta.platforms()
+            if platforms is None:
+                platforms = [None]  # type: ignore[list-item]
+            for _platform in platforms:
+                grouped_metas[_platform][meta.which].append(meta)
+        # Convert defaultdicts to dicts
+        prepared_data[package] = {k: dict(v) for k, v in grouped_metas.items()}
+    return prepared_data
+
+
+def _select_preferred_version_within_platform(
+    data: dict[str, dict[str, list[Meta]]],
+) -> dict[str, dict[str, Meta]]:
+    reduced_data: dict[str, dict[str, Meta]] = {}
+    for _platform, packages in data.items():
+        reduced_data[_platform] = {}
+        for which, metas in packages.items():
+            if len(metas) > 1:
+                # Sort metas by presence of version pin and then by the pin itself
+                metas.sort(key=lambda m: (m.pin is not None, m.pin), reverse=True)
+                # Keep the first Meta, which has the highest priority
+                selected_meta = metas[0]
+                discarded_metas = [m for m in metas[1:] if m != selected_meta]
+                if discarded_metas:
+                    discarded_metas_str = ", ".join(
+                        f"`{m.pprint()}` ({m.which})" for m in discarded_metas
+                    )
+                    on_platform = (
+                        f" on platform `{_platform}`" if _platform is not None else ""
+                    )
+                    print(
+                        f"⚠️ Conflict{on_platform}! Keeping `{selected_meta.pprint()}`"
+                        f" ({which}), discarding {discarded_metas_str}",
+                    )
+                reduced_data[_platform][which] = selected_meta
+            else:
+                # Flatten the list
+                reduced_data[_platform][which] = metas[0]
+    return reduced_data
+
+
+def _resolve_conda_pip_conflicts(sources: dict[str, Meta]) -> dict[str, Meta]:
+    conda_meta = sources.get("conda")
+    pip_meta = sources.get("pip")
+    if not conda_meta or not pip_meta:  # If either is missing, there is no conflict
+        return sources
+
+    # Compare version pins to resolve conflicts
+    if conda_meta.pin and not pip_meta.pin:
+        return {"conda": conda_meta}  # Prefer conda if it has a pin
+    if pip_meta.pin and not conda_meta.pin:
+        return {"pip": pip_meta}  # Prefer pip if it has a pin
+    if conda_meta.pin == pip_meta.pin:
+        return {"conda": conda_meta, "pip": pip_meta}  # Keep both if pins are identical
+
+    # Handle conflict where both conda and pip have different pins
+    warnings.warn(
+        f"Conflicting version pins for conda ({conda_meta.pin})"
+        f" and pip ({pip_meta.pin}). Keeping both.",
+        stacklevel=2,
+    )
+    return {"conda": conda_meta, "pip": pip_meta}
+
+
+def resolve_conflicts(
+    requirements: dict[str, list[Meta]],
+) -> dict[str, dict[str, Meta]]:
+    prepared = _prepare_metas_for_conflict_resolution(requirements)
+
+    resolved = {
+        pkg: _select_preferred_version_within_platform(data)
+        for pkg, data in prepared.items()
+    }
+    for platforms in resolved.values():
+        for _platform, sources in platforms.items():
+            platforms[_platform] = _resolve_conda_pip_conflicts(sources)
+    return resolved
 
 
 # Conda environment file generation functions
@@ -275,39 +382,85 @@ class CondaEnvironmentSpec(NamedTuple):
     pip: list[str]
 
 
-def create_conda_env_specification(
-    requirements: ParsedRequirements,
-) -> CondaEnvironmentSpec:
-    """Create a conda environment specification from `ParsedRequirements`."""
-    conda: list[str | dict[str, str]] = []
-    pip: list[str] = []
-    for dependency, meta in requirements.conda.items():
-        platforms = (
-            extract_matching_platforms(meta.comment) if meta.comment is not None else []
-        )
-        if platforms:
-            unique_platforms = {p.split("-", 1)[0] for p in platforms}
-            dependencies = [
-                {f"sel({_platform})": dependency} for _platform in unique_platforms
-            ]
-            conda.extend(dependencies)
-        else:
-            conda.append(dependency)
+ALLOWED_CONDA = ["unix", "linux", "osx", "win"]
 
-    for dependency, meta in requirements.pip.items():
-        platforms = (
-            extract_matching_platforms(meta.comment) if meta.comment is not None else []
-        )
-        if platforms:
-            for _platform in platforms:
-                selector = _build_pep508_environment_marker([_platform])
-                dep = f"{dependency}; {selector}"
-                pip.append(dep)
+
+def _conda_sel(sel: str) -> str:
+    """Return the allowed `sel(platform)` string."""
+    _platform = sel.split("-", 1)[0]
+    assert _platform in ALLOWED_CONDA, f"Invalid platform: {_platform}"
+    return _platform
+
+
+def _maybe_expand_none(platform_data: dict[str, dict[str, Meta]]) -> None:
+    if len(platform_data) > 1 and None in platform_data:
+        # Need to expand None to ALLOWED_CONDA
+        sources = platform_data.pop(None)
+        for _platform in ALLOWED_CONDA:
+            platform_data[_platform] = sources
+
+
+def create_conda_env_specification(
+    resolved_requirements: dict[str, dict[str, dict[str, Meta]]],
+    channels: set[str],
+) -> CondaEnvironmentSpec:
+    """Create a conda environment specification from resolved requirements."""
+    conda_deps = []
+    pip_deps = []
+    for platform_data in resolved_requirements.values():
+        _platform_data = deepcopy(platform_data)
+        _maybe_expand_none(_platform_data)
+
+        if len(_platform_data) == 1:
+            _platform = next(iter(_platform_data))
+            if _platform is not None:
+                # swap e.g., linux-64 to linux
+                sources = _platform_data.pop(_platform)
+                _platform_data[_conda_sel(_platform)] = sources
         else:
-            pip.append(dependency)
-    # Filter out duplicate packages that are both in conda and pip
-    pip = [p for p in pip if p not in conda]
-    return CondaEnvironmentSpec(list(requirements.channels), conda, pip)
+            valid: dict[str, list[dict[str, Meta]]] = defaultdict(list)
+            for _platform, sources in _platform_data.items():
+                sel = _conda_sel(_platform)
+                valid[sel].append(sources)
+
+            # Now make sure that all values in valid are identical, if not
+            # we have a conflict, and we select one of the values.
+            _platform_data = {}
+            for sel, sources in valid.items():
+                first, *others = sources
+                if not all(other == first for other in others):
+                    # We have a conflict, select the first one.
+                    msg = (
+                        f"Conflicting dependencies for platform {sel}: {sources},"
+                        f" keeping {first}, discarding {others}"
+                    )
+                    warnings.warn(msg, stacklevel=2)
+                _platform_data[sel] = first
+
+        for sel, sources in _platform_data.items():
+            conda_meta = sources.get("conda")
+            pip_meta = sources.get("pip")
+
+            if conda_meta:
+                dep_str = conda_meta.name
+                if conda_meta.pin is not None:
+                    dep_str += f" {conda_meta.pin}"
+                if sel is not None:
+                    dep_str = {f"sel({sel})": dep_str}
+                conda_deps.append(dep_str)
+
+            if not conda_meta and pip_meta:
+                print(pip_meta)
+                dep_str = pip_meta.name
+                if pip_meta.pin is not None:
+                    dep_str += f" {pip_meta.pin}"
+                if sel is not None:
+                    platforms = extract_matching_platforms(pip_meta.comment)
+                    selector = _build_pep508_environment_marker(platforms)
+                    dep_str = f"{dep_str}; {selector}"
+                pip_deps.append(dep_str)
+
+    return CondaEnvironmentSpec(list(channels), conda_deps, pip_deps)
 
 
 def write_conda_environment_file(
@@ -356,95 +509,34 @@ def write_conda_environment_file(
 # Python setuptools integration functions
 
 
-def _remove_unsupported_platform_dependencies(
-    dependencies: dict[str, Meta],
-    platform: Platform,
-) -> dict[str, Meta]:
-    return {
-        dependency: meta
-        for dependency, meta in dependencies.items()
-        if meta.comment is None
-        or not extract_matching_platforms(meta.comment)
-        or platform in extract_matching_platforms(meta.comment)
-    }
-
-
-def _segregate_pip_conda_dependencies(
-    requirements_with_comments: ParsedRequirements,
-    pip_or_conda: Literal["pip", "conda"] = "conda",
-    platform: Platform | None = None,
-) -> ParsedRequirements:
-    r = requirements_with_comments
-    conda = (
-        _remove_unsupported_platform_dependencies(r.conda, platform)
-        if platform
-        else r.conda
-    )
-    pip = (
-        _remove_unsupported_platform_dependencies(r.pip, platform)
-        if platform
-        else r.pip
-    )
-    if pip_or_conda == "pip":
-        conda = {k: v for k, v in conda.items() if k not in pip}
-    elif pip_or_conda == "conda":
-        pip = {k: v for k, v in pip.items() if k not in conda}
-    else:  # pragma: no cover
-        msg = f"Invalid value for `pip_or_conda`: {pip_or_conda}"
-        raise ValueError(msg)
-    return ParsedRequirements(r.channels, conda, pip)
-
-
-def _convert_to_commented_requirements(
-    parsed_requirements: ParsedRequirements,
-) -> Requirements:
-    """Convert a `ParsedRequirements` to a `Requirements` with comments.
-
-    Here we use `CommentedSeq` instead of `list` to preserve comments, but
-    `CommentedSeq` behaves just like a `list`.
-
-    Note that we're preserving the comments here, however, when writing the
-    environment file, we're not preserving the comments.
-    """
-    conda = CommentedSeq()
-    pip = CommentedSeq()
-    channels = list(parsed_requirements.channels)
-
-    for i, (dependency, meta) in enumerate(parsed_requirements.conda.items()):
-        conda.append(dependency)
-        if meta.comment is not None:
-            conda.yaml_add_eol_comment(meta.comment, i)
-
-    for i, (dependency, meta) in enumerate(parsed_requirements.pip.items()):
-        pip.append(dependency)
-        if meta.comment is not None:
-            pip.yaml_add_eol_comment(meta.comment, i)
-
-    return Requirements(channels, conda, pip)
-
-
-def parse_requirements_deduplicate(
-    paths: Sequence[Path],
-    *,
-    verbose: bool = False,
-    pip_or_conda: Literal["pip", "conda"] = "conda",
-    platform: Platform | None = None,
-) -> Requirements:
-    """Parse a list of requirements.yaml files including comments."""
-    requirements_with_comments = parse_yaml_requirements(paths, verbose=verbose)
-    deduplicated_requirements = _segregate_pip_conda_dependencies(
-        requirements_with_comments,
-        pip_or_conda,
-        platform,
-    )
-    return _convert_to_commented_requirements(deduplicated_requirements)
+def filter_python_dependencies(
+    resolved_requirements,
+    platforms: list[Platform] | None = None,
+) -> dict[str, dict[str, Meta]]:
+    pip_deps = []
+    for platform_data in resolved_requirements.values():
+        _maybe_expand_none(platform_data)
+        for _platform, sources in platform_data.items():
+            if platforms is not None and _platform not in platforms:
+                continue
+            pip_meta = sources.get("pip")
+            if pip_meta:
+                dep_str = pip_meta.name
+                if pip_meta.pin is not None:
+                    dep_str += f" {pip_meta.pin}"
+                if _platform is not None:
+                    selector = _build_pep508_environment_marker([_platform])
+                    print(dep_str, _platform, selector)
+                    dep_str = f"{dep_str}; {selector}"
+                pip_deps.append(dep_str)
+    return pip_deps
 
 
 def get_python_dependencies(
     filename: str | Path = "requirements.yaml",
     *,
     verbose: bool = False,
-    platform: Platform | None = None,
+    platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
 ) -> list[str]:
     """Extract Python (pip) requirements from requirements.yaml file."""
@@ -454,13 +546,11 @@ def get_python_dependencies(
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
         return []
-    python_deps = parse_requirements_deduplicate(
-        [p],
-        pip_or_conda="pip",
-        verbose=verbose,
-        platform=platform,
-    ).pip
-    return list(python_deps)
+
+    requirements = parse_yaml_requirements([p], verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    pip_deps = filter_python_dependencies(resolved_requirements, platforms=platforms)
+    return pip_deps
 
 
 def _identify_current_platform() -> Platform:
@@ -509,7 +599,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     dist.install_requires = list(
         get_python_dependencies(
             requirements_file,
-            platform=_identify_current_platform(),
+            platform=[_identify_current_platform()],
             raises_if_missing=False,
         ),
     )
@@ -570,7 +660,11 @@ def main() -> None:  # pragma: no cover
         verbose=verbose,
     )
     requirements = parse_yaml_requirements(found_files, verbose=verbose)
-    env_spec = create_conda_env_specification(requirements)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+    )
     output_file = None if args.stdout else args.output
     write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
     if output_file:
