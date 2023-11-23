@@ -481,7 +481,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
             if platforms != [None]:
-                selector = _build_pep508_environment_marker(platforms)
+                selector = _build_pep508_environment_marker(platforms)  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
 
@@ -560,7 +560,7 @@ def filter_python_dependencies(
             if first_meta.pin is not None:
                 dep_str += f" {first_meta.pin}"
             if _platform is not None:
-                selector = _build_pep508_environment_marker(sorted(to_process.keys()))
+                selector = _build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
             continue
