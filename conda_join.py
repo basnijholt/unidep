@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
-else:
+else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
 Platform = Literal[

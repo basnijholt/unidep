@@ -549,4 +549,109 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             """,
         ),
     )
-    parse_yaml_requirements([p], verbose=False)
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=None),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=None),
+        ],
+        "bar": [
+            Meta(name="bar", which="conda", comment=None, pin=None),
+            Meta(name="bar", which="pip", comment=None, pin=None),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            "linux-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=">1",
+                ),
+                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            },
+        },
+        "bar": {
+            None: {
+                "conda": Meta(name="bar", which="conda", comment=None, pin=None),
+                "pip": Meta(name="bar", which="pip", comment=None, pin=None),
+            },
+        },
+    }
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
+    assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "bar",
+    ]
+
+
+def test_duplicates_different_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo <1 # [linux]
+                - bar
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+            Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+        ],
+        "bar": [
+            Meta(name="bar", which="conda", comment=None, pin=None),
+            Meta(name="bar", which="pip", comment=None, pin=None),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            "linux-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=">1",
+                ),
+                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            },
+            "linux-aarch64": {
+                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+            },
+            "linux-ppc64le": {
+                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+            },
+        },
+        "bar": {
+            None: {
+                "conda": Meta(name="bar", which="conda", comment=None, pin=None),
+                "pip": Meta(name="bar", which="pip", comment=None, pin=None),
+            },
+        },
+    }
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == []
