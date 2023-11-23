@@ -73,16 +73,16 @@ def test_find_requirements_files_depth(tmp_path: Path) -> None:
     assert len(find_requirements_files(tmp_path, depth=0)) == 1
 
     # Test depth=1
-    assert len(find_requirements_files(tmp_path, depth=1)) == 2
+    assert len(find_requirements_files(tmp_path, depth=1)) == 2  # noqa: PLR2004
 
     # Test depth=2
-    assert len(find_requirements_files(tmp_path, depth=2)) == 3
+    assert len(find_requirements_files(tmp_path, depth=2)) == 3  # noqa: PLR2004
 
     # Test depth=3
-    assert len(find_requirements_files(tmp_path, depth=3)) == 4
+    assert len(find_requirements_files(tmp_path, depth=3)) == 4  # noqa: PLR2004
 
     # Test depth=4 (or more)
-    assert len(find_requirements_files(tmp_path, depth=4)) == 4
+    assert len(find_requirements_files(tmp_path, depth=4)) == 4  # noqa: PLR2004
 
 
 def test_parse_requirements(tmp_path: Path) -> None:
@@ -118,7 +118,7 @@ def test_parse_requirements(tmp_path: Path) -> None:
 @pytest.mark.parametrize("verbose", [True, False])
 def test_generate_conda_env_file(
     tmp_path: Path,
-    verbose: bool,
+    verbose: bool,  # noqa: FBT001
     setup_test_files: tuple[Path, Path],
 ) -> None:
     output_file = tmp_path / "environment.yaml"
@@ -333,7 +333,7 @@ def test_extract_matching_platforms() -> None:
         extract_matching_platforms(incorrect_platform)
 
 
-def test_filter_pip_and_conda(tmp_path) -> None:
+def test_filter_pip_and_conda(tmp_path: Path) -> None:
     # Setup a sample ParsedRequirements instance with platform selectors
     p = tmp_path / "requirements.yaml"
     p.write_text(
@@ -396,16 +396,8 @@ def test_filter_pip_and_conda(tmp_path) -> None:
     pip_deps = filter_python_dependencies(resolved)
     assert pip_deps == [
         "package3",
-        "package4; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "package4; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "package4; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "package4; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "package4; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-        "common_package; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "common_package; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "common_package; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "common_package; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
         "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
     ]
 
@@ -415,7 +407,7 @@ def test_filter_pip_and_conda(tmp_path) -> None:
         channels=sample_requirements.channels,
     )
 
-    def sort(x):
+    def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:
         return sorted(x, key=lambda x: tuple(x.items()))
 
     assert sort(conda_env_spec.conda) == sort(

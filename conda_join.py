@@ -22,18 +22,19 @@ from ruamel.yaml.comments import CommentedMap
 if TYPE_CHECKING:
     from setuptools import Distribution
 
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
-    Platform = Literal[
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-        "osx-64",
-        "osx-arm64",
-        "win-64",
-    ]
+if sys.version_info >= (3, 8):
+    from typing import Literal, get_args
+else:
+    from typing_extensions import Literal, get_args
+
+Platform = Literal[
+    "linux-64",
+    "linux-aarch64",
+    "linux-ppc64le",
+    "osx-64",
+    "osx-arm64",
+    "win-64",
+]
 
 with suppress(ImportError):  # not a hard dependency, but nice to have
     from rich import print
@@ -278,7 +279,7 @@ def parse_yaml_requirements(
 
 def _prepare_metas_for_conflict_resolution(
     requirements: dict[str, list[Meta]],
-) -> dict[str, dict[str, dict[str, list[Meta]]]]:
+) -> dict[str, dict[Platform | None, dict[str, list[Meta]]]]:
     """Prepare and group metadata for conflict resolution.
 
     This function groups metadata by platform and source for each package.
@@ -288,7 +289,7 @@ def _prepare_metas_for_conflict_resolution(
     """
     prepared_data = {}
     for package, meta_list in requirements.items():
-        grouped_metas: dict[str, dict[str, list[Meta]]] = defaultdict(
+        grouped_metas: dict[Platform | None, dict[str, list[Meta]]] = defaultdict(
             lambda: defaultdict(list),
         )
         for meta in meta_list:
@@ -303,9 +304,9 @@ def _prepare_metas_for_conflict_resolution(
 
 
 def _select_preferred_version_within_platform(
-    data: dict[str, dict[str, list[Meta]]],
-) -> dict[str, dict[str, Meta]]:
-    reduced_data: dict[str, dict[str, Meta]] = {}
+    data: dict[Platform | None, dict[str, list[Meta]]],
+) -> dict[Platform | None, dict[str, Meta]]:
+    reduced_data: dict[Platform | None, dict[str, Meta]] = {}
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, metas in packages.items():
@@ -358,7 +359,7 @@ def _resolve_conda_pip_conflicts(sources: dict[str, Meta]) -> dict[str, Meta]:
 
 def resolve_conflicts(
     requirements: dict[str, list[Meta]],
-) -> dict[str, dict[str, Meta]]:
+) -> dict[str, dict[Platform | None, dict[str, Meta]]]:
     prepared = _prepare_metas_for_conflict_resolution(requirements)
 
     resolved = {
@@ -392,16 +393,15 @@ def _conda_sel(sel: str) -> str:
     return _platform
 
 
-def _maybe_expand_none(platform_data: dict[str, dict[str, Meta]]) -> None:
+def _maybe_expand_none(platform_data: dict[Platform | None, dict[str, Meta]]) -> None:
     if len(platform_data) > 1 and None in platform_data:
-        # Need to expand None to ALLOWED_CONDA
         sources = platform_data.pop(None)
-        for _platform in ALLOWED_CONDA:
+        for _platform in get_args(Platform):
             platform_data[_platform] = sources
 
 
-def create_conda_env_specification(
-    resolved_requirements: dict[str, dict[str, dict[str, Meta]]],
+def create_conda_env_specification(  # noqa: PLR0912
+    resolved_requirements: dict[str, dict[Platform | None, dict[str, Meta]]],
     channels: set[str],
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
@@ -455,6 +455,7 @@ def create_conda_env_specification(
                 if pip_meta.pin is not None:
                     dep_str += f" {pip_meta.pin}"
                 if sel is not None:
+                    assert pip_meta.comment is not None
                     platforms = extract_matching_platforms(pip_meta.comment)
                     selector = _build_pep508_environment_marker(platforms)
                     dep_str = f"{dep_str}; {selector}"
@@ -510,25 +511,44 @@ def write_conda_environment_file(
 
 
 def filter_python_dependencies(
-    resolved_requirements,
+    resolved_requirements: dict[str, dict[Platform | None, dict[str, Meta]]],
     platforms: list[Platform] | None = None,
-) -> dict[str, dict[str, Meta]]:
+) -> list[str]:
     pip_deps = []
     for platform_data in resolved_requirements.values():
         _maybe_expand_none(platform_data)
+        to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
             if platforms is not None and _platform not in platforms:
                 continue
             pip_meta = sources.get("pip")
             if pip_meta:
-                dep_str = pip_meta.name
-                if pip_meta.pin is not None:
-                    dep_str += f" {pip_meta.pin}"
-                if _platform is not None:
-                    selector = _build_pep508_environment_marker([_platform])
-                    print(dep_str, _platform, selector)
-                    dep_str = f"{dep_str}; {selector}"
-                pip_deps.append(dep_str)
+                to_process[_platform] = pip_meta
+
+        if not to_process:
+            continue
+
+        # Check if all Meta objects are identical
+        first_meta = next(iter(to_process.values()))
+        if all(meta == first_meta for meta in to_process.values()):
+            # Build a single combined environment marker
+            dep_str = first_meta.name
+            if first_meta.pin is not None:
+                dep_str += f" {first_meta.pin}"
+            if _platform is not None:
+                selector = _build_pep508_environment_marker(sorted(to_process.keys()))
+                dep_str = f"{dep_str}; {selector}"
+            pip_deps.append(dep_str)
+            continue
+
+        for _platform, pip_meta in to_process.items():
+            dep_str = pip_meta.name
+            if pip_meta.pin is not None:
+                dep_str += f" {pip_meta.pin}"
+            if _platform is not None:
+                selector = _build_pep508_environment_marker([_platform])
+                dep_str = f"{dep_str}; {selector}"
+            pip_deps.append(dep_str)
     return pip_deps
 
 
@@ -549,8 +569,7 @@ def get_python_dependencies(
 
     requirements = parse_yaml_requirements([p], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
-    pip_deps = filter_python_dependencies(resolved_requirements, platforms=platforms)
-    return pip_deps
+    return filter_python_dependencies(resolved_requirements, platforms=platforms)
 
 
 def _identify_current_platform() -> Platform:
@@ -599,7 +618,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     dist.install_requires = list(
         get_python_dependencies(
             requirements_file,
-            platform=[_identify_current_platform()],
+            platforms=[_identify_current_platform()],
             raises_if_missing=False,
         ),
     )
