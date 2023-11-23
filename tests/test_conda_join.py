@@ -395,9 +395,9 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     # Pip
     pip_deps = filter_python_dependencies(resolved)
     assert pip_deps == [
+        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
         "package3",
         "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
         "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
     ]
 
@@ -591,8 +591,8 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
         "bar",
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
 
 
@@ -651,7 +651,7 @@ def test_duplicates_different_platforms(
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
         "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]

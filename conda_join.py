@@ -589,7 +589,7 @@ def filter_python_dependencies(
                 selector = _build_pep508_environment_marker([_platform])
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
-    return pip_deps
+    return sorted(pip_deps)
 
 
 def get_python_dependencies(
