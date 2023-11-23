@@ -410,7 +410,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:
         return sorted(x, key=lambda x: tuple(x.items()))
 
-    assert sort(conda_env_spec.conda) == sort(
+    assert sort(conda_env_spec.conda) == sort(  # type: ignore[arg-type]
         [
             {"sel(linux)": "package1"},
             {"sel(osx)": "package2"},
