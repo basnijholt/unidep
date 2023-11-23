@@ -193,7 +193,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Scanning in" in captured.out
     assert str(tmp_path / "dir3") in captured.out
 
-    parse_yaml_requirements(setup_test_files, verbose=True)
+    parse_yaml_requirements([f], verbose=True)
     captured = capsys.readouterr()
     assert "Parsing" in captured.out
     assert str(f) in captured.out
@@ -418,14 +418,11 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             {"sel(linux)": "common_package"},
         ],
     )
-    assert sorted(conda_env_spec.pip) == sorted(
-        [
-            "package3",
-            "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
-            "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
-            "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
-        ],
-    )
+    assert conda_env_spec.pip == [
+        "package3",
+        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
 
 
 def test__build_pep508_environment_marker() -> None:
