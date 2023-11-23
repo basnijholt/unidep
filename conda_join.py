@@ -433,23 +433,20 @@ def _resolve_multiple_platform_conflicts(
         conda_platform = _conda_sel(_platform)
         valid[conda_platform][meta].append(_platform)
 
-    # We cannot distinguish between e.g., linux-64 and linux-aarch64
-    # (which becomes linux). So of the list[Platform] we only need to keep
-    # one Platform. We can pop the rest from `platform_to_meta`. This is
-    # not a problem because they share the same `Meta` object.
-    popped = set()
-    for meta_to_platforms in valid.values():
-        for platforms in meta_to_platforms.values():
-            for i, _platform in enumerate(platforms):
-                if i >= 1:
-                    platform_to_meta.pop(_platform)
-                    popped.add(_platform)
-
-    # Now make sure that valid[conda_platform] has only one key.
-    # This means that all `Meta`s for the different Platforms that map to a
-    # CondaPlatform are identical. If len > 1, we have a conflict, and we
-    # select one of the `Meta`s.
     for conda_platform, meta_to_platforms in valid.items():
+        # We cannot distinguish between e.g., linux-64 and linux-aarch64
+        # (which becomes linux). So of the list[Platform] we only need to keep
+        # one Platform. We can pop the rest from `platform_to_meta`. This is
+        # not a problem because they share the same `Meta` object.
+        for _i, platforms in enumerate(meta_to_platforms.values()):
+            for j, _platform in enumerate(platforms):
+                if j >= 1:
+                    platform_to_meta.pop(_platform)
+
+        # Now make sure that valid[conda_platform] has only one key.
+        # This means that all `Meta`s for the different Platforms that map to a
+        # CondaPlatform are identical. If len > 1, we have a conflict, and we
+        # select one of the `Meta`s.
         if len(meta_to_platforms) > 1:
             # We have a conflict, select the first one.
             first, *others = meta_to_platforms.keys()
@@ -461,7 +458,7 @@ def _resolve_multiple_platform_conflicts(
             for other in others:
                 platforms = meta_to_platforms[other]
                 for _platform in platforms:
-                    if _platform not in popped:
+                    if _platform in platform_to_meta:  # might have been popped already
                         platform_to_meta.pop(_platform)
         # Now we have only one `Meta` left, so we can select it.
 

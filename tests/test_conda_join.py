@@ -652,6 +652,6 @@ def test_duplicates_different_platforms(
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
         "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
         "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
     ]
