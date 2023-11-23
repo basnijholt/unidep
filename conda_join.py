@@ -474,7 +474,7 @@ def create_conda_env_specification(
     conda_deps: list[str | dict[str, str]] = []
     pip_deps = []
     for platform_to_meta in conda.values():
-        if len(platform_to_meta) > 1:
+        if len(platform_to_meta) > 1:  # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in platform_to_meta.items():
             dep_str = meta.name
