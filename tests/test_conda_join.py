@@ -596,7 +596,10 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     ]
 
 
-def test_duplicates_different_platforms(tmp_path: Path) -> None:
+def test_duplicates_different_platforms(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -604,7 +607,6 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             dependencies:
                 - foo >1 # [linux64]
                 - foo <1 # [linux]
-                - bar
             """,
         ),
     )
@@ -615,10 +617,6 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
             Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
             Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
-        ],
-        "bar": [
-            Meta(name="bar", which="conda", comment=None, pin=None),
-            Meta(name="bar", which="pip", comment=None, pin=None),
         ],
     }
     resolved = resolve_conflicts(requirements.requirements)
@@ -642,16 +640,18 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
             },
         },
-        "bar": {
-            None: {
-                "conda": Meta(name="bar", which="conda", comment=None, pin=None),
-                "pip": Meta(name="bar", which="pip", comment=None, pin=None),
-            },
-        },
     }
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
     )
-    assert env_spec.conda == []
+    assert "Conflict on platform `linux-64`!" in capsys.readouterr().out
+    assert env_spec.conda == [{"sel(linux)": "foo >1"}]
     assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+    ]

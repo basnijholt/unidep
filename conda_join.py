@@ -435,11 +435,13 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
             # (which becomes linux). So of the list[Platform] we only need to keep
             # one Platform. We can pop the rest from `platform_to_meta`. This is
             # not a problem because they share the same `Meta` object.
+            popped = set()
             for meta_to_platforms in valid.values():
                 for platforms in meta_to_platforms.values():
                     for i, _platform in enumerate(platforms):
                         if i >= 1:
                             platform_to_meta.pop(_platform)
+                            popped.add(_platform)
 
             # Now make sure that valid[conda_platform] has only one key.
             # This means that all `Meta`s for the different Platforms that map to a
@@ -457,7 +459,8 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
                     for other in others:
                         platforms = meta_to_platforms[other]
                         for _platform in platforms:
-                            platform_to_meta.pop(_platform)
+                            if _platform not in popped:
+                                platform_to_meta.pop(_platform)
                 # Now we have only one `Meta` left, so we can select it.
 
         for _platform, meta in platform_to_meta.items():
