@@ -402,12 +402,13 @@ def _maybe_expand_none(
             platform_data[_platform] = sources
 
 
-def create_conda_env_specification(  # noqa: PLR0912, C901
+def _extract_conda_pip_dependencies(
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
-    channels: set[str],
-) -> CondaEnvironmentSpec:
-    """Create a conda environment specification from resolved requirements."""
-    # Split in conda and pip dependencies and prefer conda over pip
+) -> tuple[
+    dict[str, dict[Platform | None, Meta]],
+    dict[str, dict[Platform | None, Meta]],
+]:
+    """Extract and separate conda and pip dependencies."""
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
     for pkg, platform_data in resolved_requirements.items():
@@ -417,52 +418,67 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
             else:
                 pip.setdefault(pkg, {})[_platform] = sources["pip"]
+    return conda, pip
+
+
+def _resolve_multiple_platform_conflicts(
+    platform_to_meta: dict[Platform | None, Meta],
+) -> None:
+    valid: dict[
+        CondaPlatform,
+        dict[Meta, list[Platform | None]],
+    ] = defaultdict(lambda: defaultdict(list))
+    for _platform, meta in platform_to_meta.items():
+        assert _platform is not None
+        conda_platform = _conda_sel(_platform)
+        valid[conda_platform][meta].append(_platform)
+
+    # We cannot distinguish between e.g., linux-64 and linux-aarch64
+    # (which becomes linux). So of the list[Platform] we only need to keep
+    # one Platform. We can pop the rest from `platform_to_meta`. This is
+    # not a problem because they share the same `Meta` object.
+    popped = set()
+    for meta_to_platforms in valid.values():
+        for platforms in meta_to_platforms.values():
+            for i, _platform in enumerate(platforms):
+                if i >= 1:
+                    platform_to_meta.pop(_platform)
+                    popped.add(_platform)
+
+    # Now make sure that valid[conda_platform] has only one key.
+    # This means that all `Meta`s for the different Platforms that map to a
+    # CondaPlatform are identical. If len > 1, we have a conflict, and we
+    # select one of the `Meta`s.
+    for conda_platform, meta_to_platforms in valid.items():
+        if len(meta_to_platforms) > 1:
+            # We have a conflict, select the first one.
+            first, *others = meta_to_platforms.keys()
+            msg = (
+                f"Conflicting dependencies for platform {conda_platform}: {meta_to_platforms},"
+                f" keeping {first}, discarding {others}"
+            )
+            warnings.warn(msg, stacklevel=2)
+            for other in others:
+                platforms = meta_to_platforms[other]
+                for _platform in platforms:
+                    if _platform not in popped:
+                        platform_to_meta.pop(_platform)
+        # Now we have only one `Meta` left, so we can select it.
+
+
+def create_conda_env_specification(
+    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    channels: set[str],
+) -> CondaEnvironmentSpec:
+    """Create a conda environment specification from resolved requirements."""
+    # Split in conda and pip dependencies and prefer conda over pip
+    conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
 
     conda_deps: list[str | dict[str, str]] = []
     pip_deps = []
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1:
-            valid: dict[
-                CondaPlatform,
-                dict[Meta, list[Platform | None]],
-            ] = defaultdict(lambda: defaultdict(list))
-            for _platform, meta in platform_to_meta.items():
-                assert _platform is not None
-                conda_platform = _conda_sel(_platform)
-                valid[conda_platform][meta].append(_platform)
-
-            # We cannot distinguish between e.g., linux-64 and linux-aarch64
-            # (which becomes linux). So of the list[Platform] we only need to keep
-            # one Platform. We can pop the rest from `platform_to_meta`. This is
-            # not a problem because they share the same `Meta` object.
-            popped = set()
-            for meta_to_platforms in valid.values():
-                for platforms in meta_to_platforms.values():
-                    for i, _platform in enumerate(platforms):
-                        if i >= 1:
-                            platform_to_meta.pop(_platform)
-                            popped.add(_platform)
-
-            # Now make sure that valid[conda_platform] has only one key.
-            # This means that all `Meta`s for the different Platforms that map to a
-            # CondaPlatform are identical. If len > 1, we have a conflict, and we
-            # select one of the `Meta`s.
-            for conda_platform, meta_to_platforms in valid.items():
-                if len(meta_to_platforms) > 1:
-                    # We have a conflict, select the first one.
-                    first, *others = meta_to_platforms.keys()
-                    msg = (
-                        f"Conflicting dependencies for platform {conda_platform}: {meta_to_platforms},"
-                        f" keeping {first}, discarding {others}"
-                    )
-                    warnings.warn(msg, stacklevel=2)
-                    for other in others:
-                        platforms = meta_to_platforms[other]
-                        for _platform in platforms:
-                            if _platform not in popped:
-                                platform_to_meta.pop(_platform)
-                # Now we have only one `Meta` left, so we can select it.
-
+            _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in platform_to_meta.items():
             dep_str = meta.name
             if meta.pin is not None:
@@ -473,7 +489,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
             conda_deps.append(dep_str)
 
     for platform_to_meta in pip.values():
-        meta_to_platforms = {}
+        meta_to_platforms: dict[Meta, list[Platform | None]] = {}
         for _platform, meta in platform_to_meta.items():
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
