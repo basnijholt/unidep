@@ -361,14 +361,20 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         comment="# [unix]",
     )
     common_package_pip = Meta(name="common_package", which="pip", comment="# [unix]")
-    shared_package = Meta(name="shared_package", which="pip", comment="# [win64]")
+    shared_package_win = Meta(name="shared_package", which="pip", comment="# [win64]")
+    shared_package_linux = Meta(
+        name="shared_package",
+        which="conda",
+        comment="# [linux64]",
+    )
+
     assert sample_requirements.requirements == {
         "package1": [package1],
         "package2": [package2],
         "package3": [package3],
         "package4": [package4_pip],
         "common_package": [common_package_conda, common_package_pip],
-        "shared_package": [shared_package],
+        "shared_package": [shared_package_linux, shared_package_win],
     }
 
     resolved = resolve_conflicts(sample_requirements.requirements)
@@ -390,7 +396,10 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             "linux-ppc64le": {"conda": common_package_conda, "pip": common_package_pip},
             "osx-arm64": {"conda": common_package_conda, "pip": common_package_pip},
         },
-        "shared_package": {"win-64": {"pip": shared_package}},
+        "shared_package": {
+            "win-64": {"pip": shared_package_win},
+            "linux-64": {"conda": shared_package_linux},
+        },
     }
     # Pip
     pip_deps = filter_python_dependencies(resolved)
@@ -416,6 +425,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             {"sel(osx)": "package2"},
             {"sel(osx)": "common_package"},
             {"sel(linux)": "common_package"},
+            {"sel(linux)": "shared_package"},
         ],
     )
     assert conda_env_spec.pip == [
@@ -715,3 +725,44 @@ def test_expand_none_with_different_platforms(
         "foo >2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
         "foo >2; sys_platform == 'win32' and platform_machine == 'AMD64'",
     ]
+
+
+def test_different_pins_on_conda_and_pip(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: foo >1
+                  conda: foo <1
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment=None, pin="<1"),
+            Meta(name="foo", which="pip", comment=None, pin=">1"),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            None: {
+                "conda": Meta(name="foo", which="conda", comment=None, pin="<1"),
+                "pip": Meta(name="foo", which="pip", comment=None, pin=">1"),
+            },
+        },
+    }
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == ["foo <1"]
+
+    assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == ["foo >1"]

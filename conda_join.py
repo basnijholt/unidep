@@ -273,13 +273,15 @@ def parse_yaml_requirements(
             for i, dep in enumerate(data["dependencies"]):
                 if isinstance(dep, str):
                     metas = _parse_dependency(dep, dependencies, i, "both")
-                else:
-                    if "conda" in dep:
-                        metas = _parse_dependency(dep["conda"], dep, "conda", "conda")
-                    if "pip" in dep:
-                        metas = _parse_dependency(dep["pip"], dep, "pip", "pip")
-                for meta in metas:
-                    requirements[meta.name].append(meta)
+                    for meta in metas:
+                        requirements[meta.name].append(meta)
+                    continue
+                for which in ["conda", "pip"]:
+                    if which in dep:
+                        metas = _parse_dependency(dep[which], dep, which, which)  # type: ignore[arg-type]
+                        for meta in metas:
+                            requirements[meta.name].append(meta)
+
     return ParsedRequirements(channels, dict(requirements))
 
 
