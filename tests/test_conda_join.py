@@ -638,7 +638,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             },
         },
     }
-    with pytest.warns(UserWarning, match="Conflicting dependencies for platform linux"):
+    with pytest.warns(UserWarning, match="Dependency Conflict on"):
         env_spec = create_conda_env_specification(
             resolved,
             requirements.channels,

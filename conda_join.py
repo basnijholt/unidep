@@ -67,7 +67,7 @@ def simple_warning_format(
     """Format warnings without code context."""
     return (
         f"⚠️  *** WARNING *** ⚠️\n"
-        f"Message: {message}\n"
+        f"{message}\n"
         f"Location: {filename}, line {lineno}\n"
         f"---------------------\n"
     )
@@ -329,12 +329,11 @@ def _select_preferred_version_within_platform(
                     discarded_metas_str = ", ".join(
                         f"`{m.pprint()}` ({m.which})" for m in discarded_metas
                     )
-                    on_platform = (
-                        f" on platform `{_platform}`" if _platform is not None else ""
-                    )
+                    on_platform = _platform or "all platforms"
                     warnings.warn(
-                        f"Conflict{on_platform}! Keeping `{selected_meta.pprint()}`"
-                        f" ({which}), discarding {discarded_metas_str}",
+                        f"Platform Conflict Detected:\n"
+                        f"On '{on_platform}', '{selected_meta.pprint()}' ({which}) is retained."
+                        f" The following conflicting dependencies are discarded: {discarded_metas_str}.",
                         stacklevel=2,
                     )
                 reduced_data[_platform][which] = selected_meta
@@ -360,8 +359,9 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip
 
     # Handle conflict where both conda and pip have different pins
     warnings.warn(
-        f"Conflicting version pins for conda ({conda_meta.pin})"
-        f" and pip ({pip_meta.pin}). Keeping both.",
+        "Version Pinning Conflict:\n"
+        f"Different version specifications for Conda ('{conda_meta.pin}') and Pip"
+        f" ('{pip_meta.pin}'). Both versions are retained.",
         stacklevel=2,
     )
     return {"conda": conda_meta, "pip": pip_meta}
@@ -464,8 +464,9 @@ def _resolve_multiple_platform_conflicts(
             # We have a conflict, select the first one.
             first, *others = meta_to_platforms.keys()
             msg = (
-                f"Conflicting dependencies for platform {conda_platform}: {dict(meta_to_platforms)},"
-                f" keeping {first}, discarding {others}"
+                f"Dependency Conflict on '{conda_platform}':\n"
+                f"Multiple versions detected. Retaining '{first.pprint()}' and"
+                f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
             )
             warnings.warn(msg, stacklevel=2)
             for other in others:
