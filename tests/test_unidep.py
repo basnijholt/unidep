@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+
 from unidep import (
     CondaEnvironmentSpec,
     Meta,
