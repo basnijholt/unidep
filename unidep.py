@@ -734,6 +734,9 @@ def main() -> None:  # pragma: no cover
         args.depth,
         verbose=verbose,
     )
+    if not found_files:
+        print(f"❌ No requirements.yaml files found in {args.directory}")
+        sys.exit(1)
     requirements = parse_yaml_requirements(found_files, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
