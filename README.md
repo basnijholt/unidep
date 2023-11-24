@@ -22,6 +22,8 @@ Simplify your setup and maintain all your dependencies in one place with `conda-
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
+  - [Conflict Resolution](#conflict-resolution)
+    - [How It Works](#how-it-works)
 - [:memo: Usage](#memo-usage)
   - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
   - [:memo: As a CLI](#memo-as-a-cli)
