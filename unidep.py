@@ -691,7 +691,10 @@ def main() -> None:  # pragma: no cover
     subparsers = parser.add_subparsers(dest="command", help="Subcommands")
 
     # Subparser for the 'merge' command
-    parser_merge = subparsers.add_parser("merge", help="Merge requirements")
+    parser_merge = subparsers.add_parser(
+        "merge",
+        help="Merge requirements to conda installable environment.yaml",
+    )
 
     parser_merge.add_argument(
         "-d",
@@ -739,7 +742,7 @@ def main() -> None:  # pragma: no cover
         sub_parser.add_argument(
             "-f",
             "--file",
-            type=str,
+            type=Path,
             default="requirements.yaml",
             help="The requirements.yaml file to parse, by default `requirements.yaml`",
         )
@@ -748,6 +751,12 @@ def main() -> None:  # pragma: no cover
             type=str,
             default=" ",
             help="The separator between the dependencies, by default ` `",
+        )
+        sub_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Print verbose output",
         )
 
     args = parser.parse_args()
@@ -778,16 +787,28 @@ def main() -> None:  # pragma: no cover
                 f"✅ Generated environment file at `{output_file}` from {found_files_str}",
             )
     elif args.command == "pip":
+        if not args.file.exists():
+            print(f"❌ File {args.file} not found.")
+            sys.exit(1)
         pip_dependencies = list(
             get_python_dependencies(
                 args.file,
                 platforms=[_identify_current_platform()],
-                raises_if_missing=True,
+                verbose=args.verbose,
             ),
         )
         print(args.separator.join(pip_dependencies))
     elif args.command == "conda":
-        pass
+        if not args.file.exists():
+            print(f"❌ File {args.file} not found.")
+            sys.exit(1)
+        requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
+        resolved_requirements = resolve_conflicts(requirements.requirements)
+        env_spec = create_conda_env_specification(
+            resolved_requirements,
+            requirements.channels,
+        )
+        print(args.separator.join(env_spec.conda))
     else:
         parser.print_help()
 
