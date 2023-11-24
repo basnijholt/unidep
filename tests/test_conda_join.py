@@ -1,4 +1,4 @@
-"""conda_join tests."""
+"""unidep tests."""
 from __future__ import annotations
 
 import textwrap
@@ -7,8 +7,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-
-from conda_join import (
+from unidep import (
     CondaEnvironmentSpec,
     Meta,
     _build_pep508_environment_marker,
