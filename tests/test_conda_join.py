@@ -11,20 +11,16 @@ import yaml
 from conda_join import (
     CondaEnvironmentSpec,
     Meta,
-    ParsedRequirements,
     _build_pep508_environment_marker,
-    _convert_to_commented_requirements,
     _extract_name_and_pin,
     _identify_current_platform,
-    _remove_unsupported_platform_dependencies,
-    _segregate_pip_conda_dependencies,
     create_conda_env_specification,
     extract_matching_platforms,
-    filter_duplicates,
+    filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
-    parse_requirements_deduplicate,
     parse_yaml_requirements,
+    resolve_conflicts,
     write_conda_environment_file,
 )
 
@@ -89,20 +85,34 @@ def test_find_requirements_files_depth(tmp_path: Path) -> None:
     assert len(find_requirements_files(tmp_path, depth=4)) == 4  # noqa: PLR2004
 
 
-@pytest.mark.parametrize("verbose", [True, False])
-def test_parse_requirements(
-    verbose: bool,  # noqa: FBT001
-    setup_test_files: tuple[Path, Path],
-) -> None:
-    combined_deps = parse_requirements_deduplicate(
-        setup_test_files,
-        verbose=verbose,
+def test_parse_requirements(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo # [unix]
+                - bar >1
+                - bar
+            """,
+        ),
     )
-    assert "numpy" in combined_deps.conda
-    assert "mumps" in combined_deps.conda
-    assert len(combined_deps.conda) == 2  # noqa: PLR2004
-    assert len(combined_deps.pip) == 1
-    assert "pandas" in combined_deps.pip
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment="# [unix]"),
+            Meta(name="foo", which="pip", comment="# [unix]"),
+        ],
+        "bar": [
+            Meta(name="bar", which="conda", comment=None, pin=">1"),
+            Meta(name="bar", which="pip", comment=None, pin=">1"),
+            Meta(name="bar", which="conda", comment=None),
+            Meta(name="bar", which="pip", comment=None),
+        ],
+    }
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -112,8 +122,12 @@ def test_generate_conda_env_file(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     output_file = tmp_path / "environment.yaml"
-    combined_deps = parse_yaml_requirements(setup_test_files, verbose=verbose)
-    env_spec = create_conda_env_specification(combined_deps)
+    requirements = parse_yaml_requirements(setup_test_files, verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+    )
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
 
@@ -128,10 +142,13 @@ def test_generate_conda_env_stdout(
     setup_test_files: tuple[Path, Path],
     capsys: pytest.CaptureFixture,
 ) -> None:
-    combined_deps = parse_yaml_requirements(setup_test_files)
-    env_spec = create_conda_env_specification(combined_deps)
-    write_conda_environment_file(env_spec, None)
-
+    requirements = parse_yaml_requirements(setup_test_files)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+    )
+    write_conda_environment_file(env_spec, output_file=None)
     captured = capsys.readouterr()
     assert "dependencies" in captured.out
     assert "numpy" in captured.out
@@ -153,15 +170,14 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements([p])
-    env = create_conda_env_specification(requirements)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env = create_conda_env_specification(resolved_requirements, requirements.channels)
     assert env.conda == [
         {"sel(osx)": "yolo"},
         {"sel(linux)": "foo"},
         {"sel(win)": "bar"},
     ]
     assert env.pip == [
-        "yolo; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
@@ -177,7 +193,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Scanning in" in captured.out
     assert str(tmp_path / "dir3") in captured.out
 
-    parse_requirements_deduplicate([f], verbose=True)
+    parse_yaml_requirements([f], verbose=True)
     captured = capsys.readouterr()
     assert "Parsing" in captured.out
     assert str(f) in captured.out
@@ -206,28 +222,11 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     )
 
 
-def test_extract_comment(tmp_path: Path) -> None:
-    p = tmp_path / "requirements.yaml"
-    p.write_text("dependencies:\n  - numpy # [osx]\n  - conda: mumps  # [linux]")
-
-    requirements_with_comments = parse_yaml_requirements([p], verbose=False)
-    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
-    assert reqs.conda == {
-        "numpy": Meta(name="numpy", comment="# [osx]"),
-        "mumps": Meta(name="mumps", comment="# [linux]"),
-    }
-    commented_map = _convert_to_commented_requirements(reqs)
-    assert commented_map.conda == ["numpy", "mumps"]
-
-
 def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
-    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
-    assert reqs.conda == {}
-    assert reqs.pip == {}
-    assert reqs.channels == {"conda-forge", "defaults"}
+    assert requirements_with_comments.channels == {"conda-forge", "defaults"}
 
 
 def test_surrounding_comments(tmp_path: Path) -> None:
@@ -253,18 +252,28 @@ def test_surrounding_comments(tmp_path: Path) -> None:
         ),
     )
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
-    reqs = _segregate_pip_conda_dependencies(requirements_with_comments)
-    assert reqs.conda == {
-        "yolo": Meta(name="yolo", comment="# [osx]"),
-        "foo": Meta(name="foo", comment="# [linux]"),
-        "bar": Meta(name="bar", comment="# [win]"),
-        "baz": Meta(name="baz", comment="#"),
+    assert requirements_with_comments.requirements == {
+        "yolo": [
+            Meta(name="yolo", which="conda", comment="# [osx]"),
+            Meta(name="yolo", which="pip", comment="# [osx]"),
+        ],
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux]"),
+            Meta(name="foo", which="pip", comment="# [linux]"),
+        ],
+        "bar": [
+            Meta(name="bar", which="conda", comment="# [win]"),
+            Meta(name="bar", which="pip", comment="# [win]"),
+        ],
+        "baz": [
+            Meta(name="baz", which="conda", comment="#"),
+            Meta(name="baz", which="pip", comment="#"),
+        ],
+        "pip-package": [Meta(name="pip-package", which="pip")],
+        "pip-package2": [
+            Meta(name="pip-package2", which="pip", comment="# [osx]"),
+        ],
     }
-    assert reqs.pip == {
-        "pip-package": Meta(name="pip-package", comment=None),
-        "pip-package2": Meta(name="pip-package2", comment="# [osx]"),
-    }
-    _convert_to_commented_requirements(reqs)
 
 
 def test_extract_matching_platforms() -> None:
@@ -319,83 +328,101 @@ def test_extract_matching_platforms() -> None:
     with pytest.raises(ValueError, match="Multiple bracketed selectors"):
         extract_matching_platforms(content_multi)
 
+    incorrect_platform = "dependency8  # [unknown-platform]"
+    with pytest.raises(ValueError, match="Unsupported platform"):
+        extract_matching_platforms(incorrect_platform)
 
-def test_filter_pip_and_conda() -> None:
+
+def test_filter_pip_and_conda(tmp_path: Path) -> None:
     # Setup a sample ParsedRequirements instance with platform selectors
-    sample_requirements = ParsedRequirements(
-        channels={"some-channel"},
-        conda={
-            "package1": Meta("package1", "# [linux]"),
-            "package2": Meta("package2", "# [osx]"),
-            "common_package": Meta("common_package", "# [unix]"),
-            "shared_package": Meta(
-                "shared_package",
-                "# [linux]",
-            ),  # Appears in both conda and pip with different selectors
-        },
-        pip={
-            "package3": Meta("package3", "# [win]"),
-            "package4": Meta("package4", None),
-            "common_package": Meta("common_package", "# [unix]"),
-            "shared_package": Meta(
-                "shared_package",
-                "# [win]",
-            ),  # Appears in both conda and pip with different selectors
-        },
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - conda: package1  # [linux64]
+              - conda: package2  # [osx64]
+              - pip: package3
+              - pip: package4  # [unix]
+              - common_package  # [unix]
+              - conda: shared_package  # [linux64]
+                pip: shared_package  # [win64]
+            """,
+        ),
     )
-
-    assert _remove_unsupported_platform_dependencies(
-        sample_requirements.conda,
-        "linux-64",
-    ) == {
-        "package1": Meta("package1", "# [linux]"),
-        "common_package": Meta("common_package", "# [unix]"),
-        "shared_package": Meta("shared_package", "# [linux]"),
-    }
-    assert _remove_unsupported_platform_dependencies(
-        sample_requirements.pip,
-        "linux-64",
-    ) == {
-        "common_package": Meta("common_package", "# [unix]"),
-        "package4": Meta("package4", None),
+    sample_requirements = parse_yaml_requirements([p], verbose=False)
+    package1 = Meta(name="package1", which="conda", comment="# [linux64]")
+    package2 = Meta(name="package2", which="conda", comment="# [osx64]")
+    package3 = Meta(name="package3", which="pip", comment=None)
+    package4_pip = Meta(name="package4", which="pip", comment="# [unix]")
+    common_package_conda = Meta(
+        name="common_package",
+        which="conda",
+        comment="# [unix]",
+    )
+    common_package_pip = Meta(name="common_package", which="pip", comment="# [unix]")
+    shared_package = Meta(name="shared_package", which="pip", comment="# [win64]")
+    assert sample_requirements.requirements == {
+        "package1": [package1],
+        "package2": [package2],
+        "package3": [package3],
+        "package4": [package4_pip],
+        "common_package": [common_package_conda, common_package_pip],
+        "shared_package": [shared_package],
     }
 
-    # Test filtering for pip on linux-64 platform
-    expected_pip_linux = ParsedRequirements(
-        channels={"some-channel"},
-        conda={
-            "package1": Meta("package1", "# [linux]"),
-            "shared_package": Meta("shared_package", "# [linux]"),
+    resolved = resolve_conflicts(sample_requirements.requirements)
+    assert resolved == {
+        "package1": {"linux-64": {"conda": package1}},
+        "package2": {"osx-64": {"conda": package2}},
+        "package3": {None: {"pip": package3}},
+        "package4": {
+            "osx-64": {"pip": package4_pip},
+            "linux-64": {"pip": package4_pip},
+            "linux-aarch64": {"pip": package4_pip},
+            "linux-ppc64le": {"pip": package4_pip},
+            "osx-arm64": {"pip": package4_pip},
         },
-        pip={
-            "common_package": Meta("common_package", "# [unix]"),
-            "package4": Meta("package4", None),
+        "common_package": {
+            "osx-64": {"conda": common_package_conda, "pip": common_package_pip},
+            "linux-64": {"conda": common_package_conda, "pip": common_package_pip},
+            "linux-aarch64": {"conda": common_package_conda, "pip": common_package_pip},
+            "linux-ppc64le": {"conda": common_package_conda, "pip": common_package_pip},
+            "osx-arm64": {"conda": common_package_conda, "pip": common_package_pip},
         },
+        "shared_package": {"win-64": {"pip": shared_package}},
+    }
+    # Pip
+    pip_deps = filter_python_dependencies(resolved)
+    assert pip_deps == [
+        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "package3",
+        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
+
+    # Conda
+    conda_env_spec = create_conda_env_specification(
+        resolved,
+        channels=sample_requirements.channels,
     )
 
-    assert (
-        _segregate_pip_conda_dependencies(sample_requirements, "pip", "linux-64")
-        == expected_pip_linux
-    )
+    def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:
+        return sorted(x, key=lambda x: tuple(x.items()))
 
-    # Test filtering for conda on linux-64 platform
-    expected_conda_linux = ParsedRequirements(
-        channels={"some-channel"},
-        conda={
-            "package1": Meta("package1", "# [linux]"),
-            "common_package": Meta("common_package", "# [unix]"),
-            "shared_package": Meta("shared_package", "# [linux]"),
-        },
-        pip={"package4": Meta("package4", None)},
+    assert sort(conda_env_spec.conda) == sort(  # type: ignore[arg-type]
+        [
+            {"sel(linux)": "package1"},
+            {"sel(osx)": "package2"},
+            {"sel(osx)": "common_package"},
+            {"sel(linux)": "common_package"},
+        ],
     )
-    assert (
-        _segregate_pip_conda_dependencies(sample_requirements, "conda", "linux-64")
-        == expected_conda_linux
-    )
-
-    # Test with invalid pip_or_conda value
-    with pytest.raises(ValueError, match="Invalid value for `pip_or_conda`"):
-        _segregate_pip_conda_dependencies(sample_requirements, "invalid_value", "linux-64")  # type: ignore[arg-type]
+    assert conda_env_spec.pip == [
+        "package3",
+        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
 
 
 def test__build_pep508_environment_marker() -> None:
@@ -523,57 +550,168 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements([p], verbose=False)
-    requirements_filtered = ParsedRequirements(
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=None),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=None),
+        ],
+        "bar": [
+            Meta(name="bar", which="conda", comment=None, pin=None),
+            Meta(name="bar", which="pip", comment=None, pin=None),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            "linux-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=">1",
+                ),
+                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            },
+        },
+        "bar": {
+            None: {
+                "conda": Meta(name="bar", which="conda", comment=None, pin=None),
+                "pip": Meta(name="bar", which="pip", comment=None, pin=None),
+            },
+        },
+    }
+    env_spec = create_conda_env_specification(
+        resolved,
         requirements.channels,
-        filter_duplicates(requirements.conda),
-        filter_duplicates(requirements.pip),
     )
+    assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
+    assert env_spec.pip == []
 
-    # Pip: First without filtering duplicates
-    deduplicated_requirements = _segregate_pip_conda_dependencies(
-        requirements,
-        "pip",
-        None,
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
+        "bar",
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
+
+
+def test_duplicates_different_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo <1 # [linux]
+            """,
+        ),
     )
-    assert deduplicated_requirements.conda == {}
-    assert deduplicated_requirements.pip == {
-        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
-        "foo": Meta(name="foo", comment="# [linux64]", pin=None),
-        "bar": Meta(name="bar", comment=None, pin=None),
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+            Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+        ],
     }
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            "linux-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=">1",
+                ),
+                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            },
+            "linux-aarch64": {
+                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+            },
+            "linux-ppc64le": {
+                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
+                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+            },
+        },
+    }
+    with pytest.warns(UserWarning, match="Conflicting dependencies for platform linux"):
+        env_spec = create_conda_env_specification(
+            resolved,
+            requirements.channels,
+        )
+    assert env_spec.conda == [{"sel(linux)": "foo >1"}]
+    assert env_spec.pip == []
 
-    # Pip: Now with filtering duplicates
-    deduplicated_requirements_filtered = _segregate_pip_conda_dependencies(
-        requirements_filtered,
-        "pip",
-        None,
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
+        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
+
+
+def test_expand_none_with_different_platforms(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo >2
+            """,
+        ),
     )
-    assert deduplicated_requirements_filtered.conda == {}
-    assert deduplicated_requirements_filtered.pip == {
-        "foo >1": Meta(name="foo", comment="# [linux64]", pin=">1"),
-        "bar": Meta(name="bar", comment=None, pin=None),
+    requirements = parse_yaml_requirements([p], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            Meta(name="foo", which="conda", comment=None, pin=">2"),
+            Meta(name="foo", which="pip", comment=None, pin=">2"),
+        ],
     }
-
-
-def test_filter_duplicates() -> None:
-    input_requirements = {
-        "package1": Meta(name="package1"),
-        "package1 >=1.0": Meta(name="package1", pin=">=1.0"),
-        "package2": Meta(name="package2"),
-        "package3>=2.0": Meta(name="package3", pin=">=2.0"),
-        "package3<2.0": Meta(name="package3", pin="<2.0"),
+    resolved = resolve_conflicts(requirements.requirements)
+    assert resolved == {
+        "foo": {
+            "linux-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=">1",
+                ),
+                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+            },
+            None: {
+                "conda": Meta(name="foo", which="conda", comment=None, pin=">2"),
+                "pip": Meta(name="foo", which="pip", comment=None, pin=">2"),
+            },
+        },
     }
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == [
+        {"sel(linux)": "foo >1"},
+        {"sel(osx)": "foo >2"},
+        {"sel(win)": "foo >2"},
+    ]
 
-    with pytest.warns(UserWarning, match="Multiple different version requirements"):
-        filtered = filter_duplicates(input_requirements)
+    assert env_spec.pip == []
 
-    assert len(filtered) == 3  # noqa: PLR2004
-    assert "package1 >=1.0" in filtered
-
-    # Should pick this due to version pin
-    assert filtered["package1 >=1.0"].pin == ">=1.0"
-    assert "package2" in filtered
-    assert "package3>=2.0" in filtered
-
-    # Should warn and keep the first version pin
-    assert filtered["package3>=2.0"].pin == ">=2.0"
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
+        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo >2; sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "foo >2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+        "foo >2; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo >2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo >2; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
