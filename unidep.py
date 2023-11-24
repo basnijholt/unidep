@@ -575,12 +575,15 @@ def filter_python_dependencies(
         _maybe_expand_none(platform_data)
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
-            if platforms is not None and _platform not in platforms:
+            if (
+                _platform is not None
+                and platforms is not None
+                and _platform not in platforms
+            ):
                 continue
             pip_meta = sources.get("pip")
             if pip_meta:
                 to_process[_platform] = pip_meta
-
         if not to_process:
             continue
 
@@ -729,6 +732,24 @@ def main() -> None:  # pragma: no cover
         help="Print verbose output",
     )
 
+    # Subparser for the 'pip' and 'conda' command
+    parser_pip = subparsers.add_parser("pip", help="Get the pip requirements.")
+    parser_conda = subparsers.add_parser("conda", help="Get the conda requirements.")
+    for sub_parser in [parser_pip, parser_conda]:
+        sub_parser.add_argument(
+            "-f",
+            "--file",
+            type=str,
+            default="requirements.yaml",
+            help="The requirements.yaml file to parse, by default `requirements.yaml`",
+        )
+        sub_parser.add_argument(
+            "--separator",
+            type=str,
+            default=" ",
+            help="The separator between the dependencies, by default ` `",
+        )
+
     args = parser.parse_args()
 
     if args.command == "merge":
@@ -756,6 +777,17 @@ def main() -> None:  # pragma: no cover
             print(
                 f"✅ Generated environment file at `{output_file}` from {found_files_str}",
             )
+    elif args.command == "pip":
+        pip_dependencies = list(
+            get_python_dependencies(
+                args.file,
+                platforms=[_identify_current_platform()],
+                raises_if_missing=True,
+            ),
+        )
+        print(args.separator.join(pip_dependencies))
+    elif args.command == "conda":
+        pass
     else:
         parser.print_help()
 
