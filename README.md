@@ -187,6 +187,8 @@ options:
 
 <!-- OUTPUT:END -->
 
+#### `unidep merge`
+
 Use `unidep merge` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file.
 See `unidep merge -h` for more information:
 
@@ -218,6 +220,8 @@ options:
 
 <!-- OUTPUT:END -->
 
+#### `unidep pip`
+
 Use `unidep pip` to scan directories for `requirements.yaml` file(s) and output the pip installable dependencies.
 See `unidep pip -h` for more information:
 
@@ -242,6 +246,7 @@ options:
 
 <!-- OUTPUT:END -->
 
+#### `unidep conda`
 
 Use `unidep conda` to scan directories for `requirements.yaml` file(s) and output the conda installable dependencies.
 See `unidep conda -h` for more information:
