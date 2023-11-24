@@ -1,13 +1,13 @@
 # :rocket: `unidep` - Unified Conda and Pip Requirements Management :rocket:
 
-[![PyPI](https://img.shields.io/pypi/v/conda-join.svg)](https://pypi.python.org/pypi/conda-join)
-[![Build Status](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml)
-[![CodeCov](https://codecov.io/gh/basnijholt/conda-join/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/conda-join)
+[![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
+[![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
+[![CodeCov](https://codecov.io/gh/basnijholt/unidep/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/unidep)
 
-`conda-join` simplifies Python project dependency management by enabling a single `requirements.yaml` file to handle both Conda and Pip dependencies.
+`unidep` simplifies Python project dependency management by enabling a single `requirements.yaml` file to handle both Conda and Pip dependencies.
 This streamlined approach allows for creating a unified Conda `environment.yaml`, while also seamlessly integrating with `setup.py` or `pyproject.toml`.
 In addition, it can be used as a CLI to combine multiple `requirements.yaml` files into a single `environment.yaml` file.
-Simplify your setup and maintain all your dependencies in one place with `conda-join`.
+Simplify your setup and maintain all your dependencies in one place with `unidep`.
 
 ## :books: Table of Contents
 
@@ -33,20 +33,20 @@ Simplify your setup and maintain all your dependencies in one place with `conda-
 
 ## :package: Installation
 
-To install `conda-join`, run the following command:
+To install `unidep`, run the following command:
 
 ```bash
-pip install -U conda-join
+pip install -U unidep
 ```
 
 Or just copy the script to your project:
 ```bash
-wget https://raw.githubusercontent.com/basnijholt/conda-join/main/unidep.py
+wget https://raw.githubusercontent.com/basnijholt/unidep/main/unidep.py
 ```
 
 ## :page_facing_up: `requirements.yaml` structure
 
-`conda-join` processes `requirements.yaml` files with a specific format:
+`unidep` processes `requirements.yaml` files with a specific format:
 
 - **name** (Optional): For documentation, not used in the output.
 - **channels**: List of sources for packages, such as `conda-forge`.
@@ -70,7 +70,7 @@ dependencies:
   - conda: cuda-toolkit  # [linux64]
 ```
 
-**⚠️ `conda-join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
+**⚠️ `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
 
 ### Key Points
 
@@ -79,7 +79,7 @@ dependencies:
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 
-Using the CLI `conda-join` will combine these dependencies into a single conda installable `environment.yaml` file.
+Using the CLI `unidep` will combine these dependencies into a single conda installable `environment.yaml` file.
 
 ### Platform Selectors
 
@@ -127,21 +127,21 @@ This is particularly useful for creating environment files that are portable acr
 
 ### Conflict Resolution
 
-`conda-join` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
+`unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
 
 #### How It Works
 
-- **Version Pinning Priority**: `conda-join` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
 
-- **Minimal Scope Selection**: `conda-join` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <1 # [linux64]` and `foo >1`, it installs `foo <1` exclusively on Linux-64 and `foo >1` on all other platforms. This approach ensures platform-specific requirements are precisely met.
+- **Minimal Scope Selection**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <1 # [linux64]` and `foo >1`, it installs `foo <1` exclusively on Linux-64 and `foo >1` on all other platforms. This approach ensures platform-specific requirements are precisely met.
 
-- **Resolving Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `conda-join` issues a warning and defaults to the first encountered specification.
+- **Resolving Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` issues a warning and defaults to the first encountered specification.
 
 ## :memo: Usage
 
 ### With `pyproject.toml` or `setup.py`
 
-To use `conda-join` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
+To use `unidep` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
 
 - **When using only `pyproject.toml`**: The `dependencies` field in `pyproject.toml` will be automatically populated based on the contents of `requirements.yaml`.
 - **When using `setup.py`**: The `install_requires` field in `setup.py` will be automatically populated, reflecting the dependencies defined in `requirements.yaml`.
@@ -151,22 +151,22 @@ Here's an example `pyproject.toml` configuration:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel", "conda-join"]
+requires = ["setuptools", "wheel", "unidep"]
 
 [project]
 dynamic = ["dependencies"]
 ```
 
-In this configuration, `conda-join` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
+In this configuration, `unidep` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
 
 ### :memo: As a CLI
 
-Use `conda-join` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file.
-See [example](example/) for more information or check the output of `conda-join -h`:
+Use `unidep` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file.
+See [example](example/) for more information or check the output of `unidep -h`:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- conda-join -h -->
+<!-- unidep -h -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
@@ -181,4 +181,4 @@ See [example](example/) for more information or check the output of `conda-join 
 
 * * *
 
-Try `conda-join` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
+Try `unidep` today for a streamlined approach to managing your Conda environment dependencies across multiple projects! 🎉👏
