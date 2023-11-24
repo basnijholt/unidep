@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "conda-join"
+name = "unidep"
 description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
@@ -15,27 +15,26 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/basnijholt/conda-join"
+Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
 
 [project.scripts]
-conda-join = "conda_join:main"
-conda_join = "conda_join:main"
+unidep = "unidep:main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
-conda-join = "conda_join:setuptools_finalizer"
+unidep = "unidep:setuptools_finalizer"
 
 [tool.setuptools]
-py-modules = ["conda_join"]
+py-modules = ["unidep"]
 
 [tool.setuptools.dynamic]
-version = {attr = "conda_join.__version__"}
+version = {attr = "unidep.__version__"}
 
 [tool.pytest.ini_options]
 addopts = """
-    --cov=conda_join
+    --cov=unidep
     --cov-report term
     --cov-report html
     --cov-fail-under=95
@@ -88,6 +87,6 @@ tag = true
 tag_name = "v{new_version}"
 
 [[tool.bumpversion.files]]
-filename = "conda_join.py"
+filename = "unidep.py"
 replace = '__version__ = "{new_version}"'
 search = '__version__ = "{current_version}"'

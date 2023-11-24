@@ -553,9 +553,9 @@ def write_conda_environment_file(
             f.seek(0, 0)
             command_line_args = " ".join(sys.argv[1:])
             txt = [
-                f"# This file is created and managed by `conda-join` {__version__}.",
-                "# For details see https://github.com/basnijholt/conda-join",
-                f"# File generated with: `conda-join {command_line_args}`",
+                f"# This file is created and managed by `unidep` {__version__}.",
+                "# For details see https://github.com/basnijholt/unidep",
+                f"# File generated with: `unidep {command_line_args}`",
             ]
             content = "\n".join(txt) + "\n\n" + content
             f.write(content)
