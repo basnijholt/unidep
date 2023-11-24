@@ -797,7 +797,7 @@ def main() -> None:  # pragma: no cover
                 verbose=args.verbose,
             ),
         )
-        print(args.separator.join(pip_dependencies))
+        print(args.separator.replace("\\n", "\n").join(pip_dependencies))
     elif args.command == "conda":
         if not args.file.exists():
             print(f"❌ File {args.file} not found.")
@@ -808,7 +808,7 @@ def main() -> None:  # pragma: no cover
             resolved_requirements,
             requirements.channels,
         )
-        print(args.separator.join(env_spec.conda))
+        print(args.separator.replace("\\n", "\n").join(env_spec.conda))
     else:
         parser.print_help()
 
