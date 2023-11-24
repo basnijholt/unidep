@@ -79,19 +79,7 @@ dependencies:
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 
-Using the CLI `conda-join` will combine these dependencies into a single `environment.yaml` file, structured as follows:
-
-```yaml
-name: some_name
-channels:
-  - conda-forge
-dependencies:
-  - numpy
-  - python-graphviz
-  - mumps
-  pip:
-    - slurm-usage
-```
+Using the CLI `conda-join` will combine these dependencies into a single conda installable `environment.yaml` file.
 
 ### Platform Selectors
 
