@@ -664,9 +664,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     ]
 
 
-def test_expand_none_with_different_platforms(
-    tmp_path: Path,
-) -> None:
+def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -727,9 +725,7 @@ def test_expand_none_with_different_platforms(
     ]
 
 
-def test_different_pins_on_conda_and_pip(
-    tmp_path: Path,
-) -> None:
+def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -768,9 +764,7 @@ def test_different_pins_on_conda_and_pip(
     assert python_deps == ["foo >1"]
 
 
-def test_pip_pinned_conda_not(
-    tmp_path: Path,
-) -> None:
+def test_pip_pinned_conda_not(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -795,9 +789,7 @@ def test_pip_pinned_conda_not(
     assert python_deps == ["foo >1"]
 
 
-def test_conda_pinned_pip_not(
-    tmp_path: Path,
-) -> None:
+def test_conda_pinned_pip_not(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -822,9 +814,7 @@ def test_conda_pinned_pip_not(
     assert python_deps == []
 
 
-def test_filter_python_dependencies_with_platforms(
-    tmp_path: Path,
-) -> None:
+def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
