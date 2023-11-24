@@ -133,6 +133,17 @@ In this example:
 The tool parses these selectors and filters dependencies according to the platform where it's being run.
 This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
+### Conflict Resolution
+
+`conda-join` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
+
+#### How It Works
+
+- **Version Pinning Priority**: `conda-join` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+
+- **Minimal Scope Selection**: `conda-join` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <1 # [linux64]` and `foo >1`, it installs `foo <1` exclusively on Linux-64 and `foo >1` on all other platforms. This approach ensures platform-specific requirements are precisely met.
+
+- **Resolving Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `conda-join` issues a warning and defaults to the first encountered specification.
 
 ## :memo: Usage
 
