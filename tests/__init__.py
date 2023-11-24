@@ -1,1 +1,1 @@
-"""Tests for the ``conda_join`` package."""
+"""Tests for the ``unidep`` package."""
