@@ -39,7 +39,7 @@ To install `conda-join`, run the following command:
 pip install -U conda-join
 ```
 
-Or just copy the script to your computer:
+Or just copy the script to your project:
 ```bash
 wget https://raw.githubusercontent.com/basnijholt/conda-join/main/conda_join.py
 ```
