@@ -1,4 +1,4 @@
-# :rocket: `conda-join` - Unified Conda and Pip Requirements Management :rocket:
+# :rocket: `unidep` - Unified Conda and Pip Requirements Management :rocket:
 
 [![PyPI](https://img.shields.io/pypi/v/conda-join.svg)](https://pypi.python.org/pypi/conda-join)
 [![Build Status](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/conda-join/actions/workflows/pytest.yml)
@@ -41,7 +41,7 @@ pip install -U conda-join
 
 Or just copy the script to your project:
 ```bash
-wget https://raw.githubusercontent.com/basnijholt/conda-join/main/conda_join.py
+wget https://raw.githubusercontent.com/basnijholt/conda-join/main/unidep.py
 ```
 
 ## :page_facing_up: `requirements.yaml` structure
