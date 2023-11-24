@@ -66,6 +66,8 @@ dependencies:
     pip: graphviz
   - pip: slurm-usage  # pip-only
   - conda: mumps  # conda-only
+  # Use platform selectors; below only on linux64
+  - conda: cuda-toolkit  # [linux64]
 ```
 
 **⚠️ `conda-join` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
