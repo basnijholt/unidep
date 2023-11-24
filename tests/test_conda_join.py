@@ -766,3 +766,77 @@ def test_different_pins_on_conda_and_pip(
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == ["foo >1"]
+
+
+def test_pip_pinned_conda_not(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: foo >1
+                  conda: foo
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == []
+
+    assert env_spec.pip == ["foo >1"]
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == ["foo >1"]
+
+
+def test_conda_pinned_pip_not(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: foo
+                  conda: foo >1
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == ["foo >1"]
+
+    assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == []
+
+
+def test_filter_python_dependencies_with_platforms(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo # [unix]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    python_deps = filter_python_dependencies(resolved, platforms=["linux-64"])
+    assert python_deps == [
+        "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
