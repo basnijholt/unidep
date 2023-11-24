@@ -56,6 +56,25 @@ PEP508_MARKERS = {
     "win-64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
 }
 
+
+def simple_warning_format(
+    message: Warning | str,
+    category: type[Warning],  # noqa: ARG001
+    filename: str,
+    lineno: int,
+    line: str | None = None,  # noqa: ARG001
+) -> str:
+    """Format warnings without code context."""
+    return (
+        f"⚠️  *** WARNING *** ⚠️\n"
+        f"Message: {message}\n"
+        f"Location: {filename}, line {lineno}\n"
+        f"---------------------\n"
+    )
+
+
+warnings.formatwarning = simple_warning_format
+
 # Functions for setuptools and conda
 
 
@@ -215,15 +234,6 @@ class Meta(NamedTuple):
         return result
 
 
-def _all_platforms_identical(metas: list[Meta]) -> bool:
-    """Check if all platforms are identical."""
-    platforms = {meta.comment for meta in metas}
-    if len(platforms) == 1:
-        return True
-    platform = metas[0].platforms()
-    return all(meta.platforms == platform for meta in metas)
-
-
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
@@ -322,9 +332,10 @@ def _select_preferred_version_within_platform(
                     on_platform = (
                         f" on platform `{_platform}`" if _platform is not None else ""
                     )
-                    print(
-                        f"⚠️ Conflict{on_platform}! Keeping `{selected_meta.pprint()}`"
+                    warnings.warn(
+                        f"Conflict{on_platform}! Keeping `{selected_meta.pprint()}`"
                         f" ({which}), discarding {discarded_metas_str}",
+                        stacklevel=2,
                     )
                 reduced_data[_platform][which] = selected_meta
             else:
@@ -399,7 +410,9 @@ def _maybe_expand_none(
     if len(platform_data) > 1 and None in platform_data:
         sources = platform_data.pop(None)
         for _platform in get_args(Platform):
-            platform_data[_platform] = sources
+            if _platform not in platform_data:
+                # Only add if there is not yet a specific platform
+                platform_data[_platform] = sources
 
 
 def _extract_conda_pip_dependencies(
@@ -451,7 +464,7 @@ def _resolve_multiple_platform_conflicts(
             # We have a conflict, select the first one.
             first, *others = meta_to_platforms.keys()
             msg = (
-                f"Conflicting dependencies for platform {conda_platform}: {meta_to_platforms},"
+                f"Conflicting dependencies for platform {conda_platform}: {dict(meta_to_platforms)},"
                 f" keeping {first}, discarding {others}"
             )
             warnings.warn(msg, stacklevel=2)
