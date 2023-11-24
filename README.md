@@ -1,4 +1,4 @@
-# :rocket: `unidep` - Unified Conda and Pip Requirements Management :rocket:
+# :rocket: UniDep - Unified Conda and Pip Dependency Management :rocket:
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
