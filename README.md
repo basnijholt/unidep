@@ -195,7 +195,6 @@ options:
 <!-- OUTPUT:END -->
 
 ## Limitations
-- **No Conflict Resolution**: Doesn't resolve version conflicts between different `requirements.yaml` files.
 - **Conda-Focused**: Best suited for Conda environments.
 
 * * *
