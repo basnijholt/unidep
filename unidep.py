@@ -685,39 +685,44 @@ def main() -> None:  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command", help="Subcommands")
+
+    # Subparser for the 'merge' command
+    parser_merge = subparsers.add_parser("merge", help="Merge requirements")
+
+    parser_merge.add_argument(
         "-d",
         "--directory",
         type=str,
         default=".",
         help="Base directory to scan for requirements.yaml files, by default `.`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-o",
         "--output",
         type=str,
         default="environment.yaml",
         help="Output file for the conda environment, by default `environment.yaml`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-n",
         "--name",
         type=str,
         default="myenv",
         help="Name of the conda environment, by default `myenv`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "--depth",
         type=int,
         default=1,
         help="Depth to scan for requirements.yaml files, by default 1",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "--stdout",
         action="store_true",
         help="Output to stdout instead of a file",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -726,28 +731,33 @@ def main() -> None:  # pragma: no cover
 
     args = parser.parse_args()
 
-    # When using stdout, suppress verbose output
-    verbose = args.verbose and not args.stdout
+    if args.command == "merge":
+        # When using stdout, suppress verbose output
+        verbose = args.verbose and not args.stdout
 
-    found_files = find_requirements_files(
-        args.directory,
-        args.depth,
-        verbose=verbose,
-    )
-    if not found_files:
-        print(f"❌ No requirements.yaml files found in {args.directory}")
-        sys.exit(1)
-    requirements = parse_yaml_requirements(found_files, verbose=verbose)
-    resolved_requirements = resolve_conflicts(requirements.requirements)
-    env_spec = create_conda_env_specification(
-        resolved_requirements,
-        requirements.channels,
-    )
-    output_file = None if args.stdout else args.output
-    write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
-    if output_file:
-        found_files_str = ", ".join(f"`{f}`" for f in found_files)
-        print(f"✅ Generated environment file at `{output_file}` from {found_files_str}")
+        found_files = find_requirements_files(
+            args.directory,
+            args.depth,
+            verbose=verbose,
+        )
+        if not found_files:
+            print(f"❌ No requirements.yaml files found in {args.directory}")
+            sys.exit(1)
+        requirements = parse_yaml_requirements(found_files, verbose=verbose)
+        resolved_requirements = resolve_conflicts(requirements.requirements)
+        env_spec = create_conda_env_specification(
+            resolved_requirements,
+            requirements.channels,
+        )
+        output_file = None if args.stdout else args.output
+        write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
+        if output_file:
+            found_files_str = ", ".join(f"`{f}`" for f in found_files)
+            print(
+                f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+            )
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
