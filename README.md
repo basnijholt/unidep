@@ -27,6 +27,9 @@ Simplify your setup and maintain all your dependencies in one place with `unidep
 - [:memo: Usage](#memo-usage)
   - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
   - [:memo: As a CLI](#memo-as-a-cli)
+    - [`unidep merge`](#unidep-merge)
+    - [`unidep pip`](#unidep-pip)
+    - [`unidep conda`](#unidep-conda)
 - [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
