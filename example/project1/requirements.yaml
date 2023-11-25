@@ -3,4 +3,5 @@ channels:
   - conda-forge
 dependencies:
   - pandas
-  - pip: qsimcirq
+  - pip: qsimcirq  # [linux64]
+  - pip: slurm-usage

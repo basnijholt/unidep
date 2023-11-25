@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import textwrap
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +14,7 @@ from unidep import (
     _build_pep508_environment_marker,
     _extract_name_and_pin,
     _identify_current_platform,
+    _install_command,
     create_conda_env_specification,
     escape_unicode,
     extract_matching_platforms,
@@ -24,9 +25,6 @@ from unidep import (
     resolve_conflicts,
     write_conda_environment_file,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture()
@@ -855,3 +853,17 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
 def test_escape_unicode() -> None:
     assert escape_unicode("foo\\n") == "foo\n"
     assert escape_unicode("foo\\t") == "foo\t"
+
+
+def test_install_command(capsys: pytest.CaptureFixture) -> None:
+    root = Path(__file__).parent.parent
+    _install_command(
+        conda_executable="",
+        dry_run=True,
+        editable=False,
+        file=root / "example" / "project1" / "requirements.yaml",
+        verbose=False,
+    )
+    captured = capsys.readouterr()
+    assert "Installing conda dependencies" in captured.out
+    assert "Installing pip dependencies" in captured.out

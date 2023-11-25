@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import argparse
 import codecs
+import os
 import platform
 import re
+import shutil
+import subprocess
 import sys
 import warnings
 from collections import defaultdict
@@ -695,6 +698,44 @@ def escape_unicode(string: str) -> str:
     return codecs.decode(string, "unicode_escape")
 
 
+def _add_common_args(
+    sub_parser: argparse.ArgumentParser,
+    options: set[str],
+) -> None:  # pragma: no cover
+    if "file" in options:
+        sub_parser.add_argument(
+            "-f",
+            "--file",
+            type=Path,
+            default="requirements.yaml",
+            help="The requirements.yaml file to parse, by default `requirements.yaml`",
+        )
+    if "verbose" in options:
+        sub_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Print verbose output",
+        )
+    if "platform" in options:
+        current_platform = _identify_current_platform()
+        sub_parser.add_argument(
+            "--platform",
+            type=str,
+            default=current_platform,
+            choices=get_args(Platform),
+            help=f"The platform to get the requirements for, by default the"
+            f" current platform (`{current_platform}`)",
+        )
+    if "editable" in options:
+        sub_parser.add_argument(
+            "-e",
+            "--editable",
+            action="store_true",
+            help="Install the project in editable mode",
+        )
+
+
 def _parse_args() -> argparse.Namespace:  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
@@ -739,46 +780,42 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         action="store_true",
         help="Output to stdout instead of a file",
     )
-    parser_merge.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print verbose output",
-    )
+    _add_common_args(parser_merge, {"verbose"})
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
     parser_pip = subparsers.add_parser("pip", help=help_str.format("pip"))
     parser_conda = subparsers.add_parser("conda", help=help_str.format("conda"))
     for sub_parser in [parser_pip, parser_conda]:
-        sub_parser.add_argument(
-            "-f",
-            "--file",
-            type=Path,
-            default="requirements.yaml",
-            help="The requirements.yaml file to parse, by default `requirements.yaml`",
-        )
+        _add_common_args(sub_parser, {"verbose", "platform", "file"})
         sub_parser.add_argument(
             "--separator",
             type=str,
             default=" ",
             help="The separator between the dependencies, by default ` `",
         )
-        sub_parser.add_argument(
-            "-v",
-            "--verbose",
-            action="store_true",
-            help="Print verbose output",
-        )
-        current_platform = _identify_current_platform()
-        sub_parser.add_argument(
-            "--platform",
-            type=str,
-            default=current_platform,
-            choices=get_args(Platform),
-            help=f"The platform to get the requirements for, by default the"
-            f" current platform `{current_platform}`",
-        )
+
+    # Subparser for the 'install' command
+    parser_install = subparsers.add_parser(
+        "install",
+        help="Install the dependencies of a single `requirements.yaml` file in the"
+        " currently activated conda environment with conda, then install the remaining"
+        " dependencies with pip, and finally install the current package"
+        " with `pip install [-e] .`.",
+    )
+    _add_common_args(parser_install, {"verbose", "platform", "file", "editable"})
+    parser_install.add_argument(
+        "--conda_executable",
+        type=str,
+        choices=("conda", "mamba", "micromamba"),
+        help="The conda executable to use",
+        default=None,
+    )
+    parser_install.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only print the commands that would be run",
+    )
 
     args = parser.parse_args()
     if args.command is None:
@@ -787,38 +824,158 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     return args
 
 
+def _identify_conda_executable() -> str:  # pragma: no cover
+    """Identify the conda executable to use.
+
+    This function checks for micromamba, mamba, and conda in that order.
+    """
+    if shutil.which("micromamba"):
+        return "micromamba"
+    if shutil.which("mamba"):
+        return "mamba"
+    if shutil.which("conda"):
+        return "conda"
+    msg = "Could not identify conda executable."
+    raise RuntimeError(msg)
+
+
+def _is_pip_installable(folder: Path) -> bool:  # pragma: no cover
+    """Determine if the project is pip installable.
+
+    Checks for existence of setup.py or [build-system] in pyproject.toml.
+    """
+    if (folder / "setup.py").exists():
+        return True
+
+    # When toml makes it into the standard library, we can use that instead
+    # For now this is good enough, except it doesn't handle the case where
+    # [build-system] is inside of a multi-line literal string.
+    pyproject_path = folder / "pyproject.toml"
+    if pyproject_path.exists():
+        with pyproject_path.open("r") as file:
+            for line in file:
+                if line.strip().startswith("[build-system]"):
+                    return True
+    return False
+
+
+def _install_command(
+    *,
+    conda_executable: str,
+    dry_run: bool,
+    editable: bool,
+    file: Path,
+    verbose: bool,
+) -> None:
+    requirements = parse_yaml_requirements([file], verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        platform=_identify_current_platform(),
+    )
+    if env_spec.conda:
+        conda_executable = conda_executable or _identify_conda_executable()
+        channels_args = (
+            [
+                "--override-channels",
+                *env_spec.channels,
+            ]
+            if env_spec.channels
+            else []
+        )
+
+        conda_command = [
+            conda_executable,
+            "install",
+            "--yes",
+            *channels_args,
+            *env_spec.conda,
+        ]
+        print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`\n")  # type: ignore[arg-type]
+        if not dry_run:  # pragma: no cover
+            subprocess.run(conda_command, check=True)  # type: ignore[arg-type]  # noqa: S603
+    if env_spec.pip:
+        pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
+        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
+        if not dry_run:  # pragma: no cover
+            subprocess.run(pip_command, check=True)  # noqa: S603
+    if _is_pip_installable(file.parent):  # pragma: no cover
+        folder = file.parent
+        relative_prefix = ".\\" if os.name == "nt" else "./"
+        relative_path = f"{relative_prefix}{folder}"
+        pip_command = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-e" if editable else "",
+            relative_path,
+        ]
+        print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
+        if not dry_run:
+            subprocess.run(pip_command, check=True)  # noqa: S603
+    else:
+        print(
+            "⚠️  Project is not pip installable. "
+            "Could not find setup.py or [build-system] in pyproject.toml.",
+        )
+
+    if not dry_run:  # pragma: no cover
+        print("✅ All dependencies installed successfully.")
+
+
+def _merge_command(  # noqa: PLR0913
+    *,
+    depth: int,
+    directory: str,
+    name: str,
+    output: str,
+    stdout: bool,
+    verbose: bool,
+) -> None:  # pragma: no cover
+    # When using stdout, suppress verbose output
+    verbose = verbose and not stdout
+
+    found_files = find_requirements_files(
+        directory,
+        depth,
+        verbose=verbose,
+    )
+    if not found_files:
+        print(f"❌ No requirements.yaml files found in {directory}")
+        sys.exit(1)
+    requirements = parse_yaml_requirements(found_files, verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+    )
+    output_file = None if stdout else output
+    write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
+    if output_file:
+        found_files_str = ", ".join(f"`{f}`" for f in found_files)
+        print(
+            f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+        )
+
+
 def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     args = _parse_args()
+    if hasattr(args, "file") and not args.file.exists():
+        print(f"❌ File {args.file} not found.")
+        sys.exit(1)
     if args.command == "merge":
-        # When using stdout, suppress verbose output
-        verbose = args.verbose and not args.stdout
-
-        found_files = find_requirements_files(
-            args.directory,
-            args.depth,
-            verbose=verbose,
+        _merge_command(
+            depth=args.depth,
+            directory=args.directory,
+            name=args.name,
+            output=args.output,
+            stdout=args.stdout,
+            verbose=args.verbose,
         )
-        if not found_files:
-            print(f"❌ No requirements.yaml files found in {args.directory}")
-            sys.exit(1)
-        requirements = parse_yaml_requirements(found_files, verbose=verbose)
-        resolved_requirements = resolve_conflicts(requirements.requirements)
-        env_spec = create_conda_env_specification(
-            resolved_requirements,
-            requirements.channels,
-        )
-        output_file = None if args.stdout else args.output
-        write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
-        if output_file:
-            found_files_str = ", ".join(f"`{f}`" for f in found_files)
-            print(
-                f"✅ Generated environment file at `{output_file}` from {found_files_str}",
-            )
     elif args.command == "pip":
-        if not args.file.exists():
-            print(f"❌ File {args.file} not found.")
-            sys.exit(1)
         pip_dependencies = list(
             get_python_dependencies(
                 args.file,
@@ -828,9 +985,6 @@ def main() -> None:  # pragma: no cover
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":
-        if not args.file.exists():
-            print(f"❌ File {args.file} not found.")
-            sys.exit(1)
         requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
         env_spec = create_conda_env_specification(
@@ -839,6 +993,14 @@ def main() -> None:  # pragma: no cover
             platform=args.platform,
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
+    elif args.command == "install":
+        _install_command(
+            conda_executable=args.conda_executable,
+            dry_run=args.dry_run,
+            editable=args.editable,
+            file=args.file,
+            verbose=args.verbose,
+        )
 
 
 if __name__ == "__main__":
