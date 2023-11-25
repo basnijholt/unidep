@@ -924,6 +924,41 @@ def _install_command(
         print("✅ All dependencies installed successfully.")
 
 
+def _merge_command(  # noqa: PLR0913
+    *,
+    depth: int,
+    directory: str,
+    name: str,
+    output: str,
+    stdout: bool,
+    verbose: bool,
+) -> None:  # pragma: no cover
+    # When using stdout, suppress verbose output
+    verbose = verbose and not stdout
+
+    found_files = find_requirements_files(
+        directory,
+        depth,
+        verbose=verbose,
+    )
+    if not found_files:
+        print(f"❌ No requirements.yaml files found in {directory}")
+        sys.exit(1)
+    requirements = parse_yaml_requirements(found_files, verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+    )
+    output_file = None if stdout else output
+    write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
+    if output_file:
+        found_files_str = ", ".join(f"`{f}`" for f in found_files)
+        print(
+            f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+        )
+
+
 def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     args = _parse_args()
@@ -931,30 +966,14 @@ def main() -> None:  # pragma: no cover
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
     if args.command == "merge":
-        # When using stdout, suppress verbose output
-        verbose = args.verbose and not args.stdout
-
-        found_files = find_requirements_files(
-            args.directory,
-            args.depth,
-            verbose=verbose,
+        _merge_command(
+            depth=args.depth,
+            directory=args.directory,
+            name=args.name,
+            output=args.output,
+            stdout=args.stdout,
+            verbose=args.verbose,
         )
-        if not found_files:
-            print(f"❌ No requirements.yaml files found in {args.directory}")
-            sys.exit(1)
-        requirements = parse_yaml_requirements(found_files, verbose=verbose)
-        resolved_requirements = resolve_conflicts(requirements.requirements)
-        env_spec = create_conda_env_specification(
-            resolved_requirements,
-            requirements.channels,
-        )
-        output_file = None if args.stdout else args.output
-        write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
-        if output_file:
-            found_files_str = ", ".join(f"`{f}`" for f in found_files)
-            print(
-                f"✅ Generated environment file at `{output_file}` from {found_files_str}",
-            )
     elif args.command == "pip":
         pip_dependencies = list(
             get_python_dependencies(
