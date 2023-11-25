@@ -5,7 +5,7 @@
 [![CodeCov](https://codecov.io/gh/basnijholt/unidep/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/unidep)
 
 `unidep` simplifies Python project dependency management by enabling a single `requirements.yaml` file to handle both Conda and Pip dependencies.
-This streamlined approach allows for creating a unified Conda `environment.yaml`, while also seamlessly integrating with `setup.py` or `pyproject.toml`.
+This approach allows for creating a unified Conda `environment.yaml`, while also integrating with `setup.py` or `pyproject.toml`.
 In addition, it can be used as a CLI to combine multiple `requirements.yaml` files into a single `environment.yaml` file.
 Simplify your setup and maintain all your dependencies in one place with `unidep`.
 
@@ -49,7 +49,7 @@ wget https://raw.githubusercontent.com/basnijholt/unidep/main/unidep.py
 
 ## :page_facing_up: `requirements.yaml` structure
 
-`unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml`):
+`unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file):
 
 - **name** (Optional): For documentation, not used in the output.
 - **channels**: List of sources for packages, such as `conda-forge`.
