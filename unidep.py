@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import codecs
 import platform
 import re
 import sys
@@ -482,6 +483,7 @@ def _resolve_multiple_platform_conflicts(
 def create_conda_env_specification(
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: set[str],
+    platform: Platform | None = None,
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
     # Split in conda and pip dependencies and prefer conda over pip
@@ -493,10 +495,12 @@ def create_conda_env_specification(
         if len(platform_to_meta) > 1:  # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in platform_to_meta.items():
+            if _platform is not None and platform is not None and _platform != platform:
+                continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if _platform is not None:
+            if _platform is not None and platform is None:
                 sel = _conda_sel(_platform)
                 dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
             conda_deps.append(dep_str)
@@ -506,14 +510,14 @@ def create_conda_env_specification(
         for _platform, meta in platform_to_meta.items():
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
-        for meta, platforms in meta_to_platforms.items():
-            if len(platforms) > 1 and None in platforms:
+        for meta, _platforms in meta_to_platforms.items():
+            if len(_platforms) > 1 and None in _platforms:
                 raise NotImplementedError
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if platforms != [None]:
-                selector = _build_pep508_environment_marker(platforms)  # type: ignore[arg-type]
+            if _platforms != [None]:
+                selector = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
 
@@ -575,12 +579,15 @@ def filter_python_dependencies(
         _maybe_expand_none(platform_data)
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
-            if platforms is not None and _platform not in platforms:
+            if (
+                _platform is not None
+                and platforms is not None
+                and _platform not in platforms
+            ):
                 continue
             pip_meta = sources.get("pip")
             if pip_meta:
                 to_process[_platform] = pip_meta
-
         if not to_process:
             continue
 
@@ -680,74 +687,140 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     )
 
 
+def escape_unicode(string: str) -> str:
+    return codecs.decode(string, "unicode_escape")
+
+
 def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command", help="Subcommands")
+
+    # Subparser for the 'merge' command
+    parser_merge = subparsers.add_parser(
+        "merge",
+        help="Merge requirements to conda installable environment.yaml",
+    )
+
+    parser_merge.add_argument(
         "-d",
         "--directory",
         type=str,
         default=".",
         help="Base directory to scan for requirements.yaml files, by default `.`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-o",
         "--output",
         type=str,
         default="environment.yaml",
         help="Output file for the conda environment, by default `environment.yaml`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-n",
         "--name",
         type=str,
         default="myenv",
         help="Name of the conda environment, by default `myenv`",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "--depth",
         type=int,
         default=1,
         help="Depth to scan for requirements.yaml files, by default 1",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "--stdout",
         action="store_true",
         help="Output to stdout instead of a file",
     )
-    parser.add_argument(
+    parser_merge.add_argument(
         "-v",
         "--verbose",
         action="store_true",
         help="Print verbose output",
     )
 
+    # Subparser for the 'pip' and 'conda' command
+    help_str = "Get the {} requirements for the current platform only."
+    parser_pip = subparsers.add_parser("pip", help=help_str.format("pip"))
+    parser_conda = subparsers.add_parser("conda", help=help_str.format("conda"))
+    for sub_parser in [parser_pip, parser_conda]:
+        sub_parser.add_argument(
+            "-f",
+            "--file",
+            type=Path,
+            default="requirements.yaml",
+            help="The requirements.yaml file to parse, by default `requirements.yaml`",
+        )
+        sub_parser.add_argument(
+            "--separator",
+            type=str,
+            default=" ",
+            help="The separator between the dependencies, by default ` `",
+        )
+        sub_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="Print verbose output",
+        )
+
     args = parser.parse_args()
 
-    # When using stdout, suppress verbose output
-    verbose = args.verbose and not args.stdout
+    if args.command == "merge":
+        # When using stdout, suppress verbose output
+        verbose = args.verbose and not args.stdout
 
-    found_files = find_requirements_files(
-        args.directory,
-        args.depth,
-        verbose=verbose,
-    )
-    if not found_files:
-        print(f"❌ No requirements.yaml files found in {args.directory}")
-        sys.exit(1)
-    requirements = parse_yaml_requirements(found_files, verbose=verbose)
-    resolved_requirements = resolve_conflicts(requirements.requirements)
-    env_spec = create_conda_env_specification(
-        resolved_requirements,
-        requirements.channels,
-    )
-    output_file = None if args.stdout else args.output
-    write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
-    if output_file:
-        found_files_str = ", ".join(f"`{f}`" for f in found_files)
-        print(f"✅ Generated environment file at `{output_file}` from {found_files_str}")
+        found_files = find_requirements_files(
+            args.directory,
+            args.depth,
+            verbose=verbose,
+        )
+        if not found_files:
+            print(f"❌ No requirements.yaml files found in {args.directory}")
+            sys.exit(1)
+        requirements = parse_yaml_requirements(found_files, verbose=verbose)
+        resolved_requirements = resolve_conflicts(requirements.requirements)
+        env_spec = create_conda_env_specification(
+            resolved_requirements,
+            requirements.channels,
+        )
+        output_file = None if args.stdout else args.output
+        write_conda_environment_file(env_spec, output_file, args.name, verbose=verbose)
+        if output_file:
+            found_files_str = ", ".join(f"`{f}`" for f in found_files)
+            print(
+                f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+            )
+    elif args.command == "pip":
+        if not args.file.exists():
+            print(f"❌ File {args.file} not found.")
+            sys.exit(1)
+        pip_dependencies = list(
+            get_python_dependencies(
+                args.file,
+                platforms=[_identify_current_platform()],
+                verbose=args.verbose,
+            ),
+        )
+        print(escape_unicode(args.separator).join(pip_dependencies))
+    elif args.command == "conda":
+        if not args.file.exists():
+            print(f"❌ File {args.file} not found.")
+            sys.exit(1)
+        requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
+        resolved_requirements = resolve_conflicts(requirements.requirements)
+        env_spec = create_conda_env_specification(
+            resolved_requirements,
+            requirements.channels,
+            platform=_identify_current_platform(),
+        )
+        print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
