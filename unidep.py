@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import codecs
+import os
 import platform
 import re
 import shutil
@@ -837,7 +838,78 @@ def _identify_conda_executable() -> str:  # pragma: no cover
     raise RuntimeError(msg)
 
 
-def main() -> None:  # pragma: no cover  # noqa: PLR0912
+def _is_pip_installable(folder: Path) -> bool:
+    """Determine if the project is pip installable.
+
+    Checks for existence of setup.py or [build-system] in pyproject.toml.
+    """
+    if (folder / "setup.py").exists():
+        return True
+
+    # When toml makes it into the standard library, we can use that instead
+    # For now this is good enough, except it doesn't handle the case where
+    # [build-system] is inside of a multi-line literal string.
+    pyproject_path = folder / "pyproject.toml"
+    if pyproject_path.exists():
+        with pyproject_path.open("r") as file:
+            for line in file:
+                if line.strip().startswith("[build-system]"):
+                    return True
+    return False
+
+
+def _install_command(
+    *,
+    conda_executable: str,
+    dry_run: bool,
+    editable: bool,
+    file: Path,
+    verbose: bool,
+) -> None:
+    requirements = parse_yaml_requirements([file], verbose=verbose)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        platform=_identify_current_platform(),
+    )
+    if env_spec.conda:
+        conda_executable = conda_executable or _identify_conda_executable()
+        conda_command = [conda_executable, "install", "--yes", *env_spec.conda]
+        print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`\n")  # type: ignore[arg-type]
+        if not dry_run:
+            subprocess.run(conda_command, check=True)  # type: ignore[arg-type]  # noqa: S603
+    if env_spec.pip:
+        pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
+        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
+        if not dry_run:
+            subprocess.run(pip_command, check=True)  # noqa: S603
+    if _is_pip_installable(file.parent):
+        folder = file.parent
+        relative_prefix = ".\\" if os.name == "nt" else "./"
+        relative_path = f"{relative_prefix}{folder}"
+        pip_command = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-e" if editable else "",
+            relative_path,
+        ]
+        print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
+        if not dry_run:
+            subprocess.run(pip_command, check=True)  # noqa: S603
+    else:
+        print(
+            "⚠️  Project is not pip installable. "
+            "Could not find setup.py or [build-system] in pyproject.toml.",
+        )
+
+    if not dry_run:
+        print("✅ All dependencies installed successfully.")
+
+
+def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if hasattr(args, "file") and not args.file.exists():
@@ -887,28 +959,13 @@ def main() -> None:  # pragma: no cover  # noqa: PLR0912
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
-        requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
-        resolved_requirements = resolve_conflicts(requirements.requirements)
-        env_spec = create_conda_env_specification(
-            resolved_requirements,
-            requirements.channels,
-            platform=_identify_current_platform(),
+        _install_command(
+            conda_executable=args.conda_executable,
+            dry_run=args.dry_run,
+            editable=args.editable,
+            file=args.file,
+            verbose=args.verbose,
         )
-        if args.editable:
-            env_spec.pip.append("-e .")
-        if env_spec.conda:
-            conda_executable = args.conda_executable or _identify_conda_executable()
-            conda_command = [conda_executable, "install", "--yes", *env_spec.conda]
-            print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`")  # type: ignore[arg-type]
-            if not args.dry_run:
-                subprocess.run(conda_command, check=True)  # type: ignore[arg-type]  # noqa: S603
-        if env_spec.pip:
-            pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
-            print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`")
-            if not args.dry_run:
-                subprocess.run(pip_command, check=True)  # noqa: S603
-        if not args.dry_run:
-            print("✅ All dependencies installed successfully.")
 
 
 if __name__ == "__main__":
