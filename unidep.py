@@ -865,7 +865,7 @@ def _install_command(
     editable: bool,
     file: Path,
     verbose: bool,
-) -> None:  # pragma: no cover
+) -> None:
     requirements = parse_yaml_requirements([file], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
@@ -875,16 +875,31 @@ def _install_command(
     )
     if env_spec.conda:
         conda_executable = conda_executable or _identify_conda_executable()
-        conda_command = [conda_executable, "install", "--yes", *env_spec.conda]
+        channels_args = (
+            [
+                "--override-channels",
+                *env_spec.channels,
+            ]
+            if env_spec.channels
+            else []
+        )
+
+        conda_command = [
+            conda_executable,
+            "install",
+            "--yes",
+            *channels_args,
+            *env_spec.conda,
+        ]
         print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`\n")  # type: ignore[arg-type]
-        if not dry_run:
+        if not dry_run:  # pragma: no cover
             subprocess.run(conda_command, check=True)  # type: ignore[arg-type]  # noqa: S603
     if env_spec.pip:
         pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
-        if not dry_run:
+        if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
-    if _is_pip_installable(file.parent):
+    if _is_pip_installable(file.parent):  # pragma: no cover
         folder = file.parent
         relative_prefix = ".\\" if os.name == "nt" else "./"
         relative_path = f"{relative_prefix}{folder}"
@@ -905,7 +920,7 @@ def _install_command(
             "Could not find setup.py or [build-system] in pyproject.toml.",
         )
 
-    if not dry_run:
+    if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
 
 
