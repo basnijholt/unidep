@@ -181,8 +181,8 @@ Unified Conda and Pip requirements management.
 positional arguments:
   {merge,pip,conda}  Subcommands
     merge            Merge requirements to conda installable environment.yaml
-    pip              Get the pip requirements.
-    conda            Get the conda requirements.
+    pip              Get the pip requirements for the current platform only.
+    conda            Get the conda requirements for the current platform only.
 
 options:
   -h, --help         show this help message and exit
