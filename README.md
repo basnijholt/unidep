@@ -225,7 +225,7 @@ options:
 
 #### `unidep pip`
 
-Use `unidep pip` on a `requirements.yaml` file and output the pip installable dependencies on the current platform.
+Use `unidep pip` on a `requirements.yaml` file and output the pip installable dependencies on the current platform (default).
 See `unidep pip -h` for more information:
 
 <!-- CODE:BASH:START -->
@@ -255,7 +255,7 @@ options:
 
 #### `unidep conda`
 
-Use `unidep conda` on a `requirements.yaml` file and output the conda installable dependencies.
+Use `unidep conda` on a `requirements.yaml` file and output the conda installable dependencies on the current platform (default).
 See `unidep conda -h` for more information:
 
 <!-- CODE:BASH:START -->
