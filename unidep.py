@@ -486,6 +486,12 @@ def create_conda_env_specification(
     platform: Platform | None = None,
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
+    if platform is not None and platform not in get_args(Platform):
+        msg = f"Invalid platform: {platform}, must be one of {get_args(Platform)}"
+        raise ValueError(
+            msg,
+        )
+
     # Split in conda and pip dependencies and prefer conda over pip
     conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
 

@@ -182,6 +182,18 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
 
+    # Test on single platform
+    env = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        "osx-arm64",
+    )
+    assert env.conda == ["yolo"]
+    assert env.pip == [
+        "pip-package",
+        "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    ]
+
 
 def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     f = tmp_path / "dir3" / "requirements.yaml"
