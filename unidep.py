@@ -800,6 +800,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         help="Install the dependencies of a single `requirements.yaml` file with"
         " conda and then the remaining dependencies with pip.",
     )
+    _add_common_args(parser_install, {"verbose", "platform", "file", "editable"})
     parser_install.add_argument(
         "--conda_executable",
         type=str,
@@ -812,7 +813,6 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         action="store_true",
         help="Only print the commands that would be run",
     )
-    _add_common_args(parser_install, {"verbose", "platform", "file", "editable"})
 
     args = parser.parse_args()
     if args.command is None:
