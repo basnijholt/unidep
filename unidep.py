@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import codecs
 import platform
 import re
 import sys
@@ -482,6 +483,7 @@ def _resolve_multiple_platform_conflicts(
 def create_conda_env_specification(
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: set[str],
+    platform: Platform | None = None,
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
     # Split in conda and pip dependencies and prefer conda over pip
@@ -493,10 +495,12 @@ def create_conda_env_specification(
         if len(platform_to_meta) > 1:  # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in platform_to_meta.items():
+            if _platform is not None and platform is not None and _platform != platform:
+                continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if _platform is not None:
+            if _platform is not None and platform is None:
                 sel = _conda_sel(_platform)
                 dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
             conda_deps.append(dep_str)
@@ -506,14 +510,14 @@ def create_conda_env_specification(
         for _platform, meta in platform_to_meta.items():
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
-        for meta, platforms in meta_to_platforms.items():
-            if len(platforms) > 1 and None in platforms:
+        for meta, _platforms in meta_to_platforms.items():
+            if len(_platforms) > 1 and None in _platforms:
                 raise NotImplementedError
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if platforms != [None]:
-                selector = _build_pep508_environment_marker(platforms)  # type: ignore[arg-type]
+            if _platforms != [None]:
+                selector = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
 
@@ -683,6 +687,10 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     )
 
 
+def escape_unicode(string: str) -> str:
+    return codecs.decode(string, "unicode_escape")
+
+
 def main() -> None:  # pragma: no cover
     """Main entry point for the command-line tool."""
     parser = argparse.ArgumentParser(
@@ -736,8 +744,9 @@ def main() -> None:  # pragma: no cover
     )
 
     # Subparser for the 'pip' and 'conda' command
-    parser_pip = subparsers.add_parser("pip", help="Get the pip requirements.")
-    parser_conda = subparsers.add_parser("conda", help="Get the conda requirements.")
+    help_str = "Get the {} requirements for the current platform only."
+    parser_pip = subparsers.add_parser("pip", help=help_str.format("pip"))
+    parser_conda = subparsers.add_parser("conda", help=help_str.format("conda"))
     for sub_parser in [parser_pip, parser_conda]:
         sub_parser.add_argument(
             "-f",
@@ -797,7 +806,7 @@ def main() -> None:  # pragma: no cover
                 verbose=args.verbose,
             ),
         )
-        print(args.separator.replace("\\n", "\n").join(pip_dependencies))
+        print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":
         if not args.file.exists():
             print(f"❌ File {args.file} not found.")
@@ -807,8 +816,9 @@ def main() -> None:  # pragma: no cover
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
+            platform=_identify_current_platform(),
         )
-        print(args.separator.replace("\\n", "\n").join(env_spec.conda))
+        print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     else:
         parser.print_help()
 
