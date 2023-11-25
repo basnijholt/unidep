@@ -701,6 +701,14 @@ def _add_common_args(
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
+    if "file" in options:
+        sub_parser.add_argument(
+            "-f",
+            "--file",
+            type=Path,
+            default="requirements.yaml",
+            help="The requirements.yaml file to parse, by default `requirements.yaml`",
+        )
     if "verbose" in options:
         sub_parser.add_argument(
             "-v",
@@ -717,14 +725,6 @@ def _add_common_args(
             choices=get_args(Platform),
             help=f"The platform to get the requirements for, by default the"
             f" current platform (`{current_platform}`)",
-        )
-    if "file" in options:
-        sub_parser.add_argument(
-            "-f",
-            "--file",
-            type=Path,
-            default="requirements.yaml",
-            help="The requirements.yaml file to parse, by default `requirements.yaml`",
         )
     if "editable" in options:
         sub_parser.add_argument(
@@ -786,13 +786,13 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     parser_pip = subparsers.add_parser("pip", help=help_str.format("pip"))
     parser_conda = subparsers.add_parser("conda", help=help_str.format("conda"))
     for sub_parser in [parser_pip, parser_conda]:
+        _add_common_args(sub_parser, {"verbose", "platform", "file"})
         sub_parser.add_argument(
             "--separator",
             type=str,
             default=" ",
             help="The separator between the dependencies, by default ` `",
         )
-        _add_common_args(sub_parser, {"verbose", "platform", "file"})
 
     # Subparser for the 'install' command
     parser_install = subparsers.add_parser(
