@@ -511,8 +511,6 @@ def create_conda_env_specification(
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
         for meta, _platforms in meta_to_platforms.items():
-            if len(_platforms) > 1 and None in _platforms:
-                raise NotImplementedError
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
