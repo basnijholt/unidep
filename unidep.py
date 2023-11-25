@@ -604,7 +604,7 @@ def filter_python_dependencies(
             # Build a single combined environment marker
             dep_str = first_meta.name
             if first_meta.pin is not None:
-                dep_str += f" {first_meta.pin}"
+                dep_str += first_meta.pin.replace("=", "==")
             if _platform is not None:
                 selector = _build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
@@ -614,7 +614,7 @@ def filter_python_dependencies(
         for _platform, pip_meta in to_process.items():
             dep_str = pip_meta.name
             if pip_meta.pin is not None:
-                dep_str += f" {pip_meta.pin}"
+                dep_str += pip_meta.pin.replace("=", "==")
             if _platform is not None:
                 selector = _build_pep508_environment_marker([_platform])
                 dep_str = f"{dep_str}; {selector}"

@@ -867,3 +867,27 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
+
+
+def test_correct_version_specifiers(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo ==1
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+    )
+    assert env_spec.conda == ["foo ==1"]
+
+    assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == ["foo==1"]
