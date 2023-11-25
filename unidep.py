@@ -838,7 +838,7 @@ def _identify_conda_executable() -> str:  # pragma: no cover
     raise RuntimeError(msg)
 
 
-def _is_pip_installable(folder: Path) -> bool:
+def _is_pip_installable(folder: Path) -> bool:  # pragma: no cover
     """Determine if the project is pip installable.
 
     Checks for existence of setup.py or [build-system] in pyproject.toml.
@@ -865,7 +865,7 @@ def _install_command(
     editable: bool,
     file: Path,
     verbose: bool,
-) -> None:
+) -> None:  # pragma: no cover
     requirements = parse_yaml_requirements([file], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
