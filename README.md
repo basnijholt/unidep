@@ -49,7 +49,7 @@ wget https://raw.githubusercontent.com/basnijholt/unidep/main/unidep.py
 
 ## :page_facing_up: `requirements.yaml` structure
 
-`unidep` processes `requirements.yaml` files with a specific format:
+`unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml`):
 
 - **name** (Optional): For documentation, not used in the output.
 - **channels**: List of sources for packages, such as `conda-forge`.
