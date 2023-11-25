@@ -803,7 +803,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         " dependencies with pip, and finally install the current package"
         " with `pip install [-e] .`.",
     )
-    _add_common_args(parser_install, {"verbose", "platform", "file", "editable"})
+    _add_common_args(parser_install, {"verbose", "file", "editable"})
     parser_install.add_argument(
         "--conda_executable",
         type=str,
