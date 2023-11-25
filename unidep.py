@@ -695,8 +695,7 @@ def escape_unicode(string: str) -> str:
     return codecs.decode(string, "unicode_escape")
 
 
-def main() -> None:  # pragma: no cover
-    """Main entry point for the command-line tool."""
+def _parse_args() -> argparse.Namespace:  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
     )
@@ -771,9 +770,16 @@ def main() -> None:  # pragma: no cover
             action="store_true",
             help="Print verbose output",
         )
-
     args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
+    return args
 
+
+def main() -> None:  # pragma: no cover
+    """Main entry point for the command-line tool."""
+    args = _parse_args()
     if args.command == "merge":
         # When using stdout, suppress verbose output
         verbose = args.verbose and not args.stdout
@@ -823,8 +829,6 @@ def main() -> None:  # pragma: no cover
             platform=_identify_current_platform(),
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
-    else:
-        parser.print_help()
 
 
 if __name__ == "__main__":
