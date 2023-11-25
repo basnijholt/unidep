@@ -836,7 +836,7 @@ def _identify_conda_executable() -> str:  # pragma: no cover
     raise RuntimeError(msg)
 
 
-def main() -> None:  # pragma: no cover
+def main() -> None:  # pragma: no cover  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if hasattr(args, "file") and not args.file.exists():
@@ -906,7 +906,8 @@ def main() -> None:  # pragma: no cover
             print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`")
             if not args.dry_run:
                 subprocess.run(pip_command, check=True)  # noqa: S603
-        print("✅ All dependencies installed successfully.")
+        if not args.dry_run:
+            print("✅ All dependencies installed successfully.")
 
 
 if __name__ == "__main__":
