@@ -198,8 +198,9 @@ positional arguments:
                         only.
     install             Install the dependencies of a single
                         `requirements.yaml` file in the currently activated
-                        conda environment with conda and then the remaining
-                        dependencies with pip.
+                        conda environment with conda, then install the
+                        remaining dependencies with pip, and finally install
+                        the current package with `pip install [-e] .`.
 
 options:
   -h, --help            show this help message and exit
