@@ -9,6 +9,14 @@ This approach allows for creating a unified Conda `environment.yaml`, while also
 In addition, it can be used as a CLI to combine multiple `requirements.yaml` files into a single `environment.yaml` file.
 Simplify your setup and maintain all your dependencies in one place with `unidep`.
 
+## :rocket: Features
+
+- **Unified Management**: Single-file handling of Conda and Pip dependencies.
+- **Project Tool Integration**: Easily works with `pyproject.toml` and `setup.py`, so `requirements.yaml` is used during `pip install`.
+- **Monorepo Support**: Merge multiple `requirements.yaml` into one Conda environment `environment.yaml`.
+- **Platform-Specific Support**: Tailors dependencies for different operating systems or architectures.
+- **Conflict Resolution**: Simplifies complex dependency management by resolving version conflicts.
+
 ## :books: Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
