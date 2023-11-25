@@ -3,3 +3,4 @@ channels:
   - conda-forge
 dependencies:
   - conda: scipy
+  - conda: cuda-toolkit  # [linux64]

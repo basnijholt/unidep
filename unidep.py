@@ -770,6 +770,16 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
             action="store_true",
             help="Print verbose output",
         )
+        current_platform = _identify_current_platform()
+        sub_parser.add_argument(
+            "--platform",
+            type=str,
+            default=current_platform,
+            choices=get_args(Platform),
+            help=f"The platform to get the requirements for, by default the"
+            f" current platform `{current_platform}`",
+        )
+
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
@@ -812,7 +822,7 @@ def main() -> None:  # pragma: no cover
         pip_dependencies = list(
             get_python_dependencies(
                 args.file,
-                platforms=[_identify_current_platform()],
+                platforms=[args.platform],
                 verbose=args.verbose,
             ),
         )
@@ -826,7 +836,7 @@ def main() -> None:  # pragma: no cover
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            platform=_identify_current_platform(),
+            platform=args.platform,
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
 
