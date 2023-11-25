@@ -797,8 +797,9 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     # Subparser for the 'install' command
     parser_install = subparsers.add_parser(
         "install",
-        help="Install the dependencies of a single `requirements.yaml` file with"
-        " conda and then the remaining dependencies with pip.",
+        help="Install the dependencies of a single `requirements.yaml` file in the"
+        " currently activated conda environment with conda and then the remaining"
+        " dependencies with pip.",
     )
     _add_common_args(parser_install, {"verbose", "platform", "file", "editable"})
     parser_install.add_argument(
