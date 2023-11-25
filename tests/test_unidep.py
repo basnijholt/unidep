@@ -15,6 +15,7 @@ from unidep import (
     _extract_name_and_pin,
     _identify_current_platform,
     create_conda_env_specification,
+    escape_unicode,
     extract_matching_platforms,
     filter_python_dependencies,
     find_requirements_files,
@@ -193,6 +194,13 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
+
+    with pytest.raises(ValueError, match="Invalid platform"):
+        create_conda_env_specification(
+            resolved_requirements,
+            requirements.channels,
+            "unknown-platform",  # type: ignore[arg-type]
+        )
 
 
 def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
@@ -842,3 +850,8 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     assert python_deps == [
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
+
+
+def test_escape_unicode() -> None:
+    assert escape_unicode("foo\\n") == "foo\n"
+    assert escape_unicode("foo\\t") == "foo\t"
