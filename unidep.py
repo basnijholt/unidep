@@ -697,7 +697,10 @@ def escape_unicode(string: str) -> str:
     return codecs.decode(string, "unicode_escape")
 
 
-def _add_common_args(sub_parser: argparse.ArgumentParser, options: set[str]) -> None:
+def _add_common_args(
+    sub_parser: argparse.ArgumentParser,
+    options: set[str],
+) -> None:  # pragma: no cover
     if "verbose" in options:
         sub_parser.add_argument(
             "-v",
@@ -818,7 +821,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     return args
 
 
-def _identify_conda_executable() -> str:
+def _identify_conda_executable() -> str:  # pragma: no cover
     """Identify the conda executable to use.
 
     This function checks for micromamba, mamba, and conda in that order.
