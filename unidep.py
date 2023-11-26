@@ -928,7 +928,7 @@ def _install_command(
         print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
         if not dry_run:
             subprocess.run(pip_command, check=True)  # noqa: S603
-    else:
+    else:  # pragma: no cover
         print(
             "⚠️  Project is not pip installable. "
             "Could not find setup.py or [build-system] in pyproject.toml.",
