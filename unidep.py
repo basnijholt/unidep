@@ -58,6 +58,15 @@ PEP508_MARKERS = {
     "osx-64": "sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "osx-arm64": "sys_platform == 'darwin' and platform_machine == 'arm64'",
     "win-64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ("linux-64", "linux-aarch64", "linux-ppc64le"): "sys_platform == 'linux'",
+    ("osx-64", "osx-arm64"): "sys_platform == 'darwin'",
+    (
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ): "sys_platform == 'linux' or sys_platform == 'darwin'",
 }
 
 
@@ -158,11 +167,16 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
     return list(filtered_platforms)
 
 
-def _build_pep508_environment_marker(platforms: list[Platform]) -> str:
+def _build_pep508_environment_marker(
+    platforms: list[Platform | tuple[Platform, ...]],
+) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
+    sorted_platforms = tuple(sorted(platforms))
+    if sorted_platforms in PEP508_MARKERS:
+        return PEP508_MARKERS[sorted_platforms]  # type: ignore[index]
     environment_markers = [
         PEP508_MARKERS[platform]
-        for platform in sorted(platforms)
+        for platform in sorted(sorted_platforms)
         if platform in PEP508_MARKERS
     ]
     return " or ".join(environment_markers)
