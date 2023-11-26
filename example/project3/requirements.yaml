@@ -4,4 +4,4 @@ channels:
 dependencies:
   - adaptive-scheduler  # [linux64]
   - pip: unidep
-  - pip: hpc05  # [linux64]
+  - hpc05  # [linux64]
