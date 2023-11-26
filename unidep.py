@@ -824,7 +824,7 @@ def _parse_args() -> argparse.Namespace:
         parser.print_help()
         sys.exit(1)
 
-    if args.file.is_dir():
+    if "file" in args and args.file.is_dir():
         args.file = args.file / "requirements.yaml"
     return args
 
@@ -975,9 +975,10 @@ def _merge_command(  # noqa: PLR0913
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if hasattr(args, "file") and not args.file.exists():  # pragma: no cover
+    if "file" in args and not args.file.exists():  # pragma: no cover
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
+
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
