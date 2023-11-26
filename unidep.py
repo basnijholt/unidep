@@ -702,6 +702,14 @@ def _add_common_args(
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
+    if "directory" in options:
+        sub_parser.add_argument(
+            "-d",
+            "--directory",
+            type=str,
+            default=".",
+            help="Base directory to scan for requirements.yaml file(s), by default `.`",
+        )
     if "file" in options:
         sub_parser.add_argument(
             "-f",
@@ -747,14 +755,6 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         "merge",
         help="Merge requirements to conda installable environment.yaml",
     )
-
-    parser_merge.add_argument(
-        "-d",
-        "--directory",
-        type=str,
-        default=".",
-        help="Base directory to scan for requirements.yaml files, by default `.`",
-    )
     parser_merge.add_argument(
         "-o",
         "--output",
@@ -780,7 +780,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
         action="store_true",
         help="Output to stdout instead of a file",
     )
-    _add_common_args(parser_merge, {"verbose"})
+    _add_common_args(parser_merge, {"directory", "verbose"})
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
