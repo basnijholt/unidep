@@ -15,8 +15,7 @@ dependencies:
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
     - slurm-usage
-    - fileup; sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform
-    == 'darwin' and platform_machine == 'arm64'
+    - fileup; sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'
     - codestructure
     - aiokef
     - unidep

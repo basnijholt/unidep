@@ -550,6 +550,7 @@ def write_conda_environment_file(
     )
     yaml = YAML()
     yaml.default_flow_style = False
+    yaml.width = 4096
     yaml.indent(mapping=2, sequence=2, offset=2)
     if output_file:
         if verbose:
