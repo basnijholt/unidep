@@ -716,7 +716,8 @@ def _add_common_args(
             "--file",
             type=Path,
             default="requirements.yaml",
-            help="The requirements.yaml file to parse, by default `requirements.yaml`",
+            help="The requirements.yaml file to parse or folder that contains"
+            " that file, by default `requirements.yaml`",
         )
     if "verbose" in options:
         sub_parser.add_argument(
@@ -818,9 +819,13 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     )
 
     args = parser.parse_args()
+
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    if args.file.is_dir():
+        args.file = args.file / "requirements.yaml"
     return args
 
 
@@ -868,8 +873,6 @@ def _install_command(
     verbose: bool,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
-    if file.is_dir():
-        file = file / "requirements.yaml"
     requirements = parse_yaml_requirements([file], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
