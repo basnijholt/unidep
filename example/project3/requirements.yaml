@@ -2,6 +2,6 @@ name: project3
 channels:
   - conda-forge
 dependencies:
-  - adaptive-scheduler
+  - adaptive-scheduler  # [linux64]
   - pip: unidep
   - pip: hpc05  # [linux64]
