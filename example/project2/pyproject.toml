@@ -10,6 +10,7 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 # populated by `unidep` with the dependencies from the `requirements.yaml`
 # dependencies = []
 version = "0.1.0"
+dynamic = ["dependencies"]
 
 [tool.setuptools]
 py-modules = ["project2"]
