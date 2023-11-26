@@ -173,7 +173,7 @@ def _build_pep508_environment_marker(
     """Generate a PEP 508 selector for a list of platforms."""
     sorted_platforms = tuple(sorted(platforms))
     if sorted_platforms in PEP508_MARKERS:
-        return PEP508_MARKERS[sorted_platforms]
+        return PEP508_MARKERS[sorted_platforms]  # type: ignore[index]
     environment_markers = [
         PEP508_MARKERS[platform]
         for platform in sorted(sorted_platforms)

@@ -423,9 +423,9 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     # Pip
     pip_deps = filter_python_dependencies(resolved)
     assert pip_deps == [
-        "common_package; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "common_package; sys_platform == 'linux' or sys_platform == 'darwin'",
         "package3",
-        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "package4; sys_platform == 'linux' or sys_platform == 'darwin'",
         "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
     ]
 
@@ -449,7 +449,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     )
     assert conda_env_spec.pip == [
         "package3",
-        "package4; sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'linux' and platform_machine == 'aarch64' or sys_platform == 'linux' and platform_machine == 'ppc64le' or sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "package4; sys_platform == 'linux' or sys_platform == 'darwin'",
         "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
     ]
 
