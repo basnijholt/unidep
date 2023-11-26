@@ -907,7 +907,6 @@ def _install_command(
         if not dry_run:  # pragma: no cover
             subprocess.run((conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
     if env_spec.pip:
-        print(len(env_spec.pip))
         pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
