@@ -1,6 +1,6 @@
 # :rocket: UniDep - Unified Conda and Pip Dependency Management :rocket:
 
-![](https://private-user-images.githubusercontent.com/6897215/285626739-a5a9bd12-0a93-40d4-9a86-71d854811fce.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTEiLCJleHAiOjE3MDA5Njg3NDgsIm5iZiI6MTcwMDk2ODQ0OCwicGF0aCI6Ii82ODk3MjE1LzI4NTYyNjczOS1hNWE5YmQxMi0wYTkzLTQwZDQtOWE4Ni03MWQ4NTQ4MTFmY2UucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQUlXTkpZQVg0Q1NWRUg1M0ElMkYyMDIzMTEyNiUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzExMjZUMDMxNDA4WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9NzA3OWYwYWJhZGMwYzg2NWFlM2ZkZWY1MzQ2MGI2MGQ4MTZkMmM0NTY2OThhOWExNjRkOTQ1OGM4YTAwZWQ3ZiZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.kQgFzvVYXIrMnyiFUufFGalLgNp4THUf1WemFW3-EMI)
+![](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
