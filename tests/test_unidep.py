@@ -870,9 +870,11 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing pip dependencies" in captured.out
 
 
-def test_unidep_install_dry_run() -> None:
+@pytest.mark.parametrize("project", ["project1", "project2", "project3"])
+def test_unidep_install_dry_run(project: str) -> None:
     # Path to the requirements file
-    requirements_path = Path("example/project1/requirements.yaml")
+    root = Path(__file__).parent.parent
+    requirements_path = root / "example" / project
 
     # Ensure the requirements file exists
     assert requirements_path.exists(), "Requirements file does not exist"
@@ -892,6 +894,7 @@ def test_unidep_install_dry_run() -> None:
 
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
-    assert "📦 Installing conda dependencies with" in result.stdout
+    if project in ("project1", "project2"):
+        assert "📦 Installing conda dependencies with" in result.stdout
     assert "📦 Installing pip dependencies with" in result.stdout
     assert "📦 Installing project with" in result.stdout

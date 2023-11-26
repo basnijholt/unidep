@@ -745,7 +745,7 @@ def _add_common_args(
         )
 
 
-def _parse_args() -> argparse.Namespace:  # pragma: no cover
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
     )
@@ -820,7 +820,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
 
     args = parser.parse_args()
 
-    if args.command is None:
+    if args.command is None:  # pragma: no cover
         parser.print_help()
         sys.exit(1)
 
