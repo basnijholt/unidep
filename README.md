@@ -166,7 +166,7 @@ Here's an example `pyproject.toml` configuration:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel", "unidep"]
+requires = ["setuptools", "unidep"]
 
 [project]
 dynamic = ["dependencies"]
