@@ -41,7 +41,7 @@ Platform = Literal[
 CondaPip = Literal["conda", "pip"]
 
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 __all__ = [
     "find_requirements_files",
     "extract_matching_platforms",
