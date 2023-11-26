@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - pandas
-  - pip: adaptive >=1.0.0
+  - adaptive >=1.0.0<2.0.0
   - pip: yaml2bib # [linux64]
   - pip: rsync-time-machine
   - pip: slurm-usage

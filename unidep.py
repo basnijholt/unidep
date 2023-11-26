@@ -864,6 +864,13 @@ def _is_pip_installable(folder: Path) -> bool:  # pragma: no cover
     return False
 
 
+def _format_inline_conda_package(package: str) -> str:
+    name, pin = _extract_name_and_pin(package)
+    if pin is None:
+        return name
+    return f'{name}"{pin.strip()}"'
+
+
 def _install_command(
     *,
     conda_executable: str,
@@ -891,11 +898,14 @@ def _install_command(
             "install",
             "--yes",
             *channel_args,
-            *env_spec.conda,
         ]
-        print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`\n")  # type: ignore[arg-type]
+        # When running the command in terminal, we need to wrap the pin in quotes
+        # so what we print is what the user would type (copy-paste).
+        to_print = [_format_inline_conda_package(pkg) for pkg in env_spec.conda]  # type: ignore[arg-type]
+        conda_command_str = " ".join((*conda_command, *to_print))
+        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
-            subprocess.run(conda_command, check=True)  # type: ignore[arg-type]  # noqa: S603
+            subprocess.run((conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
     if env_spec.pip:
         print(len(env_spec.pip))
         pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
