@@ -805,7 +805,7 @@ def _parse_args() -> argparse.Namespace:  # pragma: no cover
     )
     _add_common_args(parser_install, {"verbose", "file", "editable"})
     parser_install.add_argument(
-        "--conda_executable",
+        "--conda-executable",
         type=str,
         choices=("conda", "mamba", "micromamba"),
         help="The conda executable to use",
@@ -867,6 +867,9 @@ def _install_command(
     file: Path,
     verbose: bool,
 ) -> None:
+    """Install the dependencies of a single `requirements.yaml` file."""
+    if file.is_dir():
+        file = file / "requirements.yaml"
     requirements = parse_yaml_requirements([file], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
