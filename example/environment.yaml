@@ -1,13 +1,25 @@
-# This file is created and managed by `unidep` 0.14.0.
+# This file is created and managed by `unidep` 0.16.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep merge`
+# File generated with: `unidep merge --name coolenv`
 
-name: myenv
+name: coolenv
 channels:
   - conda-forge
 dependencies:
   - pandas
-  - scipy
+  - adaptive >=1.0.0<2.0.0
+  - sel(linux): adaptive-scheduler
+  - sel(linux): hpc05
+  - pfapack
   - pip:
-    - qsimcirq
-    - adaptive
+    - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
+    - rsync-time-machine
+    - slurm-usage
+    - fileup; sys_platform == 'darwin' and platform_machine == 'x86_64' or sys_platform
+    == 'darwin' and platform_machine == 'arm64'
+    - codestructure
+    - aiokef
+    - unidep
+    - pipefunc
+    - markdown-code-runner
+    - home-assistant-streamdeck-yaml
