@@ -2,4 +2,8 @@ name: project2
 channels:
   - conda-forge
 dependencies:
-  - pip: adaptive
+  - adaptive
+  - pfapack
+  - pip: pipefunc
+  - pip: markdown-code-runner
+  - pip: home-assistant-streamdeck-yaml

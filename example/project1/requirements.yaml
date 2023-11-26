@@ -3,5 +3,10 @@ channels:
   - conda-forge
 dependencies:
   - pandas
-  - pip: qsimcirq  # [linux64]
+  - pip: adaptive >=1.0.0
+  - pip: yaml2bib # [linux64]
+  - pip: rsync-time-machine
   - pip: slurm-usage
+  - pip: fileup  # [macos]
+  - pip: codestructure
+  - pip: aiokef
