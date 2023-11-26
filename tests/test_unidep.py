@@ -1,6 +1,7 @@
 """unidep tests."""
 from __future__ import annotations
 
+import subprocess
 import textwrap
 from pathlib import Path
 from unittest.mock import patch
@@ -867,3 +868,30 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
+
+
+def test_unidep_install_dry_run() -> None:
+    # Path to the requirements file
+    requirements_path = Path("example/project1/requirements.yaml")
+
+    # Ensure the requirements file exists
+    assert requirements_path.exists(), "Requirements file does not exist"
+
+    # Run the unidep install command
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "install",
+            "--dry-run",
+            "--file",
+            str(requirements_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # Check the output
+    assert result.returncode == 0, "Command failed to execute successfully"
+    assert "📦 Installing conda dependencies with" in result.stdout
+    assert "📦 Installing pip dependencies with" in result.stdout
+    assert "📦 Installing project with" in result.stdout

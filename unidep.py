@@ -972,13 +972,13 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
-def main() -> None:  # pragma: no cover
+def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if hasattr(args, "file") and not args.file.exists():
+    if hasattr(args, "file") and not args.file.exists():  # pragma: no cover
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
-    if args.command == "merge":
+    if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
             directory=args.directory,
@@ -987,7 +987,7 @@ def main() -> None:  # pragma: no cover
             stdout=args.stdout,
             verbose=args.verbose,
         )
-    elif args.command == "pip":
+    elif args.command == "pip":  # pragma: no cover
         pip_dependencies = list(
             get_python_dependencies(
                 args.file,
@@ -996,7 +996,7 @@ def main() -> None:  # pragma: no cover
             ),
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
-    elif args.command == "conda":
+    elif args.command == "conda":  # pragma: no cover
         requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
         env_spec = create_conda_env_specification(
