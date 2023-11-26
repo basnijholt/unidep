@@ -262,8 +262,8 @@ usage: unidep install [-h] [-f FILE] [-v] [-e]
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The requirements.yaml file to parse, by default
-                        `requirements.yaml`
+  -f FILE, --file FILE  The requirements.yaml file to parse or folder that
+                        contains that file, by default `requirements.yaml`
   -v, --verbose         Print verbose output
   -e, --editable        Install the project in editable mode
   --conda-executable {conda,mamba,micromamba}
@@ -292,8 +292,8 @@ usage: unidep pip [-h] [-f FILE] [-v]
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The requirements.yaml file to parse, by default
-                        `requirements.yaml`
+  -f FILE, --file FILE  The requirements.yaml file to parse or folder that
+                        contains that file, by default `requirements.yaml`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform to get the requirements for, by default
@@ -323,8 +323,8 @@ usage: unidep conda [-h] [-f FILE] [-v]
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The requirements.yaml file to parse, by default
-                        `requirements.yaml`
+  -f FILE, --file FILE  The requirements.yaml file to parse or folder that
+                        contains that file, by default `requirements.yaml`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform to get the requirements for, by default
