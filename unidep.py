@@ -876,20 +876,15 @@ def _install_command(
     )
     if env_spec.conda:
         conda_executable = conda_executable or _identify_conda_executable()
-        channels_args = (
-            [
-                "--override-channels",
-                *env_spec.channels,
-            ]
-            if env_spec.channels
-            else []
-        )
+        channel_args = ["--override-channels"] if env_spec.channels else []
+        for channel in env_spec.channels:
+            channel_args.extend(["--channel", channel])
 
         conda_command = [
             conda_executable,
             "install",
             "--yes",
-            *channels_args,
+            *channel_args,
             *env_spec.conda,
         ]
         print(f"📦 Installing conda dependencies with `{' '.join(conda_command)}`\n")  # type: ignore[arg-type]
