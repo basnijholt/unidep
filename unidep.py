@@ -280,7 +280,7 @@ def parse_yaml_requirements(
     yaml = YAML(typ="rt")
     for p in paths:
         if verbose:
-            print(f"📄 Parsing {p}")
+            print(f"📄 Parsing `{p}`")
         with p.open() as f:
             data = yaml.load(f)
             for channel in data.get("channels", []):
