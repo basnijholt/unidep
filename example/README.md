@@ -41,6 +41,8 @@ Install a `requirements.yaml` file directly with pip, which installs only the Pi
 
 Just run `pip install ./project1/`.
 
+Because `unidep` is in the `[build-system]` section of [the `pyproject.toml` file](example/project1/pyproject.toml), it will be installed automatically.
+
 ## Install a `requirements.yaml` file directly with `unidep`
 
 Install a `requirements.yaml` file directly with `unidep`, which first installs the conda installable packages, then the Pip installable packages, and finally the local package itself.
