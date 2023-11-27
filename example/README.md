@@ -1,5 +1,7 @@
 # Example
 
+## Table of Contents
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -44,9 +46,9 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 See the resulting [`environment.yaml`](environment.yaml) file.
 
-## Install a `requirements.yaml` file directly with pip
+## Install a `requirements.yaml` file directly with `pip`
 
-Install a `requirements.yaml` file directly with pip, which installs only the Pip installable packages.
+Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages.
 
 Just run `pip install ./project1/`.
 
