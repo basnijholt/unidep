@@ -300,7 +300,7 @@ options:
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform to get the requirements for, by default
-                        the current platform (`linux-64`)
+                        the current platform (`osx-arm64`)
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```
@@ -331,7 +331,7 @@ options:
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform to get the requirements for, by default
-                        the current platform (`linux-64`)
+                        the current platform (`osx-arm64`)
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```

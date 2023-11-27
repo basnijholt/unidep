@@ -19,6 +19,8 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 🔍 Scanning in `.` at depth 0
 🔍 Scanning in `project1` at depth 1
 🔍 Found `requirements.yaml` at `project1/requirements.yaml`
+🔍 Scanning in `project1/project1.egg-info` at depth 2
+🔍 Scanning in `project1/build` at depth 2
 🔍 Scanning in `project3` at depth 1
 🔍 Found `requirements.yaml` at `project3/requirements.yaml`
 🔍 Scanning in `project2` at depth 1

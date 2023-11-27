@@ -818,7 +818,14 @@ def _parse_args() -> argparse.Namespace:
         " dependencies with pip, and finally install the current package"
         " with `pip install [-e] .`.",
     )
-    _add_common_args(parser_install, {"verbose", "file", "editable"})
+    # Add positional argument for the file
+    parser_install.add_argument(
+        "file",
+        type=Path,
+        help="The requirements.yaml file to parse or folder that contains that file, by default `.`",
+        default=".",
+    )
+    _add_common_args(parser_install, {"verbose", "editable"})
     parser_install.add_argument(
         "--conda-executable",
         type=str,
