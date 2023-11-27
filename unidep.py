@@ -105,7 +105,7 @@ def find_requirements_files(
     # Define a helper function to recursively scan directories
     def _scan_dir(path: Path, current_depth: int) -> None:
         if verbose:
-            print(f"Scanning in {path} at depth {current_depth}")
+            print(f"🔍 Scanning in {path} at depth {current_depth}")
         if current_depth > depth:
             return
         for child in path.iterdir():
@@ -114,7 +114,7 @@ def find_requirements_files(
             elif child.name == filename:
                 found_files.append(child)
                 if verbose:
-                    print(f"Found {filename} at {child}")
+                    print(f"🔍 Found {filename} at {child}")
 
     _scan_dir(base_path, 0)
     return found_files
@@ -280,7 +280,7 @@ def parse_yaml_requirements(
     yaml = YAML(typ="rt")
     for p in paths:
         if verbose:
-            print(f"Parsing {p}")
+            print(f"📄 Parsing {p}")
         with p.open() as f:
             data = yaml.load(f)
             for channel in data.get("channels", []):
@@ -568,11 +568,11 @@ def write_conda_environment_file(
     yaml.indent(mapping=2, sequence=2, offset=2)
     if output_file:
         if verbose:
-            print(f"Generating environment file at {output_file}")
+            print(f"📝 Generating environment file at {output_file}")
         with open(output_file, "w") as f:  # noqa: PTH123
             yaml.dump(env_data, f)
         if verbose:
-            print("Environment file generated successfully.")
+            print("📝 Environment file generated successfully.")
 
         with open(output_file, "r+") as f:  # noqa: PTH123
             content = f.read()
