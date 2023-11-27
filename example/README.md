@@ -1,5 +1,10 @@
 # Example
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
 
 Combine `requirements.yaml` files in subdirectories and into an `environment.yaml` file that can be installed with `conda`.
