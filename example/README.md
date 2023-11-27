@@ -33,7 +33,6 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 <!-- OUTPUT:END -->
 
-
 See the resulting [`environment.yaml`](environment.yaml) file.
 
 ## Install a `requirements.yaml` file directly with pip

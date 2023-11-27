@@ -87,6 +87,8 @@ dependencies:
 
 **⚠️ `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
 
+For a more in-depth example, see the [`example`](example/) directory.
+
 ### Key Points
 
 - Standard names (e.g., `- numpy`) are assumed to be the same for Conda and Pip.
