@@ -33,17 +33,17 @@ jobs:
           cd example
           markdown-code-runner README.md
 
-      - name: Commit updated README.md
+      - name: Commit updated files
         id: commit
         run: |
-          git add README.md example/README.md
+          git add -u .
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           if git diff --quiet && git diff --staged --quiet; then
-            echo "No changes in README.md, skipping commit."
+            echo "No changes, skipping commit."
             echo "commit_status=skipped" >> $GITHUB_ENV
           else
-            git commit -m "Update README.md"
+            git commit -m "Update files from markdown-code-runner"
             echo "commit_status=committed" >> $GITHUB_ENV
           fi
 
