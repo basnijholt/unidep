@@ -420,8 +420,7 @@ def _conda_sel(sel: str) -> CondaPlatform:
     """Return the allowed `sel(platform)` string."""
     _platform = sel.split("-", 1)[0]
     assert _platform in get_args(CondaPlatform), f"Invalid platform: {_platform}"
-    _platform = cast(CondaPlatform, _platform)
-    return _platform
+    return cast(CondaPlatform, _platform)
 
 
 def _maybe_expand_none(

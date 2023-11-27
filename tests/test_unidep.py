@@ -888,6 +888,7 @@ def test_unidep_install_dry_run(project: str) -> None:
             "--file",
             str(requirements_path),
         ],
+        check=True,
         capture_output=True,
         text=True,
     )
