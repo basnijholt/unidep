@@ -3,6 +3,10 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+- [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
+- [Install a `requirements.yaml` file directly with pip](#install-a-requirementsyaml-file-directly-with-pip)
+- [Install a `requirements.yaml` file directly with `unidep`](#install-a-requirementsyaml-file-directly-with-unidep)
+
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
