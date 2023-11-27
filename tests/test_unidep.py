@@ -885,7 +885,6 @@ def test_unidep_install_dry_run(project: str) -> None:
             "unidep",
             "install",
             "--dry-run",
-            "--file",
             str(requirements_path),
         ],
         check=True,
