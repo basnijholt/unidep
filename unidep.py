@@ -802,6 +802,15 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Output to stdout instead of a file",
     )
+    parser_merge.add_argument(
+        "--selector",
+        type=str,
+        choices=("sel", "comment"),
+        default="sel",
+        help="The selector to use for the environment markers, if `sel` then"
+        " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
+        " it remains `- numpy # [linux]`, by default `sel`",
+    )
     _add_common_args(parser_merge, {"directory", "verbose"})
 
     # Subparser for the 'pip' and 'conda' command
@@ -972,6 +981,7 @@ def _merge_command(  # noqa: PLR0913
     name: str,
     output: str,
     stdout: bool,
+    selector: Literal["sel", "comment"],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -990,6 +1000,7 @@ def _merge_command(  # noqa: PLR0913
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        selectors=selector,
     )
     output_file = None if stdout else output
     write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
@@ -1014,6 +1025,7 @@ def main() -> None:
             name=args.name,
             output=args.output,
             stdout=args.stdout,
+            selector=args.selector,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
