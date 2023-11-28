@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Sequence, cast
 
 from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 if TYPE_CHECKING:
     from setuptools import Distribution
@@ -409,7 +409,7 @@ class CondaEnvironmentSpec(NamedTuple):
     """A conda environment."""
 
     channels: list[str]
-    conda: list[str | dict[str, str]]
+    conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
 
 
@@ -496,22 +496,24 @@ def _resolve_multiple_platform_conflicts(
         # Now we have only one `Meta` left, so we can select it.
 
 
-def create_conda_env_specification(
+def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: set[str],
     platform: Platform | None = None,
+    selectors: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
+    if selectors not in ("sel", "comment"):  # pragma: no cover
+        msg = f"Invalid selectors: {selectors}, must be one of ['sel', 'comment']"
+        raise ValueError(msg)
     if platform is not None and platform not in get_args(Platform):
         msg = f"Invalid platform: {platform}, must be one of {get_args(Platform)}"
-        raise ValueError(
-            msg,
-        )
+        raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
     conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
 
-    conda_deps: list[str | dict[str, str]] = []
+    conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps = []
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1:  # None has been expanded already if len>1
@@ -522,10 +524,15 @@ def create_conda_env_specification(
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if _platform is not None and platform is None:
-                sel = _conda_sel(_platform)
-                dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
-            conda_deps.append(dep_str)
+            if platform is None and _platform is not None:
+                if selectors == "sel":
+                    sel = _conda_sel(_platform)
+                    dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
+                conda_deps.append(dep_str)
+                if selectors == "comment":
+                    conda_deps.yaml_add_eol_comment(meta.comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
+            else:
+                conda_deps.append(dep_str)
 
     for platform_to_meta in pip.values():
         meta_to_platforms: dict[Meta, list[Platform | None]] = {}
@@ -561,7 +568,7 @@ def write_conda_environment_file(
             "dependencies": resolved_dependencies,
         },
     )
-    yaml = YAML()
+    yaml = YAML(typ="rt")
     yaml.default_flow_style = False
     yaml.width = 4096
     yaml.indent(mapping=2, sequence=2, offset=2)
