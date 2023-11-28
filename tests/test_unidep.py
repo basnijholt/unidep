@@ -924,3 +924,25 @@ def test_conda_with_comments(tmp_path: Path) -> None:
         lines = f.readlines()
         dependency_line = next(line for line in lines if "adaptive" in line)
         assert "- adaptive  # [linux64]" in dependency_line
+
+
+def test_duplicate_names(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: flatbuffers
+                - pip: flatbuffers
+                  conda: python-flatbuffers
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(resolved, requirements.channels)
+    assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
+    assert env_spec.pip == []
+
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == ["flatbuffers"]
