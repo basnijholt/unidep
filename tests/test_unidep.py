@@ -915,7 +915,7 @@ def test_conda_with_comments(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
-        selectors="comment",
+        selector="comment",
     )
     assert env_spec.conda == ["adaptive"]
     assert env_spec.pip == []

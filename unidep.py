@@ -500,11 +500,11 @@ def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: set[str],
     platform: Platform | None = None,
-    selectors: Literal["sel", "comment"] = "sel",
+    selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
-    if selectors not in ("sel", "comment"):  # pragma: no cover
-        msg = f"Invalid selectors: {selectors}, must be one of ['sel', 'comment']"
+    if selector not in ("sel", "comment"):  # pragma: no cover
+        msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
     if platform is not None and platform not in get_args(Platform):
         msg = f"Invalid platform: {platform}, must be one of {get_args(Platform)}"
@@ -525,11 +525,11 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
             if platform is None and _platform is not None:
-                if selectors == "sel":
+                if selector == "sel":
                     sel = _conda_sel(_platform)
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
                 conda_deps.append(dep_str)
-                if selectors == "comment":
+                if selector == "comment":
                     conda_deps.yaml_add_eol_comment(meta.comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
             else:
                 conda_deps.append(dep_str)
@@ -544,8 +544,8 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
             if _platforms != [None]:
-                selector = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
-                dep_str = f"{dep_str}; {selector}"
+                marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+                dep_str = f"{dep_str}; {marker}"
             pip_deps.append(dep_str)
 
     return CondaEnvironmentSpec(list(channels), conda_deps, pip_deps)
@@ -1000,7 +1000,7 @@ def _merge_command(  # noqa: PLR0913
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        selectors=selector,
+        selector=selector,
     )
     output_file = None if stdout else output
     write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
