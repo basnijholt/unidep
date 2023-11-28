@@ -898,3 +898,29 @@ def test_unidep_install_dry_run(project: str) -> None:
         assert "📦 Installing conda dependencies with" in result.stdout
     assert "📦 Installing pip dependencies with" in result.stdout
     assert "📦 Installing project with" in result.stdout
+
+
+def test_conda_with_comments(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive # [linux64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        selectors="comment",
+    )
+    assert env_spec.conda == ["adaptive"]
+    assert env_spec.pip == []
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
+    with (tmp_path / "environment.yaml").open() as f:
+        lines = f.readlines()
+        dependency_line = next(line for line in lines if "adaptive" in line)
+        assert "- adaptive  # [linux64]" in dependency_line
