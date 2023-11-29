@@ -83,6 +83,9 @@ dependencies:
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
   - conda: cuda-toolkit  # [linux64]
+platforms:  # (Optional) specify platforms that are supported (like conda-lock)
+  - linux-64
+  - osx-arm64
 ```
 
 **⚠️ `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
