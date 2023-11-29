@@ -54,7 +54,7 @@ Selector = Literal[
 CondaPip = Literal["conda", "pip"]
 
 
-__version__ = "0.18.0"
+__version__ = "0.19.0"
 __all__ = [
     "find_requirements_files",
     "extract_matching_platforms",
