@@ -1067,20 +1067,20 @@ def _conda_lock_global(
     platform: list[Platform],
     verbose: bool,
 ) -> None:
+    tmp_env = "tmp.environment.yaml"
     _merge_command(
         depth=depth,
         directory=directory,
         name="myenv",
-        output="tmp.environment.yaml",
+        output=tmp_env,
         stdout=False,
         selector="comment",
         platforms=platform,
         verbose=verbose,
     )
-    subprocess.run(
-        ["conda-lock", "lock", "--file", "tmp.environment.yaml"],  # noqa: S607, S603
-        check=True,
-    )
+    cmd = ["conda-lock", "lock", "--file", tmp_env]
+    print(f"🔒 Locking global dependencies with `{' '.join(cmd)}`\n")
+    subprocess.run(cmd, check=True)  # noqa: S603
 
 
 def _conda_lock_subpackages(
