@@ -35,11 +35,11 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 🔍 Scanning in `project2` at depth 1
 🔍 Found `requirements.yaml` at `project2/requirements.yaml`
 📄 Parsing `project1/requirements.yaml`
-📄 Parsing `project3/requirements.yaml`
 📄 Parsing `project2/requirements.yaml`
+📄 Parsing `project3/requirements.yaml`
 📝 Generating environment file at `environment.yaml`
 📝 Environment file generated successfully.
-✅ Generated environment file at `environment.yaml` from `project1/requirements.yaml`, `project3/requirements.yaml`, `project2/requirements.yaml`
+✅ Generated environment file at `environment.yaml` from `project1/requirements.yaml`, `project2/requirements.yaml`, `project3/requirements.yaml`
 ```
 
 <!-- OUTPUT:END -->
