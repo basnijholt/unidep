@@ -147,7 +147,7 @@ def find_requirements_files(
                     print(f"🔍 Found `{filename}` at `{child}`")
 
     _scan_dir(base_path, 0)
-    return found_files
+    return sorted(found_files)
 
 
 def extract_matching_platforms(comment: str) -> list[Platform]:
@@ -1105,7 +1105,7 @@ def _conda_lock_global(
         verbose=verbose,
     )
     _run_conda_lock(tmp_env, conda_lock_output)
-    print("✅ Global dependencies locked successfully.")
+    print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
     return conda_lock_output
 
 
@@ -1116,10 +1116,8 @@ def _conda_lock_subpackages(
 ) -> None:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
-    yaml = YAML(typ="safe")
-    with conda_lock_file.open() as fp:
+    with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
-
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
 
@@ -1131,7 +1129,6 @@ def _conda_lock_subpackages(
     # Assumes that different platforms have the same versions
     pip_packages = CommentedSeq()
     conda_packages = CommentedSeq()
-
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
         requirements = parse_yaml_requirements([file])
@@ -1158,6 +1155,10 @@ def _conda_lock_subpackages(
         conda_lock_output = file.parent / "conda-lock.yml"
         write_conda_environment_file(env_spec, str(tmp_env), name)
         _run_conda_lock(tmp_env, conda_lock_output)
+        print(
+            f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
+            f" successfully in `{conda_lock_output}`.",
+        )
 
 
 def _conda_lock_command(
