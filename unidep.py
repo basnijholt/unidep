@@ -1061,6 +1061,8 @@ def _merge_command(  # noqa: PLR0913
 
 
 def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
+    if conda_lock_output.exists():
+        conda_lock_output.unlink()
     cmd = [
         "conda-lock",
         "lock",
@@ -1126,18 +1128,22 @@ def _conda_lock_subpackages(
     for file in found_files:
         requirements = parse_yaml_requirements([file])
         for name in requirements.requirements:
-            _platform, which, version = packages[name]
-            selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
-            comment = f"# [{selector}]"
-            if which == "pip":
-                pip_packages.append(f"{name}=={version}")
-                pip_packages.yaml_add_eol_comment(comment, len(pip_packages) - 1)
-            elif which == "conda":
-                conda_packages.append(f"{name}={version}")
-                conda_packages.yaml_add_eol_comment(comment, len(conda_packages) - 1)
-            else:
-                msg = f"Unknown manager: {p['manager']}"
-                raise ValueError(msg)
+            tups = packages[name]
+            for tup in tups:
+                _platform, which, version = tup
+                selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
+                comment = f"# [{selector}]"
+                if which == "pip":
+                    pip_packages.append(f"{name}=={version}")
+                    pip_packages.yaml_add_eol_comment(comment, len(pip_packages) - 1)
+                elif which == "conda":
+                    conda_packages.append(f"{name}={version}")
+                    conda_packages.yaml_add_eol_comment(
+                        comment, len(conda_packages) - 1
+                    )
+                else:
+                    msg = f"Unknown manager: {p['manager']}"
+                    raise ValueError(msg)
 
         env_spec = CondaEnvironmentSpec(
             channels,
