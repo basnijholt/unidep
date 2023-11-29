@@ -42,6 +42,7 @@ Simplify your setup and maintain all your dependencies in one place with `unidep
     - [`unidep install`](#unidep-install)
     - [`unidep pip`](#unidep-pip)
     - [`unidep conda`](#unidep-conda)
+    - [`unidep conda-lock`](#unidep-conda-lock)
 - [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
