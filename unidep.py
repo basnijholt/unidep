@@ -786,11 +786,14 @@ def _add_common_args(
         current_platform = _identify_current_platform()
         sub_parser.add_argument(
             "--platform",
+            "-p",
             type=str,
-            default=current_platform,
+            action="append",  # Allow multiple instances of -p
+            default=None,  # Default is a list with the current platform
             choices=get_args(Platform),
-            help=f"The platform to get the requirements for, by default the"
-            f" current platform (`{current_platform}`)",
+            help="The platform(s) to get the requirements for. "
+            "Multiple platforms can be specified. "
+            f"By default, the current platform (`{current_platform}`) is used.",
         )
     if "editable" in options:
         sub_parser.add_argument(
@@ -798,6 +801,13 @@ def _add_common_args(
             "--editable",
             action="store_true",
             help="Install the project in editable mode",
+        )
+    if "depth" in options:
+        sub_parser.add_argument(
+            "--depth",
+            type=int,
+            default=1,
+            help="Maximum depth to scan for requirements.yaml files, by default 1",
         )
 
 
@@ -827,12 +837,6 @@ def _parse_args() -> argparse.Namespace:
         help="Name of the conda environment, by default `myenv`",
     )
     parser_merge.add_argument(
-        "--depth",
-        type=int,
-        default=1,
-        help="Depth to scan for requirements.yaml files, by default 1",
-    )
-    parser_merge.add_argument(
         "--stdout",
         action="store_true",
         help="Output to stdout instead of a file",
@@ -846,7 +850,7 @@ def _parse_args() -> argparse.Namespace:
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
     )
-    _add_common_args(parser_merge, {"directory", "verbose"})
+    _add_common_args(parser_merge, {"directory", "verbose", "platform", "depth"})
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
@@ -890,6 +894,13 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only print the commands that would be run",
     )
+
+    # Subparser for the 'conda-lock' command
+    parser_lock = subparsers.add_parser(
+        "conda-lock",
+        help="Generate a conda-lock file a collection of requirements.yaml files.",
+    )
+    _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
     args = parser.parse_args()
 
@@ -1018,6 +1029,7 @@ def _merge_command(  # noqa: PLR0913
     output: str,
     stdout: bool,
     selector: Literal["sel", "comment"],
+    platforms: list[Platform],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -1036,7 +1048,7 @@ def _merge_command(  # noqa: PLR0913
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        requirements.platforms,
+        requirements.platforms or platforms,
         selector=selector,
     )
     output_file = None if stdout else output
@@ -1055,6 +1067,9 @@ def main() -> None:
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
 
+    if args.platform is None:
+        args.platform = [_identify_current_platform()]
+
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
@@ -1063,6 +1078,7 @@ def main() -> None:
             output=args.output,
             stdout=args.stdout,
             selector=args.selector,
+            platforms=args.platform,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -1091,6 +1107,67 @@ def main() -> None:
             file=args.file,
             verbose=args.verbose,
         )
+    elif args.command == "conda-lock":  # pragma: no cover
+        _merge_command(
+            depth=args.depth,
+            directory=args.directory,
+            name="myenv",
+            output="tmp.environment.yaml",
+            stdout=False,
+            selector="comment",
+            platforms=args.platform,
+            verbose=args.verbose,
+        )
+        subprocess.run(
+            ["conda-lock", "lock", "--file", "tmp.environment.yaml"],  # noqa: S607, S603
+            check=True,
+        )
+
+        yaml = YAML(typ="safe")
+        with open("conda-lock.yml") as fp:  # noqa: PTH123
+            data = yaml.load(fp)
+
+        channels = [c["url"] for c in data["metadata"]["channels"]]
+        platforms = data["metadata"]["platforms"]
+        pip_packages = CommentedSeq()
+        conda_packages = CommentedSeq()
+        # Assumes that different platforms have the same versions
+        for p in data["package"]:
+            name, version = p["name"], p["version"]
+            if p["manager"] == "pip":
+                pip_packages.append(f"{name}=={version}")
+                pip_packages.yaml_add_eol_comment(
+                    f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
+                    len(pip_packages) - 1,
+                )
+            elif p["manager"] == "conda":
+                conda_packages.append(f"{name}={version}")
+                conda_packages.yaml_add_eol_comment(
+                    f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
+                    len(conda_packages) - 1,
+                )
+            else:
+                msg = f"Unknown manager: {p['manager']}"
+                raise ValueError(msg)
+
+        found_files = find_requirements_files(
+            args.directory,
+            args.depth,
+        )
+        for file in found_files:
+            requirements = parse_yaml_requirements([file])
+            env_spec = CondaEnvironmentSpec(
+                channels,
+                platforms,
+                conda_packages,
+                pip_packages,
+            )
+            output_file = file.parent / "tmp.environment.yaml"
+            write_conda_environment_file(env_spec, str(output_file), name)
+            subprocess.run(
+                ["conda-lock", "lock", "--file", str(output_file)],  # noqa: S603, S607
+                check=True,
+            )
 
 
 if __name__ == "__main__":
