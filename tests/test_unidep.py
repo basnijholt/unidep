@@ -13,6 +13,7 @@ from unidep import (
     CondaEnvironmentSpec,
     Meta,
     _build_pep508_environment_marker,
+    _conda_lock_command,
     _extract_name_and_pin,
     _identify_current_platform,
     _install_command,
@@ -1134,3 +1135,15 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
         assert "platforms:" in text
         assert "- linux-64" in text
         assert "- linux-aarch64" in text
+
+
+def test_conda_lock_command() -> None:
+    root = Path(__file__).parent.parent
+    with patch("unidep._run_conda_lock", return_value=None):
+        _conda_lock_command(
+            depth=1,
+            directory=root / "example",
+            platform=["linux-64", "osx-arm64"],
+            verbose=False,
+            sub_lock_files=True,
+        )

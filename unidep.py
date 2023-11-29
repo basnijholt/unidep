@@ -1085,7 +1085,7 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
-def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
+def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
     if shutil.which("conda-lock") is None:
         msg = (
             "Cannot find `conda-lock`."
@@ -1108,7 +1108,7 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
     try:
         subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
     except subprocess.CalledProcessError as e:
-        print("❌ Error occurred:", e)
+        print("❌ Error occurred:\n", e)
         print("Return code:", e.returncode)
         print("Output:", e.output)
         print("Error Output:", e.stderr)
@@ -1175,7 +1175,7 @@ def _conda_lock_subpackages(
                 if which in ["pip", "conda"]:
                     target_list.append(f"{name}{eq}{version}")
                     target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
-                else:
+                else:  # pragma: no cover
                     msg = f"Unknown manager: {which}"
                     raise ValueError(msg)
 
@@ -1225,7 +1225,7 @@ def main() -> None:
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
 
-    if "platform" in args and args.platform is None:
+    if "platform" in args and args.platform is None:  # pragma: no cover
         args.platform = [_identify_current_platform()]
 
     if args.command == "merge":  # pragma: no cover
