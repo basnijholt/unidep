@@ -917,7 +917,13 @@ def _parse_args() -> argparse.Namespace:
     # Subparser for the 'conda-lock' command
     parser_lock = subparsers.add_parser(
         "conda-lock",
-        help="Generate a conda-lock file a collection of requirements.yaml files.",
+        help="Generate a conda-lock file a collection of `requirements.yaml` files.",
+    )
+    parser_lock.add_argument(
+        "--sub-lock-files",
+        action="store_true",
+        help="Additionally generate a conda-lock file for each `requirements.yaml` file"
+        " based on the lock file of the combined `requirements.yaml` files.",
     )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
@@ -1195,6 +1201,7 @@ def _conda_lock_command(
     directory: Path,
     platform: list[Platform],
     verbose: bool,
+    sub_lock_files: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -1203,11 +1210,12 @@ def _conda_lock_command(
         platform=platform,
         verbose=verbose,
     )
-    _conda_lock_subpackages(
-        directory=directory,
-        depth=depth,
-        conda_lock_file=conda_lock_output,
-    )
+    if sub_lock_files:
+        _conda_lock_subpackages(
+            directory=directory,
+            depth=depth,
+            conda_lock_file=conda_lock_output,
+        )
 
 
 def main() -> None:
@@ -1263,6 +1271,7 @@ def main() -> None:
             directory=args.directory,
             platform=args.platform,
             verbose=args.verbose,
+            sub_lock_files=args.sub_lock_files,
         )
 
 
