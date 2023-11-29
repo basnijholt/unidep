@@ -457,6 +457,22 @@ def _extract_conda_pip_dependencies(
 def _resolve_multiple_platform_conflicts(
     platform_to_meta: dict[Platform | None, Meta],
 ) -> None:
+    """Resolve conflicts across multiple platforms that map to a single Conda platform.
+
+    This function is used when handling dependencies for different platforms
+    within a Conda environment. It addresses the situation where multiple
+    platforms (e.g., `linux-aarch64` and `linux64`) are mapped to a single Conda
+    platform (e.g., `sel(linux): ...`). The function ensures that for each Conda
+    platform, there is only one consistent set of metadata, resolving any
+    conflicts that arise due to different platforms having different metadata.
+
+    The function operates by first mapping each platform to its corresponding
+    Conda platform and then checking for and resolving any conflicts within each
+    Conda platform. A conflict occurs when there are multiple metadata (`Meta`
+    objects) associated with a single Conda platform. The function resolves such
+    conflicts by selecting the first `Meta` object and discarding the rest,
+    ensuring consistency in the metadata for each Conda platform.
+    """
     valid: dict[
         CondaPlatform,
         dict[Meta, list[Platform | None]],
@@ -517,7 +533,8 @@ def create_conda_env_specification(  # noqa: PLR0912
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps = []
     for platform_to_meta in conda.values():
-        if len(platform_to_meta) > 1:  # None has been expanded already if len>1
+        if len(platform_to_meta) > 1 and selector == "sel":
+            # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in platform_to_meta.items():
             if _platform is not None and platform is not None and _platform != platform:
