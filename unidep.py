@@ -269,8 +269,8 @@ class Meta(NamedTuple):
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
-    channels: set[str]
-    platforms: set[Platform]
+    channels: list[str]
+    platforms: list[Platform]
     requirements: dict[str, list[Meta]]
 
 
@@ -318,7 +318,7 @@ def parse_yaml_requirements(
                         for meta in metas:
                             requirements[meta.name].append(meta)
 
-    return ParsedRequirements(channels, platforms, dict(requirements))
+    return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
 # Conflict resolution functions
@@ -527,8 +527,8 @@ def _resolve_multiple_platform_conflicts(
 
 def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
-    channels: set[str],
-    platforms: set[Platform],
+    channels: list[str],
+    platforms: list[Platform],
     platform: Platform | None = None,
     selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
@@ -580,7 +580,12 @@ def create_conda_env_specification(  # noqa: PLR0912
                 dep_str = f"{dep_str}; {marker}"
             pip_deps.append(dep_str)
 
-    return CondaEnvironmentSpec(list(channels), list(platforms), conda_deps, pip_deps)
+    return CondaEnvironmentSpec(
+        channels,
+        platforms,
+        conda_deps,
+        pip_deps,
+    )
 
 
 def write_conda_environment_file(

@@ -984,6 +984,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == ["foo >1", "foo <1", "foo <1"]
@@ -1013,6 +1014,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == [
@@ -1035,3 +1037,32 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         assert "- foo <1 # [aarch64]" in text
         assert "- foo <1 # [ppc64le]" in text
         assert "- foo >1 # [win]" in text
+
+
+def test_platforms_section_in_yaml(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+                - linux-64
+                - osx-arm64
+            dependencies:
+                - foo
+                - bar # [win]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="sel",
+    )
+    assert env_spec.conda == ["foo"]
+    assert env_spec.pip == []
+    assert env_spec.platforms == ["linux-64", "osx-arm64"]
+    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    assert python_deps == ["foo"]
