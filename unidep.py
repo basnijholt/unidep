@@ -83,15 +83,16 @@ PEP508_MARKERS = {
 }
 
 
-PLATFORM_SELECTOR_MAP: dict[Platform, set[Selector]] = {
-    "linux-64": {"linux64", "unix", "linux"},
-    "linux-aarch64": {"aarch64", "unix", "linux"},
-    "linux-ppc64le": {"ppc64le", "unix", "linux"},
+# The first element of each tuple is the only unique selector
+PLATFORM_SELECTOR_MAP: dict[Platform, list[Selector]] = {
+    "linux-64": ["linux64", "unix", "linux"],
+    "linux-aarch64": ["aarch64", "unix", "linux"],
+    "linux-ppc64le": ["ppc64le", "unix", "linux"],
     # "osx64" is a selector unique to conda-build referring to
     # platforms on macOS and the Python architecture is x86-64
-    "osx-64": {"osx64", "osx", "macos", "unix"},
-    "osx-arm64": {"arm64", "osx", "macos", "unix"},
-    "win-64": {"win", "win64"},
+    "osx-64": ["osx64", "osx", "macos", "unix"],
+    "osx-arm64": ["arm64", "osx", "macos", "unix"],
+    "win-64": ["win", "win64"],
 }
 PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
 for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
@@ -110,7 +111,7 @@ def simple_warning_format(
     return (
         f"⚠️  *** WARNING *** ⚠️\n"
         f"{message}\n"
-        f"Location: {filename}, line {lineno}\n"
+        f"Location: {filename}:{lineno}\n"
         f"---------------------\n"
     )
 
@@ -493,7 +494,7 @@ def _resolve_multiple_platform_conflicts(
         # (which becomes linux). So of the list[Platform] we only need to keep
         # one Platform. We can pop the rest from `platform_to_meta`. This is
         # not a problem because they share the same `Meta` object.
-        for _i, platforms in enumerate(meta_to_platforms.values()):
+        for platforms in meta_to_platforms.values():
             for j, _platform in enumerate(platforms):
                 if j >= 1:
                     platform_to_meta.pop(_platform)
@@ -554,7 +555,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
                 conda_deps.append(dep_str)
                 if selector == "comment":
-                    conda_deps.yaml_add_eol_comment(meta.comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
+                    comment = f"# [{PLATFORM_SELECTOR_MAP[_platform][0]}]"
+                    conda_deps.yaml_add_eol_comment(comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
             else:
                 conda_deps.append(dep_str)
 

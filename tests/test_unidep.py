@@ -966,13 +966,13 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         requirements.channels,
         selector="comment",
     )
-    assert env_spec.conda == ["foo >1", "foo <1"]
+    assert env_spec.conda == ["foo >1", "foo <1", "foo <1"]
     assert env_spec.pip == []
 
     write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
 
     with (tmp_path / "environment.yaml").open() as f:
-        lines = f.readlines()
-        print(lines)
-        dependency_line = next(line for line in lines if "adaptive" in line)
-        assert "- adaptive  # [linux64]" in dependency_line
+        text = "".join(f.readlines())
+        assert "- foo >1  # [linux64]" in text
+        assert "- foo <1 # [aarch64]" in text
+        assert "- foo <1 # [ppc64le]" in text
