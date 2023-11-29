@@ -543,7 +543,7 @@ def create_conda_env_specification(  # noqa: PLR0912
         if len(platform_to_meta) > 1 and selector == "sel":
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
-        for _platform, meta in platform_to_meta.items():
+        for _platform, meta in sorted(platform_to_meta.items()):
             if _platform is not None and platform is not None and _platform != platform:
                 continue
             dep_str = meta.name
