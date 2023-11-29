@@ -38,6 +38,19 @@ Platform = Literal[
     "osx-arm64",
     "win-64",
 ]
+Selector = Literal[
+    "linux64",
+    "aarch64",
+    "ppc64le",
+    "osx64",
+    "arm64",
+    "win64",
+    "win",
+    "unix",
+    "linux",
+    "osx",
+    "macos",
+]
 CondaPip = Literal["conda", "pip"]
 
 
@@ -70,6 +83,23 @@ PEP508_MARKERS = {
 }
 
 
+# The first element of each tuple is the only unique selector
+PLATFORM_SELECTOR_MAP: dict[Platform, list[Selector]] = {
+    "linux-64": ["linux64", "unix", "linux"],
+    "linux-aarch64": ["aarch64", "unix", "linux"],
+    "linux-ppc64le": ["ppc64le", "unix", "linux"],
+    # "osx64" is a selector unique to conda-build referring to
+    # platforms on macOS and the Python architecture is x86-64
+    "osx-64": ["osx64", "osx", "macos", "unix"],
+    "osx-arm64": ["arm64", "osx", "macos", "unix"],
+    "win-64": ["win", "win64"],
+}
+PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
+for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
+    for _selector in _selectors:
+        PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
+
+
 def simple_warning_format(
     message: Warning | str,
     category: type[Warning],  # noqa: ARG001
@@ -81,7 +111,7 @@ def simple_warning_format(
     return (
         f"⚠️  *** WARNING *** ⚠️\n"
         f"{message}\n"
-        f"Location: {filename}, line {lineno}\n"
+        f"Location: {filename}:{lineno}\n"
         f"---------------------\n"
     )
 
@@ -127,23 +157,6 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
     # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
 
-    platform_selector_map: dict[Platform, set[str]] = {
-        "linux-64": {"linux64", "unix", "linux"},
-        "linux-aarch64": {"aarch64", "unix", "linux"},
-        "linux-ppc64le": {"ppc64le", "unix", "linux"},
-        # "osx64" is a selector unique to conda-build referring to
-        # platforms on macOS and the Python architecture is x86-64
-        "osx-64": {"osx64", "osx", "macos", "unix"},
-        "osx-arm64": {"arm64", "osx", "macos", "unix"},
-        "win-64": {"win", "win64"},
-    }
-
-    # Reverse the platform_selector_map for easy lookup
-    reverse_selector_map: dict[str, list[Platform]] = {}
-    for key, values in platform_selector_map.items():
-        for value in values:
-            reverse_selector_map.setdefault(value, []).append(key)
-
     sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
     multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
 
@@ -158,10 +171,11 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
         if m:
             conds = m.group(1).split()
             for cond in conds:
-                if cond not in reverse_selector_map:
+                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
                     msg = f"Unsupported platform specifier: '{comment}'"
                     raise ValueError(msg)
-                for _platform in reverse_selector_map[cond]:
+                cond = cast(Selector, cond)
+                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
                     filtered_platforms.add(_platform)
 
     return list(filtered_platforms)
@@ -457,6 +471,15 @@ def _extract_conda_pip_dependencies(
 def _resolve_multiple_platform_conflicts(
     platform_to_meta: dict[Platform | None, Meta],
 ) -> None:
+    """Fix conflicts for deps with platforms that map to a single Conda platform.
+
+    In a Conda environment with dependencies across various platforms (like
+    'linux-aarch64', 'linux64'), this function ensures consistency in metadata
+    for each Conda platform (e.g., 'sel(linux): ...'). It maps each platform to
+    a Conda platform and resolves conflicts by retaining the first `Meta` object
+    per Conda platform, discarding others. This approach guarantees uniform
+    metadata across different but equivalent platforms.
+    """
     valid: dict[
         CondaPlatform,
         dict[Meta, list[Platform | None]],
@@ -471,7 +494,7 @@ def _resolve_multiple_platform_conflicts(
         # (which becomes linux). So of the list[Platform] we only need to keep
         # one Platform. We can pop the rest from `platform_to_meta`. This is
         # not a problem because they share the same `Meta` object.
-        for _i, platforms in enumerate(meta_to_platforms.values()):
+        for platforms in meta_to_platforms.values():
             for j, _platform in enumerate(platforms):
                 if j >= 1:
                     platform_to_meta.pop(_platform)
@@ -517,9 +540,10 @@ def create_conda_env_specification(  # noqa: PLR0912
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps = []
     for platform_to_meta in conda.values():
-        if len(platform_to_meta) > 1:  # None has been expanded already if len>1
+        if len(platform_to_meta) > 1 and selector == "sel":
+            # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
-        for _platform, meta in platform_to_meta.items():
+        for _platform, meta in sorted(platform_to_meta.items()):
             if _platform is not None and platform is not None and _platform != platform:
                 continue
             dep_str = meta.name
@@ -531,7 +555,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
                 conda_deps.append(dep_str)
                 if selector == "comment":
-                    conda_deps.yaml_add_eol_comment(meta.comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
+                    comment = f"# [{PLATFORM_SELECTOR_MAP[_platform][0]}]"
+                    conda_deps.yaml_add_eol_comment(comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
             else:
                 conda_deps.append(dep_str)
 
