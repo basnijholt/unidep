@@ -591,15 +591,13 @@ def write_conda_environment_file(
 ) -> None:
     """Generate a conda environment.yaml file or print to stdout."""
     resolved_dependencies = deepcopy(env_spec.conda)
-    resolved_dependencies.append({"pip": env_spec.pip})  # type: ignore[arg-type, dict-item]
-    env_data = CommentedMap(
-        {
-            "name": name,
-            "dependencies": resolved_dependencies,
-        },
-    )
+    if env_spec.pip:
+        resolved_dependencies.append({"pip": env_spec.pip})  # type: ignore[arg-type, dict-item]
+    env_data = CommentedMap({"name": name})
     if env_spec.channels:
         env_data["channels"] = env_spec.channels
+    if resolved_dependencies:
+        env_data["dependencies"] = resolved_dependencies
     if env_spec.platforms:
         env_data["platforms"] = env_spec.platforms
     yaml = YAML(typ="rt")
