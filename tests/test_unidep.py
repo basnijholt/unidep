@@ -188,13 +188,13 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
 
-    # Test on single platform
+    # Test on two platforms
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        ["osx-arm64"],
+        ["osx-arm64", "win-64"],
     )
-    assert env.conda == ["yolo"]
+    assert env.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
     assert env.pip == [
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",

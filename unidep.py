@@ -554,7 +554,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if not platforms and _platform is not None:
+            if len(platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
