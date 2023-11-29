@@ -210,7 +210,7 @@ positional arguments:
                         remaining dependencies with pip, and finally install
                         the current package with `pip install [-e] .`.
     conda-lock          Generate a conda-lock file a collection of
-                        requirements.yaml files.
+                        `requirements.yaml` files.
 
 options:
   -h, --help            show this help message and exit
