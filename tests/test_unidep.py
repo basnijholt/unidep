@@ -253,7 +253,7 @@ def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
-    assert requirements_with_comments.channels == {"conda-forge", "defaults"}
+    assert requirements_with_comments.channels == ["conda-forge", "defaults"]
 
 
 def test_surrounding_comments(tmp_path: Path) -> None:
