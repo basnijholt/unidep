@@ -1060,6 +1060,99 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
+def _conda_lock_global(
+    *,
+    depth: int,
+    directory: str,
+    platform: list[Platform],
+    verbose: bool,
+) -> None:
+    _merge_command(
+        depth=depth,
+        directory=directory,
+        name="myenv",
+        output="tmp.environment.yaml",
+        stdout=False,
+        selector="comment",
+        platforms=platform,
+        verbose=verbose,
+    )
+    subprocess.run(
+        ["conda-lock", "lock", "--file", "tmp.environment.yaml"],  # noqa: S607, S603
+        check=True,
+    )
+
+
+def _conda_lock_subpackages(
+    directory: str,
+    depth: int,
+) -> None:
+    yaml = YAML(typ="safe")
+    with open("conda-lock.yml") as fp:  # noqa: PTH123
+        data = yaml.load(fp)
+
+    channels = [c["url"] for c in data["metadata"]["channels"]]
+    platforms = data["metadata"]["platforms"]
+    packages: dict[str, dict[Selector, str]] = defaultdict(dict)
+    pip_packages = CommentedSeq()
+    conda_packages = CommentedSeq()
+    # Assumes that different platforms have the same versions
+    for p in data["package"]:
+        name, version, _platform = p["name"], p["version"], p["platform"]
+        packages[name][_platform] = version
+        if p["manager"] == "pip":
+            pip_packages.append(f"{name}=={version}")
+            pip_packages.yaml_add_eol_comment(
+                f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
+                len(pip_packages) - 1,
+            )
+        elif p["manager"] == "conda":
+            conda_packages.append(f"{name}={version}")
+            conda_packages.yaml_add_eol_comment(
+                f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
+                len(conda_packages) - 1,
+            )
+        else:
+            msg = f"Unknown manager: {p['manager']}"
+            raise ValueError(msg)
+
+    found_files = find_requirements_files(
+        directory,
+        depth,
+    )
+    for file in found_files:
+        requirements = parse_yaml_requirements([file])
+        env_spec = CondaEnvironmentSpec(
+            channels,
+            platforms,
+            conda_packages,
+            pip_packages,
+        )
+        output_file = file.parent / "tmp.environment.yaml"
+        write_conda_environment_file(env_spec, str(output_file), name)
+        subprocess.run(
+            ["conda-lock", "lock", "--file", str(output_file)],  # noqa: S603, S607
+            check=True,
+        )
+
+
+def _conda_lock_command(
+    *,
+    depth: int,
+    directory: str,
+    platform: list[Platform],
+    verbose: bool,
+) -> None:
+    """Generate a conda-lock file a collection of requirements.yaml files."""
+    _conda_lock_global(
+        depth=depth,
+        directory=directory,
+        platform=platform,
+        verbose=verbose,
+    )
+    _conda_lock_subpackages(directory=directory, depth=depth)
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
@@ -1108,66 +1201,12 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
-        _merge_command(
+        _conda_lock_command(
             depth=args.depth,
             directory=args.directory,
-            name="myenv",
-            output="tmp.environment.yaml",
-            stdout=False,
-            selector="comment",
-            platforms=args.platform,
+            platform=args.platform,
             verbose=args.verbose,
         )
-        subprocess.run(
-            ["conda-lock", "lock", "--file", "tmp.environment.yaml"],  # noqa: S607, S603
-            check=True,
-        )
-
-        yaml = YAML(typ="safe")
-        with open("conda-lock.yml") as fp:  # noqa: PTH123
-            data = yaml.load(fp)
-
-        channels = [c["url"] for c in data["metadata"]["channels"]]
-        platforms = data["metadata"]["platforms"]
-        pip_packages = CommentedSeq()
-        conda_packages = CommentedSeq()
-        # Assumes that different platforms have the same versions
-        for p in data["package"]:
-            name, version = p["name"], p["version"]
-            if p["manager"] == "pip":
-                pip_packages.append(f"{name}=={version}")
-                pip_packages.yaml_add_eol_comment(
-                    f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
-                    len(pip_packages) - 1,
-                )
-            elif p["manager"] == "conda":
-                conda_packages.append(f"{name}={version}")
-                conda_packages.yaml_add_eol_comment(
-                    f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
-                    len(conda_packages) - 1,
-                )
-            else:
-                msg = f"Unknown manager: {p['manager']}"
-                raise ValueError(msg)
-
-        found_files = find_requirements_files(
-            args.directory,
-            args.depth,
-        )
-        for file in found_files:
-            requirements = parse_yaml_requirements([file])
-            env_spec = CondaEnvironmentSpec(
-                channels,
-                platforms,
-                conda_packages,
-                pip_packages,
-            )
-            output_file = file.parent / "tmp.environment.yaml"
-            write_conda_environment_file(env_spec, str(output_file), name)
-            subprocess.run(
-                ["conda-lock", "lock", "--file", str(output_file)],  # noqa: S603, S607
-                check=True,
-            )
 
 
 if __name__ == "__main__":
