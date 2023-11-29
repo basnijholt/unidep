@@ -1084,6 +1084,8 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
     p.write_text(
         textwrap.dedent(
             """\
+            channels:
+                - conda-forge
             platforms:
                 - linux-64
                 - linux-aarch64
