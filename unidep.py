@@ -595,10 +595,13 @@ def write_conda_environment_file(
     env_data = CommentedMap(
         {
             "name": name,
-            "channels": env_spec.channels,
             "dependencies": resolved_dependencies,
         },
     )
+    if env_spec.channels:
+        env_data["channels"] = env_spec.channels
+    if env_spec.platforms:
+        env_data["platforms"] = env_spec.platforms
     yaml = YAML(typ="rt")
     yaml.default_flow_style = False
     yaml.width = 4096

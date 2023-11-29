@@ -1129,3 +1129,6 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
         text = "".join(f.readlines())
         assert "- yolo >1  # [linux64]" in text
         assert "- yolo <1 # [aarch64]" in text
+        assert "platforms:" in text
+        assert "- linux-64" in text
+        assert "- linux-aarch64" in text
