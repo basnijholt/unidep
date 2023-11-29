@@ -1060,13 +1060,28 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
+def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
+    cmd = [
+        "conda-lock",
+        "lock",
+        "--file",
+        str(tmp_env),
+        "--lockfile",
+        str(conda_lock_output),
+    ]
+    print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
+    subprocess.run(cmd, check=True)  # noqa: S603
+
+
 def _conda_lock_global(
     *,
     depth: int,
-    directory: Path,
+    directory: str | Path,
     platform: list[Platform],
     verbose: bool,
 ) -> Path:
+    """Generate a conda-lock file for the global dependencies."""
+    directory = Path(directory)
     tmp_env = directory / "tmp.environment.yaml"
     conda_lock_output = directory / "conda-lock.yml"
     _merge_command(
@@ -1079,69 +1094,61 @@ def _conda_lock_global(
         platforms=platform,
         verbose=verbose,
     )
-    cmd = [
-        "conda-lock",
-        "lock",
-        "--file",
-        str(tmp_env),
-        "--lockfile",
-        str(conda_lock_output),
-    ]
-    print(f"🔒 Locking global dependencies with `{' '.join(cmd)}`\n")
-    subprocess.run(cmd, check=True)  # noqa: S603
+    _run_conda_lock(tmp_env, conda_lock_output)
     print("✅ Global dependencies locked successfully.")
     return conda_lock_output
 
 
 def _conda_lock_subpackages(
-    directory: Path,
+    directory: str | Path,
     depth: int,
-    conda_lock_file: Path,
+    conda_lock_file: str | Path,
 ) -> None:
+    directory = Path(directory)
+    conda_lock_file = Path(conda_lock_file)
     yaml = YAML(typ="safe")
     with conda_lock_file.open() as fp:
         data = yaml.load(fp)
 
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
-    packages: dict[str, dict[Selector, str]] = defaultdict(dict)
+
+    packages: dict[str, list[tuple[Platform, CondaPip, str]]] = {}
+    for p in data["package"]:
+        tup = (p["platform"], p["manager"], p["version"])
+        packages.setdefault(p["name"], []).append(tup)
+
+    # Assumes that different platforms have the same versions
     pip_packages = CommentedSeq()
     conda_packages = CommentedSeq()
-    # Assumes that different platforms have the same versions
-    for p in data["package"]:
-        name, version, _platform = p["name"], p["version"], p["platform"]
-        packages[name][_platform] = version
-        if p["manager"] == "pip":
-            pip_packages.append(f"{name}=={version}")
-            pip_packages.yaml_add_eol_comment(
-                f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
-                len(pip_packages) - 1,
-            )
-        elif p["manager"] == "conda":
-            conda_packages.append(f"{name}={version}")
-            conda_packages.yaml_add_eol_comment(
-                f"# [{PLATFORM_SELECTOR_MAP[p['platform']][0]}]",  # type: ignore[index]
-                len(conda_packages) - 1,
-            )
-        else:
-            msg = f"Unknown manager: {p['manager']}"
-            raise ValueError(msg)
 
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
         requirements = parse_yaml_requirements([file])
+        for name in requirements.requirements:
+            _platform, which, version = packages[name]
+            selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
+            comment = f"# [{selector}]"
+            if which == "pip":
+                pip_packages.append(f"{name}=={version}")
+                pip_packages.yaml_add_eol_comment(comment, len(pip_packages) - 1)
+            elif which == "conda":
+                conda_packages.append(f"{name}={version}")
+                conda_packages.yaml_add_eol_comment(comment, len(conda_packages) - 1)
+            else:
+                msg = f"Unknown manager: {p['manager']}"
+                raise ValueError(msg)
+
         env_spec = CondaEnvironmentSpec(
             channels,
             platforms,
             conda_packages,
             pip_packages,
         )
-        output_file = file.parent / "tmp.environment.yaml"
-        write_conda_environment_file(env_spec, str(output_file), name)
-        subprocess.run(
-            ["conda-lock", "lock", "--file", str(output_file)],  # noqa: S603, S607
-            check=True,
-        )
+        tmp_env = file.parent / "tmp.environment.yaml"
+        conda_lock_output = file.parent / "conda-lock.yml"
+        write_conda_environment_file(env_spec, str(tmp_env), name)
+        _run_conda_lock(tmp_env, conda_lock_output)
 
 
 def _conda_lock_command(
