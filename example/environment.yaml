@@ -7,9 +7,9 @@ channels:
   - conda-forge
 dependencies:
   - pandas
-  - adaptive >=1.0.0<2.0.0
-  - sel(linux): adaptive-scheduler
-  - sel(linux): hpc05
+  - adaptive >=1.0.0, <2.0.0
+  - adaptive-scheduler
+  - hpc05
   - pfapack
   - pipefunc
   - pip:
@@ -22,3 +22,5 @@ dependencies:
     - unidep
     - markdown-code-runner
     - home-assistant-streamdeck-yaml
+platforms:
+  - linux-64
