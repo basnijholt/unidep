@@ -127,6 +127,7 @@ def test_generate_conda_env_file(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
     )
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
@@ -147,6 +148,7 @@ def test_generate_conda_env_stdout(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
     )
     write_conda_environment_file(env_spec, output_file=None)
     captured = capsys.readouterr()
@@ -171,34 +173,51 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements([p])
     resolved_requirements = resolve_conflicts(requirements.requirements)
-    env = create_conda_env_specification(resolved_requirements, requirements.channels)
+    env = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env.conda == [
         {"sel(osx)": "yolo"},
         {"sel(linux)": "foo"},
         {"sel(win)": "bar"},
     ]
-    assert env.pip == [
+    expected_pip = [
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
+    assert env.pip == expected_pip
 
-    # Test on single platform
+    # Test on two platforms
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        "osx-arm64",
+        ["osx-arm64", "win-64"],
     )
-    assert env.conda == ["yolo"]
-    assert env.pip == [
-        "pip-package",
-        "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
-    ]
+    assert env.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
+    assert env.pip == expected_pip
+
+    # Test with comment selector
+    env = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        ["osx-arm64", "win-64"],
+        selector="comment",
+    )
+    assert env.conda == ["yolo", "bar"]
+    assert env.pip == expected_pip
+    write_conda_environment_file(env, str(tmp_path / "environment.yaml"))
+    with (tmp_path / "environment.yaml").open() as f:
+        text = "".join(f.readlines())
+        assert "- yolo  # [arm64]" in text
+        assert "- bar # [win64]" in text
 
     with pytest.raises(ValueError, match="Invalid platform"):
         create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            "unknown-platform",  # type: ignore[arg-type]
+            ["unknown-platform"],  # type: ignore[list-item]
         )
 
 
@@ -218,7 +237,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     write_conda_environment_file(
-        CondaEnvironmentSpec(channels=[], conda=[], pip=[]),
+        CondaEnvironmentSpec(channels=[], platforms=[], conda=[], pip=[]),
         verbose=True,
     )
     captured = capsys.readouterr()
@@ -245,7 +264,7 @@ def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
     requirements_with_comments = parse_yaml_requirements([p], verbose=False)
-    assert requirements_with_comments.channels == {"conda-forge", "defaults"}
+    assert requirements_with_comments.channels == ["conda-forge", "defaults"]
 
 
 def test_surrounding_comments(tmp_path: Path) -> None:
@@ -433,6 +452,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     conda_env_spec = create_conda_env_specification(
         resolved,
         channels=sample_requirements.channels,
+        platforms=sample_requirements.platforms,
     )
 
     def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -614,6 +634,7 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
     assert env_spec.pip == []
@@ -671,6 +692,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
         env_spec = create_conda_env_specification(
             resolved,
             requirements.channels,
+            requirements.platforms,
         )
     assert env_spec.conda == [{"sel(linux)": "foo >1"}]
     assert env_spec.pip == []
@@ -724,6 +746,7 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == [
         {"sel(linux)": "foo >1"},
@@ -774,6 +797,7 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == ["foo <1"]
 
@@ -799,6 +823,7 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == []
 
@@ -824,6 +849,7 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == ["foo >1"]
 
@@ -915,6 +941,7 @@ def test_conda_with_comments(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == ["adaptive"]
@@ -940,7 +967,11 @@ def test_duplicate_names(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements([p], verbose=False)
     resolved = resolve_conflicts(requirements.requirements)
-    env_spec = create_conda_env_specification(resolved, requirements.channels)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
     assert env_spec.pip == []
 
@@ -964,6 +995,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == ["foo >1", "foo <1", "foo <1"]
@@ -993,6 +1025,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == [
@@ -1014,4 +1047,88 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         assert "- foo <1 # [arm64]" in text
         assert "- foo <1 # [aarch64]" in text
         assert "- foo <1 # [ppc64le]" in text
-        assert "- foo >1 # [win]" in text
+        assert "- foo >1 # [win64]" in text
+
+
+def test_platforms_section_in_yaml(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+                - linux-64
+                - osx-arm64
+            dependencies:
+                - foo
+                - bar # [win]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="sel",
+    )
+    assert env_spec.conda == ["foo"]
+    assert env_spec.pip == []
+    assert env_spec.platforms == ["linux-64", "osx-arm64"]
+    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    assert python_deps == ["foo"]
+
+
+def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+                - linux-64
+                - linux-aarch64
+            dependencies:
+                - foo
+                - bar # [win]
+                - yolo <1 # [aarch64]
+                - yolo >1 # [linux64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="sel",
+    )
+    assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
+    assert env_spec.pip == []
+    assert env_spec.platforms == ["linux-64", "linux-aarch64"]
+    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    assert python_deps == [
+        "foo",
+        "yolo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "yolo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
+
+    # Test with comment selector
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="comment",
+    )
+    assert env_spec.conda == ["foo", "yolo >1", "yolo <1"]
+    assert env_spec.pip == []
+
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
+
+    with (tmp_path / "environment.yaml").open() as f:
+        text = "".join(f.readlines())
+        assert "- yolo >1  # [linux64]" in text
+        assert "- yolo <1 # [aarch64]" in text
+        assert "platforms:" in text
+        assert "- linux-64" in text
+        assert "- linux-aarch64" in text

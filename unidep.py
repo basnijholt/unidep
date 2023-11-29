@@ -92,7 +92,7 @@ PLATFORM_SELECTOR_MAP: dict[Platform, list[Selector]] = {
     # platforms on macOS and the Python architecture is x86-64
     "osx-64": ["osx64", "osx", "macos", "unix"],
     "osx-arm64": ["arm64", "osx", "macos", "unix"],
-    "win-64": ["win", "win64"],
+    "win-64": ["win64", "win"],
 }
 PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
 for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
@@ -269,7 +269,8 @@ class Meta(NamedTuple):
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
-    channels: set[str]
+    channels: list[str]
+    platforms: list[Platform]
     requirements: dict[str, list[Meta]]
 
 
@@ -290,6 +291,7 @@ def parse_yaml_requirements(
     """Parse a list of requirements.yaml files including comments."""
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
+    platforms: set[Platform] = set()
 
     yaml = YAML(typ="rt")
     for p in paths:
@@ -299,6 +301,8 @@ def parse_yaml_requirements(
             data = yaml.load(f)
             for channel in data.get("channels", []):
                 channels.add(channel)
+            for _platform in data.get("platforms", []):
+                platforms.add(_platform)
             if "dependencies" not in data:
                 continue
             dependencies = data["dependencies"]
@@ -314,7 +318,7 @@ def parse_yaml_requirements(
                         for meta in metas:
                             requirements[meta.name].append(meta)
 
-    return ParsedRequirements(channels, dict(requirements))
+    return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
 # Conflict resolution functions
@@ -424,6 +428,7 @@ class CondaEnvironmentSpec(NamedTuple):
     """A conda environment."""
 
     channels: list[str]
+    platforms: list[Platform]
     conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
 
@@ -522,16 +527,16 @@ def _resolve_multiple_platform_conflicts(
 
 def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
-    channels: set[str],
-    platform: Platform | None = None,
+    channels: list[str],
+    platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
-    if platform is not None and platform not in get_args(Platform):
-        msg = f"Invalid platform: {platform}, must be one of {get_args(Platform)}"
+    if platforms and not set(platforms).issubset(get_args(Platform)):
+        msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
@@ -544,12 +549,12 @@ def create_conda_env_specification(  # noqa: PLR0912
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in sorted(platform_to_meta.items()):
-            if _platform is not None and platform is not None and _platform != platform:
+            if _platform is not None and platforms and _platform not in platforms:
                 continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if platform is None and _platform is not None:
+            if len(platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
@@ -574,7 +579,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                 dep_str = f"{dep_str}; {marker}"
             pip_deps.append(dep_str)
 
-    return CondaEnvironmentSpec(list(channels), conda_deps, pip_deps)
+    return CondaEnvironmentSpec(channels, platforms, conda_deps, pip_deps)
 
 
 def write_conda_environment_file(
@@ -590,10 +595,13 @@ def write_conda_environment_file(
     env_data = CommentedMap(
         {
             "name": name,
-            "channels": env_spec.channels,
             "dependencies": resolved_dependencies,
         },
     )
+    if env_spec.channels:
+        env_data["channels"] = env_spec.channels
+    if env_spec.platforms:
+        env_data["platforms"] = env_spec.platforms
     yaml = YAML(typ="rt")
     yaml.default_flow_style = False
     yaml.width = 4096
@@ -686,7 +694,10 @@ def get_python_dependencies(
 
     requirements = parse_yaml_requirements([p], verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
-    return filter_python_dependencies(resolved_requirements, platforms=platforms)
+    return filter_python_dependencies(
+        resolved_requirements,
+        platforms=platforms or list(requirements.platforms),
+    )
 
 
 def _identify_current_platform() -> Platform:
@@ -949,7 +960,7 @@ def _install_command(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        platform=_identify_current_platform(),
+        platforms=[_identify_current_platform()],
     )
     if env_spec.conda:
         conda_executable = conda_executable or _identify_conda_executable()
@@ -1027,6 +1038,7 @@ def _merge_command(  # noqa: PLR0913
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
         selector=selector,
     )
     output_file = None if stdout else output
@@ -1070,7 +1082,7 @@ def main() -> None:
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            platform=args.platform,
+            platforms=[args.platform],
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
