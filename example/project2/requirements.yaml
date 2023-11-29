@@ -4,6 +4,6 @@ channels:
 dependencies:
   - adaptive
   - pfapack
-  - pip: pipefunc
+  - pipefunc
   - pip: markdown-code-runner
   - pip: home-assistant-streamdeck-yaml
