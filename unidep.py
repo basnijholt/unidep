@@ -38,6 +38,19 @@ Platform = Literal[
     "osx-arm64",
     "win-64",
 ]
+Selector = Literal[
+    "linux64",
+    "aarch64",
+    "ppc64le",
+    "osx64",
+    "arm64",
+    "win64",
+    "win",
+    "unix",
+    "linux",
+    "osx",
+    "macos",
+]
 CondaPip = Literal["conda", "pip"]
 
 
@@ -68,6 +81,22 @@ PEP508_MARKERS = {
         "osx-arm64",
     ): "sys_platform == 'linux' or sys_platform == 'darwin'",
 }
+
+
+PLATFORM_SELECTOR_MAP: dict[Platform, set[Selector]] = {
+    "linux-64": {"linux64", "unix", "linux"},
+    "linux-aarch64": {"aarch64", "unix", "linux"},
+    "linux-ppc64le": {"ppc64le", "unix", "linux"},
+    # "osx64" is a selector unique to conda-build referring to
+    # platforms on macOS and the Python architecture is x86-64
+    "osx-64": {"osx64", "osx", "macos", "unix"},
+    "osx-arm64": {"arm64", "osx", "macos", "unix"},
+    "win-64": {"win", "win64"},
+}
+PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
+for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
+    for _selector in _selectors:
+        PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
 def simple_warning_format(
@@ -127,23 +156,6 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
     # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
 
-    platform_selector_map: dict[Platform, set[str]] = {
-        "linux-64": {"linux64", "unix", "linux"},
-        "linux-aarch64": {"aarch64", "unix", "linux"},
-        "linux-ppc64le": {"ppc64le", "unix", "linux"},
-        # "osx64" is a selector unique to conda-build referring to
-        # platforms on macOS and the Python architecture is x86-64
-        "osx-64": {"osx64", "osx", "macos", "unix"},
-        "osx-arm64": {"arm64", "osx", "macos", "unix"},
-        "win-64": {"win", "win64"},
-    }
-
-    # Reverse the platform_selector_map for easy lookup
-    reverse_selector_map: dict[str, list[Platform]] = {}
-    for key, values in platform_selector_map.items():
-        for value in values:
-            reverse_selector_map.setdefault(value, []).append(key)
-
     sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
     multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
 
@@ -158,10 +170,11 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
         if m:
             conds = m.group(1).split()
             for cond in conds:
-                if cond not in reverse_selector_map:
+                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
                     msg = f"Unsupported platform specifier: '{comment}'"
                     raise ValueError(msg)
-                for _platform in reverse_selector_map[cond]:
+                cond = cast(Selector, cond)
+                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
                     filtered_platforms.add(_platform)
 
     return list(filtered_platforms)

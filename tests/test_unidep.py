@@ -946,3 +946,33 @@ def test_duplicate_names(tmp_path: Path) -> None:
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == ["flatbuffers"]
+
+
+def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1 # [linux64]
+                - foo <1 # [linux]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        selector="comment",
+    )
+    assert env_spec.conda == ["foo >1", "foo <1"]
+    assert env_spec.pip == []
+
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
+
+    with (tmp_path / "environment.yaml").open() as f:
+        lines = f.readlines()
+        print(lines)
+        dependency_line = next(line for line in lines if "adaptive" in line)
+        assert "- adaptive  # [linux64]" in dependency_line
