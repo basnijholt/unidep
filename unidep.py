@@ -352,8 +352,9 @@ def _select_preferred_version_within_platform(
                     on_platform = _platform or "all platforms"
                     warnings.warn(
                         f"Platform Conflict Detected:\n"
-                        f"On '{on_platform}', '{selected_meta.pprint()}' ({which}) is retained."
-                        f" The following conflicting dependencies are discarded: {discarded_metas_str}.",
+                        f"On '{on_platform}', '{selected_meta.pprint()}' ({which})"
+                        " is retained. The following conflicting dependencies are"
+                        f" discarded: {discarded_metas_str}.",
                         stacklevel=2,
                     )
                 reduced_data[_platform][which] = selected_meta
@@ -694,7 +695,7 @@ def _identify_current_platform() -> Platform:
 
 
 def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
-    """The entry point called by setuptools to retrieve the dependencies for a project."""
+    """Entry point called by setuptools to get the dependencies for a project."""
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".
     project_root = Path().resolve()
@@ -838,7 +839,8 @@ def _parse_args() -> argparse.Namespace:
     parser_install.add_argument(
         "file",
         type=Path,
-        help="The requirements.yaml file to parse or folder that contains that file, by default `.`",
+        help="The requirements.yaml file to parse or folder that contains that"
+        " file, by default `.`",
         default=".",
     )
     _add_common_args(parser_install, {"verbose", "editable"})
