@@ -584,7 +584,7 @@ def create_conda_env_specification(  # noqa: PLR0912
 
 def write_conda_environment_file(
     env_spec: CondaEnvironmentSpec,
-    output_file: str | None = "environment.yaml",
+    output_file: str | Path | None = "environment.yaml",
     name: str = "myenv",
     *,
     verbose: bool = False,
@@ -762,7 +762,7 @@ def _add_common_args(
         sub_parser.add_argument(
             "-d",
             "--directory",
-            type=str,
+            type=Path,
             default=".",
             help="Base directory to scan for requirements.yaml file(s), by default `.`",
         )
@@ -825,7 +825,7 @@ def _parse_args() -> argparse.Namespace:
     parser_merge.add_argument(
         "-o",
         "--output",
-        type=str,
+        type=Path,
         default="environment.yaml",
         help="Output file for the conda environment, by default `environment.yaml`",
     )
@@ -1024,9 +1024,9 @@ def _install_command(
 def _merge_command(  # noqa: PLR0913
     *,
     depth: int,
-    directory: str,
+    directory: Path,
     name: str,
-    output: str,
+    output: Path,
     stdout: bool,
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
@@ -1063,11 +1063,12 @@ def _merge_command(  # noqa: PLR0913
 def _conda_lock_global(
     *,
     depth: int,
-    directory: str,
+    directory: Path,
     platform: list[Platform],
     verbose: bool,
-) -> None:
-    tmp_env = "tmp.environment.yaml"
+) -> Path:
+    tmp_env = directory / "tmp.environment.yaml"
+    conda_lock_output = directory / "conda-lock.yml"
     _merge_command(
         depth=depth,
         directory=directory,
@@ -1078,17 +1079,27 @@ def _conda_lock_global(
         platforms=platform,
         verbose=verbose,
     )
-    cmd = ["conda-lock", "lock", "--file", tmp_env]
+    cmd = [
+        "conda-lock",
+        "lock",
+        "--file",
+        str(tmp_env),
+        "--lockfile",
+        str(conda_lock_output),
+    ]
     print(f"🔒 Locking global dependencies with `{' '.join(cmd)}`\n")
     subprocess.run(cmd, check=True)  # noqa: S603
+    print("✅ Global dependencies locked successfully.")
+    return conda_lock_output
 
 
 def _conda_lock_subpackages(
-    directory: str,
+    directory: Path,
     depth: int,
+    conda_lock_file: Path,
 ) -> None:
     yaml = YAML(typ="safe")
-    with open("conda-lock.yml") as fp:  # noqa: PTH123
+    with conda_lock_file.open() as fp:
         data = yaml.load(fp)
 
     channels = [c["url"] for c in data["metadata"]["channels"]]
@@ -1116,10 +1127,7 @@ def _conda_lock_subpackages(
             msg = f"Unknown manager: {p['manager']}"
             raise ValueError(msg)
 
-    found_files = find_requirements_files(
-        directory,
-        depth,
-    )
+    found_files = find_requirements_files(directory, depth)
     for file in found_files:
         requirements = parse_yaml_requirements([file])
         env_spec = CondaEnvironmentSpec(
@@ -1139,18 +1147,22 @@ def _conda_lock_subpackages(
 def _conda_lock_command(
     *,
     depth: int,
-    directory: str,
+    directory: Path,
     platform: list[Platform],
     verbose: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
-    _conda_lock_global(
+    conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
         platform=platform,
         verbose=verbose,
     )
-    _conda_lock_subpackages(directory=directory, depth=depth)
+    _conda_lock_subpackages(
+        directory=directory,
+        depth=depth,
+        conda_lock_file=conda_lock_output,
+    )
 
 
 def main() -> None:
@@ -1160,7 +1172,7 @@ def main() -> None:
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
 
-    if args.platform is None:
+    if "platform" in args and args.platform is None:
         args.platform = [_identify_current_platform()]
 
     if args.command == "merge":  # pragma: no cover
