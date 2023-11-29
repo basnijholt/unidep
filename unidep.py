@@ -1128,21 +1128,16 @@ def _conda_lock_subpackages(
     for file in found_files:
         requirements = parse_yaml_requirements([file])
         for name in requirements.requirements:
-            tups = packages[name]
-            for tup in tups:
-                _platform, which, version = tup
+            for _platform, which, version in packages[name]:
                 selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
                 comment = f"# [{selector}]"
-                if which == "pip":
-                    pip_packages.append(f"{name}=={version}")
-                    pip_packages.yaml_add_eol_comment(comment, len(pip_packages) - 1)
-                elif which == "conda":
-                    conda_packages.append(f"{name}={version}")
-                    conda_packages.yaml_add_eol_comment(
-                        comment, len(conda_packages) - 1
-                    )
+                eq = "==" if which == "pip" else "="
+                target_list = pip_packages if which == "pip" else conda_packages
+                if which in ["pip", "conda"]:
+                    target_list.append(f"{name}{eq}{version}")
+                    target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
                 else:
-                    msg = f"Unknown manager: {p['manager']}"
+                    msg = f"Unknown manager: {which}"
                     raise ValueError(msg)
 
         env_spec = CondaEnvironmentSpec(
