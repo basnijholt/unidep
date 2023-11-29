@@ -11,6 +11,7 @@ dependencies:
   - sel(linux): adaptive-scheduler
   - sel(linux): hpc05
   - pfapack
+  - pipefunc
   - pip:
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
@@ -19,6 +20,5 @@ dependencies:
     - codestructure
     - aiokef
     - unidep
-    - pipefunc
     - markdown-code-runner
     - home-assistant-streamdeck-yaml
