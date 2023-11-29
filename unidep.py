@@ -525,6 +525,11 @@ def _resolve_multiple_platform_conflicts(
         # Now we have only one `Meta` left, so we can select it.
 
 
+def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
+    comment = f"# [{PLATFORM_SELECTOR_MAP[platform][0]}]"
+    commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
+
+
 def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
@@ -543,7 +548,7 @@ def create_conda_env_specification(  # noqa: PLR0912
     conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
-    pip_deps = []
+    pip_deps: list[str] = CommentedSeq()
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1 and selector == "sel":
             # None has been expanded already if len>1
@@ -560,8 +565,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
                 conda_deps.append(dep_str)
                 if selector == "comment":
-                    comment = f"# [{PLATFORM_SELECTOR_MAP[_platform][0]}]"
-                    conda_deps.yaml_add_eol_comment(comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
+                    _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
 
@@ -575,9 +579,24 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
             if _platforms != [None]:
-                marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
-                dep_str = f"{dep_str}; {marker}"
-            pip_deps.append(dep_str)
+                if selector == "sel":
+                    marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+                    dep_str = f"{dep_str}; {marker}"
+                    pip_deps.append(dep_str)
+                else:
+                    assert selector == "comment"
+                    # We can only add comments with a single platform because
+                    # `conda-lock` doesn't implement logic, e.g., [linux or win]
+                    # should be spread into two lines, one with [linux] and the
+                    # other with [win].
+                    for _platform in _platforms:
+                        _platform = cast(Platform, _platform)
+                        marker = _build_pep508_environment_marker([_platform])  # type: ignore[arg-type]
+                        dep_str = f"{dep_str}; {marker}"
+                        pip_deps.append(dep_str)
+                        _add_comment(pip_deps, _platform)
+            else:
+                pip_deps.append(dep_str)
 
     return CondaEnvironmentSpec(channels, platforms, conda_deps, pip_deps)
 
