@@ -1133,6 +1133,8 @@ def _conda_lock_subpackages(
     for file in found_files:
         requirements = parse_yaml_requirements([file])
         for name in requirements.requirements:
+            if name not in packages:
+                continue  # might not exists because of platform filtering
             for _platform, which, version in packages[name]:
                 selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
                 comment = f"# [{selector}]"
