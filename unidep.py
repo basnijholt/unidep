@@ -1080,7 +1080,14 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
         str(conda_lock_output),
     ]
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
-    subprocess.run(cmd, check=True)  # noqa: S603
+    try:
+        subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+    except subprocess.CalledProcessError as e:
+        print("❌ Error occurred:", e)
+        print("Return code:", e.returncode)
+        print("Output:", e.output)
+        print("Error Output:", e.stderr)
+        sys.exit(1)
 
 
 def _conda_lock_global(
