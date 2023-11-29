@@ -183,10 +183,11 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         {"sel(linux)": "foo"},
         {"sel(win)": "bar"},
     ]
-    assert env.pip == [
+    expected_pip = [
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
+    assert env.pip == expected_pip
 
     # Test on two platforms
     env = create_conda_env_specification(
@@ -195,10 +196,22 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         ["osx-arm64", "win-64"],
     )
     assert env.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
-    assert env.pip == [
-        "pip-package",
-        "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
-    ]
+    assert env.pip == expected_pip
+
+    # Test with comment selector
+    env = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        ["osx-arm64", "win-64"],
+        selector="comment",
+    )
+    assert env.conda == ["yolo", "bar"]
+    assert env.pip == expected_pip
+    write_conda_environment_file(env, str(tmp_path / "environment.yaml"))
+    with (tmp_path / "environment.yaml").open() as f:
+        text = "".join(f.readlines())
+        assert "- yolo  # [arm64]" in text
+        assert "- bar # [win]" in text
 
     with pytest.raises(ValueError, match="Invalid platform"):
         create_conda_env_specification(
