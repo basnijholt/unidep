@@ -457,21 +457,14 @@ def _extract_conda_pip_dependencies(
 def _resolve_multiple_platform_conflicts(
     platform_to_meta: dict[Platform | None, Meta],
 ) -> None:
-    """Resolve conflicts across multiple platforms that map to a single Conda platform.
+    """Fix conflicts for deps with platforms that map to a single Conda platform.
 
-    This function is used when handling dependencies for different platforms
-    within a Conda environment. It addresses the situation where multiple
-    platforms (e.g., `linux-aarch64` and `linux64`) are mapped to a single Conda
-    platform (e.g., `sel(linux): ...`). The function ensures that for each Conda
-    platform, there is only one consistent set of metadata, resolving any
-    conflicts that arise due to different platforms having different metadata.
-
-    The function operates by first mapping each platform to its corresponding
-    Conda platform and then checking for and resolving any conflicts within each
-    Conda platform. A conflict occurs when there are multiple metadata (`Meta`
-    objects) associated with a single Conda platform. The function resolves such
-    conflicts by selecting the first `Meta` object and discarding the rest,
-    ensuring consistency in the metadata for each Conda platform.
+    In a Conda environment with dependencies across various platforms (like
+    'linux-aarch64', 'linux64'), this function ensures consistency in metadata
+    for each Conda platform (e.g., 'sel(linux): ...'). It maps each platform to
+    a Conda platform and resolves conflicts by retaining the first `Meta` object
+    per Conda platform, discarding others. This approach guarantees uniform
+    metadata across different but equivalent platforms.
     """
     valid: dict[
         CondaPlatform,
