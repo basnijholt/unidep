@@ -529,15 +529,14 @@ def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
-    platform: Platform | None = None,
     selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
-    if platform is not None and platform not in get_args(Platform):
-        msg = f"Invalid platform: {platform}, must be one of {get_args(Platform)}"
+    if platforms and not set(platforms).issubset(get_args(Platform)):
+        msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
@@ -550,12 +549,12 @@ def create_conda_env_specification(  # noqa: PLR0912
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in sorted(platform_to_meta.items()):
-            if _platform is not None and platform is not None and _platform != platform:
+            if _platform is not None and platforms and _platform not in platforms:
                 continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if platform is None and _platform is not None:
+            if not platforms and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
@@ -580,12 +579,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                 dep_str = f"{dep_str}; {marker}"
             pip_deps.append(dep_str)
 
-    return CondaEnvironmentSpec(
-        channels,
-        platforms,
-        conda_deps,
-        pip_deps,
-    )
+    return CondaEnvironmentSpec(channels, platforms, conda_deps, pip_deps)
 
 
 def write_conda_environment_file(
@@ -963,8 +957,7 @@ def _install_command(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        requirements.platforms,
-        platform=_identify_current_platform(),
+        platforms=[_identify_current_platform()],
     )
     if env_spec.conda:
         conda_executable = conda_executable or _identify_conda_executable()
@@ -1086,8 +1079,7 @@ def main() -> None:
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            requirements.platforms,
-            platform=args.platform,
+            platforms=[args.platform],
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":

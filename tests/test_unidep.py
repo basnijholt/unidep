@@ -192,8 +192,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        requirements.platforms,
-        "osx-arm64",
+        ["osx-arm64"],
     )
     assert env.conda == ["yolo"]
     assert env.pip == [
@@ -205,8 +204,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            requirements.platforms,
-            "unknown-platform",  # type: ignore[arg-type]
+            ["unknown-platform"],  # type: ignore[list-item]
         )
 
 
