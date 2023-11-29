@@ -1061,6 +1061,14 @@ def _merge_command(  # noqa: PLR0913
 
 
 def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:
+    if shutil.which("conda-lock") is None:
+        msg = (
+            "Cannot find `conda-lock`."
+            " Please install it with `pip install conda-lock`, or"
+            " `pipx install conda-lock`, or"
+            " `conda install -c conda-forge conda-lock`."
+        )
+        raise RuntimeError(msg)
     if conda_lock_output.exists():
         conda_lock_output.unlink()
     cmd = [
