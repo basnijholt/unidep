@@ -52,7 +52,7 @@ exclude_lines = [
 line_length = 88
 
 [tool.ruff]
-line-length = 150
+line-length = 88
 target-version = "py37"
 select = ["ALL"]
 ignore = [
