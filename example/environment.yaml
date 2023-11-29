@@ -3,6 +3,8 @@
 # File generated with: `unidep merge --name myenv --verbose`
 
 name: myenv
+channels:
+  - conda-forge
 dependencies:
   - pandas
   - adaptive >=1.0.0<2.0.0
@@ -20,5 +22,3 @@ dependencies:
     - pipefunc
     - markdown-code-runner
     - home-assistant-streamdeck-yaml
-channels:
-  - conda-forge
