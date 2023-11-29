@@ -1077,3 +1077,55 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
     assert env_spec.platforms == ["linux-64", "osx-arm64"]
     python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
     assert python_deps == ["foo"]
+
+
+def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+                - linux-64
+                - linux-aarch64
+            dependencies:
+                - foo
+                - bar # [win]
+                - yolo <1 # [aarch64]
+                - yolo >1 # [linux64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="sel",
+    )
+    assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
+    assert env_spec.pip == []
+    assert env_spec.platforms == ["linux-64", "linux-aarch64"]
+    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    assert python_deps == [
+        "foo",
+        "yolo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "yolo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    ]
+
+    # Test with comment selector
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="comment",
+    )
+    assert env_spec.conda == ["foo", "yolo >1", "yolo <1"]
+    assert env_spec.pip == []
+
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
+
+    with (tmp_path / "environment.yaml").open() as f:
+        text = "".join(f.readlines())
+        assert "- yolo >1  # [linux64]" in text
+        assert "- yolo <1 # [aarch64]" in text
