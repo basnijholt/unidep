@@ -92,7 +92,7 @@ PLATFORM_SELECTOR_MAP: dict[Platform, list[Selector]] = {
     # platforms on macOS and the Python architecture is x86-64
     "osx-64": ["osx64", "osx", "macos", "unix"],
     "osx-arm64": ["arm64", "osx", "macos", "unix"],
-    "win-64": ["win", "win64"],
+    "win-64": ["win64", "win"],
 }
 PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
 for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():

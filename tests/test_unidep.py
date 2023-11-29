@@ -211,7 +211,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
         assert "- yolo  # [arm64]" in text
-        assert "- bar # [win]" in text
+        assert "- bar # [win64]" in text
 
     with pytest.raises(ValueError, match="Invalid platform"):
         create_conda_env_specification(
@@ -1047,7 +1047,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         assert "- foo <1 # [arm64]" in text
         assert "- foo <1 # [aarch64]" in text
         assert "- foo <1 # [ppc64le]" in text
-        assert "- foo >1 # [win]" in text
+        assert "- foo >1 # [win64]" in text
 
 
 def test_platforms_section_in_yaml(tmp_path: Path) -> None:
