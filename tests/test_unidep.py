@@ -127,6 +127,7 @@ def test_generate_conda_env_file(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
     )
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
@@ -147,6 +148,7 @@ def test_generate_conda_env_stdout(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
     )
     write_conda_environment_file(env_spec, output_file=None)
     captured = capsys.readouterr()
@@ -171,7 +173,11 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements([p])
     resolved_requirements = resolve_conflicts(requirements.requirements)
-    env = create_conda_env_specification(resolved_requirements, requirements.channels)
+    env = create_conda_env_specification(
+        resolved_requirements,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env.conda == [
         {"sel(osx)": "yolo"},
         {"sel(linux)": "foo"},
@@ -186,6 +192,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
+        requirements.platforms,
         "osx-arm64",
     )
     assert env.conda == ["yolo"]
@@ -198,6 +205,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
+            requirements.platforms,
             "unknown-platform",  # type: ignore[arg-type]
         )
 
@@ -218,7 +226,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     write_conda_environment_file(
-        CondaEnvironmentSpec(channels=[], conda=[], pip=[]),
+        CondaEnvironmentSpec(channels=[], platforms=[], conda=[], pip=[]),
         verbose=True,
     )
     captured = capsys.readouterr()
@@ -433,6 +441,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     conda_env_spec = create_conda_env_specification(
         resolved,
         channels=sample_requirements.channels,
+        platforms=sample_requirements.platforms,
     )
 
     def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -614,6 +623,7 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
     assert env_spec.pip == []
@@ -671,6 +681,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
         env_spec = create_conda_env_specification(
             resolved,
             requirements.channels,
+            requirements.platforms,
         )
     assert env_spec.conda == [{"sel(linux)": "foo >1"}]
     assert env_spec.pip == []
@@ -724,6 +735,7 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == [
         {"sel(linux)": "foo >1"},
@@ -774,6 +786,7 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == ["foo <1"]
 
@@ -799,6 +812,7 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == []
 
@@ -824,6 +838,7 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
     )
     assert env_spec.conda == ["foo >1"]
 
@@ -915,6 +930,7 @@ def test_conda_with_comments(tmp_path: Path) -> None:
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == ["adaptive"]
@@ -940,7 +956,11 @@ def test_duplicate_names(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements([p], verbose=False)
     resolved = resolve_conflicts(requirements.requirements)
-    env_spec = create_conda_env_specification(resolved, requirements.channels)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
     assert env_spec.pip == []
 
