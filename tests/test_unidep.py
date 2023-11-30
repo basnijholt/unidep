@@ -7,15 +7,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
+from ruamel.yaml import YAML
 
 from unidep import (
     CondaEnvironmentSpec,
     Meta,
     _build_pep508_environment_marker,
+    _conda_lock_command,
     _extract_name_and_pin,
     _identify_current_platform,
     _install_command,
+    _remove_top_comments,
     create_conda_env_specification,
     escape_unicode,
     extract_matching_platforms,
@@ -132,8 +134,8 @@ def test_generate_conda_env_file(
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
 
-    with output_file.open() as f:
-        env_data = yaml.safe_load(f)
+    with output_file.open() as f, YAML(typ="safe") as yaml:
+        env_data = yaml.load(f)
         assert "dependencies" in env_data
         assert "numpy" in env_data["dependencies"]
         assert {"pip": ["pandas"]} in env_data["dependencies"]
@@ -1134,3 +1136,38 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
         assert "platforms:" in text
         assert "- linux-64" in text
         assert "- linux-aarch64" in text
+
+
+def test_conda_lock_command() -> None:
+    simple_monorepo = Path(__file__).parent / "simple_monorepo"
+    with patch("unidep._run_conda_lock", return_value=None):
+        _conda_lock_command(
+            depth=1,
+            directory=simple_monorepo,
+            platform=["linux-64", "osx-arm64"],
+            verbose=False,
+            only_global=False,
+        )
+    with YAML(typ="safe") as yaml:
+        with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
+            env1_tmp = yaml.load(f)
+        with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
+            env2_tmp = yaml.load(f)
+    assert len(env1_tmp["dependencies"]) == 1
+    assert len(env2_tmp["dependencies"]) == 1
+    assert env1_tmp["dependencies"][0].split("=")[0] == "networkx"
+    assert env2_tmp["dependencies"][0].split("=")[0] == "psutil"
+
+
+def test_remove_top_comments(tmp_path: Path) -> None:
+    test_file = tmp_path / "test_file.txt"
+    test_file.write_text(
+        "# Comment line 1\n# Comment line 2\nActual content line 1\nActual content line 2",
+    )
+
+    _remove_top_comments(test_file)
+
+    with test_file.open("r") as file:
+        content = file.read()
+
+    assert content == "Actual content line 1\nActual content line 2"

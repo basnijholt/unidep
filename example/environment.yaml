@@ -7,11 +7,11 @@ channels:
   - conda-forge
 dependencies:
   - pandas
-  - adaptive >=1.0.0<2.0.0
-  - sel(linux): adaptive-scheduler
-  - sel(linux): hpc05
+  - adaptive >=1.0.0, <2.0.0
   - pfapack
   - pipefunc
+  - adaptive-scheduler
+  - hpc05
   - pip:
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
@@ -19,6 +19,8 @@ dependencies:
     - fileup; sys_platform == 'darwin'
     - codestructure
     - aiokef
-    - unidep
     - markdown-code-runner
     - home-assistant-streamdeck-yaml
+    - unidep
+platforms:
+  - linux-64

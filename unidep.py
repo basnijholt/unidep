@@ -147,7 +147,7 @@ def find_requirements_files(
                     print(f"🔍 Found `{filename}` at `{child}`")
 
     _scan_dir(base_path, 0)
-    return found_files
+    return sorted(found_files)
 
 
 def extract_matching_platforms(comment: str) -> list[Platform]:
@@ -525,6 +525,11 @@ def _resolve_multiple_platform_conflicts(
         # Now we have only one `Meta` left, so we can select it.
 
 
+def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
+    comment = f"# [{PLATFORM_SELECTOR_MAP[platform][0]}]"
+    commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
+
+
 def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
@@ -543,7 +548,7 @@ def create_conda_env_specification(  # noqa: PLR0912
     conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
-    pip_deps = []
+    pip_deps: list[str] = CommentedSeq()
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1 and selector == "sel":
             # None has been expanded already if len>1
@@ -560,8 +565,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
                 conda_deps.append(dep_str)
                 if selector == "comment":
-                    comment = f"# [{PLATFORM_SELECTOR_MAP[_platform][0]}]"
-                    conda_deps.yaml_add_eol_comment(comment, len(conda_deps) - 1)  # type: ignore[attr-defined]
+                    _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
 
@@ -575,16 +579,31 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
             if _platforms != [None]:
-                marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
-                dep_str = f"{dep_str}; {marker}"
-            pip_deps.append(dep_str)
+                if selector == "sel":
+                    marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+                    dep_str = f"{dep_str}; {marker}"
+                    pip_deps.append(dep_str)
+                else:
+                    assert selector == "comment"
+                    # We can only add comments with a single platform because
+                    # `conda-lock` doesn't implement logic, e.g., [linux or win]
+                    # should be spread into two lines, one with [linux] and the
+                    # other with [win].
+                    for _platform in _platforms:
+                        _platform = cast(Platform, _platform)
+                        marker = _build_pep508_environment_marker([_platform])  # type: ignore[arg-type]
+                        dep_str = f"{dep_str}; {marker}"
+                        pip_deps.append(dep_str)
+                        _add_comment(pip_deps, _platform)
+            else:
+                pip_deps.append(dep_str)
 
     return CondaEnvironmentSpec(channels, platforms, conda_deps, pip_deps)
 
 
 def write_conda_environment_file(
     env_spec: CondaEnvironmentSpec,
-    output_file: str | None = "environment.yaml",
+    output_file: str | Path | None = "environment.yaml",
     name: str = "myenv",
     *,
     verbose: bool = False,
@@ -611,20 +630,30 @@ def write_conda_environment_file(
             yaml.dump(env_data, f)
         if verbose:
             print("📝 Environment file generated successfully.")
-
-        with open(output_file, "r+") as f:  # noqa: PTH123
-            content = f.read()
-            f.seek(0, 0)
-            command_line_args = " ".join(sys.argv[1:])
-            txt = [
-                f"# This file is created and managed by `unidep` {__version__}.",
-                "# For details see https://github.com/basnijholt/unidep",
-                f"# File generated with: `unidep {command_line_args}`",
-            ]
-            content = "\n".join(txt) + "\n\n" + content
-            f.write(content)
+        _add_comment_to_file(output_file)
     else:
         yaml.dump(env_data, sys.stdout)
+
+
+def _add_comment_to_file(
+    filename: str | Path,
+    extra_lines: list[str] | None = None,
+) -> None:
+    """Add a comment to the top of a file."""
+    if extra_lines is None:
+        extra_lines = []
+    with open(filename, "r+") as f:  # noqa: PTH123
+        content = f.read()
+        f.seek(0, 0)
+        command_line_args = " ".join(sys.argv[1:])
+        txt = [
+            f"# This file is created and managed by `unidep` {__version__}.",
+            "# For details see https://github.com/basnijholt/unidep",
+            f"# File generated with: `unidep {command_line_args}`",
+            *extra_lines,
+        ]
+        content = "\n".join(txt) + "\n\n" + content
+        f.write(content)
 
 
 # Python setuptools integration functions
@@ -762,7 +791,7 @@ def _add_common_args(
         sub_parser.add_argument(
             "-d",
             "--directory",
-            type=str,
+            type=Path,
             default=".",
             help="Base directory to scan for requirements.yaml file(s), by default `.`",
         )
@@ -786,11 +815,14 @@ def _add_common_args(
         current_platform = _identify_current_platform()
         sub_parser.add_argument(
             "--platform",
+            "-p",
             type=str,
-            default=current_platform,
+            action="append",  # Allow multiple instances of -p
+            default=None,  # Default is a list with the current platform
             choices=get_args(Platform),
-            help=f"The platform to get the requirements for, by default the"
-            f" current platform (`{current_platform}`)",
+            help="The platform(s) to get the requirements for. "
+            "Multiple platforms can be specified. "
+            f"By default, the current platform (`{current_platform}`) is used.",
         )
     if "editable" in options:
         sub_parser.add_argument(
@@ -798,6 +830,13 @@ def _add_common_args(
             "--editable",
             action="store_true",
             help="Install the project in editable mode",
+        )
+    if "depth" in options:
+        sub_parser.add_argument(
+            "--depth",
+            type=int,
+            default=1,
+            help="Maximum depth to scan for requirements.yaml files, by default 1",
         )
 
 
@@ -815,7 +854,7 @@ def _parse_args() -> argparse.Namespace:
     parser_merge.add_argument(
         "-o",
         "--output",
-        type=str,
+        type=Path,
         default="environment.yaml",
         help="Output file for the conda environment, by default `environment.yaml`",
     )
@@ -825,12 +864,6 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default="myenv",
         help="Name of the conda environment, by default `myenv`",
-    )
-    parser_merge.add_argument(
-        "--depth",
-        type=int,
-        default=1,
-        help="Depth to scan for requirements.yaml files, by default 1",
     )
     parser_merge.add_argument(
         "--stdout",
@@ -846,7 +879,7 @@ def _parse_args() -> argparse.Namespace:
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
     )
-    _add_common_args(parser_merge, {"directory", "verbose"})
+    _add_common_args(parser_merge, {"directory", "verbose", "platform", "depth"})
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
@@ -890,6 +923,20 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only print the commands that would be run",
     )
+
+    # Subparser for the 'conda-lock' command
+    parser_lock = subparsers.add_parser(
+        "conda-lock",
+        help="Generate a global conda-lock file of a collection of `requirements.yaml`"
+        " files. Additionally, generate a conda-lock file for each separate"
+        " `requirements.yaml` file based on the global lock file.",
+    )
+    parser_lock.add_argument(
+        "--only-global",
+        action="store_true",
+        help="Only generate the global lock file",
+    )
+    _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
     args = parser.parse_args()
 
@@ -1013,11 +1060,12 @@ def _install_command(
 def _merge_command(  # noqa: PLR0913
     *,
     depth: int,
-    directory: str,
+    directory: Path,
     name: str,
-    output: str,
+    output: Path,
     stdout: bool,
     selector: Literal["sel", "comment"],
+    platforms: list[Platform],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -1036,7 +1084,7 @@ def _merge_command(  # noqa: PLR0913
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        requirements.platforms,
+        requirements.platforms or platforms,
         selector=selector,
     )
     output_file = None if stdout else output
@@ -1048,12 +1096,178 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
+def _remove_top_comments(filename: str | Path) -> None:
+    """Removes the top comments (lines starting with '#') from a file."""
+    with open(filename) as file:  # noqa: PTH123
+        lines = file.readlines()
+
+    first_non_comment = next(
+        (i for i, line in enumerate(lines) if not line.strip().startswith("#")),
+        len(lines),
+    )
+    content_without_comments = lines[first_non_comment:]
+    with open(filename, "w") as file:  # noqa: PTH123
+        file.writelines(content_without_comments)
+
+
+def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
+    if shutil.which("conda-lock") is None:
+        msg = (
+            "Cannot find `conda-lock`."
+            " Please install it with `pip install conda-lock`, or"
+            " `pipx install conda-lock`, or"
+            " `conda install -c conda-forge conda-lock`."
+        )
+        raise RuntimeError(msg)
+    if conda_lock_output.exists():
+        print(f"🗑️ Removing existing `{conda_lock_output}`")
+        conda_lock_output.unlink()
+    cmd = [
+        "conda-lock",
+        "lock",
+        "--file",
+        str(tmp_env),
+        "--lockfile",
+        str(conda_lock_output),
+    ]
+    print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
+    try:
+        subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+        _remove_top_comments(conda_lock_output)
+        _add_comment_to_file(
+            conda_lock_output,
+            extra_lines=[
+                "#",
+                "# This environment can be installed with",
+                "# `micromamba create -f conda-lock.yml -n myenv`",
+                "# This file is a `conda-lock` file generated via `unidep`.",
+                "# For details see https://conda.github.io/conda-lock/",
+            ],
+        )
+    except subprocess.CalledProcessError as e:
+        print("❌ Error occurred:\n", e)
+        print("Return code:", e.returncode)
+        print("Output:", e.output)
+        print("Error Output:", e.stderr)
+        sys.exit(1)
+
+
+def _conda_lock_global(
+    *,
+    depth: int,
+    directory: str | Path,
+    platform: list[Platform],
+    verbose: bool,
+) -> Path:
+    """Generate a conda-lock file for the global dependencies."""
+    directory = Path(directory)
+    tmp_env = directory / "tmp.environment.yaml"
+    conda_lock_output = directory / "conda-lock.yml"
+    _merge_command(
+        depth=depth,
+        directory=directory,
+        name="myenv",
+        output=tmp_env,
+        stdout=False,
+        selector="comment",
+        platforms=platform,
+        verbose=verbose,
+    )
+    _run_conda_lock(tmp_env, conda_lock_output)
+    print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
+    return conda_lock_output
+
+
+def _conda_lock_subpackages(
+    directory: str | Path,
+    depth: int,
+    conda_lock_file: str | Path,
+) -> None:
+    directory = Path(directory)
+    conda_lock_file = Path(conda_lock_file)
+    with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
+        data = yaml.load(fp)
+    channels = [c["url"] for c in data["metadata"]["channels"]]
+    platforms = data["metadata"]["platforms"]
+
+    packages: dict[str, list[tuple[Platform, CondaPip, str, str]]] = {}
+    for p in data["package"]:
+        tup = (p["platform"], p["manager"], p["version"], p["url"])
+        packages.setdefault(p["name"], []).append(tup)
+
+    # Assumes that different platforms have the same versions
+    found_files = find_requirements_files(directory, depth)
+    for file in found_files:
+        pip_packages = CommentedSeq()
+        conda_packages = CommentedSeq()
+        requirements = parse_yaml_requirements([file])
+        for name in requirements.requirements:
+            if name not in packages:  # pragma: no cover
+                continue  # might not exists because of platform filtering
+            for _platform, which, version, url in packages[name]:
+                selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
+                comment = f"# [{selector}]"
+                eq = "==" if which == "pip" else "="
+                target_list = pip_packages if which == "pip" else conda_packages
+                if which in ["pip", "conda"]:
+                    if url.startswith("git+"):
+                        package = f"{name} @ {url}"
+                    else:
+                        package = f"{name}{eq}{version}"
+                    target_list.append(package)
+                    target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
+                else:  # pragma: no cover
+                    msg = f"Unknown manager: {which}"
+                    raise ValueError(msg)
+
+        env_spec = CondaEnvironmentSpec(
+            channels,
+            platforms,
+            conda_packages,
+            pip_packages,
+        )
+        tmp_env = file.parent / "tmp.environment.yaml"
+        conda_lock_output = file.parent / "conda-lock.yml"
+        write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
+        _run_conda_lock(tmp_env, conda_lock_output)
+        print(
+            f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
+            f" successfully in `{conda_lock_output}`.",
+        )
+
+
+def _conda_lock_command(
+    *,
+    depth: int,
+    directory: Path,
+    platform: list[Platform],
+    verbose: bool,
+    only_global: bool,
+) -> None:
+    """Generate a conda-lock file a collection of requirements.yaml files."""
+    conda_lock_output = _conda_lock_global(
+        depth=depth,
+        directory=directory,
+        platform=platform,
+        verbose=verbose,
+    )
+    if not only_global:
+        _conda_lock_subpackages(
+            directory=directory,
+            depth=depth,
+            conda_lock_file=conda_lock_output,
+        )
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
+
+    if "platform" in args and args.platform is None:  # pragma: no cover
+        args.platform = [_identify_current_platform()]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
@@ -1063,6 +1277,7 @@ def main() -> None:
             output=args.output,
             stdout=args.stdout,
             selector=args.selector,
+            platforms=args.platform,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -1090,6 +1305,14 @@ def main() -> None:
             editable=args.editable,
             file=args.file,
             verbose=args.verbose,
+        )
+    elif args.command == "conda-lock":  # pragma: no cover
+        _conda_lock_command(
+            depth=args.depth,
+            directory=args.directory,
+            platform=args.platform,
+            verbose=args.verbose,
+            only_global=args.only_global,
         )
 
 
