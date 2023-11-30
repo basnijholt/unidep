@@ -1022,6 +1022,21 @@ def _parse_args() -> argparse.Namespace:
         " file, by default `.`",
         default=".",
     )
+    parser_install.add_argument(
+        "--skip-local",
+        action="store_true",
+        help="Skip installing local dependencies",
+    )
+    parser_install.add_argument(
+        "--skip-pip",
+        action="store_true",
+        help="Skip installing pip dependencies from `requirements.yaml`",
+    )
+    parser_install.add_argument(
+        "--skip-conda",
+        action="store_true",
+        help="Skip installing conda dependencies from `requirements.yaml`",
+    )
     _add_common_args(parser_install, {"verbose", "editable"})
     parser_install.add_argument(
         "--conda-executable",
@@ -1111,7 +1126,7 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{name}"{pin.strip()}"'
 
 
-def _pip_install(
+def _pip_install_local(
     folder: str | Path,
     *,
     editable: bool,
@@ -1133,13 +1148,16 @@ def _make_relative(dependency_path: Path, file_path: Path) -> Path:
     return dependency_path.relative_to(Path(common).parent)
 
 
-def _install_command(
+def _install_command(  # noqa: PLR0913
     *,
     conda_executable: str,
     dry_run: bool,
     editable: bool,
     file: Path,
-    verbose: bool,
+    skip_local: bool = False,
+    skip_pip: bool = False,
+    skip_conda: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
     requirements = parse_yaml_requirements(file, verbose=verbose)
@@ -1149,7 +1167,7 @@ def _install_command(
         requirements.channels,
         platforms=[_identify_current_platform()],
     )
-    if env_spec.conda:
+    if env_spec.conda and not skip_conda:
         conda_executable = conda_executable or _identify_conda_executable()
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
@@ -1168,35 +1186,41 @@ def _install_command(
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
-    if env_spec.pip:
+    if env_spec.pip and not skip_pip:
         pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
-    if _is_pip_installable(file.parent):  # pragma: no cover
+
+    if not skip_local and _is_pip_installable(file.parent):  # pragma: no cover
         folder = file.parent
-        _pip_install(folder, editable=editable, dry_run=dry_run)
+        _pip_install_local(folder, editable=editable, dry_run=dry_run)
     else:  # pragma: no cover
         print(
             f"⚠️  Project {file.parent} is not pip installable. "
             "Could not find setup.py or [build-system] in pyproject.toml.",
         )
 
-    # Install local dependencies (if any) included via `includes:`
-    local_dependencies = parse_project_dependencies(
-        file,
-        check_pip_installable=True,
-        verbose=verbose,
-    )
-    local_paths = {
-        Path(k): [Path(dep) for dep in v] for k, v in local_dependencies.items()
-    }
-    assert len(local_dependencies) <= 1
-    names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
-    print(f"📝 Found local dependencies: {names}\n")
-    for deps in local_paths.values():
-        for dep in deps:
-            _pip_install(_make_relative(dep, file), editable=editable, dry_run=dry_run)
+    if not skip_local:
+        # Install local dependencies (if any) included via `includes:`
+        local_dependencies = parse_project_dependencies(
+            file,
+            check_pip_installable=True,
+            verbose=verbose,
+        )
+        local_paths = {
+            Path(k): [Path(dep) for dep in v] for k, v in local_dependencies.items()
+        }
+        assert len(local_dependencies) <= 1
+        names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
+        print(f"📝 Found local dependencies: {names}\n")
+        for deps in local_paths.values():
+            for dep in deps:
+                _pip_install_local(
+                    _make_relative(dep, file),
+                    editable=editable,
+                    dry_run=dry_run,
+                )
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
@@ -1575,6 +1599,9 @@ def main() -> None:
             dry_run=args.dry_run,
             editable=args.editable,
             file=args.file,
+            skip_local=args.skip_local,
+            skip_pip=args.skip_pip,
+            skip_conda=args.skip_conda,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
