@@ -1294,8 +1294,8 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
         check_pip_installable=False,
     )
     expected_dependencies = {
-        str(project1.resolve()): {str(project2.resolve())},
-        str(project2.resolve()): {str(project1.resolve())},
+        project1.resolve(): {project2.resolve()},
+        project2.resolve(): {project1.resolve()},
     }
     assert requirements == expected_dependencies
 
@@ -1348,13 +1348,13 @@ def test_nested_includes(tmp_path: Path) -> None:
         check_pip_installable=False,
     )
     expected_dependencies = {
-        str(project1.resolve()): {
-            str(project2.resolve()),
-            str(project3.resolve()),
-            str(project4.resolve()),
+        project1.resolve(): {
+            project2.resolve(),
+            project3.resolve(),
+            project4.resolve(),
         },
-        str(project2.resolve()): {str(project3.resolve()), str(project4.resolve())},
-        str(project3.resolve()): {str(project4.resolve())},
+        project2.resolve(): {project3.resolve(), project4.resolve()},
+        project3.resolve(): {project4.resolve()},
     }
     assert requirements == expected_dependencies
 
@@ -1450,12 +1450,12 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     )
     assert requirements
     assert requirements == {
-        str(example_folder / "project1"): {
-            str(example_folder / "project2"),
-            str(example_folder / "project3"),
+        example_folder / "project1": {
+            example_folder / "project2",
+            example_folder / "project3",
         },
-        str(example_folder / "project2"): {
-            str(example_folder / "project3"),
+        example_folder / "project2": {
+            example_folder / "project3",
         },
     }
 
@@ -1492,16 +1492,16 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     )
     assert requirements
     assert requirements == {
-        str(example_folder / "project1"): {
-            str(example_folder / "project2"),
-            str(example_folder / "project3"),
+        example_folder / "project1": {
+            example_folder / "project2",
+            example_folder / "project3",
         },
-        str(example_folder / "project2"): {
-            str(example_folder / "project1"),
-            str(example_folder / "project3"),
+        example_folder / "project2": {
+            example_folder / "project1",
+            example_folder / "project3",
         },
-        str(example_folder / "project3"): {
-            str(example_folder / "project1"),
-            str(example_folder / "project2"),
+        example_folder / "project3": {
+            example_folder / "project1",
+            example_folder / "project2",
         },
     }
