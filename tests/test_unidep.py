@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 import textwrap
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -75,16 +76,16 @@ def test_find_requirements_files_depth(tmp_path: Path) -> None:
     assert len(find_requirements_files(tmp_path, depth=0)) == 1
 
     # Test depth=1
-    assert len(find_requirements_files(tmp_path, depth=1)) == 2  # noqa: PLR2004
+    assert len(find_requirements_files(tmp_path, depth=1)) == 2
 
     # Test depth=2
-    assert len(find_requirements_files(tmp_path, depth=2)) == 3  # noqa: PLR2004
+    assert len(find_requirements_files(tmp_path, depth=2)) == 3
 
     # Test depth=3
-    assert len(find_requirements_files(tmp_path, depth=3)) == 4  # noqa: PLR2004
+    assert len(find_requirements_files(tmp_path, depth=3)) == 4
 
     # Test depth=4 (or more)
-    assert len(find_requirements_files(tmp_path, depth=4)) == 4  # noqa: PLR2004
+    assert len(find_requirements_files(tmp_path, depth=4)) == 4
 
 
 def test_parse_requirements(tmp_path: Path) -> None:
@@ -1145,7 +1146,7 @@ def test_conda_lock_command() -> None:
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
-            verbose=False,
+            verbose=True,
             only_global=False,
         )
     with YAML(typ="safe") as yaml:
@@ -1153,10 +1154,19 @@ def test_conda_lock_command() -> None:
             env1_tmp = yaml.load(f)
         with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
             env2_tmp = yaml.load(f)
-    assert len(env1_tmp["dependencies"]) == 1
-    assert len(env2_tmp["dependencies"]) == 1
-    assert env1_tmp["dependencies"][0].split("=")[0] == "bzip2"
-    assert env2_tmp["dependencies"][0].split("=")[0] == "tzdata"
+
+    def deps(env: dict[str, Any]) -> list[str]:
+        return [dep.split("=")[0] for dep in env["dependencies"]]
+
+    deps1 = deps(env1_tmp)
+    deps2 = deps(env2_tmp)
+    assert len(deps1) == 3
+    assert len(deps2) == 2
+    assert deps1[0] == "bzip2"
+    assert deps1[1] == "tzdata"
+    assert deps1[2] == "python_abi"
+    assert deps2[0] == "tzdata"
+    assert deps2[1] == "python_abi"
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
@@ -1208,3 +1218,44 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
     )
     assert "- slurm-usage" in lines
     assert "  - pip:" in lines
+
+
+def test_circular_includes(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+
+    r1 = project1 / "requirements.yaml"
+    r2 = project2 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive-scheduler
+            includes:
+                - ../project2
+                - ../project2  # duplicate include (shouldn't affect the result)
+            """,
+        ),
+    )
+    r2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            includes:
+                - ../project1
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([r1, r2], verbose=False)
+    # Both will be duplicated because of the circular dependency
+    # but `resolve_conflicts` will remove the duplicates
+    assert len(requirements.requirements["adaptive"]) == 4
+    assert len(requirements.requirements["adaptive-scheduler"]) == 2
+    resolved = resolve_conflicts(requirements.requirements)
+    assert len(resolved["adaptive"]) == 1
+    assert len(resolved["adaptive"][None]) == 2
+    assert len(resolved["adaptive-scheduler"]) == 1
+    assert len(resolved["adaptive-scheduler"][None]) == 2

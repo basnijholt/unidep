@@ -1,6 +1,6 @@
-# This file is created and managed by `unidep` 0.21.0.
+# This file is created and managed by `unidep` 0.22.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep conda-lock -d tests/simple_monorepo`
+# File generated with: `unidep conda-lock -d tests/simple_monorepo -v`
 #
 # This environment can be installed with
 # `micromamba create -f conda-lock.yml -n myenv`
@@ -10,7 +10,7 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: 64ec1d1b4fe987281b13f2375700c7e5e7bc513ef44f5559182c88909a1d1464
+    osx-arm64: 6c79ca2c4afacef876acdef1f4805c4ee99c9165f71261f237a2086a0000847a
   channels:
   - url: conda-forge
     used_env_vars: []
@@ -28,6 +28,17 @@ package:
   hash:
     md5: 1bbc659ca658bfd49a481b5ef7a0f40f
     sha256: bfa84296a638bea78a8bb29abc493ee95f2a0218775642474a840411b950fe5f
+  category: main
+  optional: false
+- name: python_abi
+  version: '3.12'
+  manager: conda
+  platform: osx-arm64
+  dependencies: {}
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.12-4_cp312.conda
+  hash:
+    md5: bbb3a02c78b2d8219d7213f76d644a2a
+    sha256: db25428e4f24f8693ffa39f3ff6dfbb8fd53bc298764b775b57edab1c697560f
   category: main
   optional: false
 - name: tzdata

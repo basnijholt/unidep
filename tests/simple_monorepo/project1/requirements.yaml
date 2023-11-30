@@ -3,3 +3,6 @@ channels:
   - conda-forge
 dependencies:
   - bzip2
+includes:
+  - ../project2  # this means `project2` is a dependency of `project1`
+  - ../common-requirements.yaml

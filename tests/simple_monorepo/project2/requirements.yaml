@@ -3,3 +3,5 @@ channels:
   - conda-forge
 dependencies:
   - tzdata
+includes:
+  - ../common-requirements.yaml
