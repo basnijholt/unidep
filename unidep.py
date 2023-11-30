@@ -1241,6 +1241,11 @@ def _conda_lock_subpackages(
             f" successfully in `{conda_lock_output}`.",
         )
         lock_files.append(conda_lock_output)
+        mismatches = _check_consisent_lock_files(
+            global_lock_file=conda_lock_file,
+            sub_lock_files=[conda_lock_output],
+        )
+        _mismatch_report(mismatches, raises=False)
     return lock_files
 
 
@@ -1265,19 +1270,26 @@ def _conda_lock_command(
             depth=depth,
             conda_lock_file=conda_lock_output,
         )
-    _check_consisent_lock_files(
+    mismatches = _check_consisent_lock_files(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
-        raises=False,
     )
+    _mismatch_report(mismatches, raises=False)
+    print("✅ Analyzed all lock files and found no inconsistencies.")
+
+
+class Mismatch(NamedTuple):
+    name: str
+    version: str
+    version_global: str
+    platform: Platform
+    lock_file: Path
 
 
 def _check_consisent_lock_files(
     global_lock_file: Path,
     sub_lock_files: list[Path],
-    *,
-    raises: bool = True,
-) -> None:
+) -> list[Mismatch]:
     yaml = YAML(typ="safe")
     with global_lock_file.open() as fp:
         global_data = yaml.load(fp)
@@ -1302,35 +1314,41 @@ def _check_consisent_lock_files(
             global_version = global_packages[name][platform]
             if global_version != version:
                 mismatched_packages.append(
-                    {
-                        "name": name,
-                        "version": version,
-                        "version_global": global_version,
-                        "platform": platform,
-                        "lock_file": lock_file,
-                    },
+                    Mismatch(
+                        name=name,
+                        version=version,
+                        version_global=global_version,
+                        platform=platform,
+                        lock_file=lock_file,
+                    ),
                 )
+    return mismatched_packages
 
-    if mismatched_packages:
-        error_messages = [
-            f"Subpackage `{m['lock_file'].parent.name}` has a different version"
-            f" of `{m['name']}` (version: {m['version']} on platform:"
-            f" {m['platform']}) than the global lock file (version:"
-            f" {m['version_global']} on platform: {m['platform']})."
-            for m in mismatched_packages
-        ]
-        note = (
-            "\n‼️ You might want to pin some versions stricter"
-            " in your `requirements.yaml` files."
+
+def _mismatch_report(
+    mismatched_packages: list[Mismatch],
+    *,
+    raises: bool = False,
+) -> None:
+    if not mismatched_packages:
+        return
+    error_messages = [
+        f"Subpackage `{m.lock_file.parent.name}` has a different version"
+        f" of `{m.name}` (version: {m.version} on platform:"
+        f" {m.platform}) than the global lock file (version:"
+        f" {m.version_global} on platform: {m.platform})."
+        for m in mismatched_packages
+    ]
+    note = (
+        "\n‼️ You might want to pin some versions stricter"
+        " in your `requirements.yaml` files."
+    )
+    full_error_message = "\n".join(error_messages) + note
+    if raises:
+        raise RuntimeError(
+            "Package version mismatches found:\n" + full_error_message,
         )
-        full_error_message = "\n".join(error_messages) + note
-        if raises:
-            raise RuntimeError(
-                "Package version mismatches found:\n" + full_error_message,
-            )
-        warnings.warn(full_error_message, stacklevel=2)
-    else:
-        print("✅ Analyzed all lock files and found no inconsistencies.")
+    warnings.warn(full_error_message, stacklevel=2)
 
 
 def main() -> None:
