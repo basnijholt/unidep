@@ -1171,3 +1171,40 @@ def test_remove_top_comments(tmp_path: Path) -> None:
         content = file.read()
 
     assert content == "Actual content line 1\nActual content line 2"
+
+
+def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+                - conda-forge
+            dependencies:
+                - pip: qsimcirq  # [linux64]
+                - pip: slurm-usage  # added to avoid https://github.com/conda/conda-lock/pull/564
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements([p], verbose=False)
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+        selector="comment",
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == [
+        "qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "slurm-usage",
+    ]
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
+    with (tmp_path / "environment.yaml").open() as f:
+        lines = "".join(f.readlines())
+    assert (
+        "- qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'  # [linux64]"
+        in lines
+    )
+    assert "- slurm-usage" in lines
+    assert "  - pip:" in lines

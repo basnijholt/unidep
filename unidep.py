@@ -254,7 +254,7 @@ class Meta(NamedTuple):
         """Return the platforms for this dependency."""
         if self.comment is None:
             return None
-        return extract_matching_platforms(self.comment)
+        return extract_matching_platforms(self.comment) or None
 
     def pprint(self) -> str:
         """Pretty print the dependency."""
