@@ -1145,7 +1145,7 @@ def test_conda_lock_command() -> None:
             directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
             verbose=False,
-            sub_lock_files=True,
+            only_global=False,
         )
     with YAML(typ="safe") as yaml:
         with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
