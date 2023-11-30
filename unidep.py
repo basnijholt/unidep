@@ -1182,7 +1182,7 @@ def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
     conda_lock_file: str | Path,
-) -> None:
+) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
@@ -1195,6 +1195,7 @@ def _conda_lock_subpackages(
         tup = (p["platform"], p["manager"], p["version"], p["url"])
         packages.setdefault(p["name"], []).append(tup)
 
+    lock_files = []
     # Assumes that different platforms have the same versions
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
@@ -1234,6 +1235,8 @@ def _conda_lock_subpackages(
             f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
             f" successfully in `{conda_lock_output}`.",
         )
+        lock_files.append(conda_lock_output)
+    return lock_files
 
 
 def _conda_lock_command(
@@ -1252,11 +1255,62 @@ def _conda_lock_command(
         verbose=verbose,
     )
     if not only_global:
-        _conda_lock_subpackages(
+        sub_lock_files = _conda_lock_subpackages(
             directory=directory,
             depth=depth,
             conda_lock_file=conda_lock_output,
         )
+    _check_consisent_lock_files(
+        global_lock_file=conda_lock_output,
+        sub_lock_files=sub_lock_files,
+    )
+
+
+def _check_consisent_lock_files(
+    global_lock_file: Path,
+    sub_lock_files: list[Path],
+    *,
+    do_raise: bool = True,
+) -> None:
+    with YAML(typ="safe") as yaml, global_lock_file.open() as fp:
+        global_data = yaml.load(fp)
+    global_packages = {
+        p["name"]: (p["version"], p["platform"]) for p in global_data["package"]
+    }
+    mismatched_packages = []
+    for lock_file in sub_lock_files:
+        with lock_file.open() as fp:
+            data = yaml.load(fp)
+        for p in data["package"]:
+            name = p["name"]
+            if name not in global_packages:
+                continue
+            other = global_packages[name]
+            if global_packages[name] != (p["version"], p["platform"]):
+                mismatched_packages.append(
+                    {
+                        "name": name,
+                        "version": p["version"],
+                        "version_global": other[0],
+                        "platform": p["platform"],
+                        "platform_global": other[1],
+                        "lock_file": lock_file,
+                    },
+                )
+    if mismatched_packages:
+        error_messages = [
+            f"Subpackage `{m['lock_file'].parent.name}` has a different version"
+            f" of `{m['name']}` (version: {m['version']} on platform:"
+            f" {m['platform']}) than the global lock file (version:"
+            f" {m['version_global']} on platform: {m['platform_global']})."
+            for m in mismatched_packages
+        ]
+        full_error_message = "\n".join(error_messages)
+        if do_raise:
+            raise RuntimeError(
+                "Package version mismatches found:\n" + full_error_message,
+            )
+        warnings.warn(full_error_message, stacklevel=2)
 
 
 def main() -> None:
