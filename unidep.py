@@ -1546,8 +1546,25 @@ def _mismatch_report(
     warnings.warn(full_error_message, stacklevel=2)
 
 
+def _check_conda_prefix() -> None:
+    """Check if sys.executable is in the $CONDA_PREFIX."""
+    if "CONDA_PREFIX" not in os.environ:
+        return
+    conda_prefix = os.environ["CONDA_PREFIX"]
+    if sys.executable.startswith(str(conda_prefix)):
+        return
+    msg = (
+        "You are not using `unidep` from the conda environment you are currently in."
+        " This will lead to unexpected behavior."
+        " Please install `unidep` in the conda environment you are currently in."
+    )
+    warnings.warn(msg, stacklevel=2)
+    sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
+    _check_conda_prefix()
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
         print(f"❌ File {args.file} not found.")
