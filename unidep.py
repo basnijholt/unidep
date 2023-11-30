@@ -394,7 +394,7 @@ def parse_project_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
-) -> dict[str, set[str]]:
+) -> dict[Path, set[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
 
     Works by scanning for `includes` in the `requirements.yaml` files.
@@ -414,7 +414,7 @@ def parse_project_dependencies(
             verbose=verbose,
         )
 
-    return dict(dependencies)
+    return {Path(k): {Path(v) for v in v_set} for k, v_set in dependencies.items()}
 
 
 # Conflict resolution functions
@@ -1143,17 +1143,6 @@ def _install_command(
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
     requirements = parse_yaml_requirements(file, verbose=verbose)
-    local_dependencies = parse_project_dependencies(
-        file,
-        check_pip_installable=True,
-        verbose=verbose,
-    )
-    local_names = {
-        Path(k).name: [Path(dep).name for dep in v]
-        for k, v in local_dependencies.items()
-    }
-    assert len(local_dependencies) == 1
-    print(f"📝 Found local dependencies: {local_dependencies}\n")
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -1193,9 +1182,20 @@ def _install_command(
             "Could not find setup.py or [build-system] in pyproject.toml.",
         )
 
-    for name, deps in local_names.items():
+    # Install local dependencies (if any) included via `includes:`
+    local_dependencies = parse_project_dependencies(
+        file,
+        check_pip_installable=True,
+        verbose=verbose,
+    )
+    local_paths = {
+        Path(k): [Path(dep) for dep in v] for k, v in local_dependencies.items()
+    }
+    assert len(local_dependencies) <= 1
+    names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
+    print(f"📝 Found local dependencies: {names}\n")
+    for deps in local_paths.values():
         for dep in deps:
-            print(f"📦 Installing local dependencies for {name}: {dep}\n")
             _pip_install(dep, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
