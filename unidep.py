@@ -311,13 +311,14 @@ def parse_yaml_requirements(  # noqa: PLR0912
             data = yaml.load(f)
             datas.append(data)
         seen.add(p.resolve())
+
         # Deal with includes
         for include in data.get("includes", []):
-            if verbose:
-                print(f"📄 Parsing include `{include}`")
             include_path = _include_path(p.parent / include)
             if include_path in seen:
                 continue  # Avoids circular includes
+            if verbose:
+                print(f"📄 Parsing include `{include}`")
             with include_path.open() as f:
                 datas.append(yaml.load(f))
             seen.add(include_path)
