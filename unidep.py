@@ -1546,7 +1546,7 @@ def _mismatch_report(
     warnings.warn(full_error_message, stacklevel=2)
 
 
-def _check_conda_prefix() -> None:
+def _check_conda_prefix() -> None:  # pragma: no cover
     """Check if sys.executable is in the $CONDA_PREFIX."""
     if "CONDA_PREFIX" not in os.environ:
         return
