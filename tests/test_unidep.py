@@ -17,6 +17,7 @@ from unidep import (
     _extract_name_and_pin,
     _identify_current_platform,
     _install_command,
+    _remove_top_comments,
     create_conda_env_specification,
     escape_unicode,
     extract_matching_platforms,
@@ -1156,3 +1157,17 @@ def test_conda_lock_command() -> None:
     assert len(env2_tmp["dependencies"]) == 1
     assert env1_tmp["dependencies"][0].split("=")[0] == "networkx"
     assert env2_tmp["dependencies"][0].split("=")[0] == "psutil"
+
+
+def test_remove_top_comments(tmp_path: Path) -> None:
+    test_file = tmp_path / "test_file.txt"
+    test_file.write_text(
+        "# Comment line 1\n# Comment line 2\nActual content line 1\nActual content line 2",
+    )
+
+    _remove_top_comments(test_file)
+
+    with test_file.open("r") as file:
+        content = file.read()
+
+    assert content == "Actual content line 1\nActual content line 2"
