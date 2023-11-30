@@ -1274,8 +1274,11 @@ def _conda_lock_command(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
     )
-    _mismatch_report(mismatches, raises=False)
-    print("✅ Analyzed all lock files and found no inconsistencies.")
+    if not mismatches:
+        print("✅ Analyzed all lock files and found no inconsistencies.")
+    elif len(mismatches) > 1:
+        print("❌ Complete table of package version mismatches:")
+        _mismatch_report(mismatches, raises=False)
 
 
 class Mismatch(NamedTuple):
