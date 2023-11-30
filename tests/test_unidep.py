@@ -1235,6 +1235,7 @@ def test_circular_includes(tmp_path: Path) -> None:
                 - adaptive-scheduler
             includes:
                 - ../project2
+                - ../project2  # duplicate include (shouldn't affect the result)
             """,
         ),
     )
@@ -1252,7 +1253,7 @@ def test_circular_includes(tmp_path: Path) -> None:
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
-    assert len(requirements.requirements["adaptive-scheduler"]) == 4
+    assert len(requirements.requirements["adaptive-scheduler"]) == 2
     resolved = resolve_conflicts(requirements.requirements)
     assert len(resolved["adaptive"]) == 1
     assert len(resolved["adaptive"][None]) == 2

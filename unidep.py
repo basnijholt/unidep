@@ -289,7 +289,7 @@ def _include_path(include: str) -> Path:
     path = Path(include)
     if path.is_dir():
         path /= "requirements.yaml"
-    return path
+    return path.resolve()
 
 
 def parse_yaml_requirements(  # noqa: PLR0912
@@ -302,7 +302,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
-    included: set[Path] = set()
+    seen: set[Path] = set()
     yaml = YAML(typ="rt")
     for p in paths:
         if verbose:
@@ -310,16 +310,17 @@ def parse_yaml_requirements(  # noqa: PLR0912
         with p.open() as f:
             data = yaml.load(f)
             datas.append(data)
+        seen.add(p.resolve())
         # Deal with includes
         for include in data.get("includes", []):
             if verbose:
                 print(f"📄 Parsing include `{include}`")
             include_path = _include_path(p.parent / include)
-            if include_path in included:
+            if include_path in seen:
                 continue  # Avoids circular includes
             with include_path.open() as f:
                 datas.append(yaml.load(f))
-            included.add(include_path)
+            seen.add(include_path)
 
     for data in datas:
         for channel in data.get("channels", []):
