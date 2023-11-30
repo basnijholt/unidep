@@ -1291,7 +1291,7 @@ def test_parse_yaml_requirements_with_dependencies(tmp_path: Path) -> None:
         str(project1.resolve()): {str(project2.resolve())},
         str(project2.resolve()): {str(project1.resolve())},
     }
-    assert requirements.dependencies == expected_dependencies
+    assert requirements == expected_dependencies
 
 
 def test_nested_includes(tmp_path: Path) -> None:
@@ -1351,7 +1351,7 @@ def test_nested_includes(tmp_path: Path) -> None:
         str(project2.resolve()): {str(project3.resolve()), str(project4.resolve())},
         str(project3.resolve()): {str(project4.resolve())},
     }
-    assert requirements.dependencies == expected_dependencies
+    assert requirements == expected_dependencies
 
 
 def test_nonexistent_includes(tmp_path: Path) -> None:
@@ -1366,7 +1366,7 @@ def test_nonexistent_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match="Include file"):
         parse_yaml_requirements_with_dependencies([r1], verbose=False)
 
 
@@ -1383,7 +1383,7 @@ def test_no_includes(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements_with_dependencies([r1], verbose=False)
-    assert requirements.dependencies == {}
+    assert requirements == {}
 
 
 def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
@@ -1401,4 +1401,4 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements_with_dependencies([r1], verbose=False)
-    assert requirements.dependencies == {}
+    assert requirements == {}

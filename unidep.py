@@ -346,13 +346,6 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
-class ParsedRequirementsWithDependencies(NamedTuple):
-    """Requirements with comments and dependencies."""
-
-    parsed_requirements: ParsedRequirements
-    dependencies: dict[str, set[str]]
-
-
 def _add_dependencies(
     path: Path,
     base_path: str,
@@ -367,20 +360,21 @@ def _add_dependencies(
         data = yaml.load(f)
         for include in data.get("includes", []):
             include_path = _include_path(path.parent / include)
-            if include_path.is_file():
-                include_base_path = str(include_path.parent)
-                if include_base_path == base_path:
-                    continue
-                dependencies[base_path].add(include_base_path)
-                _add_dependencies(include_path, base_path, processed, dependencies)
+            if not include_path.exists():
+                msg = f"Include file `{include_path}` does not exist."
+                raise FileNotFoundError(msg)
+            include_base_path = str(include_path.parent)
+            if include_base_path == base_path:
+                continue
+            dependencies[base_path].add(include_base_path)
+            _add_dependencies(include_path, base_path, processed, dependencies)
 
 
 def parse_yaml_requirements_with_dependencies(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
-) -> ParsedRequirementsWithDependencies:
-    parsed_reqs = parse_yaml_requirements(paths, verbose=verbose)
+) -> dict[str, set[str]]:
     dependencies: dict[str, set[str]] = defaultdict(set)
 
     for p in paths:
@@ -389,7 +383,7 @@ def parse_yaml_requirements_with_dependencies(
         base_path = str(p.resolve().parent)
         _add_dependencies(p, base_path, set(), dependencies)
 
-    return ParsedRequirementsWithDependencies(parsed_reqs, dict(dependencies))
+    return dict(dependencies)
 
 
 # Conflict resolution functions
