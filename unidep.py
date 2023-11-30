@@ -1471,7 +1471,7 @@ def main() -> None:
             verbose=args.verbose,
             only_global=args.only_global,
         )
-    elif args.command == "version":
+    elif args.command == "version":  # pragma: no cover
         print(__version__)
 
 
