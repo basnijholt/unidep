@@ -220,7 +220,7 @@ positional arguments:
                         `requirements.yaml` files. Additionally, generate a
                         conda-lock file for each separate `requirements.yaml`
                         file based on the global lock file.
-    version             Print the version of unidep
+    version             Print version information of unidep.
 
 options:
   -h, --help            show this help message and exit
