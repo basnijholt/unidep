@@ -1325,6 +1325,11 @@ def _check_consisent_lock_files(
     return mismatched_packages
 
 
+def _format_table_row(row: list[str], widths: list[int], seperator: str = " | ") -> str:
+    """Format a row of the table with specified column widths."""
+    return seperator.join(f"{cell:<{widths[i]}}" for i, cell in enumerate(row))
+
+
 def _mismatch_report(
     mismatched_packages: list[Mismatch],
     *,
@@ -1332,22 +1337,45 @@ def _mismatch_report(
 ) -> None:
     if not mismatched_packages:
         return
-    error_messages = [
-        f"Subpackage `{m.lock_file.parent.name}` has a different version"
-        f" of `{m.name}` (version: {m.version} on platform:"
-        f" {m.platform}) than the global lock file (version:"
-        f" {m.version_global} on platform: {m.platform})."
-        for m in mismatched_packages
+
+    headers = ["Subpackage", "Package", "Version (Sub)", "Version (Global)", "Platform"]
+    column_widths = [len(header) for header in headers]
+    for m in mismatched_packages:
+        column_widths[0] = max(column_widths[0], len(m.lock_file.parent.name))
+        column_widths[1] = max(column_widths[1], len(m.name))
+        column_widths[2] = max(column_widths[2], len(m.version))
+        column_widths[3] = max(column_widths[3], len(m.version_global))
+        column_widths[4] = max(column_widths[4], len(str(m.platform)))
+
+    # Create the table rows
+    separator_line = [w * "-" for w in column_widths]
+    table_rows = [
+        _format_table_row(separator_line, column_widths, seperator="-+-"),
+        _format_table_row(headers, column_widths),
+        _format_table_row(["-" * width for width in column_widths], column_widths),
     ]
-    note = (
-        "\n‼️ You might want to pin some versions stricter"
+    for m in mismatched_packages:
+        row = [
+            m.lock_file.parent.name,
+            m.name,
+            m.version,
+            m.version_global,
+            str(m.platform),
+        ]
+        table_rows.append(_format_table_row(row, column_widths))
+    table_rows.append(_format_table_row(separator_line, column_widths, seperator="-+-"))
+
+    table = "\n".join(table_rows)
+
+    full_error_message = (
+        "Package version mismatches found:\n"
+        + table
+        + "\n\n‼️ You might want to pin some versions stricter"
         " in your `requirements.yaml` files."
     )
-    full_error_message = "\n".join(error_messages) + note
+
     if raises:
-        raise RuntimeError(
-            "Package version mismatches found:\n" + full_error_message,
-        )
+        raise RuntimeError(full_error_message)
     warnings.warn(full_error_message, stacklevel=2)
 
 
