@@ -10,7 +10,7 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: 64ec1d1b4fe987281b13f2375700c7e5e7bc513ef44f5559182c88909a1d1464
+    osx-arm64: d0255ed48493b373b39bba9078587018e6631be06fa1e88441faa9ccb049e633
   channels:
   - url: conda-forge
     used_env_vars: []
@@ -19,17 +19,6 @@ metadata:
   sources:
   - tmp.environment.yaml
 package:
-- name: bzip2
-  version: 1.0.8
-  manager: conda
-  platform: osx-arm64
-  dependencies: {}
-  url: https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h93a5062_5.conda
-  hash:
-    md5: 1bbc659ca658bfd49a481b5ef7a0f40f
-    sha256: bfa84296a638bea78a8bb29abc493ee95f2a0218775642474a840411b950fe5f
-  category: main
-  optional: false
 - name: tzdata
   version: 2023c
   manager: conda

@@ -2,4 +2,4 @@ name: project2
 channels:
   - conda-forge
 dependencies:
-  - psutil
+  - tzdata

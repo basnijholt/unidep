@@ -2,4 +2,4 @@ name: project1
 channels:
   - conda-forge
 dependencies:
-  - networkx
+  - bzip2

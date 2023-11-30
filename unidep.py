@@ -109,6 +109,7 @@ def simple_warning_format(
 ) -> str:
     """Format warnings without code context."""
     return (
+        f"---------------------\n"
         f"⚠️  *** WARNING *** ⚠️\n"
         f"{message}\n"
         f"Location: {filename}:{lineno}\n"
@@ -1182,7 +1183,7 @@ def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
     conda_lock_file: str | Path,
-) -> None:
+) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
@@ -1195,9 +1196,14 @@ def _conda_lock_subpackages(
         tup = (p["platform"], p["manager"], p["version"], p["url"])
         packages.setdefault(p["name"], []).append(tup)
 
+    lock_files = []
     # Assumes that different platforms have the same versions
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
+        if file.parent == directory:
+            # This is a `requirements.yaml` file in the root directory
+            # for e.g., common packages, so skip it.
+            continue
         pip_packages = CommentedSeq()
         conda_packages = CommentedSeq()
         requirements = parse_yaml_requirements([file])
@@ -1234,6 +1240,13 @@ def _conda_lock_subpackages(
             f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
             f" successfully in `{conda_lock_output}`.",
         )
+        lock_files.append(conda_lock_output)
+        mismatches = _check_consistent_lock_files(
+            global_lock_file=conda_lock_file,
+            sub_lock_files=[conda_lock_output],
+        )
+        _mismatch_report(mismatches, raises=False)
+    return lock_files
 
 
 def _conda_lock_command(
@@ -1252,11 +1265,125 @@ def _conda_lock_command(
         verbose=verbose,
     )
     if not only_global:
-        _conda_lock_subpackages(
+        sub_lock_files = _conda_lock_subpackages(
             directory=directory,
             depth=depth,
             conda_lock_file=conda_lock_output,
         )
+    mismatches = _check_consistent_lock_files(
+        global_lock_file=conda_lock_output,
+        sub_lock_files=sub_lock_files,
+    )
+    if not mismatches:
+        print("✅ Analyzed all lock files and found no inconsistencies.")
+    elif len(mismatches) > 1:  # pragma: no cover
+        print("❌ Complete table of package version mismatches:")
+        _mismatch_report(mismatches, raises=False)
+
+
+class Mismatch(NamedTuple):
+    name: str
+    version: str
+    version_global: str
+    platform: Platform
+    lock_file: Path
+
+
+def _check_consistent_lock_files(
+    global_lock_file: Path,
+    sub_lock_files: list[Path],
+) -> list[Mismatch]:
+    yaml = YAML(typ="safe")
+    with global_lock_file.open() as fp:
+        global_data = yaml.load(fp)
+
+    # Creating a nested dictionary structure: {package_name: {platform: version}}
+    global_packages: dict[str, dict[Platform, str]] = {}
+    for p in global_data["package"]:
+        global_packages.setdefault(p["name"], {})[p["platform"]] = p["version"]
+
+    mismatched_packages = []
+    for lock_file in sub_lock_files:
+        with lock_file.open() as fp:
+            data = yaml.load(fp)
+
+        for p in data["package"]:
+            name = p["name"]
+            platform = p["platform"]
+            version = p["version"]
+            if name not in global_packages or platform not in global_packages[name]:
+                continue
+
+            global_version = global_packages[name][platform]
+            if global_version != version:
+                mismatched_packages.append(
+                    Mismatch(
+                        name=name,
+                        version=version,
+                        version_global=global_version,
+                        platform=platform,
+                        lock_file=lock_file,
+                    ),
+                )
+    return mismatched_packages
+
+
+def _format_table_row(
+    row: list[str],
+    widths: list[int],
+    seperator: str = " | ",
+) -> str:  # pragma: no cover
+    """Format a row of the table with specified column widths."""
+    return seperator.join(f"{cell:<{widths[i]}}" for i, cell in enumerate(row))
+
+
+def _mismatch_report(
+    mismatched_packages: list[Mismatch],
+    *,
+    raises: bool = False,
+) -> None:  # pragma: no cover
+    if not mismatched_packages:
+        return
+
+    headers = ["Subpackage", "Package", "Version (Sub)", "Version (Global)", "Platform"]
+    column_widths = [len(header) for header in headers]
+    for m in mismatched_packages:
+        column_widths[0] = max(column_widths[0], len(m.lock_file.parent.name))
+        column_widths[1] = max(column_widths[1], len(m.name))
+        column_widths[2] = max(column_widths[2], len(m.version))
+        column_widths[3] = max(column_widths[3], len(m.version_global))
+        column_widths[4] = max(column_widths[4], len(str(m.platform)))
+
+    # Create the table rows
+    separator_line = [w * "-" for w in column_widths]
+    table_rows = [
+        _format_table_row(separator_line, column_widths, seperator="-+-"),
+        _format_table_row(headers, column_widths),
+        _format_table_row(["-" * width for width in column_widths], column_widths),
+    ]
+    for m in mismatched_packages:
+        row = [
+            m.lock_file.parent.name,
+            m.name,
+            m.version,
+            m.version_global,
+            str(m.platform),
+        ]
+        table_rows.append(_format_table_row(row, column_widths))
+    table_rows.append(_format_table_row(separator_line, column_widths, seperator="-+-"))
+
+    table = "\n".join(table_rows)
+
+    full_error_message = (
+        "Version mismatches found between global and subpackage lock files:\n"
+        + table
+        + "\n\n‼️ You might want to pin some versions stricter"
+        " in your `requirements.yaml` files."
+    )
+
+    if raises:
+        raise RuntimeError(full_error_message)
+    warnings.warn(full_error_message, stacklevel=2)
 
 
 def main() -> None:
