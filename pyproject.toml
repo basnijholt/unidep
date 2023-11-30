@@ -26,6 +26,9 @@ unidep = "unidep:main"
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep:setuptools_finalizer"
 
+[project.entry-points.pytest11]
+affected = "unidep"
+
 [tool.setuptools]
 py-modules = ["unidep"]
 
