@@ -30,6 +30,23 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
+
+__version__ = "0.22.0"
+__all__ = [
+    "create_conda_env_specification",
+    "extract_matching_platforms",
+    "filter_python_dependencies",
+    "find_requirements_files",
+    "get_python_dependencies",
+    "parse_project_dependencies",
+    "parse_yaml_requirements",
+    "resolve_conflicts",
+    "setuptools_finalizer",
+    "write_conda_environment_file",
+]
+
+# Definitions
+
 Platform = Literal[
     "linux-64",
     "linux-aarch64",
@@ -52,21 +69,6 @@ Selector = Literal[
     "macos",
 ]
 CondaPip = Literal["conda", "pip"]
-
-
-__version__ = "0.22.0"
-__all__ = [
-    "create_conda_env_specification",
-    "extract_matching_platforms",
-    "filter_python_dependencies",
-    "find_requirements_files",
-    "get_python_dependencies",
-    "parse_project_dependencies",
-    "parse_yaml_requirements",
-    "resolve_conflicts",
-    "setuptools_finalizer",
-    "write_conda_environment_file",
-]
 
 PEP508_MARKERS = {
     "linux-64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
