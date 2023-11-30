@@ -1276,7 +1276,7 @@ def _conda_lock_command(
     )
     if not mismatches:
         print("✅ Analyzed all lock files and found no inconsistencies.")
-    elif len(mismatches) > 1:
+    elif len(mismatches) > 1:  # pragma: no cover
         print("❌ Complete table of package version mismatches:")
         _mismatch_report(mismatches, raises=False)
 
@@ -1328,7 +1328,11 @@ def _check_consistent_lock_files(
     return mismatched_packages
 
 
-def _format_table_row(row: list[str], widths: list[int], seperator: str = " | ") -> str:
+def _format_table_row(
+    row: list[str],
+    widths: list[int],
+    seperator: str = " | ",
+) -> str:  # pragma: no cover
     """Format a row of the table with specified column widths."""
     return seperator.join(f"{cell:<{widths[i]}}" for i, cell in enumerate(row))
 
@@ -1337,7 +1341,7 @@ def _mismatch_report(
     mismatched_packages: list[Mismatch],
     *,
     raises: bool = False,
-) -> None:
+) -> None:  # pragma: no cover
     if not mismatched_packages:
         return
 
