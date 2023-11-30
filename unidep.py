@@ -630,20 +630,30 @@ def write_conda_environment_file(
             yaml.dump(env_data, f)
         if verbose:
             print("📝 Environment file generated successfully.")
-
-        with open(output_file, "r+") as f:  # noqa: PTH123
-            content = f.read()
-            f.seek(0, 0)
-            command_line_args = " ".join(sys.argv[1:])
-            txt = [
-                f"# This file is created and managed by `unidep` {__version__}.",
-                "# For details see https://github.com/basnijholt/unidep",
-                f"# File generated with: `unidep {command_line_args}`",
-            ]
-            content = "\n".join(txt) + "\n\n" + content
-            f.write(content)
+        _add_comment_to_file(output_file)
     else:
         yaml.dump(env_data, sys.stdout)
+
+
+def _add_comment_to_file(
+    filename: str | Path,
+    extra_lines: list[str] | None = None,
+) -> None:
+    """Add a comment to the top of a file."""
+    if extra_lines is None:
+        extra_lines = []
+    with open(filename, "r+") as f:  # noqa: PTH123
+        content = f.read()
+        f.seek(0, 0)
+        command_line_args = " ".join(sys.argv[1:])
+        txt = [
+            f"# This file is created and managed by `unidep` {__version__}.",
+            "# For details see https://github.com/basnijholt/unidep",
+            f"# File generated with: `unidep {command_line_args}`",
+            *extra_lines,
+        ]
+        content = "\n".join(txt) + "\n\n" + content
+        f.write(content)
 
 
 # Python setuptools integration functions
