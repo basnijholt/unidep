@@ -109,6 +109,7 @@ def simple_warning_format(
 ) -> str:
     """Format warnings without code context."""
     return (
+        f"---------------------\n"
         f"⚠️  *** WARNING *** ⚠️\n"
         f"{message}\n"
         f"Location: {filename}:{lineno}\n"
@@ -1199,6 +1200,10 @@ def _conda_lock_subpackages(
     # Assumes that different platforms have the same versions
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
+        if file.parent == directory:
+            # This is a `requirements.yaml` file in the root directory
+            # for e.g., common packages, so skip it.
+            continue
         pip_packages = CommentedSeq()
         conda_packages = CommentedSeq()
         requirements = parse_yaml_requirements([file])
@@ -1311,6 +1316,8 @@ def _check_consisent_lock_files(
                 "Package version mismatches found:\n" + full_error_message,
             )
         warnings.warn(full_error_message, stacklevel=2)
+    else:
+        print("✅ Analyzed all lock files and found no inconsistencies.")
 
 
 def main() -> None:
