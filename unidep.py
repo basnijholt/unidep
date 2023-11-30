@@ -1323,7 +1323,10 @@ def _check_consisent_lock_files(
         full_error_message = "\n".join(error_messages)
         if raises:
             raise RuntimeError(
-                "Package version mismatches found:\n" + full_error_message,
+                "Package version mismatches found:\n"
+                + full_error_message
+                + "\nYou might want to pin some versions stricter"
+                + " in your requirements.yaml files.",
             )
         warnings.warn(full_error_message, stacklevel=2)
     else:
