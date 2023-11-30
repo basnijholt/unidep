@@ -1160,12 +1160,13 @@ def test_conda_lock_command() -> None:
 
     deps1 = deps(env1_tmp)
     deps2 = deps(env2_tmp)
-    assert len(deps1) == 2  # noqa: PLR2004
+    assert len(deps1) == 3  # noqa: PLR2004
     assert len(deps2) == 2  # noqa: PLR2004
     assert deps1[0] == "bzip2"
     assert deps1[1] == "tzdata"
+    assert deps1[2] == "python_abi"
     assert deps2[0] == "tzdata"
-    assert deps2[1] == "bzip2"
+    assert deps2[1] == "python_abi"
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:

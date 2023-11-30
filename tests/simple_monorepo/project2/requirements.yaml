@@ -4,5 +4,4 @@ channels:
 dependencies:
   - tzdata
 includes:
-  - ../project1  # this means `project1` is a dependency of `project2`
   - ../common-requirements.yaml
