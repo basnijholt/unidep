@@ -31,6 +31,8 @@ from unidep import (
     write_conda_environment_file,
 )
 
+REPO_ROOT = Path(__file__).parent.parent
+
 
 @pytest.fixture()
 def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
@@ -887,12 +889,11 @@ def test__escape_unicode() -> None:
 
 
 def test_install_command(capsys: pytest.CaptureFixture) -> None:
-    root = Path(__file__).parent.parent
     _install_command(
         conda_executable="",
         dry_run=True,
         editable=False,
-        file=root / "example" / "project1" / "requirements.yaml",
+        file=REPO_ROOT / "example" / "project1" / "requirements.yaml",
         verbose=False,
     )
     captured = capsys.readouterr()
@@ -903,8 +904,7 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
 @pytest.mark.parametrize("project", ["project1", "project2", "project3"])
 def test_unidep_install_dry_run(project: str) -> None:
     # Path to the requirements file
-    root = Path(__file__).parent.parent
-    requirements_path = root / "example" / project
+    requirements_path = REPO_ROOT / "example" / project
 
     # Ensure the requirements file exists
     assert requirements_path.exists(), "Requirements file does not exist"
@@ -1286,7 +1286,12 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(r1, r2, verbose=False)
+    requirements = parse_project_dependencies(
+        r1,
+        r2,
+        verbose=False,
+        check_pip_installable=False,
+    )
     expected_dependencies = {
         str(project1.resolve()): {str(project2.resolve())},
         str(project2.resolve()): {str(project1.resolve())},
@@ -1339,6 +1344,7 @@ def test_nested_includes(tmp_path: Path) -> None:
         project2 / "requirements.yaml",
         project3 / "requirements.yaml",
         verbose=False,
+        check_pip_installable=False,
     )
     expected_dependencies = {
         str(project1.resolve()): {
@@ -1365,7 +1371,7 @@ def test_nonexistent_includes(tmp_path: Path) -> None:
         ),
     )
     with pytest.raises(FileNotFoundError, match="Include file"):
-        parse_project_dependencies(r1, verbose=False)
+        parse_project_dependencies(r1, verbose=False, check_pip_installable=False)
 
 
 def test_no_includes(tmp_path: Path) -> None:
@@ -1380,7 +1386,11 @@ def test_no_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(r1, verbose=False)
+    requirements = parse_project_dependencies(
+        r1,
+        verbose=False,
+        check_pip_installable=False,
+    )
     assert requirements == {}
 
 
@@ -1398,5 +1408,30 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(r1, verbose=False)
+    requirements = parse_project_dependencies(
+        r1,
+        verbose=False,
+        check_pip_installable=False,
+    )
     assert requirements == {}
+
+
+def test_parse_project_dependencies_pip_installable() -> None:
+    example_folder = REPO_ROOT / "example"
+    found_files = find_requirements_files(example_folder)
+    assert found_files
+    requirements = parse_project_dependencies(
+        *found_files,
+        check_pip_installable=True,
+        verbose=True,
+    )
+    assert requirements
+    assert requirements == {
+        str(example_folder / "project1"): {
+            str(example_folder / "project2"),
+            str(example_folder / "project3"),
+        },
+        str(example_folder / "project2"): {
+            str(example_folder / "project3"),
+        },
+    }

@@ -360,6 +360,7 @@ def _extract_project_dependencies(  # noqa: PLR0913
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
+    print(processed)
     if path in processed:
         return
     processed.add(path)
@@ -387,6 +388,7 @@ def _extract_project_dependencies(  # noqa: PLR0913
                 base_path,
                 processed,
                 dependencies,
+                check_pip_installable=check_pip_installable,
             )
 
 

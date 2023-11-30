@@ -7,3 +7,5 @@ dependencies:
   - pipefunc
   - pip: markdown-code-runner
   - pip: home-assistant-streamdeck-yaml
+includes:
+  - ../project3  # depends on project3
