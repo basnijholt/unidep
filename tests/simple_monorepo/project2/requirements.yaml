@@ -2,5 +2,4 @@ name: project2
 channels:
   - conda-forge
 dependencies:
-  - tomli
   - psutil
