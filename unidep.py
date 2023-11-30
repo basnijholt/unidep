@@ -1127,6 +1127,12 @@ def _pip_install(
         subprocess.run(pip_command, check=True)  # noqa: S603
 
 
+def _make_relative(dependency_path: Path, file_path: Path) -> Path:
+    resolved_file_path = file_path.resolve()
+    common = os.path.commonpath([dependency_path, resolved_file_path])
+    return dependency_path.relative_to(Path(common).parent)
+
+
 def _install_command(
     *,
     conda_executable: str,
@@ -1190,7 +1196,7 @@ def _install_command(
     print(f"📝 Found local dependencies: {names}\n")
     for deps in local_paths.values():
         for dep in deps:
-            _pip_install(dep, editable=editable, dry_run=dry_run)
+            _pip_install(_make_relative(dep, file), editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
