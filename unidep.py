@@ -129,7 +129,7 @@ warnings.formatwarning = _simple_warning_format
 
 
 def find_requirements_files(
-    base_dir: str | Path,
+    base_dir: str | Path = ".",
     depth: int = 1,
     filename: str = "requirements.yaml",
     *,
@@ -356,6 +356,8 @@ def _extract_project_dependencies(
     base_path: str,
     processed: set,
     dependencies: dict[str, set[str]],
+    *,
+    check_pip_installable: bool = False,
 ) -> None:
     if path in processed:
         return
@@ -368,6 +370,8 @@ def _extract_project_dependencies(
             if not include_path.exists():
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
+            if check_pip_installable and not _is_pip_installable(include_path.parent):
+                continue
             include_base_path = str(include_path.parent)
             if include_base_path == base_path:
                 continue
@@ -383,6 +387,7 @@ def _extract_project_dependencies(
 def parse_project_dependencies(
     paths: Sequence[Path],
     *,
+    check_pip_installable: bool = False,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
@@ -395,7 +400,13 @@ def parse_project_dependencies(
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
         base_path = str(p.resolve().parent)
-        _extract_project_dependencies(p, base_path, set(), dependencies)
+        _extract_project_dependencies(
+            p,
+            base_path,
+            set(),
+            dependencies,
+            check_pip_installable=check_pip_installable,
+        )
 
     return dict(dependencies)
 
