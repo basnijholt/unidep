@@ -1132,20 +1132,15 @@ def _pip_install_local(
     editable: bool,
     dry_run: bool,
 ) -> None:  # pragma: no cover
-    relative_prefix = ".\\" if os.name == "nt" else "./"
-    relative_path = f"{relative_prefix}{folder}"
-    pip_command = [sys.executable, "-m", "pip", "install", relative_path]
+    if not os.path.isabs(folder):  # noqa: PTH117
+        relative_prefix = ".\\" if os.name == "nt" else "./"
+        folder = f"{relative_prefix}{folder}"
+    pip_command = [sys.executable, "-m", "pip", "install", str(folder)]
     if editable:
         pip_command.insert(-1, "-e")
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
-
-
-def _make_relative(dependency_path: Path, file_path: Path) -> Path:
-    resolved_file_path = file_path.resolve()
-    common = os.path.commonpath([dependency_path, resolved_file_path])
-    return dependency_path.relative_to(Path(common).parent)
 
 
 def _install_command(  # noqa: PLR0913
@@ -1217,11 +1212,7 @@ def _install_command(  # noqa: PLR0913
         print(f"📝 Found local dependencies: {names}\n")
         for deps in local_paths.values():
             for dep in deps:
-                _pip_install_local(
-                    _make_relative(dep, file),
-                    editable=editable,
-                    dry_run=dry_run,
-                )
+                _pip_install_local(dep, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
