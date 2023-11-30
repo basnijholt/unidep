@@ -1192,14 +1192,15 @@ def _install_command(  # noqa: PLR0913
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
 
-    if not skip_local and _is_pip_installable(file.parent):  # pragma: no cover
-        folder = file.parent
-        _pip_install_local(folder, editable=editable, dry_run=dry_run)
-    else:  # pragma: no cover
-        print(
-            f"⚠️  Project {file.parent} is not pip installable. "
-            "Could not find setup.py or [build-system] in pyproject.toml.",
-        )
+    if not skip_local:
+        if _is_pip_installable(file.parent):  # pragma: no cover
+            folder = file.parent
+            _pip_install_local(folder, editable=editable, dry_run=dry_run)
+        else:  # pragma: no cover
+            print(
+                f"⚠️  Project {file.parent} is not pip installable. "
+                "Could not find setup.py or [build-system] in pyproject.toml.",
+            )
 
     if not skip_local:
         # Install local dependencies (if any) included via `includes:`
