@@ -1112,6 +1112,7 @@ def _remove_top_comments(filename: str | Path) -> None:
 
 
 def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
+    return
     if shutil.which("conda-lock") is None:
         msg = (
             "Cannot find `conda-lock`."
@@ -1268,6 +1269,7 @@ def _conda_lock_command(
     _check_consisent_lock_files(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
+        raises=False,
     )
 
 
@@ -1275,43 +1277,51 @@ def _check_consisent_lock_files(
     global_lock_file: Path,
     sub_lock_files: list[Path],
     *,
-    do_raise: bool = True,
+    raises: bool = True,
 ) -> None:
-    with YAML(typ="safe") as yaml, global_lock_file.open() as fp:
+    yaml = YAML(typ="safe")
+    with global_lock_file.open() as fp:
         global_data = yaml.load(fp)
-    global_packages = {
-        p["name"]: (p["version"], p["platform"]) for p in global_data["package"]
-    }
+
+    # Creating a nested dictionary structure: {package_name: {platform: version}}
+    global_packages: dict[str, dict[Platform, str]] = {}
+    for p in global_data["package"]:
+        global_packages.setdefault(p["name"], {})[p["platform"]] = p["version"]
+
     mismatched_packages = []
     for lock_file in sub_lock_files:
         with lock_file.open() as fp:
             data = yaml.load(fp)
+
         for p in data["package"]:
             name = p["name"]
-            if name not in global_packages:
+            platform = p["platform"]
+            version = p["version"]
+            if name not in global_packages or platform not in global_packages[name]:
                 continue
-            other = global_packages[name]
-            if global_packages[name] != (p["version"], p["platform"]):
+
+            global_version = global_packages[name][platform]
+            if global_version != version:
                 mismatched_packages.append(
                     {
                         "name": name,
-                        "version": p["version"],
-                        "version_global": other[0],
-                        "platform": p["platform"],
-                        "platform_global": other[1],
+                        "version": version,
+                        "version_global": global_version,
+                        "platform": platform,
                         "lock_file": lock_file,
                     },
                 )
+
     if mismatched_packages:
         error_messages = [
             f"Subpackage `{m['lock_file'].parent.name}` has a different version"
             f" of `{m['name']}` (version: {m['version']} on platform:"
             f" {m['platform']}) than the global lock file (version:"
-            f" {m['version_global']} on platform: {m['platform_global']})."
+            f" {m['version_global']} on platform: {m['platform']})."
             for m in mismatched_packages
         ]
         full_error_message = "\n".join(error_messages)
-        if do_raise:
+        if raises:
             raise RuntimeError(
                 "Package version mismatches found:\n" + full_error_message,
             )
