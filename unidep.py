@@ -284,7 +284,15 @@ class Requirements(NamedTuple):
     pip: list[str]  # actually a CommentedSeq[str]
 
 
-def parse_yaml_requirements(
+def _include_path(include: str) -> Path:
+    """Return the path to an included file."""
+    path = Path(include)
+    if path.is_dir():
+        path /= "requirements.yaml"
+    return path
+
+
+def parse_yaml_requirements(  # noqa: PLR0912
     paths: Sequence[Path],
     *,
     verbose: bool = False,
@@ -293,31 +301,45 @@ def parse_yaml_requirements(
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
-
+    datas = []
+    included: set[Path] = set()
     yaml = YAML(typ="rt")
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
         with p.open() as f:
             data = yaml.load(f)
-            for channel in data.get("channels", []):
-                channels.add(channel)
-            for _platform in data.get("platforms", []):
-                platforms.add(_platform)
-            if "dependencies" not in data:
+            datas.append(data)
+        # Deal with includes
+        for include in data.get("includes", []):
+            if verbose:
+                print(f"📄 Parsing include `{include}`")
+            include_path = _include_path(p.parent / include)
+            if include_path in included:
+                continue  # Avoids circular includes
+            with include_path.open() as f:
+                datas.append(yaml.load(f))
+            included.add(include_path)
+
+    for data in datas:
+        for channel in data.get("channels", []):
+            channels.add(channel)
+        for _platform in data.get("platforms", []):
+            platforms.add(_platform)
+        if "dependencies" not in data:
+            continue
+        dependencies = data["dependencies"]
+        for i, dep in enumerate(data["dependencies"]):
+            if isinstance(dep, str):
+                metas = _parse_dependency(dep, dependencies, i, "both")
+                for meta in metas:
+                    requirements[meta.name].append(meta)
                 continue
-            dependencies = data["dependencies"]
-            for i, dep in enumerate(data["dependencies"]):
-                if isinstance(dep, str):
-                    metas = _parse_dependency(dep, dependencies, i, "both")
+            for which in ["conda", "pip"]:
+                if which in dep:
+                    metas = _parse_dependency(dep[which], dep, which, which)  # type: ignore[arg-type]
                     for meta in metas:
                         requirements[meta.name].append(meta)
-                    continue
-                for which in ["conda", "pip"]:
-                    if which in dep:
-                        metas = _parse_dependency(dep[which], dep, which, which)  # type: ignore[arg-type]
-                        for meta in metas:
-                            requirements[meta.name].append(meta)
 
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 

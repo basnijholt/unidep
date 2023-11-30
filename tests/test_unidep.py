@@ -4,6 +4,7 @@ from __future__ import annotations
 import subprocess
 import textwrap
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1153,10 +1154,18 @@ def test_conda_lock_command() -> None:
             env1_tmp = yaml.load(f)
         with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
             env2_tmp = yaml.load(f)
-    assert len(env1_tmp["dependencies"]) == 1
-    assert len(env2_tmp["dependencies"]) == 1
-    assert env1_tmp["dependencies"][0].split("=")[0] == "bzip2"
-    assert env2_tmp["dependencies"][0].split("=")[0] == "tzdata"
+
+    def deps(env: dict[str, Any]) -> list[str]:
+        return [dep.split("=")[0] for dep in env["dependencies"]]
+
+    deps1 = deps(env1_tmp)
+    deps2 = deps(env2_tmp)
+    assert len(deps1) == 2  # noqa: PLR2004
+    assert len(deps2) == 2  # noqa: PLR2004
+    assert deps1[0] == "bzip2"
+    assert deps1[1] == "tzdata"
+    assert deps2[0] == "tzdata"
+    assert deps2[1] == "bzip2"
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
