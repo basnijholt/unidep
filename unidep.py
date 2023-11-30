@@ -1159,13 +1159,13 @@ def _conda_lock_subpackages(
         packages.setdefault(p["name"], []).append(tup)
 
     # Assumes that different platforms have the same versions
-    pip_packages = CommentedSeq()
-    conda_packages = CommentedSeq()
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
+        pip_packages = CommentedSeq()
+        conda_packages = CommentedSeq()
         requirements = parse_yaml_requirements([file])
         for name in requirements.requirements:
-            if name not in packages:
+            if name not in packages:  # pragma: no cover
                 continue  # might not exists because of platform filtering
             for _platform, which, version in packages[name]:
                 selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]

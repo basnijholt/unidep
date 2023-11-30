@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
+from ruamel.yaml import YAML
 
 from unidep import (
     CondaEnvironmentSpec,
@@ -133,8 +133,8 @@ def test_generate_conda_env_file(
 
     write_conda_environment_file(env_spec, str(output_file), verbose=verbose)
 
-    with output_file.open() as f:
-        env_data = yaml.safe_load(f)
+    with output_file.open() as f, YAML(typ="safe") as yaml:
+        env_data = yaml.load(f)
         assert "dependencies" in env_data
         assert "numpy" in env_data["dependencies"]
         assert {"pip": ["pandas"]} in env_data["dependencies"]
@@ -1138,12 +1138,21 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
 
 
 def test_conda_lock_command() -> None:
-    root = Path(__file__).parent.parent
+    simple_monorepo = Path(__file__).parent / "simple_monorepo"
     with patch("unidep._run_conda_lock", return_value=None):
         _conda_lock_command(
             depth=1,
-            directory=root / "example",
+            directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
             verbose=False,
             sub_lock_files=True,
         )
+    with YAML(typ="safe") as yaml:
+        with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
+            env1_tmp = yaml.load(f)
+        with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
+            env2_tmp = yaml.load(f)
+    assert len(env1_tmp["dependencies"]) == 1
+    assert len(env2_tmp["dependencies"]) == 1
+    assert env1_tmp["dependencies"][0].split("=")[0] == "networkx"
+    assert env2_tmp["dependencies"][0].split("=")[0] == "psutil"
