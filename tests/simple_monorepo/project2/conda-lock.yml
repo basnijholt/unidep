@@ -1,4 +1,4 @@
-# This file is created and managed by `unidep` 0.21.0.
+# This file is created and managed by `unidep` 0.22.0.
 # For details see https://github.com/basnijholt/unidep
 # File generated with: `unidep conda-lock -d tests/simple_monorepo`
 #
@@ -10,7 +10,7 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: d0255ed48493b373b39bba9078587018e6631be06fa1e88441faa9ccb049e633
+    osx-arm64: 69377fc36b4cf6b5025a9ca5fae04bae93217978f9798d93d3dc6a983f428785
   channels:
   - url: conda-forge
     used_env_vars: []
@@ -19,6 +19,28 @@ metadata:
   sources:
   - tmp.environment.yaml
 package:
+- name: bzip2
+  version: 1.0.8
+  manager: conda
+  platform: osx-arm64
+  dependencies: {}
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h93a5062_5.conda
+  hash:
+    md5: 1bbc659ca658bfd49a481b5ef7a0f40f
+    sha256: bfa84296a638bea78a8bb29abc493ee95f2a0218775642474a840411b950fe5f
+  category: main
+  optional: false
+- name: python_abi
+  version: '3.12'
+  manager: conda
+  platform: osx-arm64
+  dependencies: {}
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.12-4_cp312.conda
+  hash:
+    md5: bbb3a02c78b2d8219d7213f76d644a2a
+    sha256: db25428e4f24f8693ffa39f3ff6dfbb8fd53bc298764b775b57edab1c697560f
+  category: main
+  optional: false
 - name: tzdata
   version: 2023c
   manager: conda
