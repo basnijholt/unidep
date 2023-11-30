@@ -346,6 +346,55 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
+def _extract_project_dependencies(
+    path: Path,
+    base_path: str,
+    processed: set,
+    dependencies: dict[str, set[str]],
+) -> None:
+    if path in processed:
+        return
+    processed.add(path)
+    yaml = YAML(typ="safe")
+    with path.open() as f:
+        data = yaml.load(f)
+        for include in data.get("includes", []):
+            include_path = _include_path(path.parent / include)
+            if not include_path.exists():
+                msg = f"Include file `{include_path}` does not exist."
+                raise FileNotFoundError(msg)
+            include_base_path = str(include_path.parent)
+            if include_base_path == base_path:
+                continue
+            dependencies[base_path].add(include_base_path)
+            _extract_project_dependencies(
+                include_path,
+                base_path,
+                processed,
+                dependencies,
+            )
+
+
+def parse_project_dependencies(
+    paths: Sequence[Path],
+    *,
+    verbose: bool = False,
+) -> dict[str, set[str]]:
+    """Extract local project dependencies from a list of `requirements.yaml` files.
+
+    Works by scanning for `includes` in the `requirements.yaml` files.
+    """
+    dependencies: dict[str, set[str]] = defaultdict(set)
+
+    for p in paths:
+        if verbose:
+            print(f"🔗 Analyzing dependencies in `{p}`")
+        base_path = str(p.resolve().parent)
+        _extract_project_dependencies(p, base_path, set(), dependencies)
+
+    return dict(dependencies)
+
+
 # Conflict resolution functions
 
 

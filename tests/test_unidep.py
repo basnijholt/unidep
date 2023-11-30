@@ -25,6 +25,7 @@ from unidep import (
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
+    parse_project_dependencies,
     parse_yaml_requirements,
     resolve_conflicts,
     write_conda_environment_file,
@@ -1259,3 +1260,145 @@ def test_circular_includes(tmp_path: Path) -> None:
     assert len(resolved["adaptive"][None]) == 2
     assert len(resolved["adaptive-scheduler"]) == 1
     assert len(resolved["adaptive-scheduler"][None]) == 2
+
+
+def test_parse_project_dependencies(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r2 = project2 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../project2
+                - ../project2  # duplicate include (shouldn't affect the result)
+            """,
+        ),
+    )
+    r2.write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../project1
+            """,
+        ),
+    )
+    requirements = parse_project_dependencies([r1, r2], verbose=False)
+    expected_dependencies = {
+        str(project1.resolve()): {str(project2.resolve())},
+        str(project2.resolve()): {str(project1.resolve())},
+    }
+    assert requirements == expected_dependencies
+
+
+def test_nested_includes(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project2 = tmp_path / "project2"
+    project3 = tmp_path / "project3"
+    project4 = tmp_path / "project4"
+    for project in [project1, project2, project3, project4]:
+        project.mkdir(exist_ok=True, parents=True)
+
+    (project1 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../project2
+            """,
+        ),
+    )
+    (project2 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../project3
+            """,
+        ),
+    )
+    (project3 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../project4
+            """,
+        ),
+    )
+    (project4 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            """,
+        ),
+    )
+    requirements = parse_project_dependencies(
+        [
+            project1 / "requirements.yaml",
+            project2 / "requirements.yaml",
+            project3 / "requirements.yaml",
+        ],
+        verbose=False,
+    )
+    expected_dependencies = {
+        str(project1.resolve()): {
+            str(project2.resolve()),
+            str(project3.resolve()),
+            str(project4.resolve()),
+        },
+        str(project2.resolve()): {str(project3.resolve()), str(project4.resolve())},
+        str(project3.resolve()): {str(project4.resolve())},
+    }
+    assert requirements == expected_dependencies
+
+
+def test_nonexistent_includes(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            includes:
+                - ../nonexistent_project
+            """,
+        ),
+    )
+    with pytest.raises(FileNotFoundError, match="Include file"):
+        parse_project_dependencies([r1], verbose=False)
+
+
+def test_no_includes(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pandas
+            """,
+        ),
+    )
+    requirements = parse_project_dependencies([r1], verbose=False)
+    assert requirements == {}
+
+
+def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - scipy
+            includes:
+                - ../project1  # Self include (circular dependency)
+            """,
+        ),
+    )
+    requirements = parse_project_dependencies([r1], verbose=False)
+    assert requirements == {}
