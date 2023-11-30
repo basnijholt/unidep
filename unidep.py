@@ -1119,13 +1119,7 @@ def _pip_install(
 ) -> None:  # pragma: no cover
     relative_prefix = ".\\" if os.name == "nt" else "./"
     relative_path = f"{relative_prefix}{folder}"
-    pip_command = [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        relative_path,
-    ]
+    pip_command = [sys.executable, "-m", "pip", "install", relative_path]
     if editable:
         pip_command.insert(-1, "-e")
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
