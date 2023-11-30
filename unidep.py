@@ -1671,6 +1671,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="origin/main",
         help="Branch to compare with for finding affected tests",
     )
+    parser.addoption(
+        "--repo-root",
+        action="store",
+        default=".",
+        type=Path,
+        help="Root of the repository",
+    )
 
 
 def pytest_collection_modifyitems(
@@ -1681,21 +1688,14 @@ def pytest_collection_modifyitems(
 
     if config.getoption("--run-affected"):
         compare_branch = config.getoption("--branch")
-
-        repo_root = Path()
+        repo_root = Path(config.getoption("--repo-root")).absolute()
         repo = Repo(repo_root)
-        repo_root = Path(repo.git_dir).parent
 
         files = find_requirements_files(repo_root)
         dependencies = parse_project_dependencies(*files)
-        changed_files = [
-            Path(diff.a_path) for diff in repo.head.commit.diff(compare_branch)
-        ]
-        affected_packages = _affected_packages(
-            repo_root,
-            changed_files,
-            dependencies,
-        )
+        diffs = repo.head.commit.diff(compare_branch)
+        changed_files = [Path(diff.a_path) for diff in diffs]
+        affected_packages = _affected_packages(repo_root, changed_files, dependencies)
         affected_tests = {
             item
             for item in items
