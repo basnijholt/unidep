@@ -17,7 +17,7 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Sequence, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -385,8 +385,7 @@ def _extract_project_dependencies(
 
 
 def parse_project_dependencies(
-    paths: Sequence[Path],
-    *,
+    *paths: Path,
     check_pip_installable: bool = False,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
