@@ -357,7 +357,7 @@ def _extract_project_dependencies(  # noqa: PLR0913
     processed: set,
     dependencies: dict[str, set[str]],
     *,
-    check_pip_installable: bool = False,
+    check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
     if path in processed:
@@ -380,6 +380,8 @@ def _extract_project_dependencies(  # noqa: PLR0913
             if include_base_path == base_path:
                 continue
             dependencies[base_path].add(include_base_path)
+            if verbose:
+                print(f"🔗 Adding include `{include_path}`")
             _extract_project_dependencies(
                 include_path,
                 base_path,
@@ -390,7 +392,7 @@ def _extract_project_dependencies(  # noqa: PLR0913
 
 def parse_project_dependencies(
     *paths: Path,
-    check_pip_installable: bool = False,
+    check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
