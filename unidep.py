@@ -1112,7 +1112,6 @@ def _remove_top_comments(filename: str | Path) -> None:
 
 
 def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
-    return
     if shutil.which("conda-lock") is None:
         msg = (
             "Cannot find `conda-lock`."
@@ -1320,13 +1319,14 @@ def _check_consisent_lock_files(
             f" {m['version_global']} on platform: {m['platform']})."
             for m in mismatched_packages
         ]
-        full_error_message = "\n".join(error_messages)
+        note = (
+            "\n‼️ You might want to pin some versions stricter"
+            " in your `requirements.yaml` files."
+        )
+        full_error_message = "\n".join(error_messages) + note
         if raises:
             raise RuntimeError(
-                "Package version mismatches found:\n"
-                + full_error_message
-                + "\nYou might want to pin some versions stricter"
-                + " in your requirements.yaml files.",
+                "Package version mismatches found:\n" + full_error_message,
             )
         warnings.warn(full_error_message, stacklevel=2)
     else:
