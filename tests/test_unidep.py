@@ -1146,7 +1146,7 @@ def test_conda_lock_command() -> None:
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
-            verbose=False,
+            verbose=True,
             only_global=False,
         )
     with YAML(typ="safe") as yaml:
