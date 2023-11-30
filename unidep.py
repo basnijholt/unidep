@@ -1684,24 +1684,25 @@ def pytest_collection_modifyitems(
     config: pytest.Config,
     items: list[pytest.Item],
 ) -> None:
+    if not config.getoption("--run-affected"):
+        return
+
     from git import Repo
 
-    if config.getoption("--run-affected"):
-        compare_branch = config.getoption("--branch")
-        repo_root = Path(config.getoption("--repo-root")).absolute()
-        repo = Repo(repo_root)
-
-        files = find_requirements_files(repo_root)
-        dependencies = parse_project_dependencies(*files)
-        diffs = repo.head.commit.diff(compare_branch)
-        changed_files = [Path(diff.a_path) for diff in diffs]
-        affected_packages = _affected_packages(repo_root, changed_files, dependencies)
-        affected_tests = {
-            item
-            for item in items
-            if any(item.nodeid.startswith(str(pkg)) for pkg in affected_packages)
-        }
-        items[:] = list(affected_tests)
+    compare_branch = config.getoption("--branch")
+    repo_root = Path(config.getoption("--repo-root")).absolute()
+    repo = Repo(repo_root)
+    files = find_requirements_files(repo_root)
+    dependencies = parse_project_dependencies(*files)
+    diffs = repo.head.commit.diff(compare_branch)
+    changed_files = [Path(diff.a_path) for diff in diffs]
+    affected_packages = _affected_packages(repo_root, changed_files, dependencies)
+    affected_tests = {
+        item
+        for item in items
+        if any(item.nodeid.startswith(str(pkg)) for pkg in affected_packages)
+    }
+    items[:] = list(affected_tests)
 
 
 def _file_in_folder(file: Path, folder: Path) -> bool:
