@@ -17,7 +17,7 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Sequence, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -129,7 +129,7 @@ warnings.formatwarning = _simple_warning_format
 
 
 def find_requirements_files(
-    base_dir: str | Path,
+    base_dir: str | Path = ".",
     depth: int = 1,
     filename: str = "requirements.yaml",
     *,
@@ -351,12 +351,20 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
-def _extract_project_dependencies(
+def _extract_project_dependencies(  # noqa: PLR0913
     path: Path,
-    base_path: str,
+    base_path: Path,
     processed: set,
     dependencies: dict[str, set[str]],
+    *,
+    check_pip_installable: bool = True,
+    verbose: bool = False,
 ) -> None:
+    if check_pip_installable and not _is_pip_installable(base_path):
+        if verbose:
+            msg = f"⚠️ `{base_path}` is not pip installable, skipping."
+            print(msg)
+        return
     if path in processed:
         return
     processed.add(path)
@@ -368,21 +376,29 @@ def _extract_project_dependencies(
             if not include_path.exists():
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
-            include_base_path = str(include_path.parent)
-            if include_base_path == base_path:
+            if check_pip_installable and not _is_pip_installable(include_path.parent):
+                if verbose:
+                    msg = f"⚠️ `{include_path.parent}` is not pip installable, skipping."
+                    print(msg)
                 continue
-            dependencies[base_path].add(include_base_path)
+            include_base_path = str(include_path.parent)
+            if include_base_path == str(base_path):
+                continue
+            dependencies[str(base_path)].add(include_base_path)
+            if verbose:
+                print(f"🔗 Adding include `{include_path}`")
             _extract_project_dependencies(
                 include_path,
                 base_path,
                 processed,
                 dependencies,
+                check_pip_installable=check_pip_installable,
             )
 
 
 def parse_project_dependencies(
-    paths: Sequence[Path],
-    *,
+    *paths: Path,
+    check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
@@ -394,8 +410,15 @@ def parse_project_dependencies(
     for p in paths:
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
-        base_path = str(p.resolve().parent)
-        _extract_project_dependencies(p, base_path, set(), dependencies)
+        base_path = p.resolve().parent
+        _extract_project_dependencies(
+            path=p,
+            base_path=base_path,
+            processed=set(),
+            dependencies=dependencies,
+            check_pip_installable=check_pip_installable,
+            verbose=verbose,
+        )
 
     return dict(dependencies)
 
@@ -1065,18 +1088,19 @@ def _identify_conda_executable() -> str:  # pragma: no cover
     raise RuntimeError(msg)
 
 
-def _is_pip_installable(folder: Path) -> bool:  # pragma: no cover
+def _is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     """Determine if the project is pip installable.
 
     Checks for existence of setup.py or [build-system] in pyproject.toml.
     """
-    if (folder / "setup.py").exists():
+    path = Path(folder)
+    if (path / "setup.py").exists():
         return True
 
     # When toml makes it into the standard library, we can use that instead
     # For now this is good enough, except it doesn't handle the case where
     # [build-system] is inside of a multi-line literal string.
-    pyproject_path = folder / "pyproject.toml"
+    pyproject_path = path / "pyproject.toml"
     if pyproject_path.exists():
         with pyproject_path.open("r") as file:
             for line in file:

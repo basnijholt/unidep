@@ -10,3 +10,5 @@ dependencies:
   - pip: fileup  # [macos]
   - pip: codestructure
   - pip: aiokef
+includes:
+  - ../project2  # depends on project2
