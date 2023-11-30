@@ -179,7 +179,8 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
             conds = m.group(1).split()
             for cond in conds:
                 if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
-                    msg = f"Unsupported platform specifier: '{comment}'"
+                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
+                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
                     raise ValueError(msg)
                 cond = cast(Selector, cond)
                 for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
