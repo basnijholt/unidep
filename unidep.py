@@ -1120,6 +1120,7 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: 
         )
         raise RuntimeError(msg)
     if conda_lock_output.exists():
+        print(f"🗑️ Removing existing `{conda_lock_output}`")
         conda_lock_output.unlink()
     cmd = [
         "conda-lock",
