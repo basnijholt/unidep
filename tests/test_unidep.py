@@ -1249,6 +1249,8 @@ def test_circular_includes(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements([r1, r2], verbose=False)
+    # Both will be duplicated because of the circular dependency
+    # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
     assert len(requirements.requirements["adaptive-scheduler"]) == 4
     resolved = resolve_conflicts(requirements.requirements)
