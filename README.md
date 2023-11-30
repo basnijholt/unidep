@@ -15,7 +15,7 @@ Simplify your setup and maintain all your dependencies in one place with `unidep
 
 - **🔗 Unified Management**: Single-file handling of Conda and Pip dependencies.
 - **⚙️ Project Tool Integration**: Easily works with `pyproject.toml` and `setup.py`, so `requirements.yaml` is used during `pip install`.
-- **🏢 Monorepo Support**: Merge multiple `requirements.yaml` into one Conda environment `environment.yaml` using the CLI tool.
+- **🏢 Monorepo Support**: Merge multiple `requirements.yaml` into one Conda environment `environment.yaml` using the CLI tool and maintain a global and per-package `conda-lock` files.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🛠️ Conflict Resolution**: Simplifies complex dependency management by resolving version conflicts.
 - **🔄 `unidep install` CLI**: Automates installation of Conda, Pip, and local package dependencies.
