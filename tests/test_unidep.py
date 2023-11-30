@@ -1140,10 +1140,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
 
 def test_conda_lock_command() -> None:
     simple_monorepo = Path(__file__).parent / "simple_monorepo"
-    with patch("unidep._run_conda_lock", return_value=None), patch(
-        "unidep._check_consistent_lock_files",
-        return_value=[],
-    ):
+    with patch("unidep._run_conda_lock", return_value=None):
         _conda_lock_command(
             depth=1,
             directory=simple_monorepo,
