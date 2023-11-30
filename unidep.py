@@ -353,25 +353,41 @@ class ParsedRequirementsWithDependencies(NamedTuple):
     dependencies: dict[str, set[str]]
 
 
+def _add_dependencies(
+    path: Path,
+    base_path: str,
+    processed: set,
+    dependencies: dict[str, set[str]],
+) -> None:
+    if path in processed:
+        return
+    processed.add(path)
+    yaml = YAML(typ="safe")
+    with path.open() as f:
+        data = yaml.load(f)
+        for include in data.get("includes", []):
+            include_path = _include_path(path.parent / include)
+            if include_path.is_file():
+                include_base_path = str(include_path.parent)
+                if include_base_path == base_path:
+                    continue
+                dependencies[base_path].add(include_base_path)
+                _add_dependencies(include_path, base_path, processed, dependencies)
+
+
 def parse_yaml_requirements_with_dependencies(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
 ) -> ParsedRequirementsWithDependencies:
     parsed_reqs = parse_yaml_requirements(paths, verbose=verbose)
-    dependencies = defaultdict(set)
-    yaml = YAML(typ="safe")
+    dependencies: dict[str, set[str]] = defaultdict(set)
+
     for p in paths:
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
-        with p.open() as f:
-            data = yaml.load(f)
-            base_path = str(p.resolve().parent)
-
-            # Record the dependencies specified in the includes key
-            for include in data.get("includes", []):
-                include_path = str(_include_path(p.parent / include).resolve().parent)
-                dependencies[base_path].add(include_path)
+        base_path = str(p.resolve().parent)
+        _add_dependencies(p, base_path, set(), dependencies)
 
     return ParsedRequirementsWithDependencies(parsed_reqs, dict(dependencies))
 

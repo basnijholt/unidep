@@ -1298,7 +1298,8 @@ def test_nested_includes(tmp_path: Path) -> None:
     project1 = tmp_path / "project1"
     project2 = tmp_path / "project2"
     project3 = tmp_path / "project3"
-    for project in [project1, project2, project3]:
+    project4 = tmp_path / "project4"
+    for project in [project1, project2, project3, project4]:
         project.mkdir(exist_ok=True, parents=True)
 
     (project1 / "requirements.yaml").write_text(
@@ -1320,6 +1321,14 @@ def test_nested_includes(tmp_path: Path) -> None:
     (project3 / "requirements.yaml").write_text(
         textwrap.dedent(
             """\
+            includes:
+                - ../project4
+            """,
+        ),
+    )
+    (project4 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
             dependencies:
                 - numpy
             """,
@@ -1334,8 +1343,13 @@ def test_nested_includes(tmp_path: Path) -> None:
         verbose=False,
     )
     expected_dependencies = {
-        str(project1.resolve()): {str(project2.resolve())},
-        str(project2.resolve()): {str(project3.resolve())},
+        str(project1.resolve()): {
+            str(project2.resolve()),
+            str(project3.resolve()),
+            str(project4.resolve()),
+        },
+        str(project2.resolve()): {str(project3.resolve()), str(project4.resolve())},
+        str(project3.resolve()): {str(project4.resolve())},
     }
     assert requirements.dependencies == expected_dependencies
 
@@ -1387,5 +1401,4 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements_with_dependencies([r1], verbose=False)
-    expected_dependencies = {str(project1.resolve()): {str(project1.resolve())}}
-    assert requirements.dependencies == expected_dependencies
+    assert requirements.dependencies == {}
