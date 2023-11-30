@@ -31,7 +31,7 @@ else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
 __all__ = [
     "create_conda_env_specification",
     "extract_matching_platforms",
