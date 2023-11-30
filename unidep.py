@@ -360,11 +360,6 @@ def _extract_project_dependencies(  # noqa: PLR0913
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
-    if check_pip_installable and not _is_pip_installable(base_path):
-        if verbose:
-            msg = f"⚠️ `{base_path}` is not pip installable, skipping."
-            print(msg)
-        return
     if path in processed:
         return
     processed.add(path)
@@ -376,15 +371,14 @@ def _extract_project_dependencies(  # noqa: PLR0913
             if not include_path.exists():
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
-            if check_pip_installable and not _is_pip_installable(include_path.parent):
-                if verbose:
-                    msg = f"⚠️ `{include_path.parent}` is not pip installable, skipping."
-                    print(msg)
-                continue
             include_base_path = str(include_path.parent)
             if include_base_path == str(base_path):
                 continue
-            dependencies[str(base_path)].add(include_base_path)
+            if not check_pip_installable or (
+                _is_pip_installable(base_path)
+                and _is_pip_installable(include_path.parent)
+            ):
+                dependencies[str(base_path)].add(include_base_path)
             if verbose:
                 print(f"🔗 Adding include `{include_path}`")
             _extract_project_dependencies(
