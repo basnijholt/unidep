@@ -1686,8 +1686,14 @@ def pytest_collection_modifyitems(
 ) -> None:
     if not config.getoption("--run-affected"):
         return
-
-    from git import Repo
+    try:
+        from git import Repo
+    except ImportError:
+        print(
+            "🛑 You need to install `gitpython` to use the `--run-affected` option."
+            "run `pip install gitpython` to install it.",
+        )
+        sys.exit(1)
 
     compare_branch = config.getoption("--branch")
     repo_root = Path(config.getoption("--repo-root")).absolute()
