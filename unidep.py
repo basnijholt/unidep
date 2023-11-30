@@ -963,6 +963,12 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
+    # Subparser for the 'version' command
+    parser_merge = subparsers.add_parser(
+        "version",
+        help="Print the version of unidep",
+    )
+
     args = parser.parse_args()
 
     if args.command is None:  # pragma: no cover
@@ -1465,6 +1471,8 @@ def main() -> None:
             verbose=args.verbose,
             only_global=args.only_global,
         )
+    elif args.command == "version":
+        print(__version__)
 
 
 if __name__ == "__main__":
