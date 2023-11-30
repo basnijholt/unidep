@@ -1241,7 +1241,7 @@ def _conda_lock_subpackages(
             f" successfully in `{conda_lock_output}`.",
         )
         lock_files.append(conda_lock_output)
-        mismatches = _check_consisent_lock_files(
+        mismatches = _check_consistent_lock_files(
             global_lock_file=conda_lock_file,
             sub_lock_files=[conda_lock_output],
         )
@@ -1270,7 +1270,7 @@ def _conda_lock_command(
             depth=depth,
             conda_lock_file=conda_lock_output,
         )
-    mismatches = _check_consisent_lock_files(
+    mismatches = _check_consistent_lock_files(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
     )
@@ -1289,7 +1289,7 @@ class Mismatch(NamedTuple):
     lock_file: Path
 
 
-def _check_consisent_lock_files(
+def _check_consistent_lock_files(
     global_lock_file: Path,
     sub_lock_files: list[Path],
 ) -> list[Mismatch]:
@@ -1371,7 +1371,7 @@ def _mismatch_report(
     table = "\n".join(table_rows)
 
     full_error_message = (
-        "Package version mismatches found:\n"
+        "Version mismatches found between global and subpackage lock files:\n"
         + table
         + "\n\n‼️ You might want to pin some versions stricter"
         " in your `requirements.yaml` files."
