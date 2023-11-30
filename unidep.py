@@ -1554,9 +1554,11 @@ def _check_conda_prefix() -> None:
     if sys.executable.startswith(str(conda_prefix)):
         return
     msg = (
-        "You are not using `unidep` from the conda environment you are currently in."
-        " This will lead to unexpected behavior."
-        " Please install `unidep` in the conda environment you are currently in."
+        "UniDep should be run from the current Conda environment for correct"
+        " operation. However, it's currently running with the Python interpreter"
+        f" at `{sys.executable}`, which is not in the active Conda environment"
+        f" (`{conda_prefix}`). Please install and run UniDep in the current"
+        " Conda environment to avoid any issues."
     )
     warnings.warn(msg, stacklevel=2)
     sys.exit(1)
@@ -1564,7 +1566,6 @@ def _check_conda_prefix() -> None:
 
 def main() -> None:
     """Main entry point for the command-line tool."""
-    _check_conda_prefix()
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
         print(f"❌ File {args.file} not found.")
@@ -1603,6 +1604,7 @@ def main() -> None:
         )
         print(_escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
+        _check_conda_prefix()
         _install_command(
             conda_executable=args.conda_executable,
             dry_run=args.dry_run,
