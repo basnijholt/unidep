@@ -1032,6 +1032,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser_install.add_argument(
         "--dry-run",
+        "--dry",
         action="store_true",
         help="Only print the commands that would be run",
     )
@@ -1110,6 +1111,28 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{name}"{pin.strip()}"'
 
 
+def _pip_install(
+    folder: str | Path,
+    *,
+    editable: bool,
+    dry_run: bool,
+) -> None:  # pragma: no cover
+    relative_prefix = ".\\" if os.name == "nt" else "./"
+    relative_path = f"{relative_prefix}{folder}"
+    pip_command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        relative_path,
+    ]
+    if editable:
+        pip_command.insert(-1, "-e")
+    print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
+    if not dry_run:
+        subprocess.run(pip_command, check=True)  # noqa: S603
+
+
 def _install_command(
     *,
     conda_executable: str,
@@ -1120,6 +1143,17 @@ def _install_command(
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
     requirements = parse_yaml_requirements(file, verbose=verbose)
+    local_dependencies = parse_project_dependencies(
+        file,
+        check_pip_installable=True,
+        verbose=verbose,
+    )
+    local_names = {
+        Path(k).name: [Path(dep).name for dep in v]
+        for k, v in local_dependencies.items()
+    }
+    assert len(local_dependencies) == 1
+    print(f"📝 Found local dependencies: {local_dependencies}\n")
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -1152,25 +1186,17 @@ def _install_command(
             subprocess.run(pip_command, check=True)  # noqa: S603
     if _is_pip_installable(file.parent):  # pragma: no cover
         folder = file.parent
-        relative_prefix = ".\\" if os.name == "nt" else "./"
-        relative_path = f"{relative_prefix}{folder}"
-        pip_command = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            relative_path,
-        ]
-        if editable:
-            pip_command.insert(-1, "-e")
-        print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
-        if not dry_run:
-            subprocess.run(pip_command, check=True)  # noqa: S603
+        _pip_install(folder, editable=editable, dry_run=dry_run)
     else:  # pragma: no cover
         print(
-            "⚠️  Project is not pip installable. "
+            f"⚠️  Project {file.parent} is not pip installable. "
             "Could not find setup.py or [build-system] in pyproject.toml.",
         )
+
+    for name, deps in local_names.items():
+        for dep in deps:
+            print(f"📦 Installing local dependencies for {name}: {dep}\n")
+            _pip_install(dep, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
