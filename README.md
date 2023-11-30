@@ -300,7 +300,7 @@ options:
   -e, --editable        Install the project in editable mode
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
-  --dry-run             Only print the commands that would be run
+  --dry-run, --dry      Only print the commands that would be run
 ```
 
 <!-- OUTPUT:END -->
