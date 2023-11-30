@@ -373,7 +373,7 @@ def _extract_project_dependencies(  # noqa: PLR0913
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
             if check_pip_installable and not _is_pip_installable(include_path.parent):
-                if verbose:
+                if verbose:  # pragma: no cover
                     msg = f"⚠️ `{include_path.parent}` is not pip installable, skipping."
                     print(msg)
                 continue
