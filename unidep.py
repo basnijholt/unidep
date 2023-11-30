@@ -380,6 +380,10 @@ def parse_project_dependencies(
     *,
     verbose: bool = False,
 ) -> dict[str, set[str]]:
+    """Extract local project dependencies from a list of `requirements.yaml` files.
+
+    Works by scanning for `includes` in the `requirements.yaml` files.
+    """
     dependencies: dict[str, set[str]] = defaultdict(set)
 
     for p in paths:
