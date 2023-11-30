@@ -56,12 +56,16 @@ CondaPip = Literal["conda", "pip"]
 
 __version__ = "0.22.0"
 __all__ = [
-    "find_requirements_files",
-    "extract_matching_platforms",
-    "parse_yaml_requirements",
     "create_conda_env_specification",
-    "write_conda_environment_file",
+    "extract_matching_platforms",
+    "filter_python_dependencies",
+    "find_requirements_files",
     "get_python_dependencies",
+    "parse_project_dependencies",
+    "parse_yaml_requirements",
+    "resolve_conflicts",
+    "setuptools_finalizer",
+    "write_conda_environment_file",
 ]
 
 PEP508_MARKERS = {
@@ -100,7 +104,7 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
-def simple_warning_format(
+def _simple_warning_format(
     message: Warning | str,
     category: type[Warning],  # noqa: ARG001
     filename: str,
@@ -117,7 +121,7 @@ def simple_warning_format(
     )
 
 
-warnings.formatwarning = simple_warning_format
+warnings.formatwarning = _simple_warning_format
 
 # Functions for setuptools and conda
 
@@ -297,7 +301,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     *,
     verbose: bool = False,
 ) -> ParsedRequirements:
-    """Parse a list of requirements.yaml files including comments."""
+    """Parse a list of `requirements.yaml` files including comments."""
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
@@ -483,6 +487,11 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip
 def resolve_conflicts(
     requirements: dict[str, list[Meta]],
 ) -> dict[str, dict[Platform | None, dict[CondaPip, Meta]]]:
+    """Resolve conflicts in a dictionary of requirements.
+
+    Uses the ``ParsedRequirements.requirements`` dict returned by
+    `parse_yaml_requirements`.
+    """
     prepared = _prepare_metas_for_conflict_resolution(requirements)
 
     resolved = {
@@ -737,6 +746,14 @@ def filter_python_dependencies(
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     platforms: list[Platform] | None = None,
 ) -> list[str]:
+    """Filter out conda dependencies and return only pip dependencies.
+
+    Examples
+    --------
+    >>> requirements = parse_yaml_requirements(["requirements.yaml"])
+    >>> resolved_requirements = resolve_conflicts(requirements.requirements)
+    >>> python_dependencies = filter_python_dependencies(resolved_requirements)
+    """
     pip_deps = []
     for platform_data in resolved_requirements.values():
         _maybe_expand_none(platform_data)
@@ -853,7 +870,10 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     )
 
 
-def escape_unicode(string: str) -> str:
+# Command line interface functions
+
+
+def _escape_unicode(string: str) -> str:
     return codecs.decode(string, "unicode_escape")
 
 
@@ -1494,7 +1514,7 @@ def main() -> None:
                 verbose=args.verbose,
             ),
         )
-        print(escape_unicode(args.separator).join(pip_dependencies))
+        print(_escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -1503,7 +1523,7 @@ def main() -> None:
             requirements.channels,
             platforms=[args.platform],
         )
-        print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
+        print(_escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
         _install_command(
             conda_executable=args.conda_executable,

@@ -15,12 +15,12 @@ from unidep import (
     Meta,
     _build_pep508_environment_marker,
     _conda_lock_command,
+    _escape_unicode,
     _extract_name_and_pin,
     _identify_current_platform,
     _install_command,
     _remove_top_comments,
     create_conda_env_specification,
-    escape_unicode,
     extract_matching_platforms,
     filter_python_dependencies,
     find_requirements_files,
@@ -881,9 +881,9 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     ]
 
 
-def test_escape_unicode() -> None:
-    assert escape_unicode("foo\\n") == "foo\n"
-    assert escape_unicode("foo\\t") == "foo\t"
+def test__escape_unicode() -> None:
+    assert _escape_unicode("foo\\n") == "foo\n"
+    assert _escape_unicode("foo\\t") == "foo\t"
 
 
 def test_install_command(capsys: pytest.CaptureFixture) -> None:
