@@ -351,13 +351,14 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
-def _extract_project_dependencies(
+def _extract_project_dependencies(  # noqa: PLR0913
     path: Path,
     base_path: str,
     processed: set,
     dependencies: dict[str, set[str]],
     *,
     check_pip_installable: bool = False,
+    verbose: bool = False,
 ) -> None:
     if path in processed:
         return
@@ -371,6 +372,9 @@ def _extract_project_dependencies(
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
             if check_pip_installable and not _is_pip_installable(include_path.parent):
+                if verbose:
+                    msg = f"⚠️ `{include_path.parent}` is not pip installable, skipping."
+                    print(msg)
                 continue
             include_base_path = str(include_path.parent)
             if include_base_path == base_path:
@@ -400,11 +404,12 @@ def parse_project_dependencies(
             print(f"🔗 Analyzing dependencies in `{p}`")
         base_path = str(p.resolve().parent)
         _extract_project_dependencies(
-            p,
-            base_path,
-            set(),
-            dependencies,
+            path=p,
+            base_path=base_path,
+            processed=set(),
+            dependencies=dependencies,
             check_pip_installable=check_pip_installable,
+            verbose=verbose,
         )
 
     return dict(dependencies)
@@ -1075,18 +1080,19 @@ def _identify_conda_executable() -> str:  # pragma: no cover
     raise RuntimeError(msg)
 
 
-def _is_pip_installable(folder: Path) -> bool:  # pragma: no cover
+def _is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     """Determine if the project is pip installable.
 
     Checks for existence of setup.py or [build-system] in pyproject.toml.
     """
-    if (folder / "setup.py").exists():
+    path = Path(folder)
+    if (path / "setup.py").exists():
         return True
 
     # When toml makes it into the standard library, we can use that instead
     # For now this is good enough, except it doesn't handle the case where
     # [build-system] is inside of a multi-line literal string.
-    pyproject_path = folder / "pyproject.toml"
+    pyproject_path = path / "pyproject.toml"
     if pyproject_path.exists():
         with pyproject_path.open("r") as file:
             for line in file:
