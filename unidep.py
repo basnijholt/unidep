@@ -30,6 +30,23 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
+
+__version__ = "0.22.0"
+__all__ = [
+    "create_conda_env_specification",
+    "extract_matching_platforms",
+    "filter_python_dependencies",
+    "find_requirements_files",
+    "get_python_dependencies",
+    "parse_project_dependencies",
+    "parse_yaml_requirements",
+    "resolve_conflicts",
+    "setuptools_finalizer",
+    "write_conda_environment_file",
+]
+
+# Definitions
+
 Platform = Literal[
     "linux-64",
     "linux-aarch64",
@@ -52,21 +69,6 @@ Selector = Literal[
     "macos",
 ]
 CondaPip = Literal["conda", "pip"]
-
-
-__version__ = "0.22.0"
-__all__ = [
-    "create_conda_env_specification",
-    "extract_matching_platforms",
-    "filter_python_dependencies",
-    "find_requirements_files",
-    "get_python_dependencies",
-    "parse_project_dependencies",
-    "parse_yaml_requirements",
-    "resolve_conflicts",
-    "setuptools_finalizer",
-    "write_conda_environment_file",
-]
 
 PEP508_MARKERS = {
     "linux-64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -297,8 +299,7 @@ def _include_path(include: str) -> Path:
 
 
 def parse_yaml_requirements(  # noqa: PLR0912
-    paths: Sequence[Path],
-    *,
+    *paths: Path,
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of `requirements.yaml` files including comments."""
@@ -750,7 +751,7 @@ def filter_python_dependencies(
 
     Examples
     --------
-    >>> requirements = parse_yaml_requirements(["requirements.yaml"])
+    >>> requirements = parse_yaml_requirements("requirements.yaml")
     >>> resolved_requirements = resolve_conflicts(requirements.requirements)
     >>> python_dependencies = filter_python_dependencies(resolved_requirements)
     """
@@ -810,7 +811,7 @@ def get_python_dependencies(
             raise FileNotFoundError(msg)
         return []
 
-    requirements = parse_yaml_requirements([p], verbose=verbose)
+    requirements = parse_yaml_requirements(p, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     return filter_python_dependencies(
         resolved_requirements,
@@ -1100,7 +1101,7 @@ def _install_command(
     verbose: bool,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
-    requirements = parse_yaml_requirements([file], verbose=verbose)
+    requirements = parse_yaml_requirements(file, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -1179,7 +1180,7 @@ def _merge_command(  # noqa: PLR0913
     if not found_files:
         print(f"❌ No requirements.yaml files found in {directory}")
         sys.exit(1)
-    requirements = parse_yaml_requirements(found_files, verbose=verbose)
+    requirements = parse_yaml_requirements(*found_files, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -1305,7 +1306,7 @@ def _conda_lock_subpackages(
             continue
         pip_packages = CommentedSeq()
         conda_packages = CommentedSeq()
-        requirements = parse_yaml_requirements([file])
+        requirements = parse_yaml_requirements(file)
         for name in requirements.requirements:
             if name not in packages:  # pragma: no cover
                 continue  # might not exists because of platform filtering
@@ -1516,7 +1517,7 @@ def main() -> None:
         )
         print(_escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
-        requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
+        requirements = parse_yaml_requirements(args.file, verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
         env_spec = create_conda_env_specification(
             resolved_requirements,
