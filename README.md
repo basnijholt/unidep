@@ -363,7 +363,7 @@ options:
 #### `unidep conda-lock`
 
 Use `unidep conda-lock` on one or multiple `requirements.yaml` files and output the conda-lock file.
-Optionally, when using a monorepo with multiple subpackages (with their own `requirements.yaml` files), generate a lockfile for each subpackage using the `--sub-lock-files` flag.
+Optionally, when using a monorepo with multiple subpackages (with their own `requirements.yaml` files), generate a lock file for each subpackage.
 See `unidep conda -h` for more information:
 
 <!-- CODE:BASH:START -->

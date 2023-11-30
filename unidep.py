@@ -927,13 +927,14 @@ def _parse_args() -> argparse.Namespace:
     # Subparser for the 'conda-lock' command
     parser_lock = subparsers.add_parser(
         "conda-lock",
-        help="Generate a conda-lock file a collection of `requirements.yaml` files.",
+        help="Generate a global conda-lock file of a collection of `requirements.yaml`"
+        " files. Additionally, generate a conda-lock file for each separate"
+        " `requirements.yaml` file based on the global lock file.",
     )
     parser_lock.add_argument(
-        "--sub-lock-files",
+        "--only-global",
         action="store_true",
-        help="Additionally generate a conda-lock file for each `requirements.yaml` file"
-        " based on the lock file of the combined `requirements.yaml` files.",
+        help="Only generate the global lock file",
     )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
@@ -1095,6 +1096,20 @@ def _merge_command(  # noqa: PLR0913
         )
 
 
+def _remove_top_comments(filename: str | Path) -> None:
+    """Removes the top comments (lines starting with '#') from a file."""
+    with open(filename) as file:  # noqa: PTH123
+        lines = file.readlines()
+
+    first_non_comment = next(
+        (i for i, line in enumerate(lines) if not line.strip().startswith("#")),
+        len(lines),
+    )
+    content_without_comments = lines[first_non_comment:]
+    with open(filename, "w") as file:  # noqa: PTH123
+        file.writelines(content_without_comments)
+
+
 def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
     if shutil.which("conda-lock") is None:
         msg = (
@@ -1117,6 +1132,17 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: 
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+        _remove_top_comments(conda_lock_output)
+        _add_comment_to_file(
+            conda_lock_output,
+            extra_lines=[
+                "#",
+                "# This environment can be installed with",
+                "# `micromamba create -f conda-lock.yml -n myenv`",
+                "# This file is a `conda-lock` file generated via `unidep`.",
+                "# For details see https://conda.github.io/conda-lock/",
+            ],
+        )
     except subprocess.CalledProcessError as e:
         print("❌ Error occurred:\n", e)
         print("Return code:", e.returncode)
@@ -1211,7 +1237,7 @@ def _conda_lock_command(
     directory: Path,
     platform: list[Platform],
     verbose: bool,
-    sub_lock_files: bool,
+    only_global: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -1220,7 +1246,7 @@ def _conda_lock_command(
         platform=platform,
         verbose=verbose,
     )
-    if sub_lock_files:
+    if not only_global:
         _conda_lock_subpackages(
             directory=directory,
             depth=depth,
@@ -1281,7 +1307,7 @@ def main() -> None:
             directory=args.directory,
             platform=args.platform,
             verbose=args.verbose,
-            sub_lock_files=args.sub_lock_files,
+            only_global=args.only_global,
         )
 
 
