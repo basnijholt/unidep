@@ -353,14 +353,18 @@ def parse_yaml_requirements(  # noqa: PLR0912
 
 def _extract_project_dependencies(  # noqa: PLR0913
     path: Path,
-    base_path: str,
+    base_path: Path,
     processed: set,
     dependencies: dict[str, set[str]],
     *,
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
-    print(processed)
+    if check_pip_installable and not _is_pip_installable(base_path):
+        if verbose:
+            msg = f"⚠️ `{base_path}` is not pip installable, skipping."
+            print(msg)
+        return
     if path in processed:
         return
     processed.add(path)
@@ -373,14 +377,14 @@ def _extract_project_dependencies(  # noqa: PLR0913
                 msg = f"Include file `{include_path}` does not exist."
                 raise FileNotFoundError(msg)
             if check_pip_installable and not _is_pip_installable(include_path.parent):
-                if verbose:  # pragma: no cover
+                if verbose:
                     msg = f"⚠️ `{include_path.parent}` is not pip installable, skipping."
                     print(msg)
                 continue
             include_base_path = str(include_path.parent)
-            if include_base_path == base_path:
+            if include_base_path == str(base_path):
                 continue
-            dependencies[base_path].add(include_base_path)
+            dependencies[str(base_path)].add(include_base_path)
             if verbose:
                 print(f"🔗 Adding include `{include_path}`")
             _extract_project_dependencies(
@@ -406,7 +410,7 @@ def parse_project_dependencies(
     for p in paths:
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
-        base_path = str(p.resolve().parent)
+        base_path = p.resolve().parent
         _extract_project_dependencies(
             path=p,
             base_path=base_path,

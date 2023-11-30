@@ -1,6 +1,7 @@
 """unidep tests."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -1416,10 +1417,32 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
     assert requirements == {}
 
 
-def test_parse_project_dependencies_pip_installable() -> None:
-    example_folder = REPO_ROOT / "example"
+def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
+    example_folder = tmp_path / "example"
+    shutil.copytree(REPO_ROOT / "example", example_folder)
+
+    # Add an extra project
+    extra_project = example_folder / "project69"
+    extra_project.mkdir(exist_ok=True, parents=True)
+    (extra_project / "requirements.yaml").write_text("includes: [../project1]")
+
+    # Add a line to project1 includes
+    project1_req = example_folder / "project1" / "requirements.yaml"
+    yaml = YAML(typ="safe")
+    with project1_req.open("r") as f:
+        requirements = yaml.load(f)
+    requirements["includes"].append("../project69")
+    with project1_req.open("w") as f:
+        yaml.dump(requirements, f)
+
     found_files = find_requirements_files(example_folder)
-    assert found_files
+    assert len(found_files) == 4
+
+    # Add a common requirements file
+    common_requirements = example_folder / "common-requirements.yaml"
+    common_requirements.write_text("includes: [project1]")
+    found_files.append(common_requirements)
+
     requirements = parse_project_dependencies(
         *found_files,
         check_pip_installable=True,
