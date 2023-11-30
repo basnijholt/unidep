@@ -25,8 +25,8 @@ from unidep import (
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
+    parse_project_dependencies,
     parse_yaml_requirements,
-    parse_yaml_requirements_with_dependencies,
     resolve_conflicts,
     write_conda_environment_file,
 )
@@ -1262,7 +1262,7 @@ def test_circular_includes(tmp_path: Path) -> None:
     assert len(resolved["adaptive-scheduler"][None]) == 2
 
 
-def test_parse_yaml_requirements_with_dependencies(tmp_path: Path) -> None:
+def test_parse_project_dependencies(tmp_path: Path) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     project2 = tmp_path / "project2"
@@ -1286,7 +1286,7 @@ def test_parse_yaml_requirements_with_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements_with_dependencies([r1, r2], verbose=False)
+    requirements = parse_project_dependencies([r1, r2], verbose=False)
     expected_dependencies = {
         str(project1.resolve()): {str(project2.resolve())},
         str(project2.resolve()): {str(project1.resolve())},
@@ -1334,7 +1334,7 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements_with_dependencies(
+    requirements = parse_project_dependencies(
         [
             project1 / "requirements.yaml",
             project2 / "requirements.yaml",
@@ -1367,7 +1367,7 @@ def test_nonexistent_includes(tmp_path: Path) -> None:
         ),
     )
     with pytest.raises(FileNotFoundError, match="Include file"):
-        parse_yaml_requirements_with_dependencies([r1], verbose=False)
+        parse_project_dependencies([r1], verbose=False)
 
 
 def test_no_includes(tmp_path: Path) -> None:
@@ -1382,7 +1382,7 @@ def test_no_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements_with_dependencies([r1], verbose=False)
+    requirements = parse_project_dependencies([r1], verbose=False)
     assert requirements == {}
 
 
@@ -1400,5 +1400,5 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements_with_dependencies([r1], verbose=False)
+    requirements = parse_project_dependencies([r1], verbose=False)
     assert requirements == {}

@@ -346,7 +346,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
-def _add_dependencies(
+def _extract_project_dependencies(
     path: Path,
     base_path: str,
     processed: set,
@@ -367,10 +367,15 @@ def _add_dependencies(
             if include_base_path == base_path:
                 continue
             dependencies[base_path].add(include_base_path)
-            _add_dependencies(include_path, base_path, processed, dependencies)
+            _extract_project_dependencies(
+                include_path,
+                base_path,
+                processed,
+                dependencies,
+            )
 
 
-def parse_yaml_requirements_with_dependencies(
+def parse_project_dependencies(
     paths: Sequence[Path],
     *,
     verbose: bool = False,
@@ -381,7 +386,7 @@ def parse_yaml_requirements_with_dependencies(
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
         base_path = str(p.resolve().parent)
-        _add_dependencies(p, base_path, set(), dependencies)
+        _extract_project_dependencies(p, base_path, set(), dependencies)
 
     return dict(dependencies)
 
