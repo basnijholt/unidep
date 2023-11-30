@@ -100,7 +100,7 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
-def simple_warning_format(
+def _simple_warning_format(
     message: Warning | str,
     category: type[Warning],  # noqa: ARG001
     filename: str,
@@ -117,7 +117,7 @@ def simple_warning_format(
     )
 
 
-warnings.formatwarning = simple_warning_format
+warnings.formatwarning = _simple_warning_format
 
 # Functions for setuptools and conda
 
@@ -853,7 +853,10 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     )
 
 
-def escape_unicode(string: str) -> str:
+# Command line interface functions
+
+
+def _escape_unicode(string: str) -> str:
     return codecs.decode(string, "unicode_escape")
 
 
@@ -1494,7 +1497,7 @@ def main() -> None:
                 verbose=args.verbose,
             ),
         )
-        print(escape_unicode(args.separator).join(pip_dependencies))
+        print(_escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         requirements = parse_yaml_requirements([args.file], verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -1503,7 +1506,7 @@ def main() -> None:
             requirements.channels,
             platforms=[args.platform],
         )
-        print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
+        print(_escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
         _install_command(
             conda_executable=args.conda_executable,
