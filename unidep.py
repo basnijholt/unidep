@@ -1190,9 +1190,9 @@ def _conda_lock_subpackages(
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
 
-    packages: dict[str, list[tuple[Platform, CondaPip, str]]] = {}
+    packages: dict[str, list[tuple[Platform, CondaPip, str, str]]] = {}
     for p in data["package"]:
-        tup = (p["platform"], p["manager"], p["version"])
+        tup = (p["platform"], p["manager"], p["version"], p["url"])
         packages.setdefault(p["name"], []).append(tup)
 
     # Assumes that different platforms have the same versions
@@ -1204,13 +1204,17 @@ def _conda_lock_subpackages(
         for name in requirements.requirements:
             if name not in packages:  # pragma: no cover
                 continue  # might not exists because of platform filtering
-            for _platform, which, version in packages[name]:
+            for _platform, which, version, url in packages[name]:
                 selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
                 comment = f"# [{selector}]"
                 eq = "==" if which == "pip" else "="
                 target_list = pip_packages if which == "pip" else conda_packages
                 if which in ["pip", "conda"]:
-                    target_list.append(f"{name}{eq}{version}")
+                    if url.startswith("git+"):
+                        package = f"{name} @ {url}"
+                    else:
+                        package = f"{name}{eq}{version}"
+                    target_list.append(package)
                     target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
                 else:  # pragma: no cover
                     msg = f"Unknown manager: {which}"
@@ -1224,7 +1228,7 @@ def _conda_lock_subpackages(
         )
         tmp_env = file.parent / "tmp.environment.yaml"
         conda_lock_output = file.parent / "conda-lock.yml"
-        write_conda_environment_file(env_spec, str(tmp_env), name)
+        write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
         _run_conda_lock(tmp_env, conda_lock_output)
         print(
             f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
