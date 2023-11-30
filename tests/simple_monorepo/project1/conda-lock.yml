@@ -10,7 +10,7 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: 64ec1d1b4fe987281b13f2375700c7e5e7bc513ef44f5559182c88909a1d1464
+    osx-arm64: 993bfe1ece997f95e405bc8a3c97aeb8c4d829d18f0723482963a778f1c8ac0d
   channels:
   - url: conda-forge
     used_env_vars: []
@@ -28,16 +28,5 @@ package:
   hash:
     md5: 1bbc659ca658bfd49a481b5ef7a0f40f
     sha256: bfa84296a638bea78a8bb29abc493ee95f2a0218775642474a840411b950fe5f
-  category: main
-  optional: false
-- name: tzdata
-  version: 2023c
-  manager: conda
-  platform: osx-arm64
-  dependencies: {}
-  url: https://conda.anaconda.org/conda-forge/noarch/tzdata-2023c-h71feb2d_0.conda
-  hash:
-    md5: 939e3e74d8be4dac89ce83b20de2492a
-    sha256: 0449138224adfa125b220154408419ec37c06b0b49f63c5954724325903ecf55
   category: main
   optional: false

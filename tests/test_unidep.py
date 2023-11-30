@@ -1158,8 +1158,8 @@ def test_conda_lock_command() -> None:
             env2_tmp = yaml.load(f)
     assert len(env1_tmp["dependencies"]) == 1
     assert len(env2_tmp["dependencies"]) == 1
-    assert env1_tmp["dependencies"][0].split("=")[0] == "networkx"
-    assert env2_tmp["dependencies"][0].split("=")[0] == "psutil"
+    assert env1_tmp["dependencies"][0].split("=")[0] == "bzip2"
+    assert env2_tmp["dependencies"][0].split("=")[0] == "tzdata"
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
