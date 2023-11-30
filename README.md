@@ -87,6 +87,9 @@ dependencies:
 platforms:  # (Optional) specify platforms that are supported (like conda-lock)
   - linux-64
   - osx-arm64
+includes:
+  - ../other-project-using-unidep  # include other projects that use unidep
+  - ../common-requirements.yaml  # include other requirements.yaml files
 ```
 
 **⚠️ `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
@@ -99,6 +102,9 @@ For a more in-depth example, see the [`example`](example/) directory.
 - Use `conda: <package>` and `pip: <package>` to specify different names across platforms.
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
+- Use `# [selector]` to specify platform-specific dependencies.
+- Use `platforms:` to specify the platforms that are supported.
+- Use `includes:` to include other `requirements.yaml` files and merge them into one.
 
 Using the CLI `unidep` will combine these dependencies into a single conda installable `environment.yaml` file.
 
