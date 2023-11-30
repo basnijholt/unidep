@@ -346,6 +346,36 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
+class ParsedRequirementsWithDependencies(NamedTuple):
+    """Requirements with comments and dependencies."""
+
+    parsed_requirements: ParsedRequirements
+    dependencies: dict[str, set[str]]
+
+
+def parse_yaml_requirements_with_dependencies(
+    paths: Sequence[Path],
+    *,
+    verbose: bool = False,
+) -> ParsedRequirementsWithDependencies:
+    parsed_reqs = parse_yaml_requirements(paths, verbose=verbose)
+    dependencies = defaultdict(set)
+    yaml = YAML(typ="safe")
+    for p in paths:
+        if verbose:
+            print(f"🔗 Analyzing dependencies in `{p}`")
+        with p.open() as f:
+            data = yaml.load(f)
+            base_path = str(p.resolve().parent)
+
+            # Record the dependencies specified in the includes key
+            for include in data.get("includes", []):
+                include_path = str(_include_path(p.parent / include).resolve().parent)
+                dependencies[base_path].add(include_path)
+
+    return ParsedRequirementsWithDependencies(parsed_reqs, dict(dependencies))
+
+
 # Conflict resolution functions
 
 
