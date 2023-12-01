@@ -55,6 +55,12 @@ To install `unidep`, run the following command:
 pip install -U unidep
 ```
 
+or
+
+```bash
+conda install -c conda-forge unidep
+```
+
 Or just copy the script to your project:
 ```bash
 wget https://raw.githubusercontent.com/basnijholt/unidep/main/unidep.py
