@@ -1449,7 +1449,11 @@ def _conda_lock_subpackages(
                     for dependency in dep.dependencies:
                         if dependency in seen or dependency.startswith("__"):
                             continue
-                        for sub_dep in packages[dependency]:
+                        for sub_dep in packages.get(dependency, []):
+                            # In principle `dependency` should be in `packages`,
+                            # however, a pip dependency might e.g., have `msgpack`
+                            # as a dependency, where in a Conda package this dependency
+                            # is called `msgpack-python`.
                             _add_conda_dependency(
                                 name=dependency,
                                 version=sub_dep.version,
