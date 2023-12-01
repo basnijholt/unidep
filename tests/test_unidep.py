@@ -1295,8 +1295,8 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
         check_pip_installable=False,
     )
     expected_dependencies = {
-        project1.resolve(): {project2.resolve()},
-        project2.resolve(): {project1.resolve()},
+        project1.resolve(): [project2.resolve()],
+        project2.resolve(): [project1.resolve()],
     }
     assert requirements == expected_dependencies
 
@@ -1349,13 +1349,13 @@ def test_nested_includes(tmp_path: Path) -> None:
         check_pip_installable=False,
     )
     expected_dependencies = {
-        project1.resolve(): {
+        project1.resolve(): [
             project2.resolve(),
             project3.resolve(),
             project4.resolve(),
-        },
-        project2.resolve(): {project3.resolve(), project4.resolve()},
-        project3.resolve(): {project4.resolve()},
+        ],
+        project2.resolve(): [project3.resolve(), project4.resolve()],
+        project3.resolve(): [project4.resolve()],
     }
     assert requirements == expected_dependencies
 
@@ -1451,13 +1451,13 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     )
     assert requirements
     assert requirements == {
-        example_folder / "project1": {
+        example_folder / "project1": [
             example_folder / "project2",
             example_folder / "project3",
-        },
-        example_folder / "project2": {
+        ],
+        example_folder / "project2": [
             example_folder / "project3",
-        },
+        ],
     }
 
 
@@ -1493,16 +1493,16 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     )
     assert requirements
     assert requirements == {
-        example_folder / "project1": {
+        example_folder / "project1": [
             example_folder / "project2",
             example_folder / "project3",
-        },
-        example_folder / "project2": {
+        ],
+        example_folder / "project2": [
             example_folder / "project1",
             example_folder / "project3",
-        },
-        example_folder / "project3": {
+        ],
+        example_folder / "project3": [
             example_folder / "project1",
             example_folder / "project2",
-        },
+        ],
     }

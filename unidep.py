@@ -23,6 +23,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 if TYPE_CHECKING:
+    import pytest
     from setuptools import Distribution
 
 if sys.version_info >= (3, 8):
@@ -395,7 +396,7 @@ def parse_project_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
-) -> dict[Path, set[Path]]:
+) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
 
     Works by scanning for `includes` in the `requirements.yaml` files.
@@ -415,7 +416,10 @@ def parse_project_dependencies(
             verbose=verbose,
         )
 
-    return {Path(k): {Path(v) for v in v_set} for k, v_set in dependencies.items()}
+    return {
+        Path(k): sorted({Path(v) for v in v_set})
+        for k, v_set in sorted(dependencies.items())
+    }
 
 
 # Conflict resolution functions
@@ -1211,14 +1215,11 @@ def _install_command(  # noqa: PLR0913
             check_pip_installable=True,
             verbose=verbose,
         )
-        local_paths = {
-            Path(k): [Path(dep) for dep in v] for k, v in local_dependencies.items()
-        }
         assert len(local_dependencies) <= 1
-        names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
+        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        for deps in local_paths.values():
-            for dep in deps:
+        for deps in sorted(local_dependencies.values()):
+            for dep in sorted(deps):
                 _pip_install_local(dep, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
@@ -1652,6 +1653,87 @@ def main() -> None:
             f"Python executable: {sys.executable}",
         )
         print("\n".join(txt))
+
+
+# pytest plugin (in beta and undocumented ATM)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
+    parser.addoption(
+        "--run-affected",
+        action="store_true",
+        default=False,
+        help="Run only tests from affected packages",
+    )
+    parser.addoption(
+        "--branch",
+        action="store",
+        default="origin/main",
+        help="Branch to compare with for finding affected tests",
+    )
+    parser.addoption(
+        "--repo-root",
+        action="store",
+        default=".",
+        type=Path,
+        help="Root of the repository",
+    )
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config,
+    items: list[pytest.Item],
+) -> None:  # pragma: no cover
+    if not config.getoption("--run-affected"):
+        return
+    try:
+        from git import Repo
+    except ImportError:
+        print(
+            "🛑 You need to install `gitpython` to use the `--run-affected` option."
+            "run `pip install gitpython` to install it.",
+        )
+        sys.exit(1)
+
+    compare_branch = config.getoption("--branch")
+    repo_root = Path(config.getoption("--repo-root")).absolute()
+    repo = Repo(repo_root)
+    files = find_requirements_files(repo_root)
+    dependencies = parse_project_dependencies(*files)
+    diffs = repo.head.commit.diff(compare_branch)
+    changed_files = [Path(diff.a_path) for diff in diffs]
+    affected_packages = _affected_packages(repo_root, changed_files, dependencies)
+    affected_tests = {
+        item
+        for item in items
+        if any(item.nodeid.startswith(str(pkg)) for pkg in affected_packages)
+    }
+    items[:] = list(affected_tests)
+
+
+def _file_in_folder(file: Path, folder: Path) -> bool:  # pragma: no cover
+    file = file.absolute()
+    folder = folder.absolute()
+    common = os.path.commonpath([folder, file])
+    return os.path.commonpath([folder]) == common
+
+
+def _affected_packages(
+    repo_root: Path,
+    changed_files: list[Path],
+    dependencies: dict[Path, list[Path]],
+    *,
+    verbose: bool = False,
+) -> set[Path]:  # pragma: no cover
+    affected_packages = set()
+    for file in changed_files:
+        for package, deps in dependencies.items():
+            if _file_in_folder(repo_root / file, package):
+                if verbose:
+                    print(f"File {file} affects package {package}")
+                affected_packages.add(package)
+                affected_packages.update(deps)
+    return {pkg.relative_to(repo_root) for pkg in affected_packages}
 
 
 if __name__ == "__main__":

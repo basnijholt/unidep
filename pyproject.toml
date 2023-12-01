@@ -19,12 +19,17 @@ Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
+conda-lock = ["conda-lock"]
+pytest = ["pytest", "GitPython"]  # The pytest plugin
 
 [project.scripts]
 unidep = "unidep:main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep:setuptools_finalizer"
+
+[project.entry-points.pytest11]
+affected = "unidep"
 
 [tool.setuptools]
 py-modules = ["unidep"]
