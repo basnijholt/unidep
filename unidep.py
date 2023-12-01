@@ -1065,6 +1065,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only generate the global lock file",
     )
+    parser_lock.add_argument(
+        "--check-input-hash",
+        action="store_true",
+        help="Check existing input hashes in lockfiles before regenerating lock files."
+        " This flag is directly passed to `conda-lock`.",
+    )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
     # Subparser for the 'version' command
@@ -1272,7 +1278,12 @@ def _remove_top_comments(filename: str | Path) -> None:
         file.writelines(content_without_comments)
 
 
-def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: no cover
+def _run_conda_lock(
+    tmp_env: Path,
+    conda_lock_output: Path,
+    *,
+    check_input_hash: bool = False,
+) -> None:  # pragma: no cover
     if shutil.which("conda-lock") is None:
         msg = (
             "Cannot find `conda-lock`."
@@ -1281,7 +1292,7 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: 
             " `conda install -c conda-forge conda-lock`."
         )
         raise RuntimeError(msg)
-    if conda_lock_output.exists():
+    if not check_input_hash and conda_lock_output.exists():
         print(f"🗑️ Removing existing `{conda_lock_output}`")
         conda_lock_output.unlink()
     cmd = [
@@ -1292,6 +1303,8 @@ def _run_conda_lock(tmp_env: Path, conda_lock_output: Path) -> None:  # pragma: 
         "--lockfile",
         str(conda_lock_output),
     ]
+    if check_input_hash:
+        cmd.append("--check-input-hash")
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
@@ -1320,6 +1333,7 @@ def _conda_lock_global(
     directory: str | Path,
     platform: list[Platform],
     verbose: bool,
+    check_input_hash: bool,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
     directory = Path(directory)
@@ -1335,7 +1349,7 @@ def _conda_lock_global(
         platforms=platform,
         verbose=verbose,
     )
-    _run_conda_lock(tmp_env, conda_lock_output)
+    _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
     print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
     return conda_lock_output
 
@@ -1344,6 +1358,8 @@ def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
     conda_lock_file: str | Path,
+    *,
+    check_input_hash: bool,
 ) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
@@ -1396,7 +1412,7 @@ def _conda_lock_subpackages(
         tmp_env = file.parent / "tmp.environment.yaml"
         conda_lock_output = file.parent / "conda-lock.yml"
         write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
-        _run_conda_lock(tmp_env, conda_lock_output)
+        _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
         print(
             f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
             f" successfully in `{conda_lock_output}`.",
@@ -1410,13 +1426,14 @@ def _conda_lock_subpackages(
     return lock_files
 
 
-def _conda_lock_command(
+def _conda_lock_command(  # noqa: PLR0913
     *,
     depth: int,
     directory: Path,
     platform: list[Platform],
     verbose: bool,
     only_global: bool,
+    check_input_hash: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -1424,12 +1441,14 @@ def _conda_lock_command(
         directory=directory,
         platform=platform,
         verbose=verbose,
+        check_input_hash=check_input_hash,
     )
     if not only_global:
         sub_lock_files = _conda_lock_subpackages(
             directory=directory,
             depth=depth,
             conda_lock_file=conda_lock_output,
+            check_input_hash=check_input_hash,
         )
     mismatches = _check_consistent_lock_files(
         global_lock_file=conda_lock_output,
@@ -1623,6 +1642,7 @@ def main() -> None:
             platform=args.platform,
             verbose=args.verbose,
             only_global=args.only_global,
+            check_input_hash=args.check_input_hash,
         )
     elif args.command == "version":  # pragma: no cover
         txt = (
