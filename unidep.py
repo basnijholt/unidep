@@ -696,9 +696,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     # should be spread into two lines, one with [linux] and the
                     # other with [win].
                     for _platform in _platforms:
+                        # We're not adding a PEP508 marker here
                         _platform = cast(Platform, _platform)
-                        marker = _build_pep508_environment_marker([_platform])  # type: ignore[arg-type]
-                        dep_str = f"{dep_str}; {marker}"
                         pip_deps.append(dep_str)
                         _add_comment(pip_deps, _platform)
             else:
