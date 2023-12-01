@@ -396,7 +396,7 @@ def parse_project_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
-) -> dict[Path, set[Path]]:
+) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` files.
 
     Works by scanning for `includes` in the `requirements.yaml` files.
@@ -416,7 +416,10 @@ def parse_project_dependencies(
             verbose=verbose,
         )
 
-    return {Path(k): {Path(v) for v in v_set} for k, v_set in dependencies.items()}
+    return {
+        Path(k): sorted({Path(v) for v in v_set})
+        for k, v_set in sorted(dependencies.items())
+    }
 
 
 # Conflict resolution functions
@@ -1212,13 +1215,10 @@ def _install_command(  # noqa: PLR0913
             check_pip_installable=True,
             verbose=verbose,
         )
-        local_paths = {
-            Path(k): [Path(dep) for dep in v] for k, v in local_dependencies.items()
-        }
         assert len(local_dependencies) <= 1
-        names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
+        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        for deps in sorted(local_paths.values()):
+        for deps in sorted(local_dependencies.values()):
             for dep in sorted(deps):
                 _pip_install_local(dep, editable=editable, dry_run=dry_run)
 
@@ -1721,7 +1721,7 @@ def _file_in_folder(file: Path, folder: Path) -> bool:  # pragma: no cover
 def _affected_packages(
     repo_root: Path,
     changed_files: list[Path],
-    dependencies: dict[Path, set[Path]],
+    dependencies: dict[Path, list[Path]],
     *,
     verbose: bool = False,
 ) -> set[Path]:  # pragma: no cover
