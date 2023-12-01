@@ -1658,7 +1658,7 @@ def main() -> None:
 # pytest plugin (in beta and undocumented ATM)
 
 
-def pytest_addoption(parser: pytest.Parser) -> None:
+def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
     parser.addoption(
         "--run-affected",
         action="store_true",
@@ -1683,7 +1683,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_collection_modifyitems(
     config: pytest.Config,
     items: list[pytest.Item],
-) -> None:
+) -> None:  # pragma: no cover
     if not config.getoption("--run-affected"):
         return
     try:
@@ -1711,7 +1711,7 @@ def pytest_collection_modifyitems(
     items[:] = list(affected_tests)
 
 
-def _file_in_folder(file: Path, folder: Path) -> bool:
+def _file_in_folder(file: Path, folder: Path) -> bool:  # pragma: no cover
     file = file.absolute()
     folder = folder.absolute()
     common = os.path.commonpath([folder, file])
@@ -1724,7 +1724,7 @@ def _affected_packages(
     dependencies: dict[Path, set[Path]],
     *,
     verbose: bool = False,
-) -> set[Path]:
+) -> set[Path]:  # pragma: no cover
     affected_packages = set()
     for file in changed_files:
         for package, deps in dependencies.items():
