@@ -1075,6 +1075,11 @@ def _parse_args() -> argparse.Namespace:
         help="Check existing input hashes in lockfiles before regenerating lock files."
         " This flag is directly passed to `conda-lock`.",
     )
+    parser_lock.add_argument(
+        "--relaxed",
+        action="store_true",
+        help="Only pin direct dependencies, not their dependencies in subpackages.",
+    )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
     # Subparser for the 'version' command
@@ -1355,12 +1360,38 @@ def _conda_lock_global(
     return conda_lock_output
 
 
+def _add_conda_dependency(  # noqa: PLR0913
+    name: str,
+    version: str,
+    url: str,
+    which: CondaPip,
+    pip_packages: CommentedSeq,
+    conda_packages: CommentedSeq,
+    platform: Platform,
+) -> None:
+    selector = PLATFORM_SELECTOR_MAP[platform][0]  # type: ignore[index]
+    comment = f"# [{selector}]"
+    eq = "==" if which == "pip" else "="
+    target_list = pip_packages if which == "pip" else conda_packages
+    if which in ["pip", "conda"]:
+        if url.startswith("git+"):
+            package = f"{name} @ {url}"
+        else:
+            package = f"{name}{eq}{version}"
+        target_list.append(package)
+        target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
+    else:  # pragma: no cover
+        msg = f"Unknown manager: {which}"
+        raise ValueError(msg)
+
+
 def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
     conda_lock_file: str | Path,
     *,
     check_input_hash: bool,
+    strict: bool,
 ) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
@@ -1369,9 +1400,9 @@ def _conda_lock_subpackages(
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
 
-    packages: dict[str, list[tuple[Platform, CondaPip, str, str]]] = {}
+    packages: dict[str, list[tuple[Platform, CondaPip, str, str, dict[str, str]]]] = {}
     for p in data["package"]:
-        tup = (p["platform"], p["manager"], p["version"], p["url"])
+        tup = (p["platform"], p["manager"], p["version"], p["url"], p["dependencies"])
         packages.setdefault(p["name"], []).append(tup)
 
     lock_files = []
@@ -1388,22 +1419,27 @@ def _conda_lock_subpackages(
         for name in requirements.requirements:
             if name not in packages:  # pragma: no cover
                 continue  # might not exists because of platform filtering
-            for _platform, which, version, url in packages[name]:
-                selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
-                comment = f"# [{selector}]"
-                eq = "==" if which == "pip" else "="
-                target_list = pip_packages if which == "pip" else conda_packages
-                if which in ["pip", "conda"]:
-                    if url.startswith("git+"):
-                        package = f"{name} @ {url}"
-                    else:
-                        package = f"{name}{eq}{version}"
-                    target_list.append(package)
-                    target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
-                else:  # pragma: no cover
-                    msg = f"Unknown manager: {which}"
-                    raise ValueError(msg)
-
+            for _platform, which, version, url, dependencies in packages[name]:
+                _add_conda_dependency(
+                    name=name,
+                    version=version,
+                    url=url,
+                    which=which,
+                    pip_packages=pip_packages,
+                    conda_packages=conda_packages,
+                    platform=_platform,
+                )
+                if strict:
+                    for dependency in dependencies:
+                        _add_conda_dependency(
+                            name=dependency,
+                            version=version,
+                            url=url,
+                            which=which,
+                            pip_packages=pip_packages,
+                            conda_packages=conda_packages,
+                            platform=_platform,
+                        )
         env_spec = CondaEnvironmentSpec(
             channels,
             platforms,
@@ -1435,6 +1471,7 @@ def _conda_lock_command(  # noqa: PLR0913
     verbose: bool,
     only_global: bool,
     check_input_hash: bool,
+    strict: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -1450,6 +1487,7 @@ def _conda_lock_command(  # noqa: PLR0913
             depth=depth,
             conda_lock_file=conda_lock_output,
             check_input_hash=check_input_hash,
+            strict=strict,
         )
     mismatches = _check_consistent_lock_files(
         global_lock_file=conda_lock_output,
@@ -1644,6 +1682,7 @@ def main() -> None:
             verbose=args.verbose,
             only_global=args.only_global,
             check_input_hash=args.check_input_hash,
+            strict=not args.relaxed,
         )
     elif args.command == "version":  # pragma: no cover
         txt = (
