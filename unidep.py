@@ -1361,13 +1361,14 @@ def _conda_lock_global(
 
 
 def _add_conda_dependency(  # noqa: PLR0913
+    *,
     name: str,
     version: str,
     url: str,
     which: CondaPip,
+    platform: Platform,
     pip_packages: CommentedSeq,
     conda_packages: CommentedSeq,
-    platform: Platform,
 ) -> None:
     selector = PLATFORM_SELECTOR_MAP[platform][0]  # type: ignore[index]
     comment = f"# [{selector}]"
@@ -1385,6 +1386,14 @@ def _add_conda_dependency(  # noqa: PLR0913
         raise ValueError(msg)
 
 
+class Dependency(NamedTuple):
+    platform: Platform
+    manager: CondaPip
+    version: str
+    url: str
+    dependencies: dict[str, str]
+
+
 def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
@@ -1400,9 +1409,15 @@ def _conda_lock_subpackages(
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
 
-    packages: dict[str, list[tuple[Platform, CondaPip, str, str, dict[str, str]]]] = {}
+    packages: dict[str, list[Dependency]] = {}
     for p in data["package"]:
-        tup = (p["platform"], p["manager"], p["version"], p["url"], p["dependencies"])
+        tup = Dependency(
+            p["platform"],
+            p["manager"],
+            p["version"],
+            p["url"],
+            p["dependencies"],
+        )
         packages.setdefault(p["name"], []).append(tup)
 
     lock_files = []
@@ -1416,30 +1431,35 @@ def _conda_lock_subpackages(
         pip_packages = CommentedSeq()
         conda_packages = CommentedSeq()
         requirements = parse_yaml_requirements(file)
+        seen: set[str] = set()
         for name in requirements.requirements:
             if name not in packages:  # pragma: no cover
                 continue  # might not exists because of platform filtering
-            for _platform, which, version, url, dependencies in packages[name]:
+            for dep in packages[name]:
                 _add_conda_dependency(
                     name=name,
-                    version=version,
-                    url=url,
-                    which=which,
+                    version=dep.version,
+                    url=dep.url,
+                    which=dep.manager,
                     pip_packages=pip_packages,
                     conda_packages=conda_packages,
-                    platform=_platform,
+                    platform=dep.platform,
                 )
+                seen.add(name)
                 if strict:
-                    for dependency in dependencies:
-                        _add_conda_dependency(
-                            name=dependency,
-                            version=version,
-                            url=url,
-                            which=which,
-                            pip_packages=pip_packages,
-                            conda_packages=conda_packages,
-                            platform=_platform,
-                        )
+                    for dependency in dep.dependencies:
+                        if dependency in seen or dependency.startswith("__"):
+                            continue
+                        for sub_dep in packages[dependency]:
+                            _add_conda_dependency(
+                                name=dependency,
+                                version=sub_dep.version,
+                                url=sub_dep.url,
+                                which=sub_dep.manager,
+                                pip_packages=pip_packages,
+                                conda_packages=conda_packages,
+                                platform=sub_dep.platform,
+                            )
         env_spec = CondaEnvironmentSpec(
             channels,
             platforms,
