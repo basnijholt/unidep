@@ -1292,7 +1292,7 @@ def _run_conda_lock(
             " `conda install -c conda-forge conda-lock`."
         )
         raise RuntimeError(msg)
-    if conda_lock_output.exists():
+    if not check_input_hash and conda_lock_output.exists():
         print(f"🗑️ Removing existing `{conda_lock_output}`")
         conda_lock_output.unlink()
     cmd = [
