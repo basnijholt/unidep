@@ -1218,8 +1218,8 @@ def _install_command(  # noqa: PLR0913
         assert len(local_dependencies) <= 1
         names = {k.name: [dep.name for dep in v] for k, v in local_paths.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        for deps in local_paths.values():
-            for dep in deps:
+        for deps in sorted(local_paths.values()):
+            for dep in sorted(deps):
                 _pip_install_local(dep, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
