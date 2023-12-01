@@ -1150,6 +1150,7 @@ def test_conda_lock_command() -> None:
             platform=["linux-64", "osx-arm64"],
             verbose=True,
             only_global=False,
+            check_input_hash=True,
         )
     with YAML(typ="safe") as yaml:
         with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
