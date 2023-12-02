@@ -1405,14 +1405,33 @@ def _conda_lock_subpackage(
         for meta in metas:
             for _platform in platforms:
                 key = (meta.which, _platform, name)
+
                 if key not in packages:
-                    continue
+                    which: CondaPip = "pip" if meta.which == "conda" else "conda"
+                    key = (which, _platform, name)
+                    if key not in packages:
+                        # Sometimes a pip package's dependency, get installed
+                        # with conda
+                        continue
+
                 if key not in locked_keys:
                     locked.append(packages[key])
                     locked_keys.add(key)  # Add identifier to the set
-                for dep in dependencies[meta.which][_platform][name]:
+
+                for dep in (
+                    dependencies.get(meta.which, {}).get(_platform, {}).get(name, set())
+                ):
                     key = (meta.which, _platform, dep)
-                    if key in packages and key not in locked_keys:
+
+                    if key not in packages:
+                        which = "pip" if which == "conda" else "conda"
+                        key = (which, _platform, dep)
+                        if key not in packages:
+                            # Sometimes a pip package's dependency, get installed
+                            # with conda
+                            continue
+
+                    if key not in locked_keys:
                         locked.append(packages[key])
                         locked_keys.add(key)  # Add identifier to the set
 
