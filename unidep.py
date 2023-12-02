@@ -1368,21 +1368,45 @@ def _add_conda_dependency(  # noqa: PLR0913
     platform: Platform,
     pip_packages: CommentedSeq,
     conda_packages: CommentedSeq,
+    dependencies: dict[str, str],
+    seen: set[str],
+    packages: dict[str, list[Dependency]],
+    strict: bool,
 ) -> None:
+    if which not in ["pip", "conda"]:  # pragma: no cover
+        msg = f"Unknown manager: {which}"
+        raise ValueError(msg)
     selector = PLATFORM_SELECTOR_MAP[platform][0]  # type: ignore[index]
     comment = f"# [{selector}]"
     eq = "==" if which == "pip" else "="
     target_list = pip_packages if which == "pip" else conda_packages
-    if which in ["pip", "conda"]:
-        if url.startswith("git+"):
-            package = f"{name} @ {url}"
-        else:
-            package = f"{name}{eq}{version}"
-        target_list.append(package)
-        target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
-    else:  # pragma: no cover
-        msg = f"Unknown manager: {which}"
-        raise ValueError(msg)
+    package = f"{name} @ {url}" if url.startswith("git+") else f"{name}{eq}{version}"
+    target_list.append(package)
+    target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
+    seen.add(name)
+    if not strict:
+        return
+    for dependency in dependencies:
+        if dependency in seen or dependency.startswith("__"):
+            continue
+        for sub_dep in packages.get(dependency, []):
+            # In principle `dependency` should be in `packages`,
+            # however, a pip dependency might e.g., have `msgpack`
+            # as a dependency, where in a Conda package this dependency
+            # is called `msgpack-python`.
+            _add_conda_dependency(
+                name=dependency,
+                version=sub_dep.version,
+                url=sub_dep.url,
+                which=sub_dep.manager,
+                platform=sub_dep.platform,
+                pip_packages=pip_packages,
+                conda_packages=conda_packages,
+                dependencies=sub_dep.dependencies,
+                seen=seen,
+                packages=packages,
+                strict=strict,
+            )
 
 
 class Dependency(NamedTuple):
@@ -1408,9 +1432,8 @@ def _conda_lock_subpackage(  # noqa: PLR0913
     requirements = parse_yaml_requirements(file)
     seen: set[str] = set()
     for name in requirements.requirements:
-        if name not in packages:  # pragma: no cover
-            continue  # might not exists because of platform filtering
-        for dep in packages[name]:
+        for dep in packages.get(name, []):
+            # `name` might not be in `packages` because of platform filtering
             _add_conda_dependency(
                 name=name,
                 version=dep.version,
@@ -1419,26 +1442,11 @@ def _conda_lock_subpackage(  # noqa: PLR0913
                 pip_packages=pip_packages,
                 conda_packages=conda_packages,
                 platform=dep.platform,
+                dependencies=dep.dependencies,
+                seen=seen,
+                packages=packages,
+                strict=strict,
             )
-            seen.add(name)
-            if strict:
-                for dependency in dep.dependencies:
-                    if dependency in seen or dependency.startswith("__"):
-                        continue
-                    for sub_dep in packages.get(dependency, []):
-                        # In principle `dependency` should be in `packages`,
-                        # however, a pip dependency might e.g., have `msgpack`
-                        # as a dependency, where in a Conda package this dependency
-                        # is called `msgpack-python`.
-                        _add_conda_dependency(
-                            name=dependency,
-                            version=sub_dep.version,
-                            url=sub_dep.url,
-                            which=sub_dep.manager,
-                            pip_packages=pip_packages,
-                            conda_packages=conda_packages,
-                            platform=sub_dep.platform,
-                        )
     env_spec = CondaEnvironmentSpec(
         channels,
         platforms,
