@@ -1534,14 +1534,15 @@ def _conda_lock_command(  # noqa: PLR0913
         verbose=verbose,
         check_input_hash=check_input_hash,
     )
-    if not only_global:
-        sub_lock_files = _conda_lock_subpackages(
-            directory=directory,
-            depth=depth,
-            conda_lock_file=conda_lock_output,
-            check_input_hash=check_input_hash,
-            strict=strict,
-        )
+    if only_global:
+        return
+    sub_lock_files = _conda_lock_subpackages(
+        directory=directory,
+        depth=depth,
+        conda_lock_file=conda_lock_output,
+        check_input_hash=check_input_hash,
+        strict=strict,
+    )
     mismatches = _check_consistent_lock_files(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
