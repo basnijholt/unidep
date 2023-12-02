@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import textwrap
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1151,26 +1150,15 @@ def test_conda_lock_command() -> None:
             verbose=True,
             only_global=False,
             check_input_hash=True,
-            strict=True,
         )
     with YAML(typ="safe") as yaml:
-        with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
+        with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
             env1_tmp = yaml.load(f)
-        with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
+        with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
             env2_tmp = yaml.load(f)
 
-    def deps(env: dict[str, Any]) -> list[str]:
-        return [dep.split("=")[0] for dep in env["dependencies"]]
-
-    deps1 = deps(env1_tmp)
-    deps2 = deps(env2_tmp)
-    assert len(deps1) == 3
-    assert len(deps2) == 2
-    assert deps1[0] == "bzip2"
-    assert deps1[1] == "tzdata"
-    assert deps1[2] == "python_abi"
-    assert deps2[0] == "tzdata"
-    assert deps2[1] == "python_abi"
+    assert env1_tmp != env2_tmp
+    pytest.fail("Need to implement this!")
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
