@@ -1393,6 +1393,74 @@ class Dependency(NamedTuple):
     dependencies: dict[str, str]
 
 
+def _conda_lock_subpackage(  # noqa: PLR0913
+    *,
+    file: Path,
+    conda_lock_file: Path,
+    packages: dict[str, list[Dependency]],
+    channels: list[str],
+    platforms: list[Platform],
+    check_input_hash: bool,
+    strict: bool,
+) -> Path:
+    pip_packages = CommentedSeq()
+    conda_packages = CommentedSeq()
+    requirements = parse_yaml_requirements(file)
+    seen: set[str] = set()
+    for name in requirements.requirements:
+        if name not in packages:  # pragma: no cover
+            continue  # might not exists because of platform filtering
+        for dep in packages[name]:
+            _add_conda_dependency(
+                name=name,
+                version=dep.version,
+                url=dep.url,
+                which=dep.manager,
+                pip_packages=pip_packages,
+                conda_packages=conda_packages,
+                platform=dep.platform,
+            )
+            seen.add(name)
+            if strict:
+                for dependency in dep.dependencies:
+                    if dependency in seen or dependency.startswith("__"):
+                        continue
+                    for sub_dep in packages.get(dependency, []):
+                        # In principle `dependency` should be in `packages`,
+                        # however, a pip dependency might e.g., have `msgpack`
+                        # as a dependency, where in a Conda package this dependency
+                        # is called `msgpack-python`.
+                        _add_conda_dependency(
+                            name=dependency,
+                            version=sub_dep.version,
+                            url=sub_dep.url,
+                            which=sub_dep.manager,
+                            pip_packages=pip_packages,
+                            conda_packages=conda_packages,
+                            platform=sub_dep.platform,
+                        )
+    env_spec = CondaEnvironmentSpec(
+        channels,
+        platforms,
+        conda_packages,
+        pip_packages,
+    )
+    tmp_env = file.parent / "tmp.environment.yaml"
+    conda_lock_output = file.parent / "conda-lock.yml"
+    write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
+    _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
+    print(
+        f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
+        f" successfully in `{conda_lock_output}`.",
+    )
+    mismatches = _check_consistent_lock_files(
+        global_lock_file=conda_lock_file,
+        sub_lock_files=[conda_lock_output],
+    )
+    _mismatch_report(mismatches, raises=False)
+    return conda_lock_output
+
+
 def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
@@ -1419,7 +1487,7 @@ def _conda_lock_subpackages(
         )
         packages.setdefault(p["name"], []).append(tup)
 
-    lock_files = []
+    lock_files: list[Path] = []
     # Assumes that different platforms have the same versions
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
@@ -1427,62 +1495,16 @@ def _conda_lock_subpackages(
             # This is a `requirements.yaml` file in the root directory
             # for e.g., common packages, so skip it.
             continue
-        pip_packages = CommentedSeq()
-        conda_packages = CommentedSeq()
-        requirements = parse_yaml_requirements(file)
-        seen: set[str] = set()
-        for name in requirements.requirements:
-            if name not in packages:  # pragma: no cover
-                continue  # might not exists because of platform filtering
-            for dep in packages[name]:
-                _add_conda_dependency(
-                    name=name,
-                    version=dep.version,
-                    url=dep.url,
-                    which=dep.manager,
-                    pip_packages=pip_packages,
-                    conda_packages=conda_packages,
-                    platform=dep.platform,
-                )
-                seen.add(name)
-                if strict:
-                    for dependency in dep.dependencies:
-                        if dependency in seen or dependency.startswith("__"):
-                            continue
-                        for sub_dep in packages.get(dependency, []):
-                            # In principle `dependency` should be in `packages`,
-                            # however, a pip dependency might e.g., have `msgpack`
-                            # as a dependency, where in a Conda package this dependency
-                            # is called `msgpack-python`.
-                            _add_conda_dependency(
-                                name=dependency,
-                                version=sub_dep.version,
-                                url=sub_dep.url,
-                                which=sub_dep.manager,
-                                pip_packages=pip_packages,
-                                conda_packages=conda_packages,
-                                platform=sub_dep.platform,
-                            )
-        env_spec = CondaEnvironmentSpec(
-            channels,
-            platforms,
-            conda_packages,
-            pip_packages,
+        sublock_file = _conda_lock_subpackage(
+            file=file,
+            conda_lock_file=conda_lock_file,
+            packages=packages,
+            channels=channels,
+            platforms=platforms,
+            check_input_hash=check_input_hash,
+            strict=strict,
         )
-        tmp_env = file.parent / "tmp.environment.yaml"
-        conda_lock_output = file.parent / "conda-lock.yml"
-        write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
-        _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
-        print(
-            f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
-            f" successfully in `{conda_lock_output}`.",
-        )
-        lock_files.append(conda_lock_output)
-        mismatches = _check_consistent_lock_files(
-            global_lock_file=conda_lock_file,
-            sub_lock_files=[conda_lock_output],
-        )
-        _mismatch_report(mismatches, raises=False)
+        lock_files.append(sublock_file)
     return lock_files
 
 
