@@ -1354,14 +1354,6 @@ def _conda_lock_global(
     return conda_lock_output
 
 
-class Dependency(NamedTuple):
-    platform: Platform
-    manager: CondaPip
-    version: str
-    url: str
-    dependencies: dict[str, str]
-
-
 def _dependency_graph(
     conda_lock_packages: list[dict[str, Any]],
 ) -> dict[CondaPip, dict[Platform, dict[str, set[str]]]]:
@@ -1407,23 +1399,27 @@ def _conda_lock_subpackage(
 ) -> Path:
     requirements = parse_yaml_requirements(file)
     locked = []
+    locked_keys: set[tuple[CondaPip, Platform, str]] = set()
+
     for name, metas in requirements.requirements.items():
         for meta in metas:
             for _platform in platforms:
                 key = (meta.which, _platform, name)
                 if key not in packages:
                     continue
-                locked.append(packages[key])
+                if key not in locked_keys:
+                    locked.append(packages[key])
+                    locked_keys.add(key)  # Add identifier to the set
                 for dep in dependencies[meta.which][_platform][name]:
-                    if dep.startswith("__"):
-                        continue
-                    dep_key = (meta.which, _platform, dep)
-                    if dep_key not in packages:
-                        continue
-                    locked.append(packages[dep_key])
+                    key = (meta.which, _platform, dep)
+                    if key in packages and key not in locked_keys:
+                        locked.append(packages[key])
+                        locked_keys.add(key)  # Add identifier to the set
+
     yaml = YAML(typ="safe")
     yaml.default_flow_style = False
     yaml.width = 4096
+    yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
     conda_lock_output = file.parent / "conda-lock.yml"
     metadata = {
         "content_hash": {p: "unidep-is-awesome" for p in platforms},
@@ -1470,6 +1466,7 @@ def _conda_lock_subpackages(
             channels=channels,
             platforms=platforms,
         )
+        print(f"📝 Generated lock file for `{file}`: `{sublock_file}`")
         lock_files.append(sublock_file)
     return lock_files
 
