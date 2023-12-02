@@ -213,7 +213,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         selector="comment",
     )
     assert env.conda == ["yolo", "bar"]
-    assert env.pip == expected_pip
+    assert env.pip == ["pip-package", "pip-package2"]
     write_conda_environment_file(env, str(tmp_path / "environment.yaml"))
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
@@ -1209,17 +1209,11 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
         selector="comment",
     )
     assert env_spec.conda == []
-    assert env_spec.pip == [
-        "qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "slurm-usage",
-    ]
+    assert env_spec.pip == ["qsimcirq", "slurm-usage"]
     write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
     with (tmp_path / "environment.yaml").open() as f:
         lines = "".join(f.readlines())
-    assert (
-        "- qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'  # [linux64]"
-        in lines
-    )
+    assert "- qsimcirq  # [linux64]" in lines
     assert "- slurm-usage" in lines
     assert "  - pip:" in lines
 
