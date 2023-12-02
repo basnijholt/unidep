@@ -17,7 +17,7 @@ import warnings
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -1469,6 +1469,32 @@ def _conda_lock_subpackage(  # noqa: PLR0913
     return conda_lock_output
 
 
+def _dependency_graph(conda_lock_packages: list[dict[str, Any]]) -> dict[str, set[str]]:
+    dependencies = defaultdict(set)
+
+    def _recurse(
+        package_name: str,
+        resolved: dict[str, set[str]],
+        dependencies: dict[str, set[str]],
+    ) -> set[str]:
+        if package_name in resolved:
+            return resolved[package_name]
+        all_deps = set(dependencies[package_name])
+        for dep in dependencies[package_name]:
+            all_deps.update(_recurse(dep, resolved, dependencies))
+        resolved[package_name] = all_deps
+        return all_deps
+
+    for p in conda_lock_packages:
+        dependencies[p["name"]].update(p["dependencies"])
+
+    resolved: dict[str, set[str]] = {}
+    package_names = list(dependencies.keys())
+    for package in package_names:
+        _recurse(package, resolved, dependencies)
+    return resolved
+
+
 def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
@@ -1483,6 +1509,7 @@ def _conda_lock_subpackages(
         data = yaml.load(fp)
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
+    _dependencies = _dependency_graph(data["package"])
 
     packages: dict[str, list[Dependency]] = {}
     for p in data["package"]:
