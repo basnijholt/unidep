@@ -1565,7 +1565,7 @@ def _conda_lock_subpackage(
 
     locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
 
-    if yaml is None:
+    if yaml is None:  # pragma: no cover
         # When passing the same YAML instance that is used to load the file,
         # we preserve the order of the keys.
         yaml = YAML(typ="rt")
@@ -1600,14 +1600,14 @@ def _download_and_get_package_names(
 ) -> list[str] | None:
     try:
         import conda_package_handling.api
-    except ImportError:
+    except ImportError:  # pragma: no cover
         print(
             "❌ Could not import `conda-package-handling` module."
             " Please install it with `pip install conda-package-handling`.",
         )
         sys.exit(1)
     url = package["url"]
-    if package["manager"] != "conda":
+    if package["manager"] != "conda":  # pragma: no cover
         return None
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
