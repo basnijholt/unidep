@@ -18,6 +18,7 @@ import urllib.request
 import warnings
 from collections import defaultdict
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -1474,6 +1475,14 @@ def _conda_lock_subpackage(  # noqa: PLR0912
     locked_keys: set[tuple[CondaPip, Platform, str]] = set()
     missing_keys: set[tuple[CondaPip, Platform, str]] = set()
 
+    add_pkg = partial(
+        _add_package_with_dependencies_to_lock,
+        lock_spec=lock_spec,
+        locked=locked,
+        locked_keys=locked_keys,
+        missing_keys=missing_keys,
+    )
+
     for name, metas in requirements.requirements.items():
         if name.startswith("__"):
             continue  # Skip meta packages
@@ -1487,15 +1496,7 @@ def _conda_lock_subpackage(  # noqa: PLR0912
             for _platform in _platforms:
                 if _platform not in platforms:
                     continue
-                _add_package_with_dependencies_to_lock(
-                    name=name,
-                    which=meta.which,
-                    platform=_platform,
-                    lock_spec=lock_spec,
-                    locked=locked,
-                    locked_keys=locked_keys,
-                    missing_keys=missing_keys,
-                )
+                add_pkg(name=name, which=meta.which, platform=_platform)
 
     # Remove packages that are locked with conda
     # from the missing keys that appear in the pip section
@@ -1508,15 +1509,7 @@ def _conda_lock_subpackage(  # noqa: PLR0912
     for which, _platform, name in list(missing_keys):
         if which == "pip":
             missing_keys.discard((which, _platform, name))
-            _add_package_with_dependencies_to_lock(
-                name=name,
-                which="conda",
-                platform=_platform,
-                lock_spec=lock_spec,
-                locked=locked,
-                locked_keys=locked_keys,
-                missing_keys=missing_keys,
-            )
+            add_pkg(name=name, which="conda", platform=_platform)
             if ("conda", _platform, name) in missing_keys:
                 # If the package wasn't added, restore the missing key
                 missing_keys.discard(("conda", _platform, name))
@@ -1528,16 +1521,27 @@ def _conda_lock_subpackage(  # noqa: PLR0912
         # on Conda the name might be different than on PyPI. For example,
         # `msgpack` (pip) and `msgpack-python` (conda).
         options = {
-            (which, platform, name): _name
+            (which, platform, name): pkg
             for which, platform, name in missing_keys
-            for _which, _platform, _name in lock_spec.packages
+            for (_which, _platform, _name), pkg in lock_spec.packages.items()
             if which == "pip"
             and _which == "conda"
             and platform == _platform
             and name in _name
         }
+        for (which, _platform, name), pkg in options.items():
+            names = _download_and_get_package_names(pkg)
+            if names is None:
+                continue
+            if name in names:
+                add_pkg(
+                    name=pkg["name"],
+                    which=pkg["manager"],
+                    platform=pkg["platform"],
+                )
+                missing_keys.discard((which, _platform, name))
         print(f"❌ Missing keys {missing_keys}")
-        print(f"📝 Found options {options}")
+
     yaml = YAML(typ="safe")
     yaml.default_flow_style = False
     yaml.width = 4096
