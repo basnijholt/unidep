@@ -1496,10 +1496,15 @@ def _conda_lock_subpackage(  # noqa: PLR0912
                     locked_keys=locked_keys,
                     missing_keys=missing_keys,
                 )
+
+    # Remove packages that are locked with conda
+    # from the missing keys that appear in the pip section
     for which, _platform, name in locked_keys:
         if which == "conda":
             key = ("pip", _platform, name)
             missing_keys.discard(key)  # type: ignore[arg-type]
+
+    # Add missing pip packages using conda (if possible)
     for which, _platform, name in list(missing_keys):
         if which == "pip":
             missing_keys.discard((which, _platform, name))
@@ -1518,8 +1523,10 @@ def _conda_lock_subpackage(  # noqa: PLR0912
                 missing_keys.add(("pip", _platform, name))
 
     if missing_keys:
-        # get packages with similar names, then download
-        # them, then check what the name is.
+        # Finally there might be some pip packages that are missing
+        # because in the lock file they are installed with conda, however,
+        # on Conda the name might be different than on PyPI. For example,
+        # `msgpack` (pip) and `msgpack-python` (conda).
         options = {
             (which, platform, name): _name
             for which, platform, name in missing_keys
