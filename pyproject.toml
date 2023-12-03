@@ -21,6 +21,8 @@ Homepage = "https://github.com/basnijholt/unidep"
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
 conda-lock = ["conda-lock", "conda-package-handling"]
 pytest = ["pytest", "GitPython"]  # The pytest plugin
+# Everything except testing
+all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
 
 [project.scripts]
 unidep = "unidep:main"
