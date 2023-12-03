@@ -13,6 +13,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
 import warnings
 from collections import defaultdict
 from copy import deepcopy
@@ -1510,8 +1512,10 @@ def _conda_lock_subpackage(
                 locked_keys=locked_keys,
                 missing_keys=missing_keys,
             )
-
-    print(f"\n\n📝 Missing keys {missing_keys}\n\n")
+    if missing_keys:
+        # get packages with similar names, then download
+        # them, then check what the name is.
+        print(f"❌ Missing keys {missing_keys}")
     yaml = YAML(typ="safe")
     yaml.default_flow_style = False
     yaml.width = 4096
@@ -1526,6 +1530,56 @@ def _conda_lock_subpackage(
     with conda_lock_output as fp:
         yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
     return conda_lock_output
+
+
+def _download_and_get_package_names(
+    package: dict[str, Any],
+    component: Literal["info", "pkg"] | None = None,
+) -> list[str] | None:
+    try:
+        import conda_package_handling.api
+    except ImportError:
+        print(
+            "❌ Could not import `conda-package-handling` module."
+            " Please install it with `pip install conda-package-handling`.",
+        )
+        sys.exit(1)
+    url = package["url"]
+    if package["manager"] != "conda":
+        return None
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        file_path = temp_path / Path(url).name
+        urllib.request.urlretrieve(url, str(file_path))  # noqa: S310
+        conda_package_handling.api.extract(
+            str(file_path),
+            dest_dir=str(temp_path),
+            components=component,
+        )
+
+        if (temp_path / "site-packages").exists():
+            site_packages_path = temp_path / "site-packages"
+        elif (temp_path / "lib").exists():
+            lib_path = temp_path / "lib"
+            python_dirs = [
+                d
+                for d in lib_path.iterdir()
+                if d.is_dir() and d.name.startswith("python")
+            ]
+            if not python_dirs:
+                return None
+            site_packages_path = python_dirs[0] / "site-packages"
+        else:
+            return None
+
+        if not site_packages_path.exists():
+            return None
+
+        return [
+            d.name
+            for d in site_packages_path.iterdir()
+            if d.is_dir() and not d.name.endswith((".dist-info", ".egg-info"))
+        ]
 
 
 def _conda_lock_subpackages(

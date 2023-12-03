@@ -19,7 +19,7 @@ Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
 test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
-conda-lock = ["conda-lock"]
+conda-lock = ["conda-lock", "conda-package-handling"]
 pytest = ["pytest", "GitPython"]  # The pytest plugin
 
 [project.scripts]
