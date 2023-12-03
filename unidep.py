@@ -1462,7 +1462,7 @@ def _add_package_with_dependencies_to_lock(
             missing_keys.add(missing_key)
 
 
-def _conda_lock_subpackage(
+def _conda_lock_subpackage(  # noqa: PLR0912
     *,
     file: Path,
     lock_spec: LockSpec,
@@ -1501,8 +1501,8 @@ def _conda_lock_subpackage(
             key = ("pip", _platform, name)
             missing_keys.discard(key)  # type: ignore[arg-type]
     for which, _platform, name in list(missing_keys):
-        missing_keys.discard((which, _platform, name))
         if which == "pip":
+            missing_keys.discard((which, _platform, name))
             _add_package_with_dependencies_to_lock(
                 name=name,
                 which="conda",
@@ -1512,10 +1512,25 @@ def _conda_lock_subpackage(
                 locked_keys=locked_keys,
                 missing_keys=missing_keys,
             )
+            if ("conda", _platform, name) in missing_keys:
+                # If the package wasn't added, restore the missing key
+                missing_keys.discard(("conda", _platform, name))
+                missing_keys.add(("pip", _platform, name))
+
     if missing_keys:
         # get packages with similar names, then download
         # them, then check what the name is.
+        options = {
+            (which, platform, name): _name
+            for which, platform, name in missing_keys
+            for _which, _platform, _name in lock_spec.packages
+            if which == "pip"
+            and _which == "conda"
+            and platform == _platform
+            and name in _name
+        }
         print(f"❌ Missing keys {missing_keys}")
+        print(f"📝 Found options {options}")
     yaml = YAML(typ="safe")
     yaml.default_flow_style = False
     yaml.width = 4096
