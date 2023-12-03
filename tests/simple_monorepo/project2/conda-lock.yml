@@ -1,6 +1,6 @@
-# This file is created and managed by `unidep` 0.22.0.
+# This file is created and managed by `unidep` 0.23.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep conda-lock -d tests/simple_monorepo -v`
+# File generated with: `unidep -vvv`
 #
 # This environment can be installed with
 # `micromamba create -f conda-lock.yml -n myenv`
@@ -10,14 +10,14 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: 0f48e83a78c9889e48f7bda74e2a8f1198a1bdf17ec2d885597aa0c4ff926999
+    osx-arm64: unidep-is-awesome
   channels:
   - url: conda-forge
     used_env_vars: []
   platforms:
   - osx-arm64
   sources:
-  - tmp.environment.yaml
+  - /Users/bas.nijholt/Work/unidep/tests/simple_monorepo/project2/requirements.yaml
 package:
 - name: python_abi
   version: '3.12'

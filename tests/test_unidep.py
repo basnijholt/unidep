@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import textwrap
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -213,7 +212,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         selector="comment",
     )
     assert env.conda == ["yolo", "bar"]
-    assert env.pip == expected_pip
+    assert env.pip == ["pip-package", "pip-package2"]
     write_conda_environment_file(env, str(tmp_path / "environment.yaml"))
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
@@ -1153,23 +1152,102 @@ def test_conda_lock_command() -> None:
             check_input_hash=True,
         )
     with YAML(typ="safe") as yaml:
-        with (simple_monorepo / "project1" / "tmp.environment.yaml").open() as f:
-            env1_tmp = yaml.load(f)
-        with (simple_monorepo / "project2" / "tmp.environment.yaml").open() as f:
-            env2_tmp = yaml.load(f)
+        with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
+            lock1 = yaml.load(f)
+        with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
+            lock2 = yaml.load(f)
+    assert [p["name"] for p in lock1["package"]] == ["bzip2", "python_abi", "tzdata"]
+    assert [p["name"] for p in lock2["package"]] == ["python_abi", "tzdata"]
 
-    def deps(env: dict[str, Any]) -> list[str]:
-        return [dep.split("=")[0] for dep in env["dependencies"]]
 
-    deps1 = deps(env1_tmp)
-    deps2 = deps(env2_tmp)
-    assert len(deps1) == 3
-    assert len(deps2) == 2
-    assert deps1[0] == "bzip2"
-    assert deps1[1] == "tzdata"
-    assert deps1[2] == "python_abi"
-    assert deps2[0] == "tzdata"
-    assert deps2[1] == "python_abi"
+def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
+    simple_monorepo = Path(__file__).parent / "test-pip-package-with-conda-dependency"
+    with patch("unidep._run_conda_lock", return_value=None):
+        _conda_lock_command(
+            depth=1,
+            directory=simple_monorepo,
+            platform=["linux-64"],
+            verbose=True,
+            only_global=False,
+            check_input_hash=True,
+        )
+    with YAML(typ="safe") as yaml:
+        with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
+            lock1 = yaml.load(f)
+        with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
+            lock2 = yaml.load(f)
+    assert [p["name"] for p in lock1["package"]] == [
+        "_libgcc_mutex",
+        "_openmp_mutex",
+        "bzip2",
+        "ca-certificates",
+        "ld_impl_linux-64",
+        "libexpat",
+        "libffi",
+        "libgcc-ng",
+        "libgomp",
+        "libnsl",
+        "libsqlite",
+        "libstdcxx-ng",
+        "libuuid",
+        "libzlib",
+        "ncurses",
+        "openssl",
+        "pybind11",
+        "pybind11-global",
+        "python",
+        "python_abi",
+        "readline",
+        "tk",
+        "tzdata",
+        "xz",
+    ]
+    assert [p["name"] for p in lock2["package"]] == [
+        "_libgcc_mutex",
+        "_openmp_mutex",
+        "bzip2",
+        "ca-certificates",
+        "ld_impl_linux-64",
+        "libexpat",
+        "libffi",
+        "libgcc-ng",
+        "libgomp",
+        "libnsl",
+        "libsqlite",
+        "libstdcxx-ng",
+        "libuuid",
+        "libzlib",
+        "ncurses",
+        "openssl",
+        "pybind11",
+        "pybind11-global",
+        "python",
+        "python_abi",
+        "readline",
+        "tk",
+        "tzdata",
+        "xz",
+        "cutde",
+        "mako",
+        "markupsafe",
+        "rsync-time-machine",
+    ]
+
+
+def test_conda_lock_command_pip_and_conda_different_name(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    simple_monorepo = Path(__file__).parent / "test-pip-and-conda-different-name"
+    with patch("unidep._run_conda_lock", return_value=None):
+        _conda_lock_command(
+            depth=1,
+            directory=simple_monorepo,
+            platform=["linux-64"],
+            verbose=True,
+            only_global=False,
+            check_input_hash=True,
+        )
+    assert "Missing keys" not in capsys.readouterr().out
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
@@ -1208,17 +1286,11 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
         selector="comment",
     )
     assert env_spec.conda == []
-    assert env_spec.pip == [
-        "qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "slurm-usage",
-    ]
+    assert env_spec.pip == ["qsimcirq", "slurm-usage"]
     write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
     with (tmp_path / "environment.yaml").open() as f:
         lines = "".join(f.readlines())
-    assert (
-        "- qsimcirq; sys_platform == 'linux' and platform_machine == 'x86_64'  # [linux64]"
-        in lines
-    )
+    assert "- qsimcirq  # [linux64]" in lines
     assert "- slurm-usage" in lines
     assert "  - pip:" in lines
 

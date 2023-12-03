@@ -1,0 +1,9 @@
+name: project2
+channels:
+  - conda-forge
+dependencies:
+  - conda: python=3.10
+  - pip: fluent-logger  # depends on msgpack, but on conda-forge it's called msgpack-python
+  - pip: rsync-time-machine
+platforms:
+  - linux-64

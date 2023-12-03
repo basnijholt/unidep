@@ -13,11 +13,14 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
 import warnings
 from collections import defaultdict
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -353,7 +356,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
-def _extract_project_dependencies(  # noqa: PLR0913
+def _extract_project_dependencies(
     path: Path,
     base_path: Path,
     processed: set,
@@ -368,28 +371,27 @@ def _extract_project_dependencies(  # noqa: PLR0913
     yaml = YAML(typ="safe")
     with path.open() as f:
         data = yaml.load(f)
-        for include in data.get("includes", []):
-            include_path = _include_path(path.parent / include)
-            if not include_path.exists():
-                msg = f"Include file `{include_path}` does not exist."
-                raise FileNotFoundError(msg)
-            include_base_path = str(include_path.parent)
-            if include_base_path == str(base_path):
-                continue
-            if not check_pip_installable or (
-                _is_pip_installable(base_path)
-                and _is_pip_installable(include_path.parent)
-            ):
-                dependencies[str(base_path)].add(include_base_path)
-            if verbose:
-                print(f"🔗 Adding include `{include_path}`")
-            _extract_project_dependencies(
-                include_path,
-                base_path,
-                processed,
-                dependencies,
-                check_pip_installable=check_pip_installable,
-            )
+    for include in data.get("includes", []):
+        include_path = _include_path(path.parent / include)
+        if not include_path.exists():
+            msg = f"Include file `{include_path}` does not exist."
+            raise FileNotFoundError(msg)
+        include_base_path = str(include_path.parent)
+        if include_base_path == str(base_path):
+            continue
+        if not check_pip_installable or (
+            _is_pip_installable(base_path) and _is_pip_installable(include_path.parent)
+        ):
+            dependencies[str(base_path)].add(include_base_path)
+        if verbose:
+            print(f"🔗 Adding include `{include_path}`")
+        _extract_project_dependencies(
+            include_path,
+            base_path,
+            processed,
+            dependencies,
+            check_pip_installable=check_pip_installable,
+        )
 
 
 def parse_project_dependencies(
@@ -696,9 +698,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     # should be spread into two lines, one with [linux] and the
                     # other with [win].
                     for _platform in _platforms:
+                        # We're not adding a PEP508 marker here
                         _platform = cast(Platform, _platform)
-                        marker = _build_pep508_environment_marker([_platform])  # type: ignore[arg-type]
-                        dep_str = f"{dep_str}; {marker}"
                         pip_deps.append(dep_str)
                         _add_comment(pip_deps, _platform)
             else:
@@ -1154,7 +1155,7 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)  # noqa: S603
 
 
-def _install_command(  # noqa: PLR0913
+def _install_command(
     *,
     conda_executable: str,
     dry_run: bool,
@@ -1226,7 +1227,7 @@ def _install_command(  # noqa: PLR0913
         print("✅ All dependencies installed successfully.")
 
 
-def _merge_command(  # noqa: PLR0913
+def _merge_command(
     *,
     depth: int,
     directory: Path,
@@ -1355,26 +1356,307 @@ def _conda_lock_global(
     return conda_lock_output
 
 
+class LockSpec(NamedTuple):
+    packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]]
+    dependencies: dict[tuple[CondaPip, Platform, str], set[str]]
+
+
+def _parse_conda_lock_packages(
+    conda_lock_packages: list[dict[str, Any]],
+) -> LockSpec:
+    deps: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(set)),
+    )
+
+    def _recurse(
+        package_name: str,
+        resolved: dict[str, set[str]],
+        dependencies: dict[str, set[str]],
+    ) -> set[str]:
+        if package_name in resolved:
+            return resolved[package_name]
+        all_deps = set(dependencies[package_name])
+        for dep in dependencies[package_name]:
+            all_deps.update(_recurse(dep, resolved, dependencies))
+        resolved[package_name] = all_deps
+        return all_deps
+
+    for p in conda_lock_packages:
+        deps[p["manager"]][p["platform"]][p["name"]].update(p["dependencies"])
+
+    resolved: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = {}
+    for manager, platforms in deps.items():
+        resolved_manager = resolved.setdefault(manager, {})
+        for _platform, pkgs in platforms.items():
+            _resolved: dict[str, set[str]] = {}
+            for package in list(pkgs):
+                _recurse(package, _resolved, pkgs)
+            resolved_manager[_platform] = _resolved
+
+    packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]] = {}
+    for p in conda_lock_packages:
+        key = (p["manager"], p["platform"], p["name"])
+        assert key not in packages
+        packages[key] = p
+
+    # Flatten the `dependencies` dict to same format as `packages`
+    dependencies = {
+        (which, platform, name): deps
+        for which, platforms in resolved.items()
+        for platform, pkgs in platforms.items()
+        for name, deps in pkgs.items()
+    }
+    return LockSpec(packages, dependencies)
+
+
+def _add_package_to_lock(
+    *,
+    name: str,
+    which: CondaPip,
+    platform: Platform,
+    packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]],
+    locked: list[dict[str, Any]],
+    locked_keys: set[tuple[CondaPip, Platform, str]],
+) -> tuple[CondaPip, Platform, str] | None:
+    key = (which, platform, name)
+    if key not in packages:
+        return key
+    if key not in locked_keys:
+        locked.append(packages[key])
+        locked_keys.add(key)  # Add identifier to the set
+    return None
+
+
+def _add_package_with_dependencies_to_lock(
+    *,
+    name: str,
+    which: CondaPip,
+    platform: Platform,
+    lock_spec: LockSpec,
+    locked: list[dict[str, Any]],
+    locked_keys: set[tuple[CondaPip, Platform, str]],
+    missing_keys: set[tuple[CondaPip, Platform, str]],
+) -> None:
+    missing_key = _add_package_to_lock(
+        name=name,
+        which=which,
+        platform=platform,
+        packages=lock_spec.packages,
+        locked=locked,
+        locked_keys=locked_keys,
+    )
+    if missing_key is not None:
+        missing_keys.add(missing_key)
+    for dep in lock_spec.dependencies.get((which, platform, name), set()):
+        if dep.startswith("__"):
+            continue  # Skip meta packages
+        missing_key = _add_package_to_lock(
+            name=dep,
+            which=which,
+            platform=platform,
+            packages=lock_spec.packages,
+            locked=locked,
+            locked_keys=locked_keys,
+        )
+        if missing_key is not None:
+            missing_keys.add(missing_key)
+
+
+def _handle_missing_keys(
+    lock_spec: LockSpec,
+    locked_keys: set[tuple[CondaPip, Platform, str]],
+    missing_keys: set[tuple[CondaPip, Platform, str]],
+    locked: list[dict[str, Any]],
+) -> None:
+    add_pkg = partial(
+        _add_package_with_dependencies_to_lock,
+        lock_spec=lock_spec,
+        locked=locked,
+        locked_keys=locked_keys,
+        missing_keys=missing_keys,
+    )
+
+    # Do not re-add packages that with pip that are
+    # already added with conda
+    for which, _platform, name in locked_keys:
+        if which == "conda":
+            key = ("pip", _platform, name)
+            missing_keys.discard(key)  # type: ignore[arg-type]
+
+    # Add missing pip packages using conda (if possible)
+    for which, _platform, name in list(missing_keys):
+        if which == "pip":
+            missing_keys.discard((which, _platform, name))
+            add_pkg(name=name, which="conda", platform=_platform)
+            if ("conda", _platform, name) in missing_keys:
+                # If the package wasn't added, restore the missing key
+                missing_keys.discard(("conda", _platform, name))
+                missing_keys.add(("pip", _platform, name))
+
+    if not missing_keys:
+        return
+
+    # Finally there might be some pip packages that are missing
+    # because in the lock file they are installed with conda, however,
+    # on Conda the name might be different than on PyPI. For example,
+    # `msgpack` (pip) and `msgpack-python` (conda).
+    options = {
+        (which, platform, name): pkg
+        for which, platform, name in missing_keys
+        for (_which, _platform, _name), pkg in lock_spec.packages.items()
+        if which == "pip"
+        and _which == "conda"
+        and platform == _platform
+        and name in _name
+    }
+    for (which, _platform, name), pkg in options.items():
+        names = _download_and_get_package_names(pkg)
+        if names is None:
+            continue
+        if name in names:
+            add_pkg(name=pkg["name"], which=pkg["manager"], platform=pkg["platform"])
+            missing_keys.discard((which, _platform, name))
+    if missing_keys:
+        print(f"❌ Missing keys {missing_keys}")
+
+
+def _conda_lock_subpackage(
+    *,
+    file: Path,
+    lock_spec: LockSpec,
+    channels: list[str],
+    platforms: list[Platform],
+    yaml: YAML | None,  # Passing this to preserve order!
+) -> Path:
+    requirements = parse_yaml_requirements(file)
+    locked: list[dict[str, Any]] = []
+    locked_keys: set[tuple[CondaPip, Platform, str]] = set()
+    missing_keys: set[tuple[CondaPip, Platform, str]] = set()
+
+    add_pkg = partial(
+        _add_package_with_dependencies_to_lock,
+        lock_spec=lock_spec,
+        locked=locked,
+        locked_keys=locked_keys,
+        missing_keys=missing_keys,
+    )
+
+    for name, metas in requirements.requirements.items():
+        if name.startswith("__"):
+            continue  # Skip meta packages
+        for meta in metas:
+            _platforms = meta.platforms()
+            if _platforms is None:
+                _platforms = platforms
+            else:
+                _platforms = [p for p in _platforms if p in platforms]
+
+            for _platform in _platforms:
+                if _platform not in platforms:
+                    continue
+                add_pkg(name=name, which=meta.which, platform=_platform)
+    _handle_missing_keys(
+        lock_spec=lock_spec,
+        locked_keys=locked_keys,
+        missing_keys=missing_keys,
+        locked=locked,
+    )
+
+    locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
+
+    if yaml is None:  # pragma: no cover
+        # When passing the same YAML instance that is used to load the file,
+        # we preserve the order of the keys.
+        yaml = YAML(typ="rt")
+    yaml.default_flow_style = False
+    yaml.width = 4096
+    yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
+    conda_lock_output = file.parent / "conda-lock.yml"
+    metadata = {
+        "content_hash": {p: "unidep-is-awesome" for p in platforms},
+        "channels": [{"url": c, "used_env_vars": []} for c in channels],
+        "platforms": platforms,
+        "sources": [str(file)],
+    }
+    with conda_lock_output.open("w") as fp:
+        yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
+    _add_comment_to_file(
+        conda_lock_output,
+        extra_lines=[
+            "#",
+            "# This environment can be installed with",
+            "# `micromamba create -f conda-lock.yml -n myenv`",
+            "# This file is a `conda-lock` file generated via `unidep`.",
+            "# For details see https://conda.github.io/conda-lock/",
+        ],
+    )
+    return conda_lock_output
+
+
+def _download_and_get_package_names(
+    package: dict[str, Any],
+    component: Literal["info", "pkg"] | None = None,
+) -> list[str] | None:
+    try:
+        import conda_package_handling.api
+    except ImportError:  # pragma: no cover
+        print(
+            "❌ Could not import `conda-package-handling` module."
+            " Please install it with `pip install conda-package-handling`.",
+        )
+        sys.exit(1)
+    url = package["url"]
+    if package["manager"] != "conda":  # pragma: no cover
+        return None
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        file_path = temp_path / Path(url).name
+        urllib.request.urlretrieve(url, str(file_path))  # noqa: S310
+        conda_package_handling.api.extract(
+            str(file_path),
+            dest_dir=str(temp_path),
+            components=component,
+        )
+
+        if (temp_path / "site-packages").exists():
+            site_packages_path = temp_path / "site-packages"
+        elif (temp_path / "lib").exists():
+            lib_path = temp_path / "lib"
+            python_dirs = [
+                d
+                for d in lib_path.iterdir()
+                if d.is_dir() and d.name.startswith("python")
+            ]
+            if not python_dirs:
+                return None
+            site_packages_path = python_dirs[0] / "site-packages"
+        else:
+            return None
+
+        if not site_packages_path.exists():
+            return None
+
+        return [
+            d.name
+            for d in site_packages_path.iterdir()
+            if d.is_dir() and not d.name.endswith((".dist-info", ".egg-info"))
+        ]
+
+
 def _conda_lock_subpackages(
     directory: str | Path,
     depth: int,
     conda_lock_file: str | Path,
-    *,
-    check_input_hash: bool,
 ) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
-    with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
+    with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
+    lock_spec = _parse_conda_lock_packages(data["package"])
 
-    packages: dict[str, list[tuple[Platform, CondaPip, str, str]]] = {}
-    for p in data["package"]:
-        tup = (p["platform"], p["manager"], p["version"], p["url"])
-        packages.setdefault(p["name"], []).append(tup)
-
-    lock_files = []
+    lock_files: list[Path] = []
     # Assumes that different platforms have the same versions
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
@@ -1382,52 +1664,19 @@ def _conda_lock_subpackages(
             # This is a `requirements.yaml` file in the root directory
             # for e.g., common packages, so skip it.
             continue
-        pip_packages = CommentedSeq()
-        conda_packages = CommentedSeq()
-        requirements = parse_yaml_requirements(file)
-        for name in requirements.requirements:
-            if name not in packages:  # pragma: no cover
-                continue  # might not exists because of platform filtering
-            for _platform, which, version, url in packages[name]:
-                selector = PLATFORM_SELECTOR_MAP[_platform][0]  # type: ignore[index]
-                comment = f"# [{selector}]"
-                eq = "==" if which == "pip" else "="
-                target_list = pip_packages if which == "pip" else conda_packages
-                if which in ["pip", "conda"]:
-                    if url.startswith("git+"):
-                        package = f"{name} @ {url}"
-                    else:
-                        package = f"{name}{eq}{version}"
-                    target_list.append(package)
-                    target_list.yaml_add_eol_comment(comment, len(target_list) - 1)
-                else:  # pragma: no cover
-                    msg = f"Unknown manager: {which}"
-                    raise ValueError(msg)
-
-        env_spec = CondaEnvironmentSpec(
-            channels,
-            platforms,
-            conda_packages,
-            pip_packages,
+        sublock_file = _conda_lock_subpackage(
+            file=file,
+            lock_spec=lock_spec,
+            channels=channels,
+            platforms=platforms,
+            yaml=yaml,
         )
-        tmp_env = file.parent / "tmp.environment.yaml"
-        conda_lock_output = file.parent / "conda-lock.yml"
-        write_conda_environment_file(env_spec, str(tmp_env), file.parent.name)
-        _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
-        print(
-            f"✅ Subpackage (`{file.parent.name}`) dependencies locked"
-            f" successfully in `{conda_lock_output}`.",
-        )
-        lock_files.append(conda_lock_output)
-        mismatches = _check_consistent_lock_files(
-            global_lock_file=conda_lock_file,
-            sub_lock_files=[conda_lock_output],
-        )
-        _mismatch_report(mismatches, raises=False)
+        print(f"📝 Generated lock file for `{file}`: `{sublock_file}`")
+        lock_files.append(sublock_file)
     return lock_files
 
 
-def _conda_lock_command(  # noqa: PLR0913
+def _conda_lock_command(
     *,
     depth: int,
     directory: Path,
@@ -1444,13 +1693,13 @@ def _conda_lock_command(  # noqa: PLR0913
         verbose=verbose,
         check_input_hash=check_input_hash,
     )
-    if not only_global:
-        sub_lock_files = _conda_lock_subpackages(
-            directory=directory,
-            depth=depth,
-            conda_lock_file=conda_lock_output,
-            check_input_hash=check_input_hash,
-        )
+    if only_global:
+        return
+    sub_lock_files = _conda_lock_subpackages(
+        directory=directory,
+        depth=depth,
+        conda_lock_file=conda_lock_output,
+    )
     mismatches = _check_consistent_lock_files(
         global_lock_file=conda_lock_output,
         sub_lock_files=sub_lock_files,
@@ -1468,6 +1717,7 @@ class Mismatch(NamedTuple):
     version_global: str
     platform: Platform
     lock_file: Path
+    which: CondaPip
 
 
 def _check_consistent_lock_files(
@@ -1478,10 +1728,11 @@ def _check_consistent_lock_files(
     with global_lock_file.open() as fp:
         global_data = yaml.load(fp)
 
-    # Creating a nested dictionary structure: {package_name: {platform: version}}
-    global_packages: dict[str, dict[Platform, str]] = {}
+    global_packages: dict[str, dict[Platform, dict[CondaPip, str]]] = defaultdict(
+        lambda: defaultdict(dict),
+    )
     for p in global_data["package"]:
-        global_packages.setdefault(p["name"], {})[p["platform"]] = p["version"]
+        global_packages[p["name"]][p["platform"]][p["manager"]] = p["version"]
 
     mismatched_packages = []
     for lock_file in sub_lock_files:
@@ -1492,10 +1743,11 @@ def _check_consistent_lock_files(
             name = p["name"]
             platform = p["platform"]
             version = p["version"]
-            if name not in global_packages or platform not in global_packages[name]:
+            which = p["manager"]
+            if global_packages.get(name, {}).get(platform, {}).get(which) == version:
                 continue
 
-            global_version = global_packages[name][platform]
+            global_version = global_packages[name][platform][which]
             if global_version != version:
                 mismatched_packages.append(
                     Mismatch(
@@ -1504,6 +1756,7 @@ def _check_consistent_lock_files(
                         version_global=global_version,
                         platform=platform,
                         lock_file=lock_file,
+                        which=which,
                     ),
                 )
     return mismatched_packages
@@ -1526,14 +1779,30 @@ def _mismatch_report(
     if not mismatched_packages:
         return
 
-    headers = ["Subpackage", "Package", "Version (Sub)", "Version (Global)", "Platform"]
+    headers = [
+        "Subpackage",
+        "Manager",
+        "Package",
+        "Version (Sub)",
+        "Version (Global)",
+        "Platform",
+    ]
+
+    def _to_seq(m: Mismatch) -> list[str]:
+        return [
+            m.lock_file.parent.name,
+            m.which,
+            m.name,
+            m.version,
+            m.version_global,
+            str(m.platform),
+        ]
+
     column_widths = [len(header) for header in headers]
     for m in mismatched_packages:
-        column_widths[0] = max(column_widths[0], len(m.lock_file.parent.name))
-        column_widths[1] = max(column_widths[1], len(m.name))
-        column_widths[2] = max(column_widths[2], len(m.version))
-        column_widths[3] = max(column_widths[3], len(m.version_global))
-        column_widths[4] = max(column_widths[4], len(str(m.platform)))
+        attrs = _to_seq(m)
+        for i, attr in enumerate(attrs):
+            column_widths[i] = max(column_widths[i], len(attr))
 
     # Create the table rows
     separator_line = [w * "-" for w in column_widths]
@@ -1543,13 +1812,7 @@ def _mismatch_report(
         _format_table_row(["-" * width for width in column_widths], column_widths),
     ]
     for m in mismatched_packages:
-        row = [
-            m.lock_file.parent.name,
-            m.name,
-            m.version,
-            m.version_global,
-            str(m.platform),
-        ]
+        row = _to_seq(m)
         table_rows.append(_format_table_row(row, column_widths))
     table_rows.append(_format_table_row(separator_line, column_widths, seperator="-+-"))
 
