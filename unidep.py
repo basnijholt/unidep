@@ -1477,8 +1477,8 @@ def _handle_missing_keys(
         missing_keys=missing_keys,
     )
 
-    # Remove packages that are locked with conda
-    # from the missing keys that appear in the pip section
+    # Do not re-add packages that with pip that are
+    # already added with conda
     for which, _platform, name in locked_keys:
         if which == "conda":
             key = ("pip", _platform, name)
