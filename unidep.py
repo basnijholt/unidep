@@ -1566,6 +1566,8 @@ def _conda_lock_subpackage(
     locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
 
     if yaml is None:
+        # When passing the same YAML instance that is used to load the file,
+        # we preserve the order of the keys.
         yaml = YAML(typ="rt")
     yaml.default_flow_style = False
     yaml.width = 4096
@@ -1579,6 +1581,16 @@ def _conda_lock_subpackage(
     }
     with conda_lock_output as fp:
         yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
+    _add_comment_to_file(
+        conda_lock_output,
+        extra_lines=[
+            "#",
+            "# This environment can be installed with",
+            "# `micromamba create -f conda-lock.yml -n myenv`",
+            "# This file is a `conda-lock` file generated via `unidep`.",
+            "# For details see https://conda.github.io/conda-lock/",
+        ],
+    )
     return conda_lock_output
 
 
