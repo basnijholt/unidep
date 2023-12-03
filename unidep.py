@@ -1718,6 +1718,7 @@ class Mismatch(NamedTuple):
     version_global: str
     platform: Platform
     lock_file: Path
+    which: CondaPip
 
 
 def _check_consistent_lock_files(
@@ -1728,10 +1729,11 @@ def _check_consistent_lock_files(
     with global_lock_file.open() as fp:
         global_data = yaml.load(fp)
 
-    # Creating a nested dictionary structure: {package_name: {platform: version}}
-    global_packages: dict[str, dict[Platform, str]] = {}
+    global_packages: dict[str, dict[Platform, dict[CondaPip, str]]] = defaultdict(
+        lambda: defaultdict(dict),
+    )
     for p in global_data["package"]:
-        global_packages.setdefault(p["name"], {})[p["platform"]] = p["version"]
+        global_packages[p["name"]][p["platform"]][p["manager"]] = p["version"]
 
     mismatched_packages = []
     for lock_file in sub_lock_files:
@@ -1742,10 +1744,11 @@ def _check_consistent_lock_files(
             name = p["name"]
             platform = p["platform"]
             version = p["version"]
-            if name not in global_packages or platform not in global_packages[name]:
+            which = p["manager"]
+            if global_packages.get(name, {}).get(platform, {}).get(which) == version:
                 continue
 
-            global_version = global_packages[name][platform]
+            global_version = global_packages[name][platform][which]
             if global_version != version:
                 mismatched_packages.append(
                     Mismatch(
@@ -1754,6 +1757,7 @@ def _check_consistent_lock_files(
                         version_global=global_version,
                         platform=platform,
                         lock_file=lock_file,
+                        which=which,
                     ),
                 )
     return mismatched_packages
@@ -1776,14 +1780,30 @@ def _mismatch_report(
     if not mismatched_packages:
         return
 
-    headers = ["Subpackage", "Package", "Version (Sub)", "Version (Global)", "Platform"]
+    headers = [
+        "Subpackage",
+        "Manager",
+        "Package",
+        "Version (Sub)",
+        "Version (Global)",
+        "Platform",
+    ]
+
+    def _to_seq(m: Mismatch) -> list[str]:
+        return [
+            m.lock_file.parent.name,
+            m.which,
+            m.name,
+            m.version,
+            m.version_global,
+            str(m.platform),
+        ]
+
     column_widths = [len(header) for header in headers]
     for m in mismatched_packages:
-        column_widths[0] = max(column_widths[0], len(m.lock_file.parent.name))
-        column_widths[1] = max(column_widths[1], len(m.name))
-        column_widths[2] = max(column_widths[2], len(m.version))
-        column_widths[3] = max(column_widths[3], len(m.version_global))
-        column_widths[4] = max(column_widths[4], len(str(m.platform)))
+        attrs = _to_seq(m)
+        for i, attr in enumerate(attrs):
+            column_widths[i] = max(column_widths[i], len(attr))
 
     # Create the table rows
     separator_line = [w * "-" for w in column_widths]
@@ -1793,13 +1813,7 @@ def _mismatch_report(
         _format_table_row(["-" * width for width in column_widths], column_widths),
     ]
     for m in mismatched_packages:
-        row = [
-            m.lock_file.parent.name,
-            m.name,
-            m.version,
-            m.version_global,
-            str(m.platform),
-        ]
+        row = _to_seq(m)
         table_rows.append(_format_table_row(row, column_widths))
     table_rows.append(_format_table_row(separator_line, column_widths, seperator="-+-"))
 
