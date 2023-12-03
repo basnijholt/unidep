@@ -1,0 +1,7 @@
+name: project1
+channels:
+  - conda-forge
+dependencies:
+  - pybind11
+platforms:
+  - linux-64

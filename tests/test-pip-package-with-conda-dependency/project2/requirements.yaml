@@ -1,0 +1,9 @@
+name: project2
+channels:
+  - conda-forge
+dependencies:
+  - conda: python=3.11
+  - pip: cutde  # depends on pybind11, but pybind11 is installed via conda because project1/
+  - pip: rsync-time-machine
+platforms:
+  - linux-64
