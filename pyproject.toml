@@ -25,7 +25,7 @@ pytest = ["pytest", "GitPython"]  # The pytest plugin
 all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
 
 [project.scripts]
-unidep = "unidep:main"
+unidep = "unidep:cli.main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep:setuptools_finalizer"
@@ -37,7 +37,7 @@ affected = "unidep"
 py-modules = ["unidep"]
 
 [tool.setuptools.dynamic]
-version = {attr = "unidep.__version__"}
+version = {attr = "unidep._version.__version__"}
 
 [tool.pytest.ini_options]
 addopts = """
@@ -96,6 +96,6 @@ tag = true
 tag_name = "v{new_version}"
 
 [[tool.bumpversion.files]]
-filename = "unidep.py"
+filename = "unidep/_version.py"
 replace = '__version__ = "{new_version}"'
 search = '__version__ = "{current_version}"'

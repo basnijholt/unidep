@@ -11,15 +11,6 @@ import pytest
 from ruamel.yaml import YAML
 
 from unidep import (
-    CondaEnvironmentSpec,
-    Meta,
-    _build_pep508_environment_marker,
-    _conda_lock_command,
-    _escape_unicode,
-    _extract_name_and_pin,
-    _identify_current_platform,
-    _install_command,
-    _remove_top_comments,
     create_conda_env_specification,
     extract_matching_platforms,
     filter_python_dependencies,
@@ -30,6 +21,15 @@ from unidep import (
     resolve_conflicts,
     write_conda_environment_file,
 )
+from unidep._conda_env import CondaEnvironmentSpec
+from unidep._conda_lock import _conda_lock_command, _remove_top_comments
+from unidep.base import (
+    Meta,
+    _build_pep508_environment_marker,
+    _extract_name_and_pin,
+    _identify_current_platform,
+)
+from unidep.cli import _escape_unicode, _install_command
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -1142,7 +1142,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
 
 def test_conda_lock_command() -> None:
     simple_monorepo = Path(__file__).parent / "simple_monorepo"
-    with patch("unidep._run_conda_lock", return_value=None):
+    with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         _conda_lock_command(
             depth=1,
             directory=simple_monorepo,
@@ -1162,7 +1162,7 @@ def test_conda_lock_command() -> None:
 
 def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-package-with-conda-dependency"
-    with patch("unidep._run_conda_lock", return_value=None):
+    with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         _conda_lock_command(
             depth=1,
             directory=simple_monorepo,
@@ -1238,7 +1238,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
     capsys: pytest.CaptureFixture,
 ) -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-and-conda-different-name"
-    with patch("unidep._run_conda_lock", return_value=None):
+    with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         _conda_lock_command(
             depth=1,
             directory=simple_monorepo,
