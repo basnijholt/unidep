@@ -371,28 +371,27 @@ def _extract_project_dependencies(
     yaml = YAML(typ="safe")
     with path.open() as f:
         data = yaml.load(f)
-        for include in data.get("includes", []):
-            include_path = _include_path(path.parent / include)
-            if not include_path.exists():
-                msg = f"Include file `{include_path}` does not exist."
-                raise FileNotFoundError(msg)
-            include_base_path = str(include_path.parent)
-            if include_base_path == str(base_path):
-                continue
-            if not check_pip_installable or (
-                _is_pip_installable(base_path)
-                and _is_pip_installable(include_path.parent)
-            ):
-                dependencies[str(base_path)].add(include_base_path)
-            if verbose:
-                print(f"🔗 Adding include `{include_path}`")
-            _extract_project_dependencies(
-                include_path,
-                base_path,
-                processed,
-                dependencies,
-                check_pip_installable=check_pip_installable,
-            )
+    for include in data.get("includes", []):
+        include_path = _include_path(path.parent / include)
+        if not include_path.exists():
+            msg = f"Include file `{include_path}` does not exist."
+            raise FileNotFoundError(msg)
+        include_base_path = str(include_path.parent)
+        if include_base_path == str(base_path):
+            continue
+        if not check_pip_installable or (
+            _is_pip_installable(base_path) and _is_pip_installable(include_path.parent)
+        ):
+            dependencies[str(base_path)].add(include_base_path)
+        if verbose:
+            print(f"🔗 Adding include `{include_path}`")
+        _extract_project_dependencies(
+            include_path,
+            base_path,
+            processed,
+            dependencies,
+            check_pip_installable=check_pip_installable,
+        )
 
 
 def parse_project_dependencies(
@@ -1579,7 +1578,7 @@ def _conda_lock_subpackage(
         "platforms": platforms,
         "sources": [str(file)],
     }
-    with conda_lock_output as fp:
+    with conda_lock_output.open("w") as fp:
         yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
     _add_comment_to_file(
         conda_lock_output,
