@@ -18,7 +18,7 @@ content-type = "text/markdown"
 Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
-test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock"]
+test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock", "conda-package-handling"]
 conda-lock = ["conda-lock", "conda-package-handling"]
 pytest = ["pytest", "GitPython"]  # The pytest plugin
 # Everything except testing
