@@ -1562,6 +1562,8 @@ def _conda_lock_subpackage(
         locked=locked,
     )
 
+    locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
+
     yaml = YAML(typ="safe")
     yaml.default_flow_style = False
     yaml.width = 4096
