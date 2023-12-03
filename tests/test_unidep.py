@@ -1153,12 +1153,11 @@ def test_conda_lock_command() -> None:
         )
     with YAML(typ="safe") as yaml:
         with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
-            env1_tmp = yaml.load(f)
+            lock1 = yaml.load(f)
         with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
-            env2_tmp = yaml.load(f)
-
-    assert env1_tmp != env2_tmp
-    pytest.fail("Need to implement this!")
+            lock2 = yaml.load(f)
+    assert [p["name"] for p in lock1["package"]] == ["bzip2", "python_abi", "tzdata"]
+    assert [p["name"] for p in lock2["package"]] == ["python_abi", "tzdata"]
 
 
 def test_remove_top_comments(tmp_path: Path) -> None:
