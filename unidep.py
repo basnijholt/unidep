@@ -1527,6 +1527,7 @@ def _conda_lock_subpackage(
     lock_spec: LockSpec,
     channels: list[str],
     platforms: list[Platform],
+    yaml: YAML | None,  # Passing this to preserve order!
 ) -> Path:
     requirements = parse_yaml_requirements(file)
     locked: list[dict[str, Any]] = []
@@ -1564,7 +1565,8 @@ def _conda_lock_subpackage(
 
     locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
 
-    yaml = YAML(typ="safe")
+    if yaml is None:
+        yaml = YAML(typ="rt")
     yaml.default_flow_style = False
     yaml.width = 4096
     yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
@@ -1637,7 +1639,7 @@ def _conda_lock_subpackages(
 ) -> list[Path]:
     directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
-    with YAML(typ="safe") as yaml, conda_lock_file.open() as fp:
+    with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
     channels = [c["url"] for c in data["metadata"]["channels"]]
     platforms = data["metadata"]["platforms"]
@@ -1656,6 +1658,7 @@ def _conda_lock_subpackages(
             lock_spec=lock_spec,
             channels=channels,
             platforms=platforms,
+            yaml=yaml,
         )
         print(f"📝 Generated lock file for `{file}`: `{sublock_file}`")
         lock_files.append(sublock_file)
