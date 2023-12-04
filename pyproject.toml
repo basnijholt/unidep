@@ -31,7 +31,7 @@ unidep = "unidep:cli.main"
 unidep = "unidep:setuptools_finalizer"
 
 [project.entry-points.pytest11]
-affected = "unidep"
+affected = "unidep.pytest_plugin"
 
 [tool.setuptools]
 py-modules = ["unidep"]
@@ -46,6 +46,9 @@ addopts = """
     --cov-report html
     --cov-fail-under=95
 """
+
+[tool.coverage.run]
+omit = ["unidep/pytest_plugin.py"]
 
 [tool.coverage.report]
 exclude_lines = [
