@@ -28,7 +28,7 @@ all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
 unidep = "unidep:_cli.main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
-unidep = "unidep:_setuptools_finalizer"
+unidep = "unidep:_setuptools_integration._setuptools_finalizer"
 
 [project.entry-points.pytest11]
 affected = "unidep._pytest_plugin"
