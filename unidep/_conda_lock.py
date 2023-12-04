@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
-import warnings
 from collections import defaultdict
 from functools import partial
 from pathlib import Path
@@ -21,7 +20,7 @@ from unidep.base import (
     find_requirements_files,
     parse_yaml_requirements,
 )
-from unidep.utils import add_comment_to_file, remove_top_comments
+from unidep.utils import add_comment_to_file, remove_top_comments, warn
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import (
@@ -588,4 +587,4 @@ def _mismatch_report(
 
     if raises:
         raise RuntimeError(full_error_message)
-    warnings.warn(full_error_message, stacklevel=2)
+    warn(full_error_message, stacklevel=2)

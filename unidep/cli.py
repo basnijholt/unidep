@@ -10,7 +10,6 @@ import os
 import shutil
 import subprocess
 import sys
-import warnings
 from pathlib import Path
 
 from unidep._conda_env import (
@@ -34,6 +33,7 @@ from unidep.utils import (
     extract_name_and_pin,
     identify_current_platform,
     is_pip_installable,
+    warn,
 )
 
 if sys.version_info >= (3, 8):
@@ -400,7 +400,7 @@ def _check_conda_prefix() -> None:  # pragma: no cover
         f" (`{conda_prefix}`). Please install and run UniDep in the current"
         " Conda environment to avoid any issues."
     )
-    warnings.warn(msg, stacklevel=2)
+    warn(msg, stacklevel=2)
     sys.exit(1)
 
 

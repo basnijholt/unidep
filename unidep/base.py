@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 import sys
-import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, cast
@@ -38,25 +37,6 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
-
-def _simple_warning_format(
-    message: Warning | str,
-    category: type[Warning],  # noqa: ARG001
-    filename: str,
-    lineno: int,
-    line: str | None = None,  # noqa: ARG001
-) -> str:
-    """Format warnings without code context."""
-    return (
-        f"---------------------\n"
-        f"⚠️  *** WARNING *** ⚠️\n"
-        f"{message}\n"
-        f"Location: {filename}:{lineno}\n"
-        f"---------------------\n"
-    )
-
-
-warnings.formatwarning = _simple_warning_format
 
 # Functions for setuptools and conda
 

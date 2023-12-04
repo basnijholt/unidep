@@ -5,6 +5,7 @@ import codecs
 import platform
 import re
 import sys
+import warnings
 from pathlib import Path
 
 from unidep._version import __version__
@@ -132,3 +133,34 @@ def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
+
+
+def _simple_warning_format(
+    message: Warning | str,
+    category: type[Warning],  # noqa: ARG001
+    filename: str,
+    lineno: int,
+    line: str | None = None,  # noqa: ARG001
+) -> str:
+    """Format warnings without code context."""
+    return (
+        f"---------------------\n"
+        f"⚠️  *** WARNING *** ⚠️\n"
+        f"{message}\n"
+        f"Location: {filename}:{lineno}\n"
+        f"---------------------\n"
+    )
+
+
+def warn(
+    message: str | Warning,
+    category: type[Warning] = UserWarning,
+    stacklevel: int = 1,
+) -> None:
+    """Emit a warning with a custom format specific to this package."""
+    original_format = warnings.formatwarning
+    warnings.formatwarning = _simple_warning_format
+    try:
+        warnings.warn(message, category, stacklevel=stacklevel + 1)
+    finally:
+        warnings.formatwarning = original_format

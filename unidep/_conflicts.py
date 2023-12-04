@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import warnings
 from collections import defaultdict
 from typing import TYPE_CHECKING
+
+from unidep.utils import warn
 
 if TYPE_CHECKING:
     from unidep.base import Meta
@@ -58,7 +59,7 @@ def _select_preferred_version_within_platform(
                         f"`{m.pprint()}` ({m.which})" for m in discarded_metas
                     )
                     on_platform = _platform or "all platforms"
-                    warnings.warn(
+                    warn(
                         f"Platform Conflict Detected:\n"
                         f"On '{on_platform}', '{selected_meta.pprint()}' ({which})"
                         " is retained. The following conflicting dependencies are"
@@ -87,7 +88,7 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip
         return {"conda": conda_meta, "pip": pip_meta}  # Keep both if pins are identical
 
     # Handle conflict where both conda and pip have different pins
-    warnings.warn(
+    warn(
         "Version Pinning Conflict:\n"
         f"Different version specifications for Conda ('{conda_meta.pin}') and Pip"
         f" ('{pip_meta.pin}'). Both versions are retained.",
