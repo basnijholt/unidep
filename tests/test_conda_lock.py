@@ -124,7 +124,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
     assert "Missing keys" not in capsys.readouterr().out
 
 
-def testremove_top_comments(tmp_path: Path) -> None:
+def test_remove_top_comments(tmp_path: Path) -> None:
     test_file = tmp_path / "test_file.txt"
     test_file.write_text(
         "# Comment line 1\n# Comment line 2\nActual content line 1\nActual content line 2",
