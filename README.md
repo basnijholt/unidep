@@ -1,4 +1,4 @@
-# :rocket: UniDep - Unified Conda and Pip Dependency Management :rocket:
+# 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 
 ![](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
 
