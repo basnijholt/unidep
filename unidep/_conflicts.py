@@ -7,7 +7,11 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from unidep.base import CondaPip, Meta, Platform
+    from unidep.base import Meta
+    from unidep.platform_definitions import (
+        CondaPip,
+        Platform,
+    )
 
 
 def _prepare_metas_for_conflict_resolution(

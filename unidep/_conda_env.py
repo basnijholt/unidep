@@ -11,13 +11,16 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.base import (
-    PLATFORM_SELECTOR_MAP,
-    CondaPip,
     Meta,
-    Platform,
     _add_comment_to_file,
     _build_pep508_environment_marker,
     _maybe_expand_none,
+)
+from unidep.platform_definitions import (
+    PLATFORM_SELECTOR_MAP,
+    CondaPip,
+    CondaPlatform,
+    Platform,
 )
 
 if TYPE_CHECKING:
@@ -35,9 +38,6 @@ class CondaEnvironmentSpec(NamedTuple):
     platforms: list[Platform]
     conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
-
-
-CondaPlatform = Literal["unix", "linux", "osx", "win"]
 
 
 def _conda_sel(sel: str) -> CondaPlatform:
