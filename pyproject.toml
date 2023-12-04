@@ -25,7 +25,7 @@ pytest = ["pytest", "GitPython"]  # The pytest plugin
 all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
 
 [project.scripts]
-unidep = "unidep:cli.main"
+unidep = "unidep:_cli.main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep:setuptools_finalizer"

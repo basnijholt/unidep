@@ -92,7 +92,7 @@ def _conda_lock_global(
     check_input_hash: bool,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
-    from unidep.cli import _merge_command
+    from unidep._cli import _merge_command
 
     directory = Path(directory)
     tmp_env = directory / "tmp.environment.yaml"

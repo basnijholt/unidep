@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from unidep.cli import _install_command
+from unidep._cli import _install_command
 
 if TYPE_CHECKING:
     import pytest
