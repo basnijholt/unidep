@@ -215,6 +215,7 @@ def _maybe_expand_none_to_all_platforms(
     platform_data: dict[Platform | None, dict[CondaPip, Meta]],
 ) -> None:
     """Expand `None` to all platforms if there is a platform besides None."""
+    # Is private because it is very specific to the `resolve_conflicts` function
     if len(platform_data) > 1 and None in platform_data:
         sources = platform_data.pop(None)
         for _platform in get_args(Platform):
