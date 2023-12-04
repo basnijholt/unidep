@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from typing import NamedTuple
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -67,3 +68,29 @@ PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
 for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
     for _selector in _selectors:
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
+
+
+class Meta(NamedTuple):
+    """Metadata for a dependency."""
+
+    name: str
+    which: CondaPip
+    comment: str | None = None
+    pin: str | None = None
+
+    def platforms(self) -> list[Platform] | None:
+        """Return the platforms for this dependency."""
+        from unidep.utils import extract_matching_platforms
+
+        if self.comment is None:
+            return None
+        return extract_matching_platforms(self.comment) or None
+
+    def pprint(self) -> str:
+        """Pretty print the dependency."""
+        result = f"{self.name}"
+        if self.pin is not None:
+            result += f" {self.pin}"
+        if self.comment is not None:
+            result += f" {self.comment}"
+        return result

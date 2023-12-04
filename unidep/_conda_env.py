@@ -10,13 +10,13 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.base import (
-    Meta,
     _maybe_expand_none_to_all_platforms,
 )
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
     CondaPlatform,
+    Meta,
     Platform,
 )
 from unidep.utils import add_comment_to_file, build_pep508_environment_marker, warn

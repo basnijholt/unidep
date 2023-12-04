@@ -7,9 +7,15 @@ import re
 import sys
 import warnings
 from pathlib import Path
+from typing import cast
 
 from unidep._version import __version__
-from unidep.platform_definitions import PEP508_MARKERS, Platform
+from unidep.platform_definitions import (
+    PEP508_MARKERS,
+    PLATFORM_SELECTOR_MAP_REVERSE,
+    Platform,
+    Selector,
+)
 
 
 def add_comment_to_file(
@@ -164,3 +170,35 @@ def warn(
         warnings.warn(message, category, stacklevel=stacklevel + 1)
     finally:
         warnings.formatwarning = original_format
+
+
+def extract_matching_platforms(comment: str) -> list[Platform]:
+    """Filter out lines from a requirements file that don't match the platform."""
+    # we support a very limited set of selectors that adhere to platform only
+    # refs:
+    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
+    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+
+    sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+
+    filtered_platforms = set()
+
+    for line in comment.splitlines(keepends=False):
+        if multiple_brackets_pat.search(line):
+            msg = f"Multiple bracketed selectors found in line: '{line}'"
+            raise ValueError(msg)
+
+        m = sel_pat.search(line)
+        if m:
+            conds = m.group(1).split()
+            for cond in conds:
+                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
+                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
+                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
+                    raise ValueError(msg)
+                cond = cast(Selector, cond)
+                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
+                    filtered_platforms.add(_platform)
+
+    return list(filtered_platforms)

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep.base import (
+from unidep._yaml_parsing import (
     find_requirements_files,
     parse_yaml_requirements,
 )

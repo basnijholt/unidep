@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from unidep.base import find_requirements_files, parse_project_dependencies
+from unidep._yaml_parsing import find_requirements_files, parse_project_dependencies
 
 if TYPE_CHECKING:
     import pytest

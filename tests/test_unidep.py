@@ -10,7 +10,6 @@ from ruamel.yaml import YAML
 
 from unidep import (
     create_conda_env_specification,
-    extract_matching_platforms,
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
@@ -19,8 +18,8 @@ from unidep import (
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
-from unidep.base import Meta
 from unidep.cli import _install_command
+from unidep.platform_definitions import Meta
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -309,63 +308,6 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Meta(name="pip-package2", which="pip", comment="# [osx]"),
         ],
     }
-
-
-def test_extract_matching_platforms() -> None:
-    # Test with a line having a linux selector
-    content_linux = "dependency1  # [linux]"
-    assert set(extract_matching_platforms(content_linux)) == {
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-    }
-
-    # Test with a line having a win selector
-    content_win = "dependency2  # [win]"
-    assert set(extract_matching_platforms(content_win)) == {"win-64"}
-
-    # Test with a line having an osx64 selector
-    content_osx64 = "dependency3  # [osx64]"
-    assert set(extract_matching_platforms(content_osx64)) == {"osx-64"}
-
-    # Test with a line having no selector
-    content_none = "dependency4"
-    assert extract_matching_platforms(content_none) == []
-
-    # Test with a comment line
-    content_comment = "# This is a comment"
-    assert extract_matching_platforms(content_comment) == []
-
-    # Test with a line having a unix selector
-    content_unix = "dependency5  # [unix]"
-    expected_unix = {
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-        "osx-64",
-        "osx-arm64",
-    }
-    assert set(extract_matching_platforms(content_unix)) == expected_unix
-
-    # Test with a line having multiple selectors
-    content_multi = "dependency7  # [linux64 unix]"
-    expected_multi = {
-        "linux-64",
-        "linux-aarch64",
-        "linux-ppc64le",
-        "osx-64",
-        "osx-arm64",
-    }
-    assert set(extract_matching_platforms(content_multi)) == expected_multi
-
-    # Test with a line having multiple []
-    content_multi = "dependency7  # [linux64] [win]"
-    with pytest.raises(ValueError, match="Multiple bracketed selectors"):
-        extract_matching_platforms(content_multi)
-
-    incorrect_platform = "dependency8  # [unknown-platform]"
-    with pytest.raises(ValueError, match="Unsupported platform"):
-        extract_matching_platforms(incorrect_platform)
 
 
 def test_filter_pip_and_conda(tmp_path: Path) -> None:

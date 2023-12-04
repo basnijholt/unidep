@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 from unidep.utils import warn
 
 if TYPE_CHECKING:
-    from unidep.base import Meta
     from unidep.platform_definitions import (
         CondaPip,
+        Meta,
         Platform,
     )
 
