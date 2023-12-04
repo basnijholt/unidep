@@ -18,14 +18,17 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 
 from unidep.base import (
-    CondaPip,
-    Platform,
     _add_comment_to_file,
     find_requirements_files,
     parse_yaml_requirements,
 )
 
 if TYPE_CHECKING:
+    from unidep.platform_definitions import (
+        CondaPip,
+        Platform,
+    )
+
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:  # pragma: no cover

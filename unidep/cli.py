@@ -22,7 +22,6 @@ from unidep._conda_lock import _conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._version import __version__
 from unidep.base import (
-    Platform,
     _extract_name_and_pin,
     _identify_current_platform,
     _is_pip_installable,
@@ -30,6 +29,9 @@ from unidep.base import (
     get_python_dependencies,
     parse_project_dependencies,
     parse_yaml_requirements,
+)
+from unidep.platform_definitions import (
+    Platform,
 )
 
 if sys.version_info >= (3, 8):
