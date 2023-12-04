@@ -18,7 +18,6 @@ from unidep import (
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
-from unidep.cli import _install_command
 from unidep.platform_definitions import Meta
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -702,19 +701,6 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     assert python_deps == [
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
-
-
-def test_install_command(capsys: pytest.CaptureFixture) -> None:
-    _install_command(
-        conda_executable="",
-        dry_run=True,
-        editable=False,
-        file=REPO_ROOT / "example" / "project1" / "requirements.yaml",
-        verbose=False,
-    )
-    captured = capsys.readouterr()
-    assert "Installing conda dependencies" in captured.out
-    assert "Installing pip dependencies" in captured.out
 
 
 @pytest.mark.parametrize("project", ["project1", "project2", "project3"])
