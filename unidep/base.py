@@ -321,7 +321,7 @@ def parse_project_dependencies(
     }
 
 
-def _maybe_expand_none(
+def _maybe_expand_none_to_all_platforms(
     platform_data: dict[Platform | None, dict[CondaPip, Meta]],
 ) -> None:
     if len(platform_data) > 1 and None in platform_data:
@@ -349,7 +349,7 @@ def filter_python_dependencies(
     """
     pip_deps = []
     for platform_data in resolved_requirements.values():
-        _maybe_expand_none(platform_data)
+        _maybe_expand_none_to_all_platforms(platform_data)
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
             if (

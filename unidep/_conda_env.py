@@ -12,7 +12,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.base import (
     Meta,
-    _maybe_expand_none,
+    _maybe_expand_none_to_all_platforms,
 )
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
@@ -57,7 +57,7 @@ def _extract_conda_pip_dependencies(
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
     for pkg, platform_data in resolved_requirements.items():
-        _maybe_expand_none(platform_data)
+        _maybe_expand_none_to_all_platforms(platform_data)
         for _platform, sources in platform_data.items():
             if "conda" in sources:
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
