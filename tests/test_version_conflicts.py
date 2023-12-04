@@ -42,6 +42,8 @@ def test_empty_list() -> None:
 
 def test_invalid_pinnings() -> None:
     assert combine_version_pinnings(["abc", "def"]) == ""
+    assert combine_version_pinnings(["==abc"]) == ""
+    assert combine_version_pinnings(["<=>abc"]) == ""
 
 
 def test_mixed_valid_and_invalid_pinnings() -> None:
