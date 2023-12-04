@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
-import warnings
 from collections import defaultdict
 from functools import partial
 from pathlib import Path
@@ -17,17 +16,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep.base import (
-    find_requirements_files,
-    parse_yaml_requirements,
-)
-from unidep.utils import add_comment_to_file, remove_top_comments
+from unidep._yaml_parsing import find_requirements_files, parse_yaml_requirements
+from unidep.utils import add_comment_to_file, remove_top_comments, warn
 
 if TYPE_CHECKING:
-    from unidep.platform_definitions import (
-        CondaPip,
-        Platform,
-    )
+    from unidep.platform_definitions import CondaPip, Platform
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -93,7 +86,7 @@ def _conda_lock_global(
     check_input_hash: bool,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
-    from unidep.cli import _merge_command
+    from unidep._cli import _merge_command
 
     directory = Path(directory)
     tmp_env = directory / "tmp.environment.yaml"
@@ -588,4 +581,4 @@ def _mismatch_report(
 
     if raises:
         raise RuntimeError(full_error_message)
-    warnings.warn(full_error_message, stacklevel=2)
+    warn(full_error_message, stacklevel=2)

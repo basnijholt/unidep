@@ -5,10 +5,24 @@ import codecs
 import platform
 import re
 import sys
+import warnings
 from pathlib import Path
+from typing import cast
 
 from unidep._version import __version__
-from unidep.platform_definitions import PEP508_MARKERS, Platform
+from unidep.platform_definitions import (
+    PEP508_MARKERS,
+    PLATFORM_SELECTOR_MAP_REVERSE,
+    CondaPip,
+    Meta,
+    Platform,
+    Selector,
+)
+
+if sys.version_info >= (3, 8):
+    from typing import get_args
+else:  # pragma: no cover
+    from typing_extensions import get_args
 
 
 def add_comment_to_file(
@@ -132,3 +146,79 @@ def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
+
+
+def _simple_warning_format(
+    message: Warning | str,
+    category: type[Warning],  # noqa: ARG001
+    filename: str,
+    lineno: int,
+    line: str | None = None,  # noqa: ARG001
+) -> str:
+    """Format warnings without code context."""
+    return (
+        f"---------------------\n"
+        f"⚠️  *** WARNING *** ⚠️\n"
+        f"{message}\n"
+        f"Location: {filename}:{lineno}\n"
+        f"---------------------\n"
+    )
+
+
+def warn(
+    message: str | Warning,
+    category: type[Warning] = UserWarning,
+    stacklevel: int = 1,
+) -> None:
+    """Emit a warning with a custom format specific to this package."""
+    original_format = warnings.formatwarning
+    warnings.formatwarning = _simple_warning_format
+    try:
+        warnings.warn(message, category, stacklevel=stacklevel + 1)
+    finally:
+        warnings.formatwarning = original_format
+
+
+def extract_matching_platforms(comment: str) -> list[Platform]:
+    """Filter out lines from a requirements file that don't match the platform."""
+    # we support a very limited set of selectors that adhere to platform only
+    # refs:
+    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
+    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+
+    sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+
+    filtered_platforms = set()
+
+    for line in comment.splitlines(keepends=False):
+        if multiple_brackets_pat.search(line):
+            msg = f"Multiple bracketed selectors found in line: '{line}'"
+            raise ValueError(msg)
+
+        m = sel_pat.search(line)
+        if m:
+            conds = m.group(1).split()
+            for cond in conds:
+                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
+                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
+                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
+                    raise ValueError(msg)
+                cond = cast(Selector, cond)
+                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
+                    filtered_platforms.add(_platform)
+
+    return list(filtered_platforms)
+
+
+def _maybe_expand_none_to_all_platforms(
+    platform_data: dict[Platform | None, dict[CondaPip, Meta]],
+) -> None:
+    """Expand `None` to all platforms if there is a platform besides None."""
+    # Is private because it is very specific to the `resolve_conflicts` function
+    if len(platform_data) > 1 and None in platform_data:
+        sources = platform_data.pop(None)
+        for _platform in get_args(Platform):
+            if _platform not in platform_data:
+                # Only add if there is not yet a specific platform
+                platform_data[_platform] = sources

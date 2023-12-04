@@ -25,13 +25,13 @@ pytest = ["pytest", "GitPython"]  # The pytest plugin
 all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
 
 [project.scripts]
-unidep = "unidep:cli.main"
+unidep = "unidep:_cli.main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
-unidep = "unidep:setuptools_finalizer"
+unidep = "unidep:_setuptools_finalizer"
 
 [project.entry-points.pytest11]
-affected = "unidep.pytest_plugin"
+affected = "unidep._pytest_plugin"
 
 [tool.setuptools.packages.find]
 include = ["unidep.*", "unidep"]
@@ -48,7 +48,7 @@ addopts = """
 """
 
 [tool.coverage.run]
-omit = ["unidep/pytest_plugin.py"]
+omit = ["unidep/_pytest_plugin.py"]
 
 [tool.coverage.report]
 exclude_lines = [

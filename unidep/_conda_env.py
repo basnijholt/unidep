@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import sys
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import TYPE_CHECKING, NamedTuple, cast
@@ -10,17 +9,19 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from unidep.base import (
-    Meta,
-    _maybe_expand_none_to_all_platforms,
-)
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
     CondaPlatform,
+    Meta,
     Platform,
 )
-from unidep.utils import add_comment_to_file, build_pep508_environment_marker
+from unidep.utils import (
+    _maybe_expand_none_to_all_platforms,
+    add_comment_to_file,
+    build_pep508_environment_marker,
+    warn,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,7 +110,7 @@ def _resolve_multiple_platform_conflicts(
                 f"Multiple versions detected. Retaining '{first.pprint()}' and"
                 f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
             )
-            warnings.warn(msg, stacklevel=2)
+            warn(msg, stacklevel=2)
             for other in others:
                 platforms = meta_to_platforms[other]
                 for _platform in platforms:
