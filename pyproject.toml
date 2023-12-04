@@ -31,7 +31,7 @@ unidep = "unidep:cli.main"
 unidep = "unidep:setuptools_finalizer"
 
 [project.entry-points.pytest11]
-affected = "unidep.pytest_plugin"
+affected = "unidep._pytest_plugin"
 
 [tool.setuptools.packages.find]
 include = ["unidep.*", "unidep"]
@@ -48,7 +48,7 @@ addopts = """
 """
 
 [tool.coverage.run]
-omit = ["unidep/pytest_plugin.py"]
+omit = ["unidep/_pytest_plugin.py"]
 
 [tool.coverage.report]
 exclude_lines = [
