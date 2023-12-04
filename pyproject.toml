@@ -33,8 +33,8 @@ unidep = "unidep:setuptools_finalizer"
 [project.entry-points.pytest11]
 affected = "unidep.pytest_plugin"
 
-[tool.setuptools]
-py-modules = ["unidep"]
+[tool.setuptools.packages.find]
+include = ["unidep.*", "unidep"]
 
 [tool.setuptools.dynamic]
 version = {attr = "unidep._version.__version__"}
