@@ -98,3 +98,7 @@ def test_exact_pinning_with_irrelevant_ranges() -> None:
         match="Contradictory version pinnings found: =3 and <1",
     ):
         assert combine_version_pinnings(["=3", "<1", ">4"])
+
+
+def test_same_effect() -> None:
+    assert combine_version_pinnings([">=2", "<=2"]) == ">=2,<=2"
