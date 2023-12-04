@@ -9,9 +9,6 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from unidep._setuptools_integration import (
-    _maybe_expand_none_to_all_platforms,
-)
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
@@ -19,7 +16,12 @@ from unidep.platform_definitions import (
     Meta,
     Platform,
 )
-from unidep.utils import add_comment_to_file, build_pep508_environment_marker, warn
+from unidep.utils import (
+    _maybe_expand_none_to_all_platforms,
+    add_comment_to_file,
+    build_pep508_environment_marker,
+    warn,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path

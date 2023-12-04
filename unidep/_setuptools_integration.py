@@ -5,14 +5,13 @@ This module provides a command-line tool for managing conda environment.yaml fil
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unidep._conflicts import resolve_conflicts as _resolve_conflicts
 from unidep._yaml_parsing import parse_yaml_requirements
-from unidep.platform_definitions import Platform
 from unidep.utils import (
+    _maybe_expand_none_to_all_platforms,
     build_pep508_environment_marker,
     identify_current_platform,
 )
@@ -23,23 +22,8 @@ if TYPE_CHECKING:
     from unidep.platform_definitions import (
         CondaPip,
         Meta,
+        Platform,
     )
-
-if sys.version_info >= (3, 8):
-    from typing import get_args
-else:  # pragma: no cover
-    from typing_extensions import get_args
-
-
-def _maybe_expand_none_to_all_platforms(
-    platform_data: dict[Platform | None, dict[CondaPip, Meta]],
-) -> None:
-    if len(platform_data) > 1 and None in platform_data:
-        sources = platform_data.pop(None)
-        for _platform in get_args(Platform):
-            if _platform not in platform_data:
-                # Only add if there is not yet a specific platform
-                platform_data[_platform] = sources
 
 
 def filter_python_dependencies(
