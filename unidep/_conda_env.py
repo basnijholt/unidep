@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from unidep.base import (
+from unidep._setuptools_integration import (
     _maybe_expand_none_to_all_platforms,
 )
 from unidep.platform_definitions import (

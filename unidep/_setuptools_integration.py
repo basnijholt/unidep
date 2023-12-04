@@ -9,24 +9,21 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from unidep.platform_definitions import (
-        CondaPip,
-        Meta,
-    )
-
 from unidep._conflicts import resolve_conflicts as _resolve_conflicts
 from unidep._yaml_parsing import parse_yaml_requirements
 from unidep.platform_definitions import Platform
-
-if TYPE_CHECKING:
-    from setuptools import Distribution
-
-    from unidep.platform_definitions import CondaPip
 from unidep.utils import (
     build_pep508_environment_marker,
     identify_current_platform,
 )
+
+if TYPE_CHECKING:
+    from setuptools import Distribution
+
+    from unidep.platform_definitions import (
+        CondaPip,
+        Meta,
+    )
 
 if sys.version_info >= (3, 8):
     from typing import get_args

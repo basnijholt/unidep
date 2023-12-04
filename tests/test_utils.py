@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from unidep.base import (
+from unidep._setuptools_integration import (
     identify_current_platform,
 )
 from unidep.utils import (
