@@ -53,7 +53,10 @@ def test_overlapping_pinnings() -> None:
 
 
 def test_contradictory_pinnings() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: >2 and <1",
+    ):
         combine_version_pinnings([">2", "<1"])
 
 
@@ -66,21 +69,26 @@ def test_exact_pinning_with_redundant_ranges() -> None:
 
 
 def test_exact_pinning_with_contradictory_ranges() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: =3 and <2",
+    ):
         combine_version_pinnings(["=3", "<2", ">4"])
 
 
 def test_multiple_exact_pinnings() -> None:
-    assert (
-        combine_version_pinnings(["=2", "=3"]) == "=2"
-    )  # Assuming the function picks the first exact pinning
+    with pytest.raises(
+        ValueError,
+        match="Multiple exact version pinnings found: =2, =3",
+    ):
+        combine_version_pinnings(["=2", "=3"])
 
 
 def test_exact_pinning_with_overlapping_ranges() -> None:
     assert combine_version_pinnings(["=3", ">=2", "<=4"]) == "=3"
 
 
-def test_exact_pinning_with_irrelevant_ranges() -> None:
+def test_exact_pinning_with_within_range() -> None:
     assert combine_version_pinnings(["=3", ">1", "<4"]) == "=3"
 
 

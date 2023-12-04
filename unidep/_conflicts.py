@@ -165,8 +165,13 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
     if not valid_pinnings:
         return ""
 
-    # Prioritize exact version pinnings
+    # Identify exact version pinnings
     exact_pinnings = [p for p in valid_pinnings if p.startswith("=")]
+    if len(exact_pinnings) > 1:
+        # Raise an error if there are multiple exact pinnings
+        msg = f"Multiple exact version pinnings found: {', '.join(exact_pinnings)}"
+        raise ValueError(msg)
+
     if exact_pinnings:
         # Check for contradictions with the exact pinning
         exact_version = int(exact_pinnings[0][1:])
