@@ -118,7 +118,7 @@ def get_python_dependencies(
     )
 
 
-def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
+def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     """Entry point called by setuptools to get the dependencies for a project."""
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".

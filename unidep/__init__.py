@@ -8,7 +8,6 @@ from unidep._conflicts import resolve_conflicts
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
-    setuptools_finalizer,
 )
 from unidep._version import __version__
 from unidep._yaml_parsing import (
@@ -25,7 +24,6 @@ __all__ = [
     "parse_project_dependencies",
     "parse_yaml_requirements",
     "resolve_conflicts",
-    "setuptools_finalizer",
     "write_conda_environment_file",
     "__version__",
 ]
