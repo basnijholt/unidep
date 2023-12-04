@@ -102,3 +102,55 @@ def test_exact_pinning_with_irrelevant_ranges() -> None:
 
 def test_same_effect() -> None:
     assert combine_version_pinnings([">=2", "<=2"]) == ">=2,<=2"
+
+
+def test_combine_version_pinnings_with_no_operator() -> None:
+    # This should hit the case where _parse_pinning returns "", 0
+    assert combine_version_pinnings(["3"]) == ""
+
+
+def test_combine_version_pinnings_with_redundant_pinnings() -> None:
+    # This should trigger the redundancy logic
+    assert combine_version_pinnings([">=1", ">0", "<=3", "<4"]) == ">=1,<=3"
+
+
+def test_combine_version_pinnings_with_non_redundant_pinnings() -> None:
+    # Non-redundant cases
+    assert combine_version_pinnings([">=2", "<3"]) == ">=2,<3"
+
+
+def test_combine_version_pinnings_ignoring_invalid() -> None:
+    # This should ignore the invalid pinning and not throw an error
+    assert combine_version_pinnings(["abc", ">=1", "<=2"]) == ">=1,<=2"
+
+
+def test_combine_version_pinnings_with_exact_pinning() -> None:
+    # Exact pinning should take precedence and ignore others
+    assert combine_version_pinnings(["=2", ">1", "<3"]) == "=2"
+
+
+def test_combine_version_pinnings_with_multiple_exact_pinnings() -> None:
+    # This should raise an error due to multiple exact pinnings
+    with pytest.raises(
+        ValueError,
+        match="Multiple exact version pinnings found: =2, =3",
+    ):
+        combine_version_pinnings(["=2", "=3"])
+
+
+def test_combine_version_pinnings_with_contradictory_pinnings() -> None:
+    # This should raise an error due to contradictory pinnings
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: >2 and <1",
+    ):
+        combine_version_pinnings([">2", "<1"])
+
+
+def test_general_contradictory_pinnings() -> None:
+    # This test ensures that contradictory non-exact pinnings raise a ValueError
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: >=2 and <1",
+    ):
+        combine_version_pinnings([">=2", "<1"])
