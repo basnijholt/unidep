@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from unidep._conflicts import resolve_conflicts as _resolve_conflicts
+from unidep._conflicts import resolve_conflicts
 from unidep._yaml_parsing import parse_yaml_requirements
 from unidep.utils import (
     _maybe_expand_none_to_all_platforms,
@@ -95,7 +95,7 @@ def get_python_dependencies(
         return []
 
     requirements = parse_yaml_requirements(p, verbose=verbose)
-    resolved_requirements = _resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(requirements.requirements)
     return filter_python_dependencies(
         resolved_requirements,
         platforms=platforms or list(requirements.platforms),

@@ -16,17 +16,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep._yaml_parsing import (
-    find_requirements_files,
-    parse_yaml_requirements,
-)
+from unidep._yaml_parsing import find_requirements_files, parse_yaml_requirements
 from unidep.utils import add_comment_to_file, remove_top_comments, warn
 
 if TYPE_CHECKING:
-    from unidep.platform_definitions import (
-        CondaPip,
-        Platform,
-    )
+    from unidep.platform_definitions import CondaPip, Platform
 
     if sys.version_info >= (3, 8):
         from typing import Literal

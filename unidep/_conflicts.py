@@ -8,11 +8,7 @@ from typing import TYPE_CHECKING
 from unidep.utils import warn
 
 if TYPE_CHECKING:
-    from unidep.platform_definitions import (
-        CondaPip,
-        Meta,
-        Platform,
-    )
+    from unidep.platform_definitions import CondaPip, Meta, Platform
 
 
 def _prepare_metas_for_conflict_resolution(

@@ -8,10 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep.platform_definitions import (
-    Meta,
-    Platform,
-)
+from unidep.platform_definitions import Meta, Platform
 
 if TYPE_CHECKING:
     import sys

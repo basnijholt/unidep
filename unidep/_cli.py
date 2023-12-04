@@ -25,9 +25,7 @@ from unidep._yaml_parsing import (
     parse_project_dependencies,
     parse_yaml_requirements,
 )
-from unidep.platform_definitions import (
-    Platform,
-)
+from unidep.platform_definitions import Platform
 from unidep.utils import (
     escape_unicode,
     extract_name_and_pin,
