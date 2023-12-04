@@ -2,6 +2,7 @@
 import pytest
 
 from unidep._conflicts import (
+    _is_valid_pinning,
     _select_preferred_version_within_platform,
     combine_version_pinnings,
 )
@@ -18,6 +19,12 @@ def test_combining_versions() -> None:
         },
     }
     _select_preferred_version_within_platform(data)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])
+@pytest.mark.parametrize("version", ["1", "1.0", "1.0.0", "1.0.0rc1"])
+def test_is_valid_pinning(operator: str, version: str) -> None:
+    assert _is_valid_pinning(f"{operator}{version}")
 
 
 def test_single_pinning() -> None:
@@ -156,3 +163,7 @@ def test_general_contradictory_pinnings() -> None:
         match="Contradictory version pinnings found: >=2 and <1",
     ):
         combine_version_pinnings([">=2", "<1"])
+
+
+def test_full_versions_and_major_only() -> None:
+    assert combine_version_pinnings([">0.0.1", "<2", "=1.0.0"]) == "=1.0.0"

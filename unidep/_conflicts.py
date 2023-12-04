@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+from packaging import version
+
 from unidep.utils import warn
 
 if TYPE_CHECKING:
@@ -16,6 +18,8 @@ if TYPE_CHECKING:
         from typing import Literal
     else:  # pragma: no cover
         from typing_extensions import Literal
+
+VALID_OPERATORS = ["<=", ">=", "<", ">", "="]
 
 
 def _prepare_metas_for_conflict_resolution(
@@ -121,12 +125,14 @@ def resolve_conflicts(
     return resolved
 
 
-def _parse_pinning(pinning: str) -> tuple[str, int]:
+def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
     """Separates the operator and the version number."""
-    for operator in ["<=", ">=", "<", ">"]:
+    for operator in VALID_OPERATORS:
         if operator in pinning:
-            return operator, int(pinning.replace(operator, ""))
-    return "", 0
+            # Use the packaging.version.Version class to parse the version
+            return operator, version.parse(pinning.replace(operator, ""))
+    msg = f"Invalid version pinning: {pinning}, must contain one of {VALID_OPERATORS}"
+    raise ValueError(msg)
 
 
 def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
@@ -145,18 +151,15 @@ def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
 
 def _is_valid_pinning(pinning: str) -> bool:
     """Checks if a version pinning string is valid."""
-    if "=" in pinning and pinning.startswith("="):
+    if any(op in pinning for op in VALID_OPERATORS):
         try:
-            int(pinning[1:])  # Check if the part after '=' is a valid integer
+            # Attempt to parse the version part of the pinning
+            _parse_pinning(pinning)
             return True  # noqa: TRY300
         except ValueError:
+            # If parsing fails, the pinning is not valid
             return False
-    elif any(op in pinning for op in ["<=", ">=", "<", ">"]):
-        try:
-            _, _ = _parse_pinning(pinning)
-            return True  # noqa: TRY300
-        except ValueError:
-            return False
+    # If the pinning doesn't contain any recognized operator, it's not valid
     return False
 
 
@@ -174,12 +177,15 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
 
     if exact_pinnings:
         # Check for contradictions with the exact pinning
-        exact_version = int(exact_pinnings[0][1:])
+        exact_version = version.parse(exact_pinnings[0][1:])  # Parse the version part
         for other_pin in valid_pinnings:
             if other_pin != exact_pinnings[0]:
                 op, ver = _parse_pinning(other_pin)
-                if (op in ["<", "<="] and exact_version >= ver) or (
-                    op in [">", ">="] and exact_version <= ver
+                if (
+                    (op == "<" and exact_version >= ver)
+                    or (op == "<=" and exact_version > ver)
+                    or (op == ">" and exact_version <= ver)
+                    or (op == ">=" and exact_version < ver)
                 ):
                     msg = f"Contradictory version pinnings found: {exact_pinnings[0]} and {other_pin}"  # noqa: E501
                     raise ValueError(msg)
