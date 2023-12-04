@@ -18,10 +18,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 
 from unidep.base import (
-    _add_comment_to_file,
     find_requirements_files,
     parse_yaml_requirements,
 )
+from unidep.utils import add_comment_to_file, remove_top_comments
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import (
@@ -33,20 +33,6 @@ if TYPE_CHECKING:
         from typing import Literal
     else:  # pragma: no cover
         from typing_extensions import Literal
-
-
-def _remove_top_comments(filename: str | Path) -> None:
-    """Removes the top comments (lines starting with '#') from a file."""
-    with open(filename) as file:  # noqa: PTH123
-        lines = file.readlines()
-
-    first_non_comment = next(
-        (i for i, line in enumerate(lines) if not line.strip().startswith("#")),
-        len(lines),
-    )
-    content_without_comments = lines[first_non_comment:]
-    with open(filename, "w") as file:  # noqa: PTH123
-        file.writelines(content_without_comments)
 
 
 def _run_conda_lock(
@@ -79,8 +65,8 @@ def _run_conda_lock(
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
-        _remove_top_comments(conda_lock_output)
-        _add_comment_to_file(
+        remove_top_comments(conda_lock_output)
+        add_comment_to_file(
             conda_lock_output,
             extra_lines=[
                 "#",
@@ -353,7 +339,7 @@ def _conda_lock_subpackage(
     }
     with conda_lock_output.open("w") as fp:
         yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
-    _add_comment_to_file(
+    add_comment_to_file(
         conda_lock_output,
         extra_lines=[
             "#",
@@ -449,7 +435,7 @@ def _conda_lock_subpackages(
     return lock_files
 
 
-def _conda_lock_command(
+def conda_lock_command(
     *,
     depth: int,
     directory: Path,

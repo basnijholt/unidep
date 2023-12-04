@@ -24,11 +24,14 @@ from unidep import (
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep.base import (
     Meta,
-    _build_pep508_environment_marker,
-    _extract_name_and_pin,
-    _identify_current_platform,
+    identify_current_platform,
 )
-from unidep.cli import _escape_unicode, _install_command
+from unidep.cli import _install_command
+from unidep.utils import (
+    build_pep508_environment_marker,
+    escape_unicode,
+    extract_name_and_pin,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -479,28 +482,28 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     ]
 
 
-def test__build_pep508_environment_marker() -> None:
+def test_build_pep508_environment_marker() -> None:
     # Test with a single platform
     assert (
-        _build_pep508_environment_marker(["linux-64"])
+        build_pep508_environment_marker(["linux-64"])
         == "sys_platform == 'linux' and platform_machine == 'x86_64'"
     )
 
     # Test with multiple platforms
     assert (
-        _build_pep508_environment_marker(["linux-64", "osx-64"])
+        build_pep508_environment_marker(["linux-64", "osx-64"])
         == "sys_platform == 'linux' and platform_machine == 'x86_64' or sys_platform == 'darwin' and platform_machine == 'x86_64'"
     )
 
     # Test with an empty list
-    assert not _build_pep508_environment_marker([])
+    assert not build_pep508_environment_marker([])
 
     # Test with a platform not in PEP508_MARKERS
-    assert not _build_pep508_environment_marker(["unknown-platform"])  # type: ignore[list-item]
+    assert not build_pep508_environment_marker(["unknown-platform"])  # type: ignore[list-item]
 
     # Test with a mix of valid and invalid platforms
     assert (
-        _build_pep508_environment_marker(["linux-64", "unknown-platform"])  # type: ignore[list-item]
+        build_pep508_environment_marker(["linux-64", "unknown-platform"])  # type: ignore[list-item]
         == "sys_platform == 'linux' and platform_machine == 'x86_64'"
     )
 
@@ -510,85 +513,85 @@ def test_detect_platform() -> None:
         "platform.machine",
         return_value="x86_64",
     ):
-        assert _identify_current_platform() == "linux-64"
+        assert identify_current_platform() == "linux-64"
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="aarch64",
     ):
-        assert _identify_current_platform() == "linux-aarch64"
+        assert identify_current_platform() == "linux-aarch64"
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="x86_64",
     ):
-        assert _identify_current_platform() == "osx-64"
+        assert identify_current_platform() == "osx-64"
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="arm64",
     ):
-        assert _identify_current_platform() == "osx-arm64"
+        assert identify_current_platform() == "osx-arm64"
 
     with patch("platform.system", return_value="Windows"), patch(
         "platform.machine",
         return_value="AMD64",
     ):
-        assert _identify_current_platform() == "win-64"
+        assert identify_current_platform() == "win-64"
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported Linux architecture"):
-        _identify_current_platform()
+        identify_current_platform()
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported macOS architecture"):
-        _identify_current_platform()
+        identify_current_platform()
 
     with patch("platform.system", return_value="Windows"), patch(
         "platform.machine",
         return_value="unknown",
     ), pytest.raises(ValueError, match="Unsupported Windows architecture"):
-        _identify_current_platform()
+        identify_current_platform()
 
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="ppc64le",
     ):
-        assert _identify_current_platform() == "linux-ppc64le"
+        assert identify_current_platform() == "linux-ppc64le"
 
     with patch("platform.system", return_value="Unknown"), patch(
         "platform.machine",
         return_value="x86_64",
     ), pytest.raises(ValueError, match="Unsupported operating system"):
-        _identify_current_platform()
+        identify_current_platform()
 
 
-def test_extract_name_and_pin() -> None:
+def testextract_name_and_pin() -> None:
     # Test with version pin
-    assert _extract_name_and_pin("numpy >=1.20.0") == ("numpy", ">=1.20.0")
-    assert _extract_name_and_pin("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3")
+    assert extract_name_and_pin("numpy >=1.20.0") == ("numpy", ">=1.20.0")
+    assert extract_name_and_pin("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3")
 
     # Test with multiple version conditions
-    assert _extract_name_and_pin("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3")
+    assert extract_name_and_pin("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3")
 
     # Test with no version pin
-    assert _extract_name_and_pin("matplotlib") == ("matplotlib", None)
+    assert extract_name_and_pin("matplotlib") == ("matplotlib", None)
 
     # Test with whitespace variations
-    assert _extract_name_and_pin("requests >= 2.25") == ("requests", ">= 2.25")
+    assert extract_name_and_pin("requests >= 2.25") == ("requests", ">= 2.25")
 
     # Test when installing from a URL
     url = "https://github.com/python-adaptive/adaptive.git@main"
     pin = f"@ git+{url}"
-    assert _extract_name_and_pin(f"adaptive {pin}") == ("adaptive", pin)
+    assert extract_name_and_pin(f"adaptive {pin}") == ("adaptive", pin)
 
     # Test with invalid input
     with pytest.raises(ValueError, match="Invalid package string"):
-        _extract_name_and_pin(">=1.20.0 numpy")
+        extract_name_and_pin(">=1.20.0 numpy")
 
 
 def test_duplicates_with_version(tmp_path: Path) -> None:
@@ -882,9 +885,9 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     ]
 
 
-def test__escape_unicode() -> None:
-    assert _escape_unicode("foo\\n") == "foo\n"
-    assert _escape_unicode("foo\\t") == "foo\t"
+def test_escape_unicode() -> None:
+    assert escape_unicode("foo\\n") == "foo\n"
+    assert escape_unicode("foo\\t") == "foo\t"
 
 
 def test_install_command(capsys: pytest.CaptureFixture) -> None:

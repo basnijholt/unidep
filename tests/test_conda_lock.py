@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 from ruamel.yaml import YAML
 
-from unidep._conda_lock import _conda_lock_command, _remove_top_comments
+from unidep._conda_lock import conda_lock_command
+from unidep.utils import remove_top_comments
 
 if TYPE_CHECKING:
     import pytest
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 def test_conda_lock_command() -> None:
     simple_monorepo = Path(__file__).parent / "simple_monorepo"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
@@ -36,7 +37,7 @@ def test_conda_lock_command() -> None:
 def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-package-with-conda-dependency"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64"],
@@ -112,7 +113,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
 ) -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-and-conda-different-name"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64"],
@@ -123,13 +124,13 @@ def test_conda_lock_command_pip_and_conda_different_name(
     assert "Missing keys" not in capsys.readouterr().out
 
 
-def test_remove_top_comments(tmp_path: Path) -> None:
+def testremove_top_comments(tmp_path: Path) -> None:
     test_file = tmp_path / "test_file.txt"
     test_file.write_text(
         "# Comment line 1\n# Comment line 2\nActual content line 1\nActual content line 2",
     )
 
-    _remove_top_comments(test_file)
+    remove_top_comments(test_file)
 
     with test_file.open("r") as file:
         content = file.read()

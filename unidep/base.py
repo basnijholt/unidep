@@ -5,7 +5,6 @@ This module provides a command-line tool for managing conda environment.yaml fil
 """
 from __future__ import annotations
 
-import platform
 import re
 import sys
 import warnings
@@ -16,27 +15,28 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 
 from unidep._conflicts import resolve_conflicts as _resolve_conflicts
-from unidep._version import __version__
-
-if TYPE_CHECKING:
-    from ruamel.yaml.comments import CommentedMap
-    from setuptools import Distribution
-
 from unidep.platform_definitions import (
-    PEP508_MARKERS,
     PLATFORM_SELECTOR_MAP_REVERSE,
     CondaPip,
     Platform,
     Selector,
 )
 
+if TYPE_CHECKING:
+    from ruamel.yaml.comments import CommentedMap
+    from setuptools import Distribution
+
+from unidep.utils import (
+    build_pep508_environment_marker,
+    extract_name_and_pin,
+    identify_current_platform,
+    is_pip_installable,
+)
+
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
-
-
-# Definitions
 
 
 def _simple_warning_format(
@@ -122,21 +122,6 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
     return list(filtered_platforms)
 
 
-def _build_pep508_environment_marker(
-    platforms: list[Platform | tuple[Platform, ...]],
-) -> str:
-    """Generate a PEP 508 selector for a list of platforms."""
-    sorted_platforms = tuple(sorted(platforms))
-    if sorted_platforms in PEP508_MARKERS:
-        return PEP508_MARKERS[sorted_platforms]  # type: ignore[index]
-    environment_markers = [
-        PEP508_MARKERS[platform]
-        for platform in sorted(sorted_platforms)
-        if platform in PEP508_MARKERS
-    ]
-    return " or ".join(environment_markers)
-
-
 def _extract_first_comment(
     commented_map: CommentedMap,
     index_or_key: int | str,
@@ -153,23 +138,6 @@ def _extract_first_comment(
     return "".join(comment_strings)
 
 
-def _extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
-    """Splits a string into package name and version pinning."""
-    # Regular expression to match package name and version pinning
-    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
-    if match:
-        package_name = match.group(1).strip()
-        version_pin = match.group(2).strip()
-
-        # Return None if version pinning is missing or empty
-        if not version_pin:
-            return package_name, None
-        return package_name, version_pin
-
-    msg = f"Invalid package string: '{package_str}'"
-    raise ValueError(msg)
-
-
 def _parse_dependency(
     dependency: str,
     dependencies: CommentedMap,
@@ -177,7 +145,7 @@ def _parse_dependency(
     which: Literal["conda", "pip", "both"],
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
-    name, pin = _extract_name_and_pin(dependency)
+    name, pin = extract_name_and_pin(dependency)
     if which == "both":
         return [Meta(name, "conda", comment, pin), Meta(name, "pip", comment, pin)]
     return [Meta(name, which, comment, pin)]
@@ -309,7 +277,7 @@ def _extract_project_dependencies(
         if include_base_path == str(base_path):
             continue
         if not check_pip_installable or (
-            _is_pip_installable(base_path) and _is_pip_installable(include_path.parent)
+            is_pip_installable(base_path) and is_pip_installable(include_path.parent)
         ):
             dependencies[str(base_path)].add(include_base_path)
         if verbose:
@@ -353,7 +321,7 @@ def parse_project_dependencies(
     }
 
 
-def _maybe_expand_none(
+def _maybe_expand_none_to_all_platforms(
     platform_data: dict[Platform | None, dict[CondaPip, Meta]],
 ) -> None:
     if len(platform_data) > 1 and None in platform_data:
@@ -362,27 +330,6 @@ def _maybe_expand_none(
             if _platform not in platform_data:
                 # Only add if there is not yet a specific platform
                 platform_data[_platform] = sources
-
-
-def _add_comment_to_file(
-    filename: str | Path,
-    extra_lines: list[str] | None = None,
-) -> None:
-    """Add a comment to the top of a file."""
-    if extra_lines is None:
-        extra_lines = []
-    with open(filename, "r+") as f:  # noqa: PTH123
-        content = f.read()
-        f.seek(0, 0)
-        command_line_args = " ".join(sys.argv[1:])
-        txt = [
-            f"# This file is created and managed by `unidep` {__version__}.",
-            "# For details see https://github.com/basnijholt/unidep",
-            f"# File generated with: `unidep {command_line_args}`",
-            *extra_lines,
-        ]
-        content = "\n".join(txt) + "\n\n" + content
-        f.write(content)
 
 
 # Python setuptools integration functions
@@ -402,7 +349,7 @@ def filter_python_dependencies(
     """
     pip_deps = []
     for platform_data in resolved_requirements.values():
-        _maybe_expand_none(platform_data)
+        _maybe_expand_none_to_all_platforms(platform_data)
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
             if (
@@ -425,7 +372,7 @@ def filter_python_dependencies(
             if first_meta.pin is not None:
                 dep_str += f" {first_meta.pin}"
             if _platform is not None:
-                selector = _build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
+                selector = build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
             continue
@@ -435,7 +382,7 @@ def filter_python_dependencies(
             if pip_meta.pin is not None:
                 dep_str += f" {pip_meta.pin}"
             if _platform is not None:
-                selector = _build_pep508_environment_marker([_platform])
+                selector = build_pep508_environment_marker([_platform])
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
     return sorted(pip_deps)
@@ -464,36 +411,6 @@ def get_python_dependencies(
     )
 
 
-def _identify_current_platform() -> Platform:
-    """Detect the current platform."""
-    system = platform.system().lower()
-    architecture = platform.machine().lower()
-
-    if system == "linux":
-        if architecture == "x86_64":
-            return "linux-64"
-        if architecture == "aarch64":
-            return "linux-aarch64"
-        if architecture == "ppc64le":
-            return "linux-ppc64le"
-        msg = "Unsupported Linux architecture"
-        raise ValueError(msg)
-    if system == "darwin":
-        if architecture == "x86_64":
-            return "osx-64"
-        if architecture == "arm64":
-            return "osx-arm64"
-        msg = "Unsupported macOS architecture"
-        raise ValueError(msg)
-    if system == "windows":
-        if "64" in architecture:
-            return "win-64"
-        msg = "Unsupported Windows architecture"
-        raise ValueError(msg)
-    msg = "Unsupported operating system"
-    raise ValueError(msg)
-
-
 def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     """Entry point called by setuptools to get the dependencies for a project."""
     # PEP 517 says that "All hooks are run with working directory set to the
@@ -510,28 +427,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     dist.install_requires = list(
         get_python_dependencies(
             requirements_file,
-            platforms=[_identify_current_platform()],
+            platforms=[identify_current_platform()],
             raises_if_missing=False,
         ),
     )
-
-
-def _is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
-    """Determine if the project is pip installable.
-
-    Checks for existence of setup.py or [build-system] in pyproject.toml.
-    """
-    path = Path(folder)
-    if (path / "setup.py").exists():
-        return True
-
-    # When toml makes it into the standard library, we can use that instead
-    # For now this is good enough, except it doesn't handle the case where
-    # [build-system] is inside of a multi-line literal string.
-    pyproject_path = path / "pyproject.toml"
-    if pyproject_path.exists():
-        with pyproject_path.open("r") as file:
-            for line in file:
-                if line.strip().startswith("[build-system]"):
-                    return True
-    return False

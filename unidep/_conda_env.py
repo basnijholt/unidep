@@ -12,9 +12,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.base import (
     Meta,
-    _add_comment_to_file,
-    _build_pep508_environment_marker,
-    _maybe_expand_none,
+    _maybe_expand_none_to_all_platforms,
 )
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
@@ -22,9 +20,11 @@ from unidep.platform_definitions import (
     CondaPlatform,
     Platform,
 )
+from unidep.utils import add_comment_to_file, build_pep508_environment_marker
 
 if TYPE_CHECKING:
     from pathlib import Path
+
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
@@ -57,7 +57,7 @@ def _extract_conda_pip_dependencies(
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
     for pkg, platform_data in resolved_requirements.items():
-        _maybe_expand_none(platform_data)
+        _maybe_expand_none_to_all_platforms(platform_data)
         for _platform, sources in platform_data.items():
             if "conda" in sources:
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
@@ -173,7 +173,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                 dep_str += f" {meta.pin}"
             if _platforms != [None]:
                 if selector == "sel":
-                    marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+                    marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                     dep_str = f"{dep_str}; {marker}"
                     pip_deps.append(dep_str)
                 else:
@@ -222,6 +222,6 @@ def write_conda_environment_file(
             yaml.dump(env_data, f)
         if verbose:
             print("📝 Environment file generated successfully.")
-        _add_comment_to_file(output_file)
+        add_comment_to_file(output_file)
     else:
         yaml.dump(env_data, sys.stdout)
