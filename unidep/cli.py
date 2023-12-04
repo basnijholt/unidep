@@ -17,7 +17,7 @@ from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
 )
-from unidep._conda_lock import _conda_lock_command
+from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._version import __version__
 from unidep.base import (
@@ -456,7 +456,7 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
-        _conda_lock_command(
+        conda_lock_command(
             depth=args.depth,
             directory=args.directory,
             platform=args.platform,

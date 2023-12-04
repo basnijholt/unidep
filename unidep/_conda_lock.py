@@ -435,7 +435,7 @@ def _conda_lock_subpackages(
     return lock_files
 
 
-def _conda_lock_command(
+def conda_lock_command(
     *,
     depth: int,
     directory: Path,

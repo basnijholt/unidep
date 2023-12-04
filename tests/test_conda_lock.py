@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from ruamel.yaml import YAML
 
-from unidep._conda_lock import _conda_lock_command
+from unidep._conda_lock import conda_lock_command
 from unidep.utils import remove_top_comments
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 def test_conda_lock_command() -> None:
     simple_monorepo = Path(__file__).parent / "simple_monorepo"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64", "osx-arm64"],
@@ -37,7 +37,7 @@ def test_conda_lock_command() -> None:
 def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-package-with-conda-dependency"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64"],
@@ -113,7 +113,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
 ) -> None:
     simple_monorepo = Path(__file__).parent / "test-pip-and-conda-different-name"
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
-        _conda_lock_command(
+        conda_lock_command(
             depth=1,
             directory=simple_monorepo,
             platform=["linux-64"],

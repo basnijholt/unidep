@@ -24,6 +24,7 @@ from unidep.utils import add_comment_to_file, build_pep508_environment_marker
 
 if TYPE_CHECKING:
     from pathlib import Path
+
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
