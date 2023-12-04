@@ -6,7 +6,6 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
-import codecs
 import os
 import shutil
 import subprocess
@@ -22,9 +21,6 @@ from unidep._conda_lock import _conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._version import __version__
 from unidep.base import (
-    _extract_name_and_pin,
-    _identify_current_platform,
-    _is_pip_installable,
     find_requirements_files,
     get_python_dependencies,
     parse_project_dependencies,
@@ -33,15 +29,17 @@ from unidep.base import (
 from unidep.platform_definitions import (
     Platform,
 )
+from unidep.utils import (
+    _escape_unicode,
+    _extract_name_and_pin,
+    _identify_current_platform,
+    _is_pip_installable,
+)
 
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
-
-
-def _escape_unicode(string: str) -> str:
-    return codecs.decode(string, "unicode_escape")
 
 
 def _add_common_args(

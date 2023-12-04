@@ -12,8 +12,6 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.base import (
     Meta,
-    _add_comment_to_file,
-    _build_pep508_environment_marker,
     _maybe_expand_none,
 )
 from unidep.platform_definitions import (
@@ -22,6 +20,7 @@ from unidep.platform_definitions import (
     CondaPlatform,
     Platform,
 )
+from unidep.utils import _add_comment_to_file, _build_pep508_environment_marker
 
 if TYPE_CHECKING:
     from pathlib import Path

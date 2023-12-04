@@ -7,7 +7,8 @@ from unittest.mock import patch
 
 from ruamel.yaml import YAML
 
-from unidep._conda_lock import _conda_lock_command, _remove_top_comments
+from unidep._conda_lock import _conda_lock_command
+from unidep.utils import _remove_top_comments
 
 if TYPE_CHECKING:
     import pytest

@@ -62,6 +62,7 @@ PLATFORM_SELECTOR_MAP: dict[Platform, list[Selector]] = {
     "osx-arm64": ["arm64", "osx", "macos", "unix"],
     "win-64": ["win64", "win"],
 }
+
 PLATFORM_SELECTOR_MAP_REVERSE: dict[Selector, set[Platform]] = {}
 for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
     for _selector in _selectors:

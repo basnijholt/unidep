@@ -24,11 +24,14 @@ from unidep import (
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep.base import (
     Meta,
-    _build_pep508_environment_marker,
-    _extract_name_and_pin,
     _identify_current_platform,
 )
-from unidep.cli import _escape_unicode, _install_command
+from unidep.cli import _install_command
+from unidep.utils import (
+    _build_pep508_environment_marker,
+    _escape_unicode,
+    _extract_name_and_pin,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 
