@@ -30,10 +30,10 @@ from unidep.platform_definitions import (
     Platform,
 )
 from unidep.utils import (
-    _escape_unicode,
-    _extract_name_and_pin,
-    _identify_current_platform,
-    _is_pip_installable,
+    escape_unicode,
+    extract_name_and_pin,
+    identify_current_platform,
+    is_pip_installable,
 )
 
 if sys.version_info >= (3, 8):
@@ -71,7 +71,7 @@ def _add_common_args(
             help="Print verbose output",
         )
     if "platform" in options:
-        current_platform = _identify_current_platform()
+        current_platform = identify_current_platform()
         sub_parser.add_argument(
             "--platform",
             "-p",
@@ -252,7 +252,7 @@ def _identify_conda_executable() -> str:  # pragma: no cover
 
 
 def _format_inline_conda_package(package: str) -> str:
-    name, pin = _extract_name_and_pin(package)
+    name, pin = extract_name_and_pin(package)
     if pin is None:
         return name
     return f'{name}"{pin.strip()}"'
@@ -292,7 +292,7 @@ def _install_command(
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        platforms=[_identify_current_platform()],
+        platforms=[identify_current_platform()],
     )
     if env_spec.conda and not skip_conda:
         conda_executable = conda_executable or _identify_conda_executable()
@@ -320,7 +320,7 @@ def _install_command(
             subprocess.run(pip_command, check=True)  # noqa: S603
 
     if not skip_local:
-        if _is_pip_installable(file.parent):  # pragma: no cover
+        if is_pip_installable(file.parent):  # pragma: no cover
             folder = file.parent
             _pip_install_local(folder, editable=editable, dry_run=dry_run)
         else:  # pragma: no cover
@@ -412,7 +412,7 @@ def main() -> None:
         sys.exit(1)
 
     if "platform" in args and args.platform is None:  # pragma: no cover
-        args.platform = [_identify_current_platform()]
+        args.platform = [identify_current_platform()]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
@@ -433,7 +433,7 @@ def main() -> None:
                 verbose=args.verbose,
             ),
         )
-        print(_escape_unicode(args.separator).join(pip_dependencies))
+        print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         requirements = parse_yaml_requirements(args.file, verbose=args.verbose)
         resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -442,7 +442,7 @@ def main() -> None:
             requirements.channels,
             platforms=[args.platform],
         )
-        print(_escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
+        print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
         _check_conda_prefix()
         _install_command(

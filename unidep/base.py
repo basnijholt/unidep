@@ -27,10 +27,10 @@ if TYPE_CHECKING:
     from setuptools import Distribution
 
 from unidep.utils import (
-    _build_pep508_environment_marker,
-    _extract_name_and_pin,
-    _identify_current_platform,
-    _is_pip_installable,
+    build_pep508_environment_marker,
+    extract_name_and_pin,
+    identify_current_platform,
+    is_pip_installable,
 )
 
 if sys.version_info >= (3, 8):
@@ -145,7 +145,7 @@ def _parse_dependency(
     which: Literal["conda", "pip", "both"],
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
-    name, pin = _extract_name_and_pin(dependency)
+    name, pin = extract_name_and_pin(dependency)
     if which == "both":
         return [Meta(name, "conda", comment, pin), Meta(name, "pip", comment, pin)]
     return [Meta(name, which, comment, pin)]
@@ -277,7 +277,7 @@ def _extract_project_dependencies(
         if include_base_path == str(base_path):
             continue
         if not check_pip_installable or (
-            _is_pip_installable(base_path) and _is_pip_installable(include_path.parent)
+            is_pip_installable(base_path) and is_pip_installable(include_path.parent)
         ):
             dependencies[str(base_path)].add(include_base_path)
         if verbose:
@@ -372,7 +372,7 @@ def filter_python_dependencies(
             if first_meta.pin is not None:
                 dep_str += f" {first_meta.pin}"
             if _platform is not None:
-                selector = _build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
+                selector = build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
             continue
@@ -382,7 +382,7 @@ def filter_python_dependencies(
             if pip_meta.pin is not None:
                 dep_str += f" {pip_meta.pin}"
             if _platform is not None:
-                selector = _build_pep508_environment_marker([_platform])
+                selector = build_pep508_environment_marker([_platform])
                 dep_str = f"{dep_str}; {selector}"
             pip_deps.append(dep_str)
     return sorted(pip_deps)
@@ -427,7 +427,7 @@ def setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     dist.install_requires = list(
         get_python_dependencies(
             requirements_file,
-            platforms=[_identify_current_platform()],
+            platforms=[identify_current_platform()],
             raises_if_missing=False,
         ),
     )

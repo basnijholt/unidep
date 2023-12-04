@@ -21,7 +21,7 @@ from unidep.base import (
     find_requirements_files,
     parse_yaml_requirements,
 )
-from unidep.utils import _add_comment_to_file, _remove_top_comments
+from unidep.utils import add_comment_to_file, remove_top_comments
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import (
@@ -65,8 +65,8 @@ def _run_conda_lock(
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
-        _remove_top_comments(conda_lock_output)
-        _add_comment_to_file(
+        remove_top_comments(conda_lock_output)
+        add_comment_to_file(
             conda_lock_output,
             extra_lines=[
                 "#",
@@ -339,7 +339,7 @@ def _conda_lock_subpackage(
     }
     with conda_lock_output.open("w") as fp:
         yaml.dump({"version": 1, "metadata": metadata, "package": locked}, fp)
-    _add_comment_to_file(
+    add_comment_to_file(
         conda_lock_output,
         extra_lines=[
             "#",

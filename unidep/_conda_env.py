@@ -20,7 +20,7 @@ from unidep.platform_definitions import (
     CondaPlatform,
     Platform,
 )
-from unidep.utils import _add_comment_to_file, _build_pep508_environment_marker
+from unidep.utils import add_comment_to_file, build_pep508_environment_marker
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -172,7 +172,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                 dep_str += f" {meta.pin}"
             if _platforms != [None]:
                 if selector == "sel":
-                    marker = _build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+                    marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                     dep_str = f"{dep_str}; {marker}"
                     pip_deps.append(dep_str)
                 else:
@@ -221,6 +221,6 @@ def write_conda_environment_file(
             yaml.dump(env_data, f)
         if verbose:
             print("📝 Environment file generated successfully.")
-        _add_comment_to_file(output_file)
+        add_comment_to_file(output_file)
     else:
         yaml.dump(env_data, sys.stdout)

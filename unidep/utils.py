@@ -11,7 +11,7 @@ from unidep._version import __version__
 from unidep.platform_definitions import PEP508_MARKERS, Platform
 
 
-def _add_comment_to_file(
+def add_comment_to_file(
     filename: str | Path,
     extra_lines: list[str] | None = None,
 ) -> None:
@@ -32,7 +32,7 @@ def _add_comment_to_file(
         f.write(content)
 
 
-def _remove_top_comments(filename: str | Path) -> None:
+def remove_top_comments(filename: str | Path) -> None:
     """Removes the top comments (lines starting with '#') from a file."""
     with open(filename) as file:  # noqa: PTH123
         lines = file.readlines()
@@ -46,11 +46,12 @@ def _remove_top_comments(filename: str | Path) -> None:
         file.writelines(content_without_comments)
 
 
-def _escape_unicode(string: str) -> str:
+def escape_unicode(string: str) -> str:
+    """Escape unicode characters."""
     return codecs.decode(string, "unicode_escape")
 
 
-def _is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
+def is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     """Determine if the project is pip installable.
 
     Checks for existence of setup.py or [build-system] in pyproject.toml.
@@ -71,7 +72,7 @@ def _is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     return False
 
 
-def _identify_current_platform() -> Platform:
+def identify_current_platform() -> Platform:
     """Detect the current platform."""
     system = platform.system().lower()
     architecture = platform.machine().lower()
@@ -101,7 +102,7 @@ def _identify_current_platform() -> Platform:
     raise ValueError(msg)
 
 
-def _build_pep508_environment_marker(
+def build_pep508_environment_marker(
     platforms: list[Platform | tuple[Platform, ...]],
 ) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
@@ -116,7 +117,7 @@ def _build_pep508_environment_marker(
     return " or ".join(environment_markers)
 
 
-def _extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
+def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
     """Splits a string into package name and version pinning."""
     # Regular expression to match package name and version pinning
     match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
