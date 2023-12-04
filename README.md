@@ -61,11 +61,6 @@ or
 conda install -c conda-forge unidep
 ```
 
-Or just copy the script to your project:
-```bash
-wget https://raw.githubusercontent.com/basnijholt/unidep/main/unidep.py
-```
-
 ## :page_facing_up: `requirements.yaml` structure
 
 `unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file):
