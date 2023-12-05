@@ -41,6 +41,7 @@ def test_redundant_pinning() -> None:
     assert combine_version_pinnings([">=1", ">0", "<=3", "<4"]) == ">=1,<=3"
     assert combine_version_pinnings(["=3", ">2", "<4"]) == "=3"
     assert combine_version_pinnings(["<3", "<=3", "<4"]) == "<3"
+    assert combine_version_pinnings([">1", ">=1", "<3", "<=3"]) == ">1,<3"
 
 
 def test_empty_list() -> None:
