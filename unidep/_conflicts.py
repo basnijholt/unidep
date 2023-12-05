@@ -138,14 +138,31 @@ def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
 def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
     """Determines if a version pinning is redundant given a list of other pinnings."""
     op, version = _parse_pinning(pinning)
+
     for other in other_pinnings:
+        other_op, other_version = _parse_pinning(other)
         if other == pinning:
             continue
-        other_op, other_version = _parse_pinning(other)
-        if op in ["<", "<="] and other_op in ["<", "<="] and version >= other_version:
+
+        if op == "<" and (
+            other_op == "<"
+            and version >= other_version
+            or other_op == "<="
+            and version > other_version
+        ):
             return True
-        if op in [">", ">="] and other_op in [">", ">="] and version <= other_version:
+        if op == "<=" and other_op in ["<", "<="] and version >= other_version:
             return True
+        if op == ">" and (
+            other_op == ">"
+            and version <= other_version
+            or other_op == ">="
+            and version < other_version
+        ):
+            return True
+        if op == ">=" and other_op in [">", ">="] and version <= other_version:
+            return True
+
     return False
 
 
