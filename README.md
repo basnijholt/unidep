@@ -301,8 +301,8 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       files [files ...]
 
 positional arguments:
-  files                 The requirements.yaml file(s) to parse or folder that
-                        contains that file, by default `.`
+  files                 The requirements.yaml file(s) to parse or folder(s)
+                        that containthose file(s), by default `.`
 
 options:
   -h, --help            show this help message and exit
@@ -340,8 +340,8 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       files [files ...]
 
 positional arguments:
-  files                 The requirements.yaml file(s) to parse or folder that
-                        contains that file, by default `.`
+  files                 The requirements.yaml file(s) to parse or folder(s)
+                        that containthose file(s), by default `.`
 
 options:
   -h, --help            show this help message and exit
