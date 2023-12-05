@@ -215,8 +215,8 @@ positional arguments:
                         only.
     conda               Get the conda requirements for the current platform
                         only.
-    install             Install the dependencies of a single
-                        `requirements.yaml` file in the currently activated
+    install             Install the dependencies of one or more
+                        `requirements.yaml` files in the currently activated
                         conda environment with conda, then install the
                         remaining dependencies with pip, and finally install
                         the current package with `pip install [-e] .`.
