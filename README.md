@@ -144,6 +144,7 @@ dependencies:
 ```
 
 In this example:
+
 - `some-package` is included only in UNIX-like environments (Linux and macOS).
 - `another-package` is specific to Windows.
 - `special-package` is included only for 64-bit macOS systems.
