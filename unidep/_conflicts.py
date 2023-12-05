@@ -224,7 +224,4 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
                 msg = f"{err_msg}: {pin} and {other_pin}"
                 raise ValueError(msg)
 
-    if not non_redundant_pinnings:
-        return ""
-
     return ",".join(non_redundant_pinnings)
