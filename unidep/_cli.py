@@ -101,8 +101,8 @@ def _add_common_args(
             "files",
             type=Path,
             nargs="+",
-            help="The requirements.yaml file(s) to parse or folder that contains that"
-            " file, by default `.`",
+            help="The requirements.yaml file(s) to parse or folder(s) that contain"
+            "those file(s), by default `.`",
             default=None,  # default is "." set in `main`
         )
     if "skip-local" in options:
