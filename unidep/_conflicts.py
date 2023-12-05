@@ -130,7 +130,8 @@ def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
     for operator in VALID_OPERATORS:
         if operator in pinning:
             # Use the packaging.version.Version class to parse the version
-            return operator, version.parse(pinning.replace(operator, ""))
+            v = pinning.replace(operator, "")
+            return operator, version.parse(v)
     msg = f"Invalid version pinning: {pinning}, must contain one of {VALID_OPERATORS}"
     raise ValueError(msg)
 
@@ -181,6 +182,8 @@ def _is_valid_pinning(pinning: str) -> bool:
 
 
 def combine_version_pinnings(pinnings: list[str]) -> str:
+    """Combines a list of version pinnings into a single string."""
+    pinnings = [p.replace(" ", "") for p in pinnings if p]
     valid_pinnings = [p for p in pinnings if _is_valid_pinning(p)]
     if not valid_pinnings:
         return ""
@@ -189,11 +192,13 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
     if len(exact_pinnings) > 1:
         msg = f"Multiple exact version pinnings found: {', '.join(exact_pinnings)}"
         raise ValueError(msg)
+
     err_msg = "Contradictory version pinnings found"
     if exact_pinnings:
-        exact_version = version.parse(exact_pinnings[0][1:])
+        exact_pin = exact_pinnings[0]
+        exact_version = version.parse(exact_pin[1:])
         for other_pin in valid_pinnings:
-            if other_pin != exact_pinnings[0]:
+            if other_pin != exact_pin:
                 op, ver = _parse_pinning(other_pin)
                 if not (
                     (op == "<" and exact_version < ver)
@@ -201,9 +206,9 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
                     or (op == ">" and exact_version > ver)
                     or (op == ">=" and exact_version >= ver)
                 ):
-                    msg = f"{err_msg}: {exact_pinnings[0]} and {other_pin}"
+                    msg = f"{err_msg}: {exact_pin} and {other_pin}"
                     raise ValueError(msg)
-        return exact_pinnings[0]
+        return exact_pin
 
     non_redundant_pinnings = [
         pin for pin in valid_pinnings if not _is_redundant(pin, valid_pinnings)

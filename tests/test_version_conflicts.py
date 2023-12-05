@@ -131,6 +131,7 @@ def test_general_contradictory_pinnings() -> None:
 
 def test_full_versions_and_major_only() -> None:
     assert combine_version_pinnings([">0.0.1", "<2", "=1.0.0"]) == "=1.0.0"
+    assert combine_version_pinnings([" > 0.0.1", " < 2", " = 1.0.0"]) == "=1.0.0"
 
 
 def test_is_redundant() -> None:
