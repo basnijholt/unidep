@@ -75,7 +75,7 @@ def _add_common_args(
             "-p",
             type=str,
             action="append",  # Allow multiple instances of -p
-            default=None,  # Default is a list with the current platform
+            default=None,  # Default is a list with the current platform set in `main`
             choices=get_args(Platform),
             help="The platform(s) to get the requirements for. "
             "Multiple platforms can be specified. "
@@ -94,6 +94,49 @@ def _add_common_args(
             type=int,
             default=1,
             help="Maximum depth to scan for requirements.yaml files, by default 1",
+        )
+
+    if "*files" in options:
+        sub_parser.add_argument(
+            "files",
+            type=Path,
+            nargs="+",
+            help="The requirements.yaml file(s) to parse or folder(s) that contain"
+            "those file(s), by default `.`",
+            default=None,  # default is "." set in `main`
+        )
+    if "skip-local" in options:
+        sub_parser.add_argument(
+            "--skip-local",
+            action="store_true",
+            help="Skip installing local dependencies",
+        )
+    if "skip-pip" in options:
+        sub_parser.add_argument(
+            "--skip-pip",
+            action="store_true",
+            help="Skip installing pip dependencies from `requirements.yaml`",
+        )
+    if "skip-conda" in options:
+        sub_parser.add_argument(
+            "--skip-conda",
+            action="store_true",
+            help="Skip installing conda dependencies from `requirements.yaml`",
+        )
+    if "conda-executable" in options:
+        sub_parser.add_argument(
+            "--conda-executable",
+            type=str,
+            choices=("conda", "mamba", "micromamba"),
+            help="The conda executable to use",
+            default=None,
+        )
+    if "dry-run" in options:
+        sub_parser.add_argument(
+            "--dry-run",
+            "--dry",
+            action="store_true",
+            help="Only print the commands that would be run",
         )
 
 
@@ -154,47 +197,48 @@ def _parse_args() -> argparse.Namespace:
     # Subparser for the 'install' command
     parser_install = subparsers.add_parser(
         "install",
-        help="Install the dependencies of a single `requirements.yaml` file in the"
+        help="Install the dependencies of one or more `requirements.yaml` files in the"
         " currently activated conda environment with conda, then install the remaining"
         " dependencies with pip, and finally install the current package"
         " with `pip install [-e] .`.",
     )
     # Add positional argument for the file
-    parser_install.add_argument(
-        "file",
-        type=Path,
-        help="The requirements.yaml file to parse or folder that contains that"
-        " file, by default `.`",
-        default=".",
+    _add_common_args(
+        parser_install,
+        {
+            "*files",
+            "conda-executable",
+            "dry-run",
+            "editable",
+            "skip-local",
+            "skip-pip",
+            "skip-conda",
+            "verbose",
+        },
     )
-    parser_install.add_argument(
-        "--skip-local",
-        action="store_true",
-        help="Skip installing local dependencies",
+
+    # Subparser for the 'install-all' command
+    parser_install_all = subparsers.add_parser(
+        "install-all",
+        help="Install the dependencies of all `requirements.yaml` files in the"
+        " currently activated conda environment with conda, then install the remaining"
+        " dependencies with pip, and finally install the local packages"
+        " with `pip install [-e] .`.",
     )
-    parser_install.add_argument(
-        "--skip-pip",
-        action="store_true",
-        help="Skip installing pip dependencies from `requirements.yaml`",
-    )
-    parser_install.add_argument(
-        "--skip-conda",
-        action="store_true",
-        help="Skip installing conda dependencies from `requirements.yaml`",
-    )
-    _add_common_args(parser_install, {"verbose", "editable"})
-    parser_install.add_argument(
-        "--conda-executable",
-        type=str,
-        choices=("conda", "mamba", "micromamba"),
-        help="The conda executable to use",
-        default=None,
-    )
-    parser_install.add_argument(
-        "--dry-run",
-        "--dry",
-        action="store_true",
-        help="Only print the commands that would be run",
+    # Add positional argument for the file
+    _add_common_args(
+        parser_install_all,
+        {
+            "conda-executable",
+            "dry-run",
+            "editable",
+            "depth",
+            "directory",
+            "skip-local",
+            "skip-pip",
+            "skip-conda",
+            "verbose",
+        },
     )
 
     # Subparser for the 'conda-lock' command
@@ -230,7 +274,7 @@ def _parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     if "file" in args and args.file.is_dir():
-        args.file = args.file / "requirements.yaml"
+        args.file = _to_requirements_file(args.file)
     return args
 
 
@@ -257,35 +301,44 @@ def _format_inline_conda_package(package: str) -> str:
 
 
 def _pip_install_local(
-    folder: str | Path,
-    *,
+    *folders: str | Path,
     editable: bool,
     dry_run: bool,
 ) -> None:  # pragma: no cover
-    if not os.path.isabs(folder):  # noqa: PTH117
-        relative_prefix = ".\\" if os.name == "nt" else "./"
-        folder = f"{relative_prefix}{folder}"
-    pip_command = [sys.executable, "-m", "pip", "install", str(folder)]
-    if editable:
-        pip_command.insert(-1, "-e")
+    pip_command = [sys.executable, "-m", "pip", "install"]
+
+    for folder in folders:
+        if not os.path.isabs(folder):  # noqa: PTH117
+            relative_prefix = ".\\" if os.name == "nt" else "./"
+            folder = f"{relative_prefix}{folder}"  # noqa: PLW2901
+
+        if editable:
+            pip_command.extend(["-e", str(folder)])
+        else:
+            pip_command.append(str(folder))
+
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
 
 
+def _to_requirements_file(path: Path) -> Path:
+    return path if path.is_file() else path / "requirements.yaml"
+
+
 def _install_command(
-    *,
+    *files: Path,
     conda_executable: str,
     dry_run: bool,
     editable: bool,
-    file: Path,
     skip_local: bool = False,
     skip_pip: bool = False,
     skip_conda: bool = False,
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
-    requirements = parse_yaml_requirements(file, verbose=verbose)
+    files = tuple(_to_requirements_file(f) for f in files)
+    requirements = parse_yaml_requirements(*files, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -318,31 +371,64 @@ def _install_command(
             subprocess.run(pip_command, check=True)  # noqa: S603
 
     if not skip_local:
-        if is_pip_installable(file.parent):  # pragma: no cover
-            folder = file.parent
-            _pip_install_local(folder, editable=editable, dry_run=dry_run)
-        else:  # pragma: no cover
-            print(
-                f"⚠️  Project {file.parent} is not pip installable. "
-                "Could not find setup.py or [build-system] in pyproject.toml.",
-            )
+        installable = []
+        for file in files:
+            if is_pip_installable(file.parent):
+                installable.append(file.parent)
+            else:
+                print(
+                    f"⚠️  Project {file.parent} is not pip installable. "
+                    "Could not find setup.py or [build-system] in pyproject.toml.",
+                )
+        if installable:
+            _pip_install_local(*installable, editable=editable, dry_run=dry_run)
 
     if not skip_local:
         # Install local dependencies (if any) included via `includes:`
         local_dependencies = parse_project_dependencies(
-            file,
+            *files,
             check_pip_installable=True,
             verbose=verbose,
         )
-        assert len(local_dependencies) <= 1
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        for deps in sorted(local_dependencies.values()):
-            for dep in sorted(deps):
-                _pip_install_local(dep, editable=editable, dry_run=dry_run)
+        deps = sorted({dep for deps in local_dependencies.values() for dep in deps})
+        _pip_install_local(*deps, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
+
+
+def _install_all_command(
+    *,
+    conda_executable: str,
+    dry_run: bool,
+    editable: bool,
+    depth: int,
+    directory: Path,
+    skip_local: bool = False,
+    skip_pip: bool = False,
+    skip_conda: bool = False,
+    verbose: bool = False,
+) -> None:  # pragma: no cover
+    found_files = find_requirements_files(
+        directory,
+        depth,
+        verbose=verbose,
+    )
+    if not found_files:
+        print(f"❌ No `requirements.yaml` files found in {directory}")
+        sys.exit(1)
+    _install_command(
+        *found_files,
+        conda_executable=conda_executable,
+        dry_run=dry_run,
+        editable=editable,
+        skip_local=skip_local,
+        skip_pip=skip_pip,
+        skip_conda=skip_conda,
+        verbose=verbose,
+    )
 
 
 def _merge_command(
@@ -365,7 +451,7 @@ def _merge_command(
         verbose=verbose,
     )
     if not found_files:
-        print(f"❌ No requirements.yaml files found in {directory}")
+        print(f"❌ No `requirements.yaml` files found in {directory}")
         sys.exit(1)
     requirements = parse_yaml_requirements(*found_files, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -412,6 +498,9 @@ def main() -> None:
     if "platform" in args and args.platform is None:  # pragma: no cover
         args.platform = [identify_current_platform()]
 
+    if "files" in args and args.files is None:  # pragma: no cover
+        args.platform = ["."]
+
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
@@ -444,10 +533,23 @@ def main() -> None:
     elif args.command == "install":
         _check_conda_prefix()
         _install_command(
+            *args.files,
             conda_executable=args.conda_executable,
             dry_run=args.dry_run,
             editable=args.editable,
-            file=args.file,
+            skip_local=args.skip_local,
+            skip_pip=args.skip_pip,
+            skip_conda=args.skip_conda,
+            verbose=args.verbose,
+        )
+    elif args.command == "install-all":
+        _check_conda_prefix()
+        _install_all_command(
+            conda_executable=args.conda_executable,
+            dry_run=args.dry_run,
+            editable=args.editable,
+            depth=args.depth,
+            directory=args.directory,
             skip_local=args.skip_local,
             skip_pip=args.skip_pip,
             skip_conda=args.skip_conda,
