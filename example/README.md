@@ -78,9 +78,7 @@ Just run `unidep install ./project1` or `unidep install -e ./project1` for an ed
 
 📝 Found local dependencies: {'project1': ['project2', 'project3']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/project2`
-
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/project3`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/project2 -e /home/runner/work/unidep/unidep/example/project3`
 
 ```
 
