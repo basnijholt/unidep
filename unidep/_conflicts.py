@@ -185,51 +185,41 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
     if not valid_pinnings:
         return ""
 
-    # Identify exact version pinnings
     exact_pinnings = [p for p in valid_pinnings if p.startswith("=")]
     if len(exact_pinnings) > 1:
-        # Raise an error if there are multiple exact pinnings
         msg = f"Multiple exact version pinnings found: {', '.join(exact_pinnings)}"
         raise ValueError(msg)
-
+    err_msg = "Contradictory version pinnings found"
     if exact_pinnings:
-        # Check for contradictions with the exact pinning
-        exact_version = version.parse(exact_pinnings[0][1:])  # Parse the version part
+        exact_version = version.parse(exact_pinnings[0][1:])
         for other_pin in valid_pinnings:
             if other_pin != exact_pinnings[0]:
                 op, ver = _parse_pinning(other_pin)
-                if (
-                    (op == "<" and exact_version >= ver)
-                    or (op == "<=" and exact_version > ver)
-                    or (op == ">" and exact_version <= ver)
-                    or (op == ">=" and exact_version < ver)
+                if not (
+                    (op == "<" and exact_version < ver)
+                    or (op == "<=" and exact_version <= ver)
+                    or (op == ">" and exact_version > ver)
+                    or (op == ">=" and exact_version >= ver)
                 ):
-                    msg = f"Contradictory version pinnings found: {exact_pinnings[0]} and {other_pin}"  # noqa: E501
+                    msg = f"{err_msg}: {exact_pinnings[0]} and {other_pin}"
                     raise ValueError(msg)
         return exact_pinnings[0]
 
-    # Handle non-exact pinnings
     non_redundant_pinnings = [
-        pinnings
-        for pinnings in valid_pinnings
-        if not _is_redundant(pinnings, valid_pinnings)
+        pin for pin in valid_pinnings if not _is_redundant(pin, valid_pinnings)
     ]
 
-    # Check for general contradictions
     for i, pin in enumerate(non_redundant_pinnings):
         for other_pin in non_redundant_pinnings[i + 1 :]:
             op1, ver1 = _parse_pinning(pin)
             op2, ver2 = _parse_pinning(other_pin)
             if (op1 in ["<", "<="] and op2 in [">", ">="] and ver1 < ver2) or (
-                op2 in ["<", "<="] and op1 in [">", ">="] and ver2 < ver1
+                op1 in [">", ">="] and op2 in ["<", "<="] and ver1 > ver2
             ):
-                msg = f"Contradictory version pinnings found: {pin} and {other_pin}"
+                msg = f"{err_msg}: {pin} and {other_pin}"
                 raise ValueError(msg)
 
     if not non_redundant_pinnings:
-        inclusive_pinnings = [p for p in valid_pinnings if p.startswith(("<=", ">="))]
-        if inclusive_pinnings:
-            return min(inclusive_pinnings, key=lambda p: _parse_pinning(p)[1])
-        return min(valid_pinnings, key=lambda p: _parse_pinning(p)[1])
+        return ""
 
     return ",".join(non_redundant_pinnings)
