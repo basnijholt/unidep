@@ -17,7 +17,7 @@ metadata:
   platforms:
   - osx-arm64
   sources:
-  - /Users/bas.nijholt/Work/unidep/tests/simple_monorepo/project2/requirements.yaml
+  - /Users/basnijholt/Code/unidep/tests/simple_monorepo/project2/requirements.yaml
 package:
 - name: python_abi
   version: '3.12'
