@@ -326,7 +326,7 @@ def _to_requirements_file(path: Path) -> Path:
     return path if path.is_file() else path / "requirements.yaml"
 
 
-def _install_command(  # noqa: PLR0912
+def _install_command(
     *files: Path,
     conda_executable: str,
     dry_run: bool,
@@ -392,9 +392,8 @@ def _install_command(  # noqa: PLR0912
         )
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        for deps in sorted(local_dependencies.values()):
-            for dep in sorted(deps):
-                _pip_install_local(dep, editable=editable, dry_run=dry_run)
+        deps = sorted({dep for deps in local_dependencies.values() for dep in deps})
+        _pip_install_local(*deps, editable=editable, dry_run=dry_run)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
