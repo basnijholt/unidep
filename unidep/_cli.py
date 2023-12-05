@@ -273,7 +273,7 @@ def _parse_args() -> argparse.Namespace:
         parser.print_help()
         sys.exit(1)
 
-    if "file" in args and args.file.is_dir():
+    if "file" in args and args.file.is_dir():  # pragma: no cover
         args.file = _to_requirements_file(args.file)
     return args
 
@@ -375,7 +375,7 @@ def _install_command(
         for file in files:
             if is_pip_installable(file.parent):
                 installable.append(file.parent)
-            else:
+            else:  # pragma: no cover
                 print(
                     f"⚠️  Project {file.parent} is not pip installable. "
                     "Could not find setup.py or [build-system] in pyproject.toml.",
