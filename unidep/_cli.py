@@ -197,7 +197,7 @@ def _parse_args() -> argparse.Namespace:
     # Subparser for the 'install' command
     parser_install = subparsers.add_parser(
         "install",
-        help="Install the dependencies of a single `requirements.yaml` file in the"
+        help="Install the dependencies of one or more `requirements.yaml` files in the"
         " currently activated conda environment with conda, then install the remaining"
         " dependencies with pip, and finally install the current package"
         " with `pip install [-e] .`.",
