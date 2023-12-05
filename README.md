@@ -40,6 +40,7 @@ Simplify your setup and maintain all your dependencies in one place with `unidep
   - [:memo: As a CLI](#memo-as-a-cli)
     - [`unidep merge`](#unidep-merge)
     - [`unidep install`](#unidep-install)
+    - [`unidep install-all`](#unidep-install-all)
     - [`unidep pip`](#unidep-pip)
     - [`unidep conda`](#unidep-conda)
     - [`unidep conda-lock`](#unidep-conda-lock)
