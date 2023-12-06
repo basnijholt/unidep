@@ -227,10 +227,11 @@ positional arguments:
                         files found in the current directory or specified
                         directory. This command first installs dependencies
                         using Conda, then Pip, and finally the local packages.
-    conda-lock          Generate a global conda-lock file of a collection of
-                        `requirements.yaml` files. Additionally, generate a
-                        conda-lock file for each separate `requirements.yaml`
-                        file based on the global lock file.
+    conda-lock          Generate a global `conda-lock.yml` file for a
+                        collection of `requirements.yaml` files. Additionally,
+                        create individual `conda-lock.yml` files for each
+                        `requirements.yaml` file consistent with the global
+                        lock file.
     version             Print version information of unidep.
 
 options:
@@ -276,15 +277,15 @@ options:
                         numpy`, if `comment` then it remains `- numpy #
                         [linux]`, by default `sel`
   -d DIRECTORY, --directory DIRECTORY
-                        Base directory to scan for requirements.yaml file(s),
-                        by default `.`
+                        Base directory to scan for `requirements.yaml`
+                        file(s), by default `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
-  --depth DEPTH         Maximum depth to scan for requirements.yaml files, by
-                        default 1
+  --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
+                        by default 1
 ```
 
 <!-- OUTPUT:END -->
@@ -319,7 +320,7 @@ install the local packages in editable mode. See `unidep install-all` to
 install all `requirements.yaml` in the current folder.
 
 positional arguments:
-  files                 The requirements.yaml file(s) to parse or folder(s)
+  files                 The `requirements.yaml` file(s) to parse or folder(s)
                         that contain those file(s), by default `.`
 
 options:
@@ -368,7 +369,7 @@ install the local packages in editable mode. See `unidep install-all` to
 install all `requirements.yaml` in the current folder.
 
 positional arguments:
-  files                 The requirements.yaml file(s) to parse or folder(s)
+  files                 The `requirements.yaml` file(s) to parse or folder(s)
                         that contain those file(s), by default `.`
 
 options:
@@ -406,6 +407,15 @@ usage: unidep conda-lock [-h] [--only-global] [--check-input-hash]
                          [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                          [--depth DEPTH]
 
+Generate a global `conda-lock.yml` file for a collection of
+`requirements.yaml` files. Additionally, create individual `conda-lock.yml`
+files for each `requirements.yaml` file consistent with the global lock file.
+Example usage: `unidep conda-lock --directory ./projects` to generate conda-
+lock files for all `requirements.yaml` files in the `./projects` directory.
+Use `--only-global` to generate only the global lock file. The `--check-input-
+hash` option can be used to avoid regenerating lock files if the input hasn't
+changed.
+
 options:
   -h, --help            show this help message and exit
   --only-global         Only generate the global lock file
@@ -413,15 +423,15 @@ options:
                         regenerating lock files. This flag is directly passed
                         to `conda-lock`.
   -d DIRECTORY, --directory DIRECTORY
-                        Base directory to scan for requirements.yaml file(s),
-                        by default `.`
+                        Base directory to scan for `requirements.yaml`
+                        file(s), by default `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
-  --depth DEPTH         Maximum depth to scan for requirements.yaml files, by
-                        default 1
+  --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
+                        by default 1
 ```
 
 <!-- OUTPUT:END -->
@@ -452,7 +462,7 @@ folder that contains a `requirements.yaml` file.
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The requirements.yaml file to parse or folder that
+  -f FILE, --file FILE  The `requirements.yaml` file to parse or folder that
                         contains that file, by default `requirements.yaml`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
@@ -491,7 +501,7 @@ folder that contains a `requirements.yaml` file.
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The requirements.yaml file to parse or folder that
+  -f FILE, --file FILE  The `requirements.yaml` file to parse or folder that
                         contains that file, by default `requirements.yaml`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
