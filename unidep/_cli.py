@@ -253,9 +253,8 @@ def _parse_args() -> argparse.Namespace:
         " Example usage: `unidep install-all` to install dependencies from all"
         " `requirements.yaml` files in the current directory. Use"
         " `--directory ./path/to/dir` to specify a different directory. Use"
-        " `--depth` to control the depth of directory search. Add `-v` for"
-        " verbose output and `--editable` or `-e` for installing local"
-        " packages in editable mode."
+        " `--depth` to control the depth of directory search. Add `--editable`"
+        " or `-e` for installing local packages in editable mode."
     )
 
     parser_install_all = subparsers.add_parser(
