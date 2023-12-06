@@ -39,7 +39,7 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
-try:
+try:  # pragma: no cover
     from rich_argparse import RichHelpFormatter
 
     class _HelpFormatter(RichHelpFormatter):
@@ -48,7 +48,7 @@ try:
             if action.help is not None:
                 return action.help.replace("[", r"\[")
             return None
-except ImportError:
+except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 
