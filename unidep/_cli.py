@@ -212,7 +212,7 @@ def _parse_args() -> argparse.Namespace:
         "Automatically install all dependencies from one or more `requirements.yaml`"
         " files. This command first installs dependencies with Conda, then with Pip."
         " Finally, it installs local packages (those containing the `requirements.yaml`"
-        " files) using `pip install [-e] ./proj_folder`."
+        " files) using `pip install [-e] ./project`."
     )
     install_example = (
         " Example usage: `unidep install requirements.yaml` for a single file."
