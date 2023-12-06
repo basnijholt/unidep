@@ -39,6 +39,11 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
+try:
+    from rich_argparse import RichHelpFormatter as _HelpFormatter
+except ImportError:
+    _HelpFormatter = argparse.HelpFormatter
+
 
 def _add_common_args(
     sub_parser: argparse.ArgumentParser,
@@ -50,7 +55,8 @@ def _add_common_args(
             "--directory",
             type=Path,
             default=".",
-            help="Base directory to scan for requirements.yaml file(s), by default `.`",
+            help="Base directory to scan for `requirements.yaml` file(s),"
+            " by default `.`",
         )
     if "file" in options:
         sub_parser.add_argument(
@@ -58,7 +64,7 @@ def _add_common_args(
             "--file",
             type=Path,
             default="requirements.yaml",
-            help="The requirements.yaml file to parse or folder that contains"
+            help="The `requirements.yaml` file to parse or folder that contains"
             " that file, by default `requirements.yaml`",
         )
     if "verbose" in options:
@@ -93,7 +99,7 @@ def _add_common_args(
             "--depth",
             type=int,
             default=1,
-            help="Maximum depth to scan for requirements.yaml files, by default 1",
+            help="Maximum depth to scan for `requirements.yaml` files, by default 1",
         )
 
     if "*files" in options:
@@ -101,7 +107,7 @@ def _add_common_args(
             "files",
             type=Path,
             nargs="+",
-            help="The requirements.yaml file(s) to parse or folder(s) that contain"
+            help="The `requirements.yaml` file(s) to parse or folder(s) that contain"
             " those file(s), by default `.`",
             default=None,  # default is "." set in `main`
         )
@@ -143,6 +149,7 @@ def _add_common_args(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
+        formatter_class=_HelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Subcommands")
 
@@ -161,6 +168,7 @@ def _parse_args() -> argparse.Namespace:
         "merge",
         help=merge_help,
         description=merge_help + merge_example,
+        formatter_class=_HelpFormatter,
     )
     parser_merge.add_argument(
         "-o",
@@ -206,11 +214,13 @@ def _parse_args() -> argparse.Namespace:
         "pip",
         help=help_str.format("pip"),
         description=help_str.format("pip") + help_example.format(which="pip"),
+        formatter_class=_HelpFormatter,
     )
     parser_conda = subparsers.add_parser(
         "conda",
         help=help_str.format("conda"),
         description=help_str.format("conda") + help_example.format(which="conda"),
+        formatter_class=_HelpFormatter,
     )
     for sub_parser in [parser_pip, parser_conda]:
         _add_common_args(sub_parser, {"verbose", "platform", "file"})
@@ -241,6 +251,7 @@ def _parse_args() -> argparse.Namespace:
         "install",
         help=install_help,
         description=install_help + install_example,
+        formatter_class=_HelpFormatter,
     )
 
     # Add positional argument for the file
@@ -275,6 +286,7 @@ def _parse_args() -> argparse.Namespace:
         "install-all",
         help=install_all_help,
         description=install_all_help + install_all_example,
+        formatter_class=_HelpFormatter,
     )
 
     # Add positional argument for the file
@@ -294,12 +306,28 @@ def _parse_args() -> argparse.Namespace:
     )
 
     # Subparser for the 'conda-lock' command
+
+    conda_lock_help = (
+        "Generate a global `conda-lock.yml` file for a collection of"
+        " `requirements.yaml` files. Additionally, create individual"
+        " `conda-lock.yml` files for each `requirements.yaml` file"
+        " consistent with the global lock file."
+    )
+    conda_lock_example = (
+        " Example usage: `unidep conda-lock --directory ./projects` to generate"
+        " conda-lock files for all `requirements.yaml` files in the `./projects`"
+        " directory. Use `--only-global` to generate only the global lock file."
+        " The `--check-input-hash` option can be used to avoid regenerating lock"
+        " files if the input hasn't changed."
+    )
+
     parser_lock = subparsers.add_parser(
         "conda-lock",
-        help="Generate a global conda-lock file of a collection of `requirements.yaml`"
-        " files. Additionally, generate a conda-lock file for each separate"
-        " `requirements.yaml` file based on the global lock file.",
+        help=conda_lock_help,
+        description=conda_lock_help + conda_lock_example,
+        formatter_class=_HelpFormatter,
     )
+
     parser_lock.add_argument(
         "--only-global",
         action="store_true",
@@ -317,6 +345,7 @@ def _parse_args() -> argparse.Namespace:
     parser_merge = subparsers.add_parser(
         "version",
         help="Print version information of unidep.",
+        formatter_class=_HelpFormatter,
     )
 
     args = parser.parse_args()
