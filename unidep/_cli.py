@@ -102,7 +102,7 @@ def _add_common_args(
             type=Path,
             nargs="+",
             help="The requirements.yaml file(s) to parse or folder(s) that contain"
-            "those file(s), by default `.`",
+            " those file(s), by default `.`",
             default=None,  # default is "." set in `main`
         )
     if "skip-local" in options:
@@ -147,9 +147,20 @@ def _parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", help="Subcommands")
 
     # Subparser for the 'merge' command
+    merge_help = (
+        "Combine multiple (or a single) `requirements.yaml` files into a"
+        " single Conda installable `environment.yaml` file."
+    )
+    merge_example = (
+        " Example usage: `unidep merge --directory . --depth 1 --output environment.yaml`"  # noqa: E501
+        " to search for `requirements.yaml` files in the current directory and its"
+        " subdirectories and create `environment.yaml`. These are the defaults, so you"
+        " can also just run `unidep merge`."
+    )
     parser_merge = subparsers.add_parser(
         "merge",
-        help="Merge requirements to conda installable environment.yaml",
+        help=merge_help,
+        description=merge_help + merge_example,
     )
     parser_merge.add_argument(
         "-o",
@@ -183,8 +194,24 @@ def _parse_args() -> argparse.Namespace:
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
-    parser_pip = subparsers.add_parser("pip", help=help_str.format("pip"))
-    parser_conda = subparsers.add_parser("conda", help=help_str.format("conda"))
+    help_example = (
+        " Example usage: `unidep {which} --file folder1 --file"
+        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
+        " extract all the {which} dependencies specific to the linux-64 platform. Note"
+        " that the `--file` argument can be used multiple times to specify multiple"
+        " `requirements.yaml` files and that --file can also be a folder that contains"
+        " a `requirements.yaml` file."
+    )
+    parser_pip = subparsers.add_parser(
+        "pip",
+        help=help_str.format("pip"),
+        description=help_str.format("pip") + help_example.format(which="pip"),
+    )
+    parser_conda = subparsers.add_parser(
+        "conda",
+        help=help_str.format("conda"),
+        description=help_str.format("conda") + help_example.format(which="conda"),
+    )
     for sub_parser in [parser_pip, parser_conda]:
         _add_common_args(sub_parser, {"verbose", "platform", "file"})
         sub_parser.add_argument(
@@ -195,13 +222,27 @@ def _parse_args() -> argparse.Namespace:
         )
 
     # Subparser for the 'install' command
+    install_help = (
+        "Automatically install all dependencies from one or more `requirements.yaml`"
+        " files. This command first installs dependencies with Conda, then with Pip."
+        " Finally, it installs local packages (those containing the `requirements.yaml`"
+        " files) using `pip install [-e] ./proj_folder`."
+    )
+    install_example = (
+        " Example usage: `unidep install requirements.yaml` for a single file."
+        " For multiple files or folders: `unidep install ./project1 ./project2`."
+        " The command accepts both file paths and directories containing"
+        " a `requirements.yaml` file. Use `--editable` or `-e` to install the"
+        " local packages in editable mode. See `unidep install-all` to install"
+        " all `requirements.yaml` in the current folder."
+    )
+
     parser_install = subparsers.add_parser(
         "install",
-        help="Install the dependencies of one or more `requirements.yaml` files in the"
-        " currently activated conda environment with conda, then install the remaining"
-        " dependencies with pip, and finally install the current package"
-        " with `pip install [-e] .`.",
+        help=install_help,
+        description=install_help + install_example,
     )
+
     # Add positional argument for the file
     _add_common_args(
         parser_install,
@@ -216,15 +257,26 @@ def _parse_args() -> argparse.Namespace:
             "verbose",
         },
     )
+    install_all_help = (
+        "Install dependencies from all `requirements.yaml` files found in the current"
+        " directory or specified directory. This command first installs dependencies"
+        " using Conda, then Pip, and finally the local packages."
+    )
+    install_all_example = (
+        " Example usage: `unidep install-all` to install dependencies from all"
+        " `requirements.yaml` files in the current directory. Use"
+        " `--directory ./path/to/dir` to specify a different directory. Use"
+        " `--depth` to control the depth of directory search. Add `-v` for"
+        " verbose output and `--editable` or `-e` for installing local"
+        " packages in editable mode."
+    )
 
-    # Subparser for the 'install-all' command
     parser_install_all = subparsers.add_parser(
         "install-all",
-        help="Install the dependencies of all `requirements.yaml` files in the"
-        " currently activated conda environment with conda, then install the remaining"
-        " dependencies with pip, and finally install the local packages"
-        " with `pip install [-e] .`.",
+        help=install_all_help,
+        description=install_all_help + install_all_example,
     )
+
     # Add positional argument for the file
     _add_common_args(
         parser_install_all,
