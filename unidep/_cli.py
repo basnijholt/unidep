@@ -207,37 +207,6 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(parser_merge, {"directory", "verbose", "platform", "depth"})
 
-    # Subparser for the 'pip' and 'conda' command
-    help_str = "Get the {} requirements for the current platform only."
-    help_example = (
-        " Example usage: `unidep {which} --file folder1 --file"
-        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
-        " extract all the {which} dependencies specific to the linux-64 platform. Note"
-        " that the `--file` argument can be used multiple times to specify multiple"
-        " `requirements.yaml` files and that --file can also be a folder that contains"
-        " a `requirements.yaml` file."
-    )
-    parser_pip = subparsers.add_parser(
-        "pip",
-        help=help_str.format("pip"),
-        description=help_str.format("pip") + help_example.format(which="pip"),
-        formatter_class=_HelpFormatter,
-    )
-    parser_conda = subparsers.add_parser(
-        "conda",
-        help=help_str.format("conda"),
-        description=help_str.format("conda") + help_example.format(which="conda"),
-        formatter_class=_HelpFormatter,
-    )
-    for sub_parser in [parser_pip, parser_conda]:
-        _add_common_args(sub_parser, {"verbose", "platform", "file"})
-        sub_parser.add_argument(
-            "--separator",
-            type=str,
-            default=" ",
-            help="The separator between the dependencies, by default ` `",
-        )
-
     # Subparser for the 'install' command
     install_help = (
         "Automatically install all dependencies from one or more `requirements.yaml`"
@@ -347,6 +316,37 @@ def _parse_args() -> argparse.Namespace:
         " This flag is directly passed to `conda-lock`.",
     )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
+
+    # Subparser for the 'pip' and 'conda' command
+    help_str = "Get the {} requirements for the current platform only."
+    help_example = (
+        " Example usage: `unidep {which} --file folder1 --file"
+        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
+        " extract all the {which} dependencies specific to the linux-64 platform. Note"
+        " that the `--file` argument can be used multiple times to specify multiple"
+        " `requirements.yaml` files and that --file can also be a folder that contains"
+        " a `requirements.yaml` file."
+    )
+    parser_pip = subparsers.add_parser(
+        "pip",
+        help=help_str.format("pip"),
+        description=help_str.format("pip") + help_example.format(which="pip"),
+        formatter_class=_HelpFormatter,
+    )
+    parser_conda = subparsers.add_parser(
+        "conda",
+        help=help_str.format("conda"),
+        description=help_str.format("conda") + help_example.format(which="conda"),
+        formatter_class=_HelpFormatter,
+    )
+    for sub_parser in [parser_pip, parser_conda]:
+        _add_common_args(sub_parser, {"verbose", "platform", "file"})
+        sub_parser.add_argument(
+            "--separator",
+            type=str,
+            default=" ",
+            help="The separator between the dependencies, by default ` `",
+        )
 
     # Subparser for the 'version' command
     parser_merge = subparsers.add_parser(
