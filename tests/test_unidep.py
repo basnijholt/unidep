@@ -941,3 +941,46 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
     assert "- qsimcirq  # [linux64]" in lines
     assert "- slurm-usage" in lines
     assert "  - pip:" in lines
+
+
+def test_pip_and_conda_different_name_on_linux64() -> None:
+    folder = Path(__file__).parent / "test-pip-and-conda-different-name-on-linux-64"
+    requirements = parse_yaml_requirements(folder / "requirements.yaml", verbose=True)
+    expected = {
+        "cuquantum-python": [
+            Meta(
+                name="cuquantum-python",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+            ),
+        ],
+        "cuquantum": [
+            Meta(name="cuquantum", which="pip", comment="# [linux64]", pin=None),
+        ],
+    }
+    assert requirements.requirements == expected
+    resolved = resolve_conflicts(requirements.requirements)
+    expected_resolved = {
+        "cuquantum-python": {
+            "linux-64": {
+                "conda": Meta(
+                    name="cuquantum-python",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=None,
+                ),
+            },
+        },
+        "cuquantum": {
+            "linux-64": {
+                "pip": Meta(
+                    name="cuquantum",
+                    which="pip",
+                    comment="# [linux64]",
+                    pin=None,
+                ),
+            },
+        },
+    }
+    assert resolved == expected_resolved

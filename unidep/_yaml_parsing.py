@@ -79,9 +79,14 @@ def _parse_dependency(
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
+    # determine a unique identifier based on (name, pin, comment)
+    identifier = f"{name}/{pin}/{comment}"
     if which == "both":
-        return [Meta(name, "conda", comment, pin), Meta(name, "pip", comment, pin)]
-    return [Meta(name, which, comment, pin)]
+        return [
+            Meta(name, "conda", comment, pin, identifier),
+            Meta(name, "pip", comment, pin, identifier),
+        ]
+    return [Meta(name, which, comment, pin, identifier)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -148,6 +153,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
             continue
         dependencies = data["dependencies"]
         for i, dep in enumerate(data["dependencies"]):
+            print(dep)
             if isinstance(dep, str):
                 metas = _parse_dependency(dep, dependencies, i, "both")
                 for meta in metas:
