@@ -76,11 +76,11 @@ def _parse_dependency(
     dependencies: CommentedMap,
     index_or_key: int | str,
     which: Literal["conda", "pip", "both"],
+    identifier: int,
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
     # determine a unique identifier based on (name, pin, comment)
-    identifier = f"{name}/{pin}/{comment}"
     if which == "both":
         return [
             Meta(name, "conda", comment, pin, identifier),
@@ -143,7 +143,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
             with include_path.open() as f:
                 datas.append(yaml.load(f))
             seen.add(include_path)
-
+    identifier = -1
     for data in datas:
         for channel in data.get("channels", []):
             channels.add(channel)
@@ -153,15 +153,16 @@ def parse_yaml_requirements(  # noqa: PLR0912
             continue
         dependencies = data["dependencies"]
         for i, dep in enumerate(data["dependencies"]):
-            print(dep)
+            identifier += 1
             if isinstance(dep, str):
-                metas = _parse_dependency(dep, dependencies, i, "both")
+                metas = _parse_dependency(dep, dependencies, i, "both", identifier)
                 for meta in metas:
                     requirements[meta.name].append(meta)
                 continue
+            assert isinstance(dep, dict)
             for which in ["conda", "pip"]:
                 if which in dep:
-                    metas = _parse_dependency(dep[which], dep, which, which)  # type: ignore[arg-type]
+                    metas = _parse_dependency(dep[which], dep, which, which, identifier)  # type: ignore[arg-type]
                     for meta in metas:
                         requirements[meta.name].append(meta)
 

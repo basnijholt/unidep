@@ -77,7 +77,7 @@ class Meta(NamedTuple):
     which: CondaPip
     comment: str | None = None
     pin: str | None = None
-    identifier: str | None = None
+    identifier: int | None = None
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""
