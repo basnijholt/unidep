@@ -95,16 +95,64 @@ def test_parse_requirements(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="conda", comment="# [unix]"),
-            Meta(name="foo", which="pip", comment="# [unix]"),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [unix]",
+                pin=None,
+                identifier="530d9eaa",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [unix]",
+                pin=None,
+                identifier="530d9eaa",
+            ),
         ],
         "bar": [
-            Meta(name="bar", which="conda", comment=None, pin=">1"),
-            Meta(name="bar", which="pip", comment=None, pin=">1"),
-            Meta(name="bar", which="conda", comment=None),
-            Meta(name="bar", which="pip", comment=None),
+            Meta(
+                name="bar",
+                which="conda",
+                comment=None,
+                pin=">1",
+                identifier="08fd8713",
+            ),
+            Meta(
+                name="bar",
+                which="pip",
+                comment=None,
+                pin=">1",
+                identifier="08fd8713",
+            ),
+            Meta(
+                name="bar",
+                which="conda",
+                comment=None,
+                pin=None,
+                identifier="9e467fa1",
+            ),
+            Meta(
+                name="bar",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="9e467fa1",
+            ),
         ],
     }
 
@@ -286,24 +334,80 @@ def test_surrounding_comments(tmp_path: Path) -> None:
     requirements_with_comments = parse_yaml_requirements(p, verbose=False)
     assert requirements_with_comments.requirements == {
         "yolo": [
-            Meta(name="yolo", which="conda", comment="# [osx]"),
-            Meta(name="yolo", which="pip", comment="# [osx]"),
+            Meta(
+                name="yolo",
+                which="conda",
+                comment="# [osx]",
+                pin=None,
+                identifier="8b0c4c31",
+            ),
+            Meta(
+                name="yolo",
+                which="pip",
+                comment="# [osx]",
+                pin=None,
+                identifier="8b0c4c31",
+            ),
         ],
         "foo": [
-            Meta(name="foo", which="conda", comment="# [linux]"),
-            Meta(name="foo", which="pip", comment="# [linux]"),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux]",
+                pin=None,
+                identifier="ecd4baa6",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux]",
+                pin=None,
+                identifier="ecd4baa6",
+            ),
         ],
         "bar": [
-            Meta(name="bar", which="conda", comment="# [win]"),
-            Meta(name="bar", which="pip", comment="# [win]"),
+            Meta(
+                name="bar",
+                which="conda",
+                comment="# [win]",
+                pin=None,
+                identifier="8528de75",
+            ),
+            Meta(
+                name="bar",
+                which="pip",
+                comment="# [win]",
+                pin=None,
+                identifier="8528de75",
+            ),
         ],
         "baz": [
-            Meta(name="baz", which="conda", comment="#"),
-            Meta(name="baz", which="pip", comment="#"),
+            Meta(
+                name="baz",
+                which="conda",
+                comment="#",
+                pin=None,
+                identifier="fce1baee",
+            ),
+            Meta(name="baz", which="pip", comment="#", pin=None, identifier="fce1baee"),
         ],
-        "pip-package": [Meta(name="pip-package", which="pip")],
+        "pip-package": [
+            Meta(
+                name="pip-package",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="5813b64a",
+            ),
+        ],
         "pip-package2": [
-            Meta(name="pip-package2", which="pip", comment="# [osx]"),
+            Meta(
+                name="pip-package2",
+                which="pip",
+                comment="# [osx]",
+                pin=None,
+                identifier="1c0fa4c4",
+            ),
         ],
     }
 
@@ -326,54 +430,260 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         ),
     )
     sample_requirements = parse_yaml_requirements(p, verbose=False)
-    package1 = Meta(name="package1", which="conda", comment="# [linux64]")
-    package2 = Meta(name="package2", which="conda", comment="# [osx64]")
-    package3 = Meta(name="package3", which="pip", comment=None)
-    package4_pip = Meta(name="package4", which="pip", comment="# [unix]")
-    common_package_conda = Meta(
-        name="common_package",
-        which="conda",
-        comment="# [unix]",
-    )
-    common_package_pip = Meta(name="common_package", which="pip", comment="# [unix]")
-    shared_package_win = Meta(name="shared_package", which="pip", comment="# [win64]")
-    shared_package_linux = Meta(
-        name="shared_package",
-        which="conda",
-        comment="# [linux64]",
-    )
-
     assert sample_requirements.requirements == {
-        "package1": [package1],
-        "package2": [package2],
-        "package3": [package3],
-        "package4": [package4_pip],
-        "common_package": [common_package_conda, common_package_pip],
-        "shared_package": [shared_package_linux, shared_package_win],
+        "package1": [
+            Meta(
+                name="package1",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+                identifier="c292b98a",
+            ),
+        ],
+        "package2": [
+            Meta(
+                name="package2",
+                which="conda",
+                comment="# [osx64]",
+                pin=None,
+                identifier="b2ac468f",
+            ),
+        ],
+        "package3": [
+            Meta(
+                name="package3",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="08fd8713",
+            ),
+        ],
+        "package4": [
+            Meta(
+                name="package4",
+                which="pip",
+                comment="# [unix]",
+                pin=None,
+                identifier="1d5d7757",
+            ),
+        ],
+        "common_package": [
+            Meta(
+                name="common_package",
+                which="conda",
+                comment="# [unix]",
+                pin=None,
+                identifier="f78244dc",
+            ),
+            Meta(
+                name="common_package",
+                which="pip",
+                comment="# [unix]",
+                pin=None,
+                identifier="f78244dc",
+            ),
+        ],
+        "shared_package": [
+            Meta(
+                name="shared_package",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+                identifier="1599d575",
+            ),
+            Meta(
+                name="shared_package",
+                which="pip",
+                comment="# [win64]",
+                pin=None,
+                identifier="46630b59",
+            ),
+        ],
     }
 
     resolved = resolve_conflicts(sample_requirements.requirements)
     assert resolved == {
-        "package1": {"linux-64": {"conda": package1}},
-        "package2": {"osx-64": {"conda": package2}},
-        "package3": {None: {"pip": package3}},
+        "package1": {
+            "linux-64": {
+                "conda": Meta(
+                    name="package1",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=None,
+                    identifier="c292b98a",
+                ),
+            },
+        },
+        "package2": {
+            "osx-64": {
+                "conda": Meta(
+                    name="package2",
+                    which="conda",
+                    comment="# [osx64]",
+                    pin=None,
+                    identifier="b2ac468f",
+                ),
+            },
+        },
+        "package3": {
+            None: {
+                "pip": Meta(
+                    name="package3",
+                    which="pip",
+                    comment=None,
+                    pin=None,
+                    identifier="08fd8713",
+                ),
+            },
+        },
         "package4": {
-            "osx-64": {"pip": package4_pip},
-            "linux-64": {"pip": package4_pip},
-            "linux-aarch64": {"pip": package4_pip},
-            "linux-ppc64le": {"pip": package4_pip},
-            "osx-arm64": {"pip": package4_pip},
+            "linux-64": {
+                "pip": Meta(
+                    name="package4",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="1d5d7757",
+                ),
+            },
+            "linux-aarch64": {
+                "pip": Meta(
+                    name="package4",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="1d5d7757",
+                ),
+            },
+            "linux-ppc64le": {
+                "pip": Meta(
+                    name="package4",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="1d5d7757",
+                ),
+            },
+            "osx-64": {
+                "pip": Meta(
+                    name="package4",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="1d5d7757",
+                ),
+            },
+            "osx-arm64": {
+                "pip": Meta(
+                    name="package4",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="1d5d7757",
+                ),
+            },
         },
         "common_package": {
-            "osx-64": {"conda": common_package_conda, "pip": common_package_pip},
-            "linux-64": {"conda": common_package_conda, "pip": common_package_pip},
-            "linux-aarch64": {"conda": common_package_conda, "pip": common_package_pip},
-            "linux-ppc64le": {"conda": common_package_conda, "pip": common_package_pip},
-            "osx-arm64": {"conda": common_package_conda, "pip": common_package_pip},
+            "linux-64": {
+                "conda": Meta(
+                    name="common_package",
+                    which="conda",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+                "pip": Meta(
+                    name="common_package",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+            },
+            "linux-aarch64": {
+                "conda": Meta(
+                    name="common_package",
+                    which="conda",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+                "pip": Meta(
+                    name="common_package",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+            },
+            "linux-ppc64le": {
+                "conda": Meta(
+                    name="common_package",
+                    which="conda",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+                "pip": Meta(
+                    name="common_package",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+            },
+            "osx-64": {
+                "conda": Meta(
+                    name="common_package",
+                    which="conda",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+                "pip": Meta(
+                    name="common_package",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+            },
+            "osx-arm64": {
+                "conda": Meta(
+                    name="common_package",
+                    which="conda",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+                "pip": Meta(
+                    name="common_package",
+                    which="pip",
+                    comment="# [unix]",
+                    pin=None,
+                    identifier="f78244dc",
+                ),
+            },
         },
         "shared_package": {
-            "win-64": {"pip": shared_package_win},
-            "linux-64": {"conda": shared_package_linux},
+            "linux-64": {
+                "conda": Meta(
+                    name="shared_package",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=None,
+                    identifier="1599d575",
+                ),
+            },
+            "win-64": {
+                "pip": Meta(
+                    name="shared_package",
+                    which="pip",
+                    comment="# [win64]",
+                    pin=None,
+                    identifier="46630b59",
+                ),
+            },
         },
     }
     # Pip
@@ -426,14 +736,50 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="conda", comment="# [linux64]", pin=None),
-            Meta(name="foo", which="pip", comment="# [linux64]", pin=None),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+                identifier="dd6a8aaf",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux64]",
+                pin=None,
+                identifier="dd6a8aaf",
+            ),
         ],
         "bar": [
-            Meta(name="bar", which="conda", comment=None, pin=None),
-            Meta(name="bar", which="pip", comment=None, pin=None),
+            Meta(
+                name="bar",
+                which="conda",
+                comment=None,
+                pin=None,
+                identifier="08fd8713",
+            ),
+            Meta(
+                name="bar",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="08fd8713",
+            ),
         ],
     }
     resolved = resolve_conflicts(requirements.requirements)
@@ -445,14 +791,33 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
                     which="conda",
                     comment="# [linux64]",
                     pin=">1",
+                    identifier="c292b98a",
                 ),
-                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment="# [linux64]",
+                    pin=">1",
+                    identifier="c292b98a",
+                ),
             },
         },
         "bar": {
             None: {
-                "conda": Meta(name="bar", which="conda", comment=None, pin=None),
-                "pip": Meta(name="bar", which="pip", comment=None, pin=None),
+                "conda": Meta(
+                    name="bar",
+                    which="conda",
+                    comment=None,
+                    pin=None,
+                    identifier="08fd8713",
+                ),
+                "pip": Meta(
+                    name="bar",
+                    which="pip",
+                    comment=None,
+                    pin=None,
+                    identifier="08fd8713",
+                ),
             },
         },
     }
@@ -485,10 +850,34 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
-            Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux]",
+                pin="<1",
+                identifier="ecd4baa6",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux]",
+                pin="<1",
+                identifier="ecd4baa6",
+            ),
         ],
     }
     resolved = resolve_conflicts(requirements.requirements)
@@ -500,16 +889,47 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                     which="conda",
                     comment="# [linux64]",
                     pin=">1",
+                    identifier="c292b98a",
                 ),
-                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment="# [linux64]",
+                    pin=">1",
+                    identifier="c292b98a",
+                ),
             },
             "linux-aarch64": {
-                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
-                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux]",
+                    pin="<1",
+                    identifier="ecd4baa6",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment="# [linux]",
+                    pin="<1",
+                    identifier="ecd4baa6",
+                ),
             },
             "linux-ppc64le": {
-                "conda": Meta(name="foo", which="conda", comment="# [linux]", pin="<1"),
-                "pip": Meta(name="foo", which="pip", comment="# [linux]", pin="<1"),
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment="# [linux]",
+                    pin="<1",
+                    identifier="ecd4baa6",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment="# [linux]",
+                    pin="<1",
+                    identifier="ecd4baa6",
+                ),
             },
         },
     }
@@ -544,10 +964,34 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(name="foo", which="conda", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
-            Meta(name="foo", which="conda", comment=None, pin=">2"),
-            Meta(name="foo", which="pip", comment=None, pin=">2"),
+            Meta(
+                name="foo",
+                which="conda",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment="# [linux64]",
+                pin=">1",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="foo",
+                which="conda",
+                comment=None,
+                pin=">2",
+                identifier="5eb93b8c",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment=None,
+                pin=">2",
+                identifier="5eb93b8c",
+            ),
         ],
     }
     resolved = resolve_conflicts(requirements.requirements)
@@ -559,12 +1003,31 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     which="conda",
                     comment="# [linux64]",
                     pin=">1",
+                    identifier="c292b98a",
                 ),
-                "pip": Meta(name="foo", which="pip", comment="# [linux64]", pin=">1"),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment="# [linux64]",
+                    pin=">1",
+                    identifier="c292b98a",
+                ),
             },
             None: {
-                "conda": Meta(name="foo", which="conda", comment=None, pin=">2"),
-                "pip": Meta(name="foo", which="pip", comment=None, pin=">2"),
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin=">2",
+                    identifier="5eb93b8c",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin=">2",
+                    identifier="5eb93b8c",
+                ),
             },
         },
     }
@@ -606,16 +1069,40 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(name="foo", which="conda", comment=None, pin="<1"),
-            Meta(name="foo", which="pip", comment=None, pin=">1"),
+            Meta(
+                name="foo",
+                which="conda",
+                comment=None,
+                pin="<1",
+                identifier="17e5d607",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment=None,
+                pin=">1",
+                identifier="17e5d607",
+            ),
         ],
     }
     resolved = resolve_conflicts(requirements.requirements)
     assert resolved == {
         "foo": {
             None: {
-                "conda": Meta(name="foo", which="conda", comment=None, pin="<1"),
-                "pip": Meta(name="foo", which="pip", comment=None, pin=">1"),
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin="<1",
+                    identifier="17e5d607",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin=">1",
+                    identifier="17e5d607",
+                ),
             },
         },
     }
@@ -941,3 +1428,79 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
     assert "- qsimcirq  # [linux64]" in lines
     assert "- slurm-usage" in lines
     assert "  - pip:" in lines
+
+
+def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    # On linux64, the conda package is called "cuquantum-python" and
+    # the pip package is called "cuquantum". We test that not both
+    # packages are in the final environment file.
+    p.write_text(
+        textwrap.dedent(
+            """\
+            name: test
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: cuquantum-python  # [linux64]
+                pip: cuquantum  # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(p, verbose=True)
+    expected = {
+        "cuquantum-python": [
+            Meta(
+                name="cuquantum-python",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+                identifier="c292b98a",
+            ),
+        ],
+        "cuquantum": [
+            Meta(
+                name="cuquantum",
+                which="pip",
+                comment="# [linux64]",
+                pin=None,
+                identifier="c292b98a",
+            ),
+        ],
+    }
+    assert requirements.requirements == expected
+    resolved = resolve_conflicts(requirements.requirements)
+    expected_resolved = {
+        "cuquantum-python": {
+            "linux-64": {
+                "conda": Meta(
+                    name="cuquantum-python",
+                    which="conda",
+                    comment="# [linux64]",
+                    pin=None,
+                    identifier="c292b98a",
+                ),
+            },
+        },
+        "cuquantum": {
+            "linux-64": {
+                "pip": Meta(
+                    name="cuquantum",
+                    which="pip",
+                    comment="# [linux64]",
+                    pin=None,
+                    identifier="c292b98a",
+                ),
+            },
+        },
+    }
+    assert resolved == expected_resolved
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == ["cuquantum-python"]
+    assert env_spec.pip == []
