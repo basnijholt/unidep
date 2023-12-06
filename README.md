@@ -210,22 +210,23 @@ Unified Conda and Pip requirements management.
 positional arguments:
   {merge,pip,conda,install,install-all,conda-lock,version}
                         Subcommands
-    merge               Merge requirements to conda installable
-                        environment.yaml
+    merge               Combine multiple (or a single) `requirements.yaml`
+                        files into a single Conda installable
+                        `environment.yaml` file.
     pip                 Get the pip requirements for the current platform
                         only.
     conda               Get the conda requirements for the current platform
                         only.
-    install             Install the dependencies of one or more
-                        `requirements.yaml` files in the currently activated
-                        conda environment with conda, then install the
-                        remaining dependencies with pip, and finally install
-                        the current package with `pip install [-e] .`.
-    install-all         Install the dependencies of all `requirements.yaml`
-                        files in the currently activated conda environment
-                        with conda, then install the remaining dependencies
-                        with pip, and finally install the local packages with
-                        `pip install [-e] .`.
+    install             Automatically install all dependencies from one or
+                        more `requirements.yaml` files. This command first
+                        installs dependencies with Conda, then with Pip.
+                        Finally, it installs local packages (those containing
+                        the `requirements.yaml` files) using `pip install [-e]
+                        ./proj_folder`.
+    install-all         Install dependencies from all `requirements.yaml`
+                        files found in the current directory or specified
+                        directory. This command first installs dependencies
+                        using Conda, then Pip, and finally the local packages.
     conda-lock          Generate a global conda-lock file of a collection of
                         `requirements.yaml` files. Additionally, generate a
                         conda-lock file for each separate `requirements.yaml`
@@ -255,6 +256,12 @@ usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--selector {sel,comment}] [-d DIRECTORY] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--depth DEPTH]
+
+Combine multiple (or a single) `requirements.yaml` files into a single Conda
+installable `environment.yaml` file. Example usage: `unidep merge --directory
+. --depth 1 --output environment.yaml` to search for `requirements.yaml` files
+in the current directory and its subdirectories and create `environment.yaml`.
+These are the defaults, so you can also just run `unidep merge`.
 
 options:
   -h, --help            show this help message and exit
@@ -301,9 +308,19 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--dry-run]
                       files [files ...]
 
+Automatically install all dependencies from one or more `requirements.yaml`
+files. This command first installs dependencies with Conda, then with Pip.
+Finally, it installs local packages (those containing the `requirements.yaml`
+files) using `pip install [-e] ./proj_folder`. Example usage: `unidep install
+requirements.yaml` for a single file. For multiple files or folders: `unidep
+install ./project1 ./project2`. The command accepts both file paths and
+directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` in the current folder.
+
 positional arguments:
   files                 The requirements.yaml file(s) to parse or folder(s)
-                        that containthose file(s), by default `.`
+                        that contain those file(s), by default `.`
 
 options:
   -h, --help            show this help message and exit
@@ -340,9 +357,19 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--dry-run]
                       files [files ...]
 
+Automatically install all dependencies from one or more `requirements.yaml`
+files. This command first installs dependencies with Conda, then with Pip.
+Finally, it installs local packages (those containing the `requirements.yaml`
+files) using `pip install [-e] ./proj_folder`. Example usage: `unidep install
+requirements.yaml` for a single file. For multiple files or folders: `unidep
+install ./project1 ./project2`. The command accepts both file paths and
+directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` in the current folder.
+
 positional arguments:
   files                 The requirements.yaml file(s) to parse or folder(s)
-                        that containthose file(s), by default `.`
+                        that contain those file(s), by default `.`
 
 options:
   -h, --help            show this help message and exit
@@ -416,6 +443,13 @@ usage: unidep pip [-h] [-f FILE] [-v]
                   [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                   [--separator SEPARATOR]
 
+Get the pip requirements for the current platform only. Example usage: `unidep
+pip --file folder1 --file folder2/requirements.yaml --seperator ' ' --platform
+linux-64` to extract all the pip dependencies specific to the linux-64
+platform. Note that the `--file` argument can be used multiple times to
+specify multiple `requirements.yaml` files and that --file can also be a
+folder that contains a `requirements.yaml` file.
+
 options:
   -h, --help            show this help message and exit
   -f FILE, --file FILE  The requirements.yaml file to parse or folder that
@@ -447,6 +481,13 @@ See `unidep conda -h` for more information:
 usage: unidep conda [-h] [-f FILE] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--separator SEPARATOR]
+
+Get the conda requirements for the current platform only. Example usage:
+`unidep conda --file folder1 --file folder2/requirements.yaml --seperator ' '
+--platform linux-64` to extract all the conda dependencies specific to the
+linux-64 platform. Note that the `--file` argument can be used multiple times
+to specify multiple `requirements.yaml` files and that --file can also be a
+folder that contains a `requirements.yaml` file.
 
 options:
   -h, --help            show this help message and exit
