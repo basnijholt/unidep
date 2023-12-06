@@ -218,7 +218,7 @@ positional arguments:
                         installs dependencies with Conda, then with Pip.
                         Finally, it installs local packages (those containing
                         the `requirements.yaml` files) using `pip install [-e]
-                        ./proj_folder`.
+                        ./project`.
     install-all         Install dependencies from all `requirements.yaml`
                         files found in the current directory or specified
                         directory. This command first installs dependencies
@@ -312,7 +312,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
 Automatically install all dependencies from one or more `requirements.yaml`
 files. This command first installs dependencies with Conda, then with Pip.
 Finally, it installs local packages (those containing the `requirements.yaml`
-files) using `pip install [-e] ./proj_folder`. Example usage: `unidep install
+files) using `pip install [-e] ./project`. Example usage: `unidep install
 requirements.yaml` for a single file. For multiple files or folders: `unidep
 install ./project1 ./project2`. The command accepts both file paths and
 directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
@@ -361,7 +361,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
 Automatically install all dependencies from one or more `requirements.yaml`
 files. This command first installs dependencies with Conda, then with Pip.
 Finally, it installs local packages (those containing the `requirements.yaml`
-files) using `pip install [-e] ./proj_folder`. Example usage: `unidep install
+files) using `pip install [-e] ./project`. Example usage: `unidep install
 requirements.yaml` for a single file. For multiple files or folders: `unidep
 install ./project1 ./project2`. The command accepts both file paths and
 directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
