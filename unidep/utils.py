@@ -208,7 +208,7 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
                 for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
                     filtered_platforms.add(_platform)
 
-    return list(filtered_platforms)
+    return sorted(filtered_platforms)
 
 
 def _maybe_expand_none_to_all_platforms(
