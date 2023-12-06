@@ -124,7 +124,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912
+def create_conda_env_specification(  # noqa: PLR0912, C901
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
@@ -143,6 +143,7 @@ def create_conda_env_specification(  # noqa: PLR0912
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
+    seen_identifiers: set[int] = set()
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1 and selector == "sel":
             # None has been expanded already if len>1
@@ -162,6 +163,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
+            assert isinstance(meta.identifier, int)
+            seen_identifiers.add(meta.identifier)
 
     for platform_to_meta in pip.values():
         meta_to_platforms: dict[Meta, list[Platform | None]] = {}
@@ -169,6 +172,8 @@ def create_conda_env_specification(  # noqa: PLR0912
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
         for meta, _platforms in meta_to_platforms.items():
+            if meta.identifier in seen_identifiers:
+                continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
