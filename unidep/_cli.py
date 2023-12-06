@@ -40,9 +40,16 @@ else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
 try:
-    from rich_argparse import RichHelpFormatter as _HelpFormatter
+    from rich_argparse import RichHelpFormatter
+
+    class _HelpFormatter(RichHelpFormatter):
+        def _get_help_string(self, action: argparse.Action) -> str | None:
+            # escapes "[" in text, otherwise e.g., [linux] is removed
+            if action.help is not None:
+                return action.help.replace("[", r"\[")
+            return None
 except ImportError:
-    _HelpFormatter = argparse.HelpFormatter
+    from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 
 def _add_common_args(
