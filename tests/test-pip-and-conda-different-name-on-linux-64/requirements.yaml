@@ -1,0 +1,8 @@
+name: test
+channels:
+  - conda-forge
+dependencies:
+  - conda: cuquantum-python  # [linux64]
+    pip: cuquantum  # [linux64]
+platforms:
+  - linux-64
