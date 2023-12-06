@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
         from typing_extensions import Literal
 
 from unidep.utils import (
+    extract_matching_platforms,
     extract_name_and_pin,
     is_pip_installable,
 )
@@ -71,6 +73,14 @@ def _extract_first_comment(
     return "".join(comment_strings)
 
 
+def _identifier(identifier: int, comment: str | None) -> str:
+    """Return a unique identifier based on the comment."""
+    platforms = None if comment is None else tuple(extract_matching_platforms(comment))
+    data_str = f"{identifier}-{platforms}"
+    # Hash using SHA256 and take the first 8 characters for a shorter hash
+    return hashlib.sha256(data_str.encode()).hexdigest()[:8]
+
+
 def _parse_dependency(
     dependency: str,
     dependencies: CommentedMap,
@@ -80,13 +90,13 @@ def _parse_dependency(
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
-    # determine a unique identifier based on (name, pin, comment)
+    identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
-            Meta(name, "conda", comment, pin, identifier),
-            Meta(name, "pip", comment, pin, identifier),
+            Meta(name, "conda", comment, pin, identifier_hash),
+            Meta(name, "pip", comment, pin, identifier_hash),
         ]
-    return [Meta(name, which, comment, pin, identifier)]
+    return [Meta(name, which, comment, pin, identifier_hash)]
 
 
 class ParsedRequirements(NamedTuple):

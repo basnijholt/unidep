@@ -143,7 +143,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
-    seen_identifiers: set[int] = set()
+    seen_identifiers: set[str] = set()
     for platform_to_meta in conda.values():
         if len(platform_to_meta) > 1 and selector == "sel":
             # None has been expanded already if len>1
@@ -163,7 +163,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
                     _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
-            assert isinstance(meta.identifier, int)
+            assert isinstance(meta.identifier, str)
             seen_identifiers.add(meta.identifier)
 
     for platform_to_meta in pip.values():
