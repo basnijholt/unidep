@@ -4,7 +4,6 @@ This module provides a command-line tool for managing conda environment.yaml fil
 """
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -58,8 +57,7 @@ def _run_conda_lock(
         cmd.append("--check-input-hash")
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
-        if not os.environ.get("SKIP_CONDA_LOCK"):  # use in CI
-            subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+        subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
         remove_top_comments(conda_lock_output)
         add_comment_to_file(
             conda_lock_output,
