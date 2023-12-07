@@ -256,7 +256,7 @@ See `unidep merge -h` for more information:
 usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--selector {sel,comment}] [-d DIRECTORY] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
-                    [--depth DEPTH]
+                    [--depth DEPTH] [--ignore-pin IGNORE_PIN]
 
 Combine multiple (or a single) `requirements.yaml` files into a single Conda
 installable `environment.yaml` file. Example usage: `unidep merge --directory
@@ -286,6 +286,10 @@ options:
                         platform (`linux-64`) is used.
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
                         by default 1
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -306,7 +310,7 @@ See `unidep install -h` for more information:
 usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [--dry-run]
+                      [--dry-run] [--ignore-pin IGNORE_PIN]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml`
@@ -340,6 +344,10 @@ options:
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -360,7 +368,7 @@ See `unidep install -h` for more information:
 usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [--dry-run]
+                      [--dry-run] [--ignore-pin IGNORE_PIN]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml`
@@ -394,6 +402,10 @@ options:
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -415,7 +427,7 @@ See `unidep conda -h` for more information:
 usage: unidep conda-lock [-h] [--only-global] [--check-input-hash]
                          [-d DIRECTORY] [-v]
                          [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
-                         [--depth DEPTH]
+                         [--depth DEPTH] [--ignore-pin IGNORE_PIN]
 
 Generate a global `conda-lock.yml` file for a collection of
 `requirements.yaml` files. Additionally, create individual `conda-lock.yml`
@@ -442,6 +454,10 @@ options:
                         platform (`linux-64`) is used.
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
                         by default 1
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -461,7 +477,7 @@ See `unidep pip -h` for more information:
 ```bash
 usage: unidep pip [-h] [-f FILE] [-v]
                   [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
-                  [--separator SEPARATOR]
+                  [--ignore-pin IGNORE_PIN] [--separator SEPARATOR]
 
 Get the pip requirements for the current platform only. Example usage: `unidep
 pip --file folder1 --file folder2/requirements.yaml --seperator ' ' --platform
@@ -479,6 +495,10 @@ options:
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```
@@ -500,7 +520,7 @@ See `unidep conda -h` for more information:
 ```bash
 usage: unidep conda [-h] [-f FILE] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
-                    [--separator SEPARATOR]
+                    [--ignore-pin IGNORE_PIN] [--separator SEPARATOR]
 
 Get the conda requirements for the current platform only. Example usage:
 `unidep conda --file folder1 --file folder2/requirements.yaml --seperator ' '
@@ -518,6 +538,10 @@ options:
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```

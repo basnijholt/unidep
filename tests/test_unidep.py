@@ -1504,3 +1504,34 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
     )
     assert env_spec.conda == ["cuquantum-python"]
     assert env_spec.pip == []
+
+
+def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(p, ignore_pins=["foo"], verbose=False)
+    assert requirements.requirements == {
+        "foo": [
+            Meta(
+                name="foo",
+                which="conda",
+                comment=None,
+                pin=None,
+                identifier="17e5d607",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="17e5d607",
+            ),
+        ],
+    }

@@ -84,6 +84,7 @@ def _conda_lock_global(
     platform: list[Platform],
     verbose: bool,
     check_input_hash: bool,
+    ignore_pins: list[str],
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
@@ -99,6 +100,7 @@ def _conda_lock_global(
         stdout=False,
         selector="comment",
         platforms=platform,
+        ignore_pins=ignore_pins,
         verbose=verbose,
     )
     _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
@@ -436,6 +438,7 @@ def conda_lock_command(
     verbose: bool,
     only_global: bool,
     check_input_hash: bool,
+    ignore_pins: list[str],
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -444,6 +447,7 @@ def conda_lock_command(
         platform=platform,
         verbose=verbose,
         check_input_hash=check_input_hash,
+        ignore_pins=ignore_pins,
     )
     if only_global:
         return
