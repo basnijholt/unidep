@@ -325,6 +325,12 @@ def _parse_args() -> argparse.Namespace:
         help="Check existing input hashes in lockfiles before regenerating lock files."
         " This flag is directly passed to `conda-lock`.",
     )
+    parser_lock.add_argument(
+        "--skip-global",
+        action="store_true",
+        help="Skip the call to `conda-lock`, only"
+        " regenerate the sub `conda-lock.yml` files.",
+    )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
     # Subparser for the 'pip' and 'conda' command
@@ -681,6 +687,7 @@ def main() -> None:
             verbose=args.verbose,
             only_global=args.only_global,
             check_input_hash=args.check_input_hash,
+            skip_global=args.skip_global,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent
