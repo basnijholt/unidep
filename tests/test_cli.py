@@ -157,3 +157,44 @@ def test_doubly_nested_project_folder_installable(
         f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
         in result.stdout
     )
+
+    # Test depth 2
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "install-all",
+            "--dry-run",
+            "--editable",
+            "--no-dependencies",
+            "--directory",
+            example_folder,
+            "--depth",
+            "2",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert (
+        f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
+        in result.stdout
+    )
+
+    # Test depth 1 (should not install project4)
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "install-all",
+            "--dry-run",
+            "--editable",
+            "--no-dependencies",
+            "--directory",
+            example_folder,
+            "--depth",
+            "1",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert f"pip install --no-dependencies -e {p1} -e {p2} -e {p3}`" in result.stdout
