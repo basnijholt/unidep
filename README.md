@@ -290,7 +290,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -345,7 +346,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
                         the `--no-dependencies` flag to `pip install`. Useful
@@ -408,7 +410,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
                         the `--no-dependencies` flag to `pip install`. Useful
@@ -473,7 +476,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -519,7 +523,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -567,7 +572,8 @@ options:
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency, that is in one
                         of the `requirements.yaml` files. This option can be
-                        repeated to skip multiple packages.
+                        repeated to skip multiple packages. For example, use
+                        `--skip-dependency pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
