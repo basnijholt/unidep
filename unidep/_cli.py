@@ -454,14 +454,7 @@ def _pip_install_local(
 
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
-        try:
-            subprocess.run(pip_command, check=True)  # noqa: S603
-        except subprocess.CalledProcessError as e:
-            print(
-                f"❌ Error installing project: {e} with"
-                f" stdout:\n{e.output}\nand stderr:\n{e.stderr}",
-            )
-            sys.exit(1)
+        subprocess.run(pip_command, check=True)  # noqa: S603
 
 
 def _to_requirements_file(path: Path) -> Path:
