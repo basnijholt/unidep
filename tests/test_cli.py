@@ -149,11 +149,11 @@ def test_doubly_nested_project_folder_installable(
         text=True,
     )
 
+    p1 = f"{tmp_path}/example/project1"
+    p2 = f"{tmp_path}/example/project2"
+    p3 = f"{tmp_path}/example/project3"
+    p4 = f"{tmp_path}/example/extra_projects/project4"
     assert (
-        f"pip install --no-dependencies -e {tmp_path}/example/project1 -e {tmp_path}/example/project2 -e {tmp_path}/example/project3`"
-        in result.stdout
-    )
-    assert (
-        f"pip install --no-dependencies -e {tmp_path}/example/extra_projects/project4`"
+        f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
         in result.stdout
     )

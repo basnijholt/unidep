@@ -30,10 +30,10 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 🔍 Scanning in `.` at depth 0
 🔍 Scanning in `project1` at depth 1
 🔍 Found `requirements.yaml` at `project1/requirements.yaml`
-🔍 Scanning in `project3` at depth 1
-🔍 Found `requirements.yaml` at `project3/requirements.yaml`
 🔍 Scanning in `project2` at depth 1
 🔍 Found `requirements.yaml` at `project2/requirements.yaml`
+🔍 Scanning in `project3` at depth 1
+🔍 Found `requirements.yaml` at `project3/requirements.yaml`
 📄 Parsing `project1/requirements.yaml`
 📄 Parsing include `../project2`
 📄 Parsing `project2/requirements.yaml`
@@ -74,11 +74,9 @@ Just run `unidep install ./project1` or `unidep install -e ./project1` for an ed
 
 📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64' rsync-time-machine slurm-usage fileup; sys_platform == 'darwin' codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e ./project1`
-
 📝 Found local dependencies: {'project1': ['project2', 'project3']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/project2 -e /home/runner/work/unidep/unidep/example/project3`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/project2 -e /home/runner/work/unidep/unidep/example/project3 -e ./project1`
 
 ```
 

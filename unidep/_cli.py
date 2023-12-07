@@ -427,7 +427,7 @@ def _to_requirements_file(path: Path) -> Path:
     return path if path.is_file() else path / "requirements.yaml"
 
 
-def _install_command(  # noqa: PLR0912
+def _install_command(
     *files: Path,
     conda_executable: str,
     dry_run: bool,
@@ -485,15 +485,7 @@ def _install_command(  # noqa: PLR0912
                     f"⚠️  Project {file.parent} is not pip installable. "
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
-        if installable:
-            _pip_install_local(
-                *installable,
-                editable=editable,
-                dry_run=dry_run,
-                flags=pip_flags,
-            )
 
-    if not skip_local:
         # Install local dependencies (if any) included via `includes:`
         local_dependencies = parse_project_dependencies(
             *files,
@@ -502,18 +494,16 @@ def _install_command(  # noqa: PLR0912
         )
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        installed = {p.resolve() for p in installable}
-        deps = sorted(
-            {
-                dep
-                for deps in local_dependencies.values()
-                for dep in deps
-                if dep.resolve() not in installed
-            },
-        )
-        if deps:
+        installable_set = {p.resolve() for p in installable}
+        installable += [
+            dep
+            for deps in local_dependencies.values()
+            for dep in deps
+            if dep.resolve() not in installable_set
+        ]
+        if installable:
             _pip_install_local(
-                *deps,
+                *sorted(installable),
                 editable=editable,
                 dry_run=dry_run,
                 flags=pip_flags,
