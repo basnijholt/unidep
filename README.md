@@ -334,7 +334,9 @@ options:
                         `requirements.yaml`
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
-                        the `--no-dependencies` flag to `pip install`.
+                        the `--no-dependencies` flag to `pip install`. Useful
+                        after installing a `conda-lock.yml` file because then
+                        all dependencies have already been installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
@@ -386,7 +388,9 @@ options:
                         `requirements.yaml`
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
-                        the `--no-dependencies` flag to `pip install`.
+                        the `--no-dependencies` flag to `pip install`. Useful
+                        after installing a `conda-lock.yml` file because then
+                        all dependencies have already been installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
