@@ -135,6 +135,17 @@ def _add_common_args(  # noqa: PLR0912
             action="store_true",
             help="Skip installing conda dependencies from `requirements.yaml`",
         )
+    if "skip-dependency" in options:
+        sub_parser.add_argument(
+            "--skip-dependency",
+            type=str,
+            action="append",
+            default=[],
+            help="Skip installing a specific dependency, that is in one of the"
+            " `requirements.yaml` files. This option can be used multiple times, each"
+            " time specifying a different package to skip to skip multiple packages."
+            " For example, use `--skip-dependency pandas` to skip installing pandas.",
+        )
     if "no-dependencies" in options:
         sub_parser.add_argument(
             "--no-dependencies",
@@ -226,7 +237,7 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(
         parser_merge,
-        {"directory", "verbose", "platform", "depth", "ignore-pin"},
+        {"directory", "verbose", "platform", "depth", "ignore-pin", "skip-dependency"},
     )
 
     # Subparser for the 'install' command
@@ -265,6 +276,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-conda",
             "no-dependencies",
             "ignore-pin",
+            "skip-dependency",
             "verbose",
         },
     )
@@ -302,6 +314,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-conda",
             "no-dependencies",
             "ignore-pin",
+            "skip-dependency",
             "verbose",
         },
     )
@@ -342,7 +355,7 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(
         parser_lock,
-        {"directory", "verbose", "platform", "depth", "ignore-pin"},
+        {"directory", "verbose", "platform", "depth", "ignore-pin", "skip-dependency"},
     )
 
     # Subparser for the 'pip' and 'conda' command
@@ -368,7 +381,10 @@ def _parse_args() -> argparse.Namespace:
         formatter_class=_HelpFormatter,
     )
     for sub_parser in [parser_pip, parser_conda]:
-        _add_common_args(sub_parser, {"verbose", "platform", "file", "ignore-pin"})
+        _add_common_args(
+            sub_parser,
+            {"verbose", "platform", "file", "ignore-pin", "skip-dependency"},
+        )
         sub_parser.add_argument(
             "--separator",
             type=str,
@@ -455,6 +471,7 @@ def _install_command(
     skip_conda: bool = False,
     no_dependencies: bool = False,
     ignore_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
@@ -465,6 +482,7 @@ def _install_command(
     requirements = parse_yaml_requirements(
         *files,
         ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
     resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -548,6 +566,7 @@ def _install_all_command(
     skip_conda: bool = False,
     no_dependencies: bool = False,
     ignore_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> None:  # pragma: no cover
     found_files = find_requirements_files(
@@ -568,6 +587,7 @@ def _install_all_command(
         skip_conda=skip_conda,
         no_dependencies=no_dependencies,
         ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
 
@@ -582,6 +602,7 @@ def _merge_command(
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
     ignore_pins: list[str],
+    skip_dependencies: list[str],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -598,6 +619,7 @@ def _merge_command(
     requirements = parse_yaml_requirements(
         *found_files,
         ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
     resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -657,6 +679,7 @@ def main() -> None:
             selector=args.selector,
             platforms=args.platform,
             ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -666,6 +689,7 @@ def main() -> None:
                 platforms=[args.platform],
                 verbose=args.verbose,
                 ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
             ),
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
@@ -673,6 +697,7 @@ def main() -> None:
         requirements = parse_yaml_requirements(
             args.file,
             ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
             verbose=args.verbose,
         )
         resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -694,6 +719,7 @@ def main() -> None:
             skip_conda=args.skip_conda,
             no_dependencies=args.no_dependencies,
             ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
             verbose=args.verbose,
         )
     elif args.command == "install-all":
@@ -709,6 +735,7 @@ def main() -> None:
             skip_conda=args.skip_conda,
             no_dependencies=args.no_dependencies,
             ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
@@ -719,6 +746,7 @@ def main() -> None:
             verbose=args.verbose,
             only_global=args.only_global,
             ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
             check_input_hash=args.check_input_hash,
         )
     elif args.command == "version":  # pragma: no cover
