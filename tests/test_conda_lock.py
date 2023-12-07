@@ -25,6 +25,7 @@ def test_conda_lock_command() -> None:
             only_global=False,
             check_input_hash=True,
             ignore_pins=[],
+            skip_dependencies=[],
         )
     with YAML(typ="safe") as yaml:
         with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
@@ -46,6 +47,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
             only_global=False,
             check_input_hash=True,
             ignore_pins=[],
+            skip_dependencies=[],
         )
     with YAML(typ="safe") as yaml:
         with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
@@ -123,6 +125,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
             only_global=False,
             check_input_hash=True,
             ignore_pins=[],
+            skip_dependencies=[],
         )
     assert "Missing keys" not in capsys.readouterr().out
 
