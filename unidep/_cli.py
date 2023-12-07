@@ -143,7 +143,8 @@ def _add_common_args(  # noqa: PLR0912
             default=[],
             help="Skip installing a specific dependency, that is in one of the"
             " `requirements.yaml` files. This option can be repeated"
-            " to skip multiple packages.",
+            " to skip multiple packages. For example, use `--skip-dependency pandas`"
+            " to skip installing pandas.",
         )
     if "no-dependencies" in options:
         sub_parser.add_argument(
