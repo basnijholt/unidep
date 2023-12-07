@@ -167,7 +167,8 @@ def _add_common_args(  # noqa: PLR0912
             action="append",
             default=[],
             help="Ignore the version pin for a specific package,"
-            " e.g., `--ignore-pin numpy`",
+            " e.g., `--ignore-pin numpy`. This option can be repeated"
+            " to ignore multiple packages.",
         )
 
 
