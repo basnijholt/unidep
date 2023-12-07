@@ -8,6 +8,7 @@
 - [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
 - [Install a `requirements.yaml` file directly with `pip`](#install-a-requirementsyaml-file-directly-with-pip)
 - [Install a `requirements.yaml` file directly with `unidep`](#install-a-requirementsyaml-file-directly-with-unidep)
+- [Create a global `conda-lock.yml` and per project `conda-lock.yml` files](#create-a-global-conda-lockyml-and-per-project-conda-lockyml-files)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
