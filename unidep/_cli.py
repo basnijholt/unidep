@@ -328,8 +328,8 @@ def _parse_args() -> argparse.Namespace:
     parser_lock.add_argument(
         "--skip-global",
         action="store_true",
-        help="Skip the call to `conda-lock`, only"
-        " regenerate the sub `conda-lock.yml` files.",
+        help="Skip the call to `conda-lock`, only regenerate the sub `conda-lock.yml`"
+        " files. Requires the global `conda-lock.yml` file to already exist.",
     )
     _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
 
