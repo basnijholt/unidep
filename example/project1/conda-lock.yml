@@ -1,6 +1,6 @@
 # This file is created and managed by `unidep` 0.29.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep conda-lock -d example`
+# File generated with: `unidep conda-lock --skip-global`
 #
 # This environment can be installed with
 # `micromamba create -f conda-lock.yml -n myenv`
@@ -17,7 +17,7 @@ metadata:
   platforms:
   - osx-arm64
   sources:
-  - example/project1/requirements.yaml
+  - project1/requirements.yaml
 package:
 - name: adaptive
   version: 1.1.0
