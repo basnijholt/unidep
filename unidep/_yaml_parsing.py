@@ -88,11 +88,14 @@ def _parse_dependency(
     which: Literal["conda", "pip", "both"],
     identifier: int,
     ignore_pins: list[str],
+    skip_dependencies: list[str],
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
     if name in ignore_pins:
         pin = None
+    if name in skip_dependencies:
+        return []
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
@@ -130,11 +133,12 @@ def _include_path(include: str) -> Path:
 def parse_yaml_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of `requirements.yaml` files including comments."""
-    if ignore_pins is None:
-        ignore_pins = []
+    ignore_pins = ignore_pins or []
+    skip_dependencies = skip_dependencies or []
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
@@ -178,6 +182,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
                     "both",
                     identifier,
                     ignore_pins,
+                    skip_dependencies,
                 )
                 for meta in metas:
                     requirements[meta.name].append(meta)
@@ -192,6 +197,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
                         which,  # type: ignore[arg-type]
                         identifier,
                         ignore_pins,
+                        skip_dependencies,
                     )
                     for meta in metas:
                         requirements[meta.name].append(meta)
