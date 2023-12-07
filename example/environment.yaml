@@ -1,6 +1,6 @@
 # This file is created and managed by `unidep` 0.29.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep merge --name myenv --verbose`
+# File generated with: `unidep merge`
 
 name: myenv
 channels:
@@ -10,8 +10,6 @@ dependencies:
   - adaptive >=1.0.0, <2.0.0
   - pfapack
   - pipefunc
-  - adaptive-scheduler
-  - hpc05
   - pip:
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
@@ -23,4 +21,4 @@ dependencies:
     - home-assistant-streamdeck-yaml
     - unidep
 platforms:
-  - linux-64
+  - osx-arm64
