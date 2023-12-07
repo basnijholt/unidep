@@ -89,7 +89,7 @@ Using `unidep conda-lock` we can create a global `conda-lock.yml` file and per p
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- unidep conda-lock --skip-global -->
+<!-- SKIP_CONDA_LOCK=1 unidep conda-lock -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
