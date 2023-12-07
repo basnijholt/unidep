@@ -89,7 +89,7 @@ Using `unidep conda-lock` we can create a global `conda-lock.yml` file and per p
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- unidep conda-lock -->
+<!-- unidep conda-lock --check-input-hash -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
@@ -101,7 +101,7 @@ Using `unidep conda-lock` we can create a global `conda-lock.yml` file and per p
 ❌ Error occurred:
  Command '['conda-lock', 'lock', '--file', 'tmp.environment.yaml', '--lockfile', 'conda-lock.yml']' returned non-zero exit status 1.
 Return code: 1
-Output: 
+Output:
 Error Output: Traceback (most recent call last):
   File "/opt/hostedtoolcache/Python/3.12.0/x64/bin/conda-lock", line 5, in <module>
     from conda_lock import main
