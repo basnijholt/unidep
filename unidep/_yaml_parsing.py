@@ -87,9 +87,12 @@ def _parse_dependency(
     index_or_key: int | str,
     which: Literal["conda", "pip", "both"],
     identifier: int,
+    ignore_pins: list[str],
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
+    if name in ignore_pins:
+        pin = None
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
@@ -126,9 +129,12 @@ def _include_path(include: str) -> Path:
 
 def parse_yaml_requirements(  # noqa: PLR0912
     *paths: Path,
+    ignore_pins: list[str] | None = None,
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of `requirements.yaml` files including comments."""
+    if ignore_pins is None:
+        ignore_pins = []
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
@@ -165,14 +171,28 @@ def parse_yaml_requirements(  # noqa: PLR0912
         for i, dep in enumerate(data["dependencies"]):
             identifier += 1
             if isinstance(dep, str):
-                metas = _parse_dependency(dep, dependencies, i, "both", identifier)
+                metas = _parse_dependency(
+                    dep,
+                    dependencies,
+                    i,
+                    "both",
+                    identifier,
+                    ignore_pins,
+                )
                 for meta in metas:
                     requirements[meta.name].append(meta)
                 continue
             assert isinstance(dep, dict)
             for which in ["conda", "pip"]:
                 if which in dep:
-                    metas = _parse_dependency(dep[which], dep, which, which, identifier)  # type: ignore[arg-type]
+                    metas = _parse_dependency(
+                        dep[which],
+                        dep,
+                        which,
+                        which,  # type: ignore[arg-type]
+                        identifier,
+                        ignore_pins,
+                    )
                     for meta in metas:
                         requirements[meta.name].append(meta)
 

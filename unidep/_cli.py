@@ -160,6 +160,15 @@ def _add_common_args(  # noqa: PLR0912
             action="store_true",
             help="Only print the commands that would be run",
         )
+    if "ignore-pin" in options:
+        sub_parser.add_argument(
+            "--ignore-pin",
+            type=str,
+            action="append",
+            default=[],
+            help="Ignore the version pin for a specific package,"
+            " e.g., `--ignore-pin numpy`",
+        )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -214,7 +223,10 @@ def _parse_args() -> argparse.Namespace:
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
     )
-    _add_common_args(parser_merge, {"directory", "verbose", "platform", "depth"})
+    _add_common_args(
+        parser_merge,
+        {"directory", "verbose", "platform", "depth", "ignore-pin"},
+    )
 
     # Subparser for the 'install' command
     install_help = (
@@ -251,6 +263,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-pip",
             "skip-conda",
             "no-dependencies",
+            "ignore-pin",
             "verbose",
         },
     )
@@ -287,6 +300,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-pip",
             "skip-conda",
             "no-dependencies",
+            "ignore-pin",
             "verbose",
         },
     )
@@ -325,7 +339,10 @@ def _parse_args() -> argparse.Namespace:
         help="Check existing input hashes in lockfiles before regenerating lock files."
         " This flag is directly passed to `conda-lock`.",
     )
-    _add_common_args(parser_lock, {"directory", "verbose", "platform", "depth"})
+    _add_common_args(
+        parser_lock,
+        {"directory", "verbose", "platform", "depth", "ignore-pin"},
+    )
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
@@ -350,7 +367,7 @@ def _parse_args() -> argparse.Namespace:
         formatter_class=_HelpFormatter,
     )
     for sub_parser in [parser_pip, parser_conda]:
-        _add_common_args(sub_parser, {"verbose", "platform", "file"})
+        _add_common_args(sub_parser, {"verbose", "platform", "file", "ignore-pin"})
         sub_parser.add_argument(
             "--separator",
             type=str,
@@ -436,6 +453,7 @@ def _install_command(
     skip_pip: bool = False,
     skip_conda: bool = False,
     no_dependencies: bool = False,
+    ignore_pins: list[str] | None = None,
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
@@ -443,7 +461,11 @@ def _install_command(
         skip_pip = True
         skip_conda = True
     files = tuple(_to_requirements_file(f) for f in files)
-    requirements = parse_yaml_requirements(*files, verbose=verbose)
+    requirements = parse_yaml_requirements(
+        *files,
+        ignore_pins=ignore_pins,
+        verbose=verbose,
+    )
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -524,6 +546,7 @@ def _install_all_command(
     skip_pip: bool = False,
     skip_conda: bool = False,
     no_dependencies: bool = False,
+    ignore_pins: list[str] | None = None,
     verbose: bool = False,
 ) -> None:  # pragma: no cover
     found_files = find_requirements_files(
@@ -543,6 +566,7 @@ def _install_all_command(
         skip_pip=skip_pip,
         skip_conda=skip_conda,
         no_dependencies=no_dependencies,
+        ignore_pins=ignore_pins,
         verbose=verbose,
     )
 
@@ -556,6 +580,7 @@ def _merge_command(
     stdout: bool,
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
+    ignore_pins: list[str],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -569,7 +594,11 @@ def _merge_command(
     if not found_files:
         print(f"❌ No `requirements.yaml` files found in {directory}")
         sys.exit(1)
-    requirements = parse_yaml_requirements(*found_files, verbose=verbose)
+    requirements = parse_yaml_requirements(
+        *found_files,
+        ignore_pins=ignore_pins,
+        verbose=verbose,
+    )
     resolved_requirements = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved_requirements,
@@ -626,6 +655,7 @@ def main() -> None:
             stdout=args.stdout,
             selector=args.selector,
             platforms=args.platform,
+            ignore_pins=args.ignore_pin,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -634,11 +664,16 @@ def main() -> None:
                 args.file,
                 platforms=[args.platform],
                 verbose=args.verbose,
+                ignore_pins=args.ignore_pin,
             ),
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
-        requirements = parse_yaml_requirements(args.file, verbose=args.verbose)
+        requirements = parse_yaml_requirements(
+            args.file,
+            ignore_pins=args.ignore_pin,
+            verbose=args.verbose,
+        )
         resolved_requirements = resolve_conflicts(requirements.requirements)
         env_spec = create_conda_env_specification(
             resolved_requirements,
@@ -657,6 +692,7 @@ def main() -> None:
             skip_pip=args.skip_pip,
             skip_conda=args.skip_conda,
             no_dependencies=args.no_dependencies,
+            ignore_pins=args.ignore_pin,
             verbose=args.verbose,
         )
     elif args.command == "install-all":
@@ -671,6 +707,7 @@ def main() -> None:
             skip_pip=args.skip_pip,
             skip_conda=args.skip_conda,
             no_dependencies=args.no_dependencies,
+            ignore_pins=args.ignore_pin,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
@@ -680,6 +717,7 @@ def main() -> None:
             platform=args.platform,
             verbose=args.verbose,
             only_global=args.only_global,
+            ignore_pins=args.ignore_pin,
             check_input_hash=args.check_input_hash,
         )
     elif args.command == "version":  # pragma: no cover
