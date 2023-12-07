@@ -511,7 +511,13 @@ def _install_command(  # noqa: PLR0912
                 if dep.resolve() not in installed
             },
         )
-        _pip_install_local(*deps, editable=editable, dry_run=dry_run, flags=pip_flags)
+        if deps:
+            _pip_install_local(
+                *deps,
+                editable=editable,
+                dry_run=dry_run,
+                flags=pip_flags,
+            )
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
