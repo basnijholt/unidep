@@ -67,7 +67,7 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
     assert (
-        f"-m pip install -e {REPO_ROOT}/example/project1 -e {REPO_ROOT}/example/project2 -e {REPO_ROOT}/example/project3`"
+        f"pip install -e {REPO_ROOT}/example/project1 -e {REPO_ROOT}/example/project2 -e {REPO_ROOT}/example/project3`"
         in captured.out
     )
 
@@ -141,6 +141,7 @@ def test_doubly_nested_project_folder_installable(
             "install",
             "--dry-run",
             "--editable",
+            "--no-dependencies",
             str(project4 / "requirements.yaml"),
         ],
         check=True,
@@ -149,9 +150,10 @@ def test_doubly_nested_project_folder_installable(
     )
 
     assert (
-        f"-m pip install -e {tmp_path}/example/project1 -e {tmp_path}/example/project2 -e {tmp_path}/example/project3`"
+        f"pip install --no-dependencies -e {tmp_path}/example/project1 -e {tmp_path}/example/project2 -e {tmp_path}/example/project3`"
         in result.stdout
     )
     assert (
-        f"pip install -e {tmp_path}/example/extra_projects/project4`" in result.stdout
+        f"pip install --no-dependencies -e {tmp_path}/example/extra_projects/project4`"
+        in result.stdout
     )
