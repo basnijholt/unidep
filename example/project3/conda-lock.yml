@@ -1,0 +1,53 @@
+# This file is created and managed by `unidep` 0.29.0.
+# For details see https://github.com/basnijholt/unidep
+# File generated with: `unidep conda-lock --skip-global`
+#
+# This environment can be installed with
+# `micromamba create -f conda-lock.yml -n myenv`
+# This file is a `conda-lock` file generated via `unidep`.
+# For details see https://conda.github.io/conda-lock/
+
+version: 1
+metadata:
+  content_hash:
+    osx-arm64: unidep-is-awesome
+  channels:
+  - url: conda-forge
+    used_env_vars: []
+  platforms:
+  - osx-arm64
+  sources:
+  - project3/requirements.yaml
+package:
+- name: ruamel.yaml
+  version: 0.18.5
+  manager: pip
+  platform: osx-arm64
+  dependencies:
+    ruamel.yaml.clib: '>=0.2.7'
+  url: https://files.pythonhosted.org/packages/57/db/4b74a29f5fd175aea3ff0d95f8230d9bb8a54e38d963c6f96065b9e2eef3/ruamel.yaml-0.18.5-py3-none-any.whl
+  hash:
+    sha256: a013ac02f99a69cdd6277d9664689eb1acba07069f912823177c5eced21a6ada
+  category: main
+  optional: false
+- name: ruamel.yaml.clib
+  version: 0.2.8
+  manager: pip
+  platform: osx-arm64
+  dependencies: {}
+  url: https://files.pythonhosted.org/packages/66/98/8de4f22bbfd9135deb3422e96d450c4bc0a57d38c25976119307d2efe0aa/ruamel.yaml.clib-0.2.8-cp312-cp312-macosx_13_0_arm64.whl
+  hash:
+    sha256: edaef1c1200c4b4cb914583150dcaa3bc30e592e907c01117c08b13a07255ec2
+  category: main
+  optional: false
+- name: unidep
+  version: 0.29.0
+  manager: pip
+  platform: osx-arm64
+  dependencies:
+    ruamel.yaml: '*'
+  url: https://files.pythonhosted.org/packages/2b/f4/4aedad573a5f66da3b2b7efbfa20c45611cc491b0c411aadf2d0892af090/unidep-0.29.0-py3-none-any.whl
+  hash:
+    sha256: 3f3ec2d91d62c43e9fb663dd741d9020547ddaec9f896776a9a8095ee3bc49df
+  category: main
+  optional: false

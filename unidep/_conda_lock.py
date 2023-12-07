@@ -4,6 +4,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -57,7 +58,8 @@ def _run_conda_lock(
         cmd.append("--check-input-hash")
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
-        subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+        if not os.environ.get("SKIP_CONDA_LOCK"):  # use in CI
+            subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
         remove_top_comments(conda_lock_output)
         add_comment_to_file(
             conda_lock_output,
@@ -84,6 +86,7 @@ def _conda_lock_global(
     platform: list[Platform],
     verbose: bool,
     check_input_hash: bool,
+    skip_global: bool,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
@@ -101,8 +104,9 @@ def _conda_lock_global(
         platforms=platform,
         verbose=verbose,
     )
-    _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
-    print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
+    if not skip_global:
+        _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
+        print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
     return conda_lock_output
 
 
@@ -436,6 +440,7 @@ def conda_lock_command(
     verbose: bool,
     only_global: bool,
     check_input_hash: bool,
+    skip_global: bool,
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
     conda_lock_output = _conda_lock_global(
@@ -444,6 +449,7 @@ def conda_lock_command(
         platform=platform,
         verbose=verbose,
         check_input_hash=check_input_hash,
+        skip_global=skip_global,
     )
     if only_global:
         return
