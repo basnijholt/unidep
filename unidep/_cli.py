@@ -52,7 +52,7 @@ except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 
-def _add_common_args(
+def _add_common_args(  # noqa: PLR0912
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
@@ -108,7 +108,6 @@ def _add_common_args(
             default=1,
             help="Maximum depth to scan for `requirements.yaml` files, by default 1",
         )
-
     if "*files" in options:
         sub_parser.add_argument(
             "files",
@@ -135,6 +134,14 @@ def _add_common_args(
             "--skip-conda",
             action="store_true",
             help="Skip installing conda dependencies from `requirements.yaml`",
+        )
+    if "no-dependencies" in options:
+        sub_parser.add_argument(
+            "--no-dependencies",
+            action="store_true",
+            help="Skip installing dependencies from `requirements.yaml`"
+            " file(s) and only install local package(s). This passes the"
+            " `--no-dependencies` flag to `pip install`.",
         )
     if "conda-executable" in options:
         sub_parser.add_argument(
@@ -241,6 +248,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-local",
             "skip-pip",
             "skip-conda",
+            "no-dependencies",
             "verbose",
         },
     )
@@ -276,6 +284,7 @@ def _parse_args() -> argparse.Namespace:
             "skip-local",
             "skip-pip",
             "skip-conda",
+            "no-dependencies",
             "verbose",
         },
     )
@@ -391,8 +400,11 @@ def _pip_install_local(
     *folders: str | Path,
     editable: bool,
     dry_run: bool,
+    flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     pip_command = [sys.executable, "-m", "pip", "install"]
+    if flags:
+        pip_command.extend(flags)
 
     for folder in folders:
         if not os.path.isabs(folder):  # noqa: PTH117
@@ -413,7 +425,7 @@ def _to_requirements_file(path: Path) -> Path:
     return path if path.is_file() else path / "requirements.yaml"
 
 
-def _install_command(
+def _install_command(  # noqa: PLR0912
     *files: Path,
     conda_executable: str,
     dry_run: bool,
@@ -421,9 +433,13 @@ def _install_command(
     skip_local: bool = False,
     skip_pip: bool = False,
     skip_conda: bool = False,
+    no_dependencies: bool = False,
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` file."""
+    if no_dependencies:
+        skip_pip = True
+        skip_conda = True
     files = tuple(_to_requirements_file(f) for f in files)
     requirements = parse_yaml_requirements(*files, verbose=verbose)
     resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -456,7 +472,7 @@ def _install_command(
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
-
+    pip_flags = ["--no-dependencies"] if no_dependencies else None
     if not skip_local:
         installable = []
         for file in files:
@@ -468,7 +484,12 @@ def _install_command(
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
         if installable:
-            _pip_install_local(*installable, editable=editable, dry_run=dry_run)
+            _pip_install_local(
+                *installable,
+                editable=editable,
+                dry_run=dry_run,
+                flags=pip_flags,
+            )
 
     if not skip_local:
         # Install local dependencies (if any) included via `includes:`
@@ -480,7 +501,8 @@ def _install_command(
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
         deps = sorted({dep for deps in local_dependencies.values() for dep in deps})
-        _pip_install_local(*deps, editable=editable, dry_run=dry_run)
+        # TODO: filter out deps that are already installed in `files`
+        _pip_install_local(*deps, editable=editable, dry_run=dry_run, flags=pip_flags)
 
     if not dry_run:  # pragma: no cover
         print("✅ All dependencies installed successfully.")
@@ -496,6 +518,7 @@ def _install_all_command(
     skip_local: bool = False,
     skip_pip: bool = False,
     skip_conda: bool = False,
+    no_dependencies: bool = False,
     verbose: bool = False,
 ) -> None:  # pragma: no cover
     found_files = find_requirements_files(
@@ -514,6 +537,7 @@ def _install_all_command(
         skip_local=skip_local,
         skip_pip=skip_pip,
         skip_conda=skip_conda,
+        no_dependencies=no_dependencies,
         verbose=verbose,
     )
 
@@ -627,6 +651,7 @@ def main() -> None:
             skip_local=args.skip_local,
             skip_pip=args.skip_pip,
             skip_conda=args.skip_conda,
+            no_dependencies=args.no_dependencies,
             verbose=args.verbose,
         )
     elif args.command == "install-all":
@@ -640,6 +665,7 @@ def main() -> None:
             skip_local=args.skip_local,
             skip_pip=args.skip_pip,
             skip_conda=args.skip_conda,
+            no_dependencies=args.no_dependencies,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
