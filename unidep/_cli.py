@@ -141,7 +141,9 @@ def _add_common_args(  # noqa: PLR0912
             action="store_true",
             help="Skip installing dependencies from `requirements.yaml`"
             " file(s) and only install local package(s). This passes the"
-            " `--no-dependencies` flag to `pip install`.",
+            " `--no-dependencies` flag to `pip install`. Useful after"
+            " installing a `conda-lock.yml` file because then all"
+            " dependencies have already been installed.",
         )
     if "conda-executable" in options:
         sub_parser.add_argument(
@@ -473,8 +475,8 @@ def _install_command(  # noqa: PLR0912
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
     pip_flags = ["--no-dependencies"] if no_dependencies else None
+    installable = []
     if not skip_local:
-        installable = []
         for file in files:
             if is_pip_installable(file.parent):
                 installable.append(file.parent)
@@ -500,8 +502,15 @@ def _install_command(  # noqa: PLR0912
         )
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
-        deps = sorted({dep for deps in local_dependencies.values() for dep in deps})
-        # TODO: filter out deps that are already installed in `files`
+        installed = {p.resolve() for p in installable}
+        deps = sorted(
+            {
+                dep
+                for deps in local_dependencies.values()
+                for dep in deps
+                if dep.resolve() not in installed
+            },
+        )
         _pip_install_local(*deps, editable=editable, dry_run=dry_run, flags=pip_flags)
 
     if not dry_run:  # pragma: no cover
