@@ -1535,3 +1535,40 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
             ),
         ],
     }
+
+
+def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1
+                - bar
+                - baz
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(
+        p,
+        skip_dependencies=["foo", "bar"],
+        verbose=False,
+    )
+    assert requirements.requirements == {
+        "baz": [
+            Meta(
+                name="baz",
+                which="conda",
+                comment=None,
+                pin=None,
+                identifier="08fd8713",
+            ),
+            Meta(
+                name="baz",
+                which="pip",
+                comment=None,
+                pin=None,
+                identifier="08fd8713",
+            ),
+        ],
+    }
