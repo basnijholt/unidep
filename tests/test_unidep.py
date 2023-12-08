@@ -1572,3 +1572,35 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
             ),
         ],
     }
+
+
+def test_pin_star_cuda(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: qsimcirq * cuda*  # [linux64]
+                - conda: qsimcirq * cpu*  # [arm64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(p)
+    assert requirements.requirements == {
+        "qsimcirq": [
+            Meta(
+                name="qsimcirq",
+                which="conda",
+                comment="# [linux64]",
+                pin="* cuda*",
+                identifier="c292b98a",
+            ),
+            Meta(
+                name="qsimcirq",
+                which="conda",
+                comment="# [arm64]",
+                pin="* cpu*",
+                identifier="489f33e0",
+            ),
+        ],
+    }
