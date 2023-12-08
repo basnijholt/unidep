@@ -348,6 +348,16 @@ def _parse_args() -> argparse.Namespace:
         help="Only generate the global lock file",
     )
     parser_lock.add_argument(
+        "--lockfile",
+        type=Path,
+        default=None,
+        help="The lockfile to use for the global lock file. By default, the global"
+        " lockfile is named `conda-lock.yml` and is placed in the current directory."
+        " Should be relative to the current directory. For example, use"
+        " `--lockfile locks/example.conda-lock.yml` to save the global lockfile in"
+        " `locks/example.conda-lock.yml`.",
+    )
+    parser_lock.add_argument(
         "--check-input-hash",
         action="store_true",
         help="Check existing input hashes in lockfiles before regenerating lock files."
@@ -748,6 +758,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             check_input_hash=args.check_input_hash,
+            lockfile=args.lockfile,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent
