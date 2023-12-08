@@ -1604,3 +1604,48 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
             ),
         ],
     }
+
+
+def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo >1
+                - conda: bar * cuda*
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(
+        p,
+        overwrite_pins=["foo=1", "bar * cpu*"],
+        verbose=False,
+    )
+    assert requirements.requirements == {
+        "foo": [
+            Meta(
+                name="foo",
+                which="conda",
+                comment=None,
+                pin="=1",
+                identifier="17e5d607",
+            ),
+            Meta(
+                name="foo",
+                which="pip",
+                comment=None,
+                pin="=1",
+                identifier="17e5d607",
+            ),
+        ],
+        "bar": [
+            Meta(
+                name="bar",
+                which="conda",
+                comment=None,
+                pin="* cpu*",
+                identifier="5eb93b8c",
+            ),
+        ],
+    }

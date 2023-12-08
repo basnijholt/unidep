@@ -88,6 +88,7 @@ def _parse_dependency(
     which: Literal["conda", "pip", "both"],
     identifier: int,
     ignore_pins: list[str],
+    overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
 ) -> list[Meta]:
     comment = _extract_first_comment(dependencies, index_or_key)
@@ -96,6 +97,8 @@ def _parse_dependency(
         pin = None
     if name in skip_dependencies:
         return []
+    if name in overwrite_pins:
+        pin = overwrite_pins[name]
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
@@ -130,15 +133,26 @@ def _include_path(include: str) -> Path:
     return path.resolve()
 
 
+def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
+    """Parse overwrite pins."""
+    result = {}
+    for overwrite_pin in overwrite_pins:
+        name, pin = extract_name_and_pin(overwrite_pin)
+        result[name] = pin
+    return result
+
+
 def parse_yaml_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> ParsedRequirements:
     """Parse a list of `requirements.yaml` files including comments."""
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
+    overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
     requirements: dict[str, list[Meta]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
@@ -182,6 +196,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
                     "both",
                     identifier,
                     ignore_pins,
+                    overwrite_pins_map,
                     skip_dependencies,
                 )
                 for meta in metas:
@@ -197,6 +212,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
                         which,  # type: ignore[arg-type]
                         identifier,
                         ignore_pins,
+                        overwrite_pins_map,
                         skip_dependencies,
                     )
                     for meta in metas:
