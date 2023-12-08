@@ -86,6 +86,7 @@ def _conda_lock_global(
     check_input_hash: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
+    overwrite_pins: list[str],
     lockfile: str,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
@@ -103,6 +104,7 @@ def _conda_lock_global(
         selector="comment",
         platforms=platform,
         ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
@@ -443,6 +445,7 @@ def conda_lock_command(
     check_input_hash: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
+    overwrite_pins: list[str],
     lockfile: str = "conda-lock.yml",
 ) -> None:
     """Generate a conda-lock file a collection of requirements.yaml files."""
@@ -453,6 +456,7 @@ def conda_lock_command(
         verbose=verbose,
         check_input_hash=check_input_hash,
         ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         lockfile=lockfile,
     )

@@ -181,6 +181,16 @@ def _add_common_args(  # noqa: PLR0912
             " e.g., `--ignore-pin numpy`. This option can be repeated"
             " to ignore multiple packages.",
         )
+    if "overwrite-pin" in options:
+        sub_parser.add_argument(
+            "--overwrite-pin",
+            type=str,
+            action="append",
+            default=[],
+            help="Overwrite the version pin for a specific package,"
+            " e.g., `--overwrite-pin 'numpy==1.19.2'`. This option can be repeated"
+            " to overwrite the pins of multiple packages.",
+        )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -237,7 +247,15 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(
         parser_merge,
-        {"directory", "verbose", "platform", "depth", "ignore-pin", "skip-dependency"},
+        {
+            "directory",
+            "verbose",
+            "platform",
+            "depth",
+            "ignore-pin",
+            "skip-dependency",
+            "overwrite-pin",
+        },
     )
 
     # Subparser for the 'install' command
@@ -277,6 +295,7 @@ def _parse_args() -> argparse.Namespace:
             "no-dependencies",
             "ignore-pin",
             "skip-dependency",
+            "overwrite-pin",
             "verbose",
         },
     )
@@ -315,6 +334,7 @@ def _parse_args() -> argparse.Namespace:
             "no-dependencies",
             "ignore-pin",
             "skip-dependency",
+            "overwrite-pin",
             "verbose",
         },
     )
@@ -363,7 +383,15 @@ def _parse_args() -> argparse.Namespace:
     )
     _add_common_args(
         parser_lock,
-        {"directory", "verbose", "platform", "depth", "ignore-pin", "skip-dependency"},
+        {
+            "directory",
+            "verbose",
+            "platform",
+            "depth",
+            "ignore-pin",
+            "skip-dependency",
+            "overwrite-pin",
+        },
     )
 
     # Subparser for the 'pip' and 'conda' command
@@ -391,7 +419,14 @@ def _parse_args() -> argparse.Namespace:
     for sub_parser in [parser_pip, parser_conda]:
         _add_common_args(
             sub_parser,
-            {"verbose", "platform", "file", "ignore-pin", "skip-dependency"},
+            {
+                "verbose",
+                "platform",
+                "file",
+                "ignore-pin",
+                "skip-dependency",
+                "overwrite-pin",
+            },
         )
         sub_parser.add_argument(
             "--separator",
@@ -479,6 +514,7 @@ def _install_command(
     skip_conda: bool = False,
     no_dependencies: bool = False,
     ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> None:
@@ -490,6 +526,7 @@ def _install_command(
     requirements = parse_yaml_requirements(
         *files,
         ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
@@ -574,6 +611,7 @@ def _install_all_command(
     skip_conda: bool = False,
     no_dependencies: bool = False,
     ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> None:  # pragma: no cover
@@ -595,6 +633,7 @@ def _install_all_command(
         skip_conda=skip_conda,
         no_dependencies=no_dependencies,
         ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
@@ -611,6 +650,7 @@ def _merge_command(
     platforms: list[Platform],
     ignore_pins: list[str],
     skip_dependencies: list[str],
+    overwrite_pins: list[str],
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -627,6 +667,7 @@ def _merge_command(
     requirements = parse_yaml_requirements(
         *found_files,
         ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
@@ -688,6 +729,7 @@ def main() -> None:
             platforms=args.platform,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -698,6 +740,7 @@ def main() -> None:
                 verbose=args.verbose,
                 ignore_pins=args.ignore_pin,
                 skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
             ),
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
@@ -706,6 +749,7 @@ def main() -> None:
             args.file,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
         resolved_requirements = resolve_conflicts(requirements.requirements)
@@ -728,6 +772,7 @@ def main() -> None:
             no_dependencies=args.no_dependencies,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
     elif args.command == "install-all":
@@ -744,6 +789,7 @@ def main() -> None:
             no_dependencies=args.no_dependencies,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover
@@ -755,6 +801,7 @@ def main() -> None:
             only_global=args.only_global,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
             check_input_hash=args.check_input_hash,
             lockfile=args.lockfile,
         )
