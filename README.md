@@ -463,12 +463,10 @@ changed.
 options:
   -h, --help            show this help message and exit
   --only-global         Only generate the global lock file
-  --lockfile LOCKFILE   The lockfile to use for the global lock file. By
-                        default, the global lockfile is named `conda-lock.yml`
-                        and is placed in the current directory. Should be
-                        relative to the current directory. For example, use
-                        `--lockfile locks/example.conda-lock.yml` to save the
-                        global lockfile in `locks/example.conda-lock.yml`.
+  --lockfile LOCKFILE   Specify a path for the global lockfile (default:
+                        `conda-lock.yml` in current directory). Path should be
+                        relative, e.g., `--lockfile ./locks/example.conda-
+                        lock.yml`.
   --check-input-hash    Check existing input hashes in lockfiles before
                         regenerating lock files. This flag is directly passed
                         to `conda-lock`.
