@@ -370,7 +370,7 @@ def _parse_args() -> argparse.Namespace:
     parser_lock.add_argument(
         "--lockfile",
         type=Path,
-        default=None,
+        default="conda-lock.yml",
         help="Specify a path for the global lockfile (default: `conda-lock.yml`"
         " in current directory). Path should be relative, e.g.,"
         " `--lockfile ./locks/example.conda-lock.yml`.",
