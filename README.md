@@ -288,12 +288,11 @@ options:
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
                         by default 1
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -346,12 +345,11 @@ options:
   --skip-conda          Skip installing conda dependencies from
                         `requirements.yaml`
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
                         the `--no-dependencies` flag to `pip install`. Useful
@@ -412,12 +410,11 @@ options:
   --skip-conda          Skip installing conda dependencies from
                         `requirements.yaml`
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
                         file(s) and only install local package(s). This passes
                         the `--no-dependencies` flag to `pip install`. Useful
@@ -480,12 +477,11 @@ options:
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
                         by default 1
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -529,12 +525,11 @@ options:
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -580,12 +575,11 @@ options:
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
   --skip-dependency SKIP_DEPENDENCY
-                        Skip installing a specific dependency, that is in one
+                        Skip installing a specific dependency that is in one
                         of the `requirements.yaml` files. This option can be
                         used multiple times, each time specifying a different
-                        package to skip to skip multiple packages. For
-                        example, use `--skip-dependency pandas` to skip
-                        installing pandas.
+                        package to skip. For example, use `--skip-dependency
+                        pandas` to skip installing pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
