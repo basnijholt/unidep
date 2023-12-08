@@ -257,7 +257,7 @@ usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--selector {sel,comment}] [-d DIRECTORY] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--depth DEPTH] [--skip-dependency SKIP_DEPENDENCY]
-                    [--ignore-pin IGNORE_PIN]
+                    [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
 
 Combine multiple (or a single) `requirements.yaml` files into a single Conda
 installable `environment.yaml` file. Example usage: `unidep merge --directory
@@ -297,6 +297,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -319,6 +324,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
+                      [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml`
@@ -362,6 +368,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -384,6 +395,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
+                      [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml`
@@ -427,6 +439,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -450,6 +467,7 @@ usage: unidep conda-lock [-h] [--only-global] [--lockfile LOCKFILE]
                          [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                          [--depth DEPTH] [--skip-dependency SKIP_DEPENDENCY]
                          [--ignore-pin IGNORE_PIN]
+                         [--overwrite-pin OVERWRITE_PIN]
 
 Generate a global `conda-lock.yml` file for a collection of
 `requirements.yaml` files. Additionally, create individual `conda-lock.yml`
@@ -490,6 +508,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
 ```
 
 <!-- OUTPUT:END -->
@@ -510,7 +533,8 @@ See `unidep pip -h` for more information:
 usage: unidep pip [-h] [-f FILE] [-v]
                   [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                   [--skip-dependency SKIP_DEPENDENCY]
-                  [--ignore-pin IGNORE_PIN] [--separator SEPARATOR]
+                  [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
+                  [--separator SEPARATOR]
 
 Get the pip requirements for the current platform only. Example usage: `unidep
 pip --file folder1 --file folder2/requirements.yaml --seperator ' ' --platform
@@ -538,6 +562,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```
@@ -560,7 +589,8 @@ See `unidep conda -h` for more information:
 usage: unidep conda [-h] [-f FILE] [-v]
                     [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--skip-dependency SKIP_DEPENDENCY]
-                    [--ignore-pin IGNORE_PIN] [--separator SEPARATOR]
+                    [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
+                    [--separator SEPARATOR]
 
 Get the conda requirements for the current platform only. Example usage:
 `unidep conda --file folder1 --file folder2/requirements.yaml --seperator ' '
@@ -588,6 +618,11 @@ options:
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
                         ignore multiple packages.
+  --overwrite-pin OVERWRITE_PIN
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
   --separator SEPARATOR
                         The separator between the dependencies, by default ` `
 ```
