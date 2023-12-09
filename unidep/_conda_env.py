@@ -124,7 +124,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912, C901
+def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
@@ -174,10 +174,18 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
         for meta, _platforms in meta_to_platforms.items():
             if meta.identifier in seen_identifiers:
                 continue
+            if (
+                platforms
+                and _platforms != [None]  # None has been expanded already if len>1
+                and all(p not in platforms for p in _platforms)
+            ):
+                # we have a platform that is not in the list of platforms
+                assert None not in _platforms
+                continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
-            if _platforms != [None]:
+            if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                     dep_str = f"{dep_str}; {marker}"
