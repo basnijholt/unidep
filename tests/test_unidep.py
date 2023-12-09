@@ -1649,3 +1649,65 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             ),
         ],
     }
+
+
+def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: ray  # [arm64]
+                - conda: ray-core  # [linux64]
+                  pip: ray # [linux64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(
+        p,
+        overwrite_pins=["foo=1", "bar * cpu*"],
+        verbose=False,
+    )
+    assert requirements.requirements == {
+        "ray": [
+            Meta(
+                name="ray",
+                which="pip",
+                comment="# [arm64]",
+                pin=None,
+                identifier="1b26c5b2",
+            ),
+            Meta(
+                name="ray",
+                which="pip",
+                comment="# [linux64]",
+                pin=None,
+                identifier="dd6a8aaf",
+            ),
+        ],
+        "ray-core": [
+            Meta(
+                name="ray-core",
+                which="conda",
+                comment="# [linux64]",
+                pin=None,
+                identifier="dd6a8aaf",
+            ),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        ["osx-arm64"],
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["ray"]
+
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        ["linux-64"],
+    )
+    assert env_spec.conda == ["ray-core"]
+    assert env_spec.pip == []
