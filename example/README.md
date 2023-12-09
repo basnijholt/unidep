@@ -72,7 +72,7 @@ Just run `unidep install ./project1` or `unidep install -e ./project1` for an ed
 ```bash
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge pandas adaptive">=1.0.0, <2.0.0" pfapack pipefunc`
 
-📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64' rsync-time-machine slurm-usage fileup; sys_platform == 'darwin' codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
+📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.0/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
 
 📝 Found local dependencies: {'project1': ['project2', 'project3']}
 
