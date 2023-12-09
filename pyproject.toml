@@ -7,11 +7,7 @@ name = "unidep"
 description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
-dependencies = [
-    "ruamel.yaml",
-    "typing_extensions; python_version < '3.8'",
-    "packaging",
-]
+dependencies = ["ruamel.yaml", "typing_extensions; python_version < '3.8'"]
 requires-python = ">=3.7"
 
 [project.readme]
@@ -22,18 +18,12 @@ content-type = "text/markdown"
 Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-    "pre-commit",
-    "coverage",
-    "pytest-cov",
-    "pytest-mock",
-    "conda-package-handling",
-]
+test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock", "conda-package-handling"]
 conda-lock = ["conda-lock", "conda-package-handling"]
-pytest = ["pytest", "GitPython"] # The pytest plugin
+pytest = ["pytest", "GitPython"]  # The pytest plugin
+rich = ["rich-argparse"]
 # Everything except testing
-all = ["conda-lock", "conda-package-handling", "pytest", "GitPython"]
+all = ["conda-lock", "conda-package-handling", "pytest", "GitPython", "rich-argparse"]
 
 [project.scripts]
 unidep = "unidep:_cli.main"
@@ -48,7 +38,7 @@ affected = "unidep._pytest_plugin"
 include = ["unidep.*", "unidep"]
 
 [tool.setuptools.dynamic]
-version = { attr = "unidep._version.__version__" }
+version = {attr = "unidep._version.__version__"}
 
 [tool.pytest.ini_options]
 addopts = """
@@ -69,6 +59,9 @@ exclude_lines = [
     "if __name__ == .__main__.:",
 ]
 
+[tool.black]
+line_length = 88
+
 [tool.ruff]
 line-length = 88
 target-version = "py37"
@@ -88,6 +81,7 @@ ignore = [
 
 [tool.ruff.per-file-ignores]
 "tests/*" = ["SLF001", "D103", "E501", "PLR2004"]
+"tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
 "example/*" = ["INP001", "D100"]
 
@@ -99,7 +93,7 @@ python_version = "3.7"
 
 # Use bump-my-version, e.g., call `bump-my-version bump minor`
 [tool.bumpversion]
-current_version = "0.25.1"
+current_version = "0.33.0"
 commit = true
 commit_args = "--no-verify"
 tag = true

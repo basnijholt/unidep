@@ -1,4 +1,4 @@
-# This file is created and managed by `unidep` 0.25.1.
+# This file is created and managed by `unidep` 0.33.0.
 # For details see https://github.com/basnijholt/unidep
 # File generated with: `unidep merge --name myenv --verbose`
 
@@ -10,8 +10,8 @@ dependencies:
   - adaptive >=1.0.0, <2.0.0
   - pfapack
   - pipefunc
-  - adaptive-scheduler
-  - hpc05
+  - sel(linux): adaptive-scheduler
+  - sel(linux): hpc05
   - pip:
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
@@ -24,3 +24,5 @@ dependencies:
     - unidep
 platforms:
   - linux-64
+  - osx-64
+  - osx-arm64

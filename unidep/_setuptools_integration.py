@@ -83,6 +83,9 @@ def get_python_dependencies(
     filename: str | Path = "requirements.yaml",
     *,
     verbose: bool = False,
+    ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
     platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
 ) -> list[str]:
@@ -94,7 +97,13 @@ def get_python_dependencies(
             raise FileNotFoundError(msg)
         return []
 
-    requirements = parse_yaml_requirements(p, verbose=verbose)
+    requirements = parse_yaml_requirements(
+        p,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+    )
     resolved_requirements = resolve_conflicts(requirements.requirements)
     return filter_python_dependencies(
         resolved_requirements,
