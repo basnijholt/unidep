@@ -174,14 +174,12 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
         for meta, _platforms in meta_to_platforms.items():
             if meta.identifier in seen_identifiers:
                 continue
-            if (
-                platforms
-                and _platforms != [None]  # None has been expanded already if len>1
-                and all(p not in platforms for p in _platforms)
-            ):
-                # we have a platform that is not in the list of platforms
+            if _platforms != [None] and platforms:
                 assert None not in _platforms
-                continue
+                _platforms = [p for p in _platforms if p in platforms]
+                if not _platforms:
+                    continue
+
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"
