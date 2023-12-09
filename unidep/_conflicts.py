@@ -127,12 +127,19 @@ def resolve_conflicts(
 
 def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
     """Separates the operator and the version number."""
+    pinning = pinning.strip()
     for operator in VALID_OPERATORS:
-        if operator in pinning:
-            # Use the packaging.version.Version class to parse the version
-            v = pinning.replace(operator, "")
-            return operator, version.parse(v)
-    msg = f"Invalid version pinning: {pinning}, must contain one of {VALID_OPERATORS}"
+        if pinning.startswith(operator):
+            version_part = pinning[len(operator) :].strip()
+            if version_part:
+                try:
+                    return operator, version.parse(version_part)
+                except version.InvalidVersion:
+                    break
+            else:
+                break  # Empty version string
+
+    msg = f"Invalid version pinning: '{pinning}', must start with one of {VALID_OPERATORS}"  # noqa: E501
     raise ValueError(msg)
 
 

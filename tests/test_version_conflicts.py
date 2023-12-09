@@ -4,6 +4,7 @@ import pytest
 from unidep._conflicts import (
     _is_redundant,
     _is_valid_pinning,
+    _parse_pinning,
     _select_preferred_version_within_platform,
     combine_version_pinnings,
 )
@@ -141,3 +142,14 @@ def test_is_redundant() -> None:
     assert _is_redundant("<5", ["<2"])
     assert _is_redundant(">=2", [">2"])
     assert not _is_redundant(">2", [">=2"])
+
+
+def test_invalid_parse_pinning() -> None:
+    with pytest.raises(ValueError, match="Invalid version pinning:"):
+        _parse_pinning("<<1")
+    with pytest.raises(ValueError, match="Invalid version pinning:"):
+        _parse_pinning(">>1")
+    with pytest.raises(ValueError, match="Invalid version pinning:"):
+        _parse_pinning("=<1")
+    with pytest.raises(ValueError, match="Invalid version pinning:"):
+        _parse_pinning("=>1")
