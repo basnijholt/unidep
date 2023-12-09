@@ -12,3 +12,7 @@ dependencies:
   - pip: aiokef
 includes:
   - ../project2  # depends on project2
+platforms:
+  - linux-64
+  - osx-64
+  - osx-arm64
