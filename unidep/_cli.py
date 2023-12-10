@@ -410,7 +410,7 @@ def _parse_args() -> argparse.Namespace:
     pip_compile_example = (
         " Example usage: `unidep pip-compile --directory ./projects` to generate"
         " a `requirements.txt` file for all `requirements.yaml` files in the"
-        " `./projects` directory. Use `--output requirements.txt` to specify a"
+        " `./projects` directory. Use `--output-file requirements.txt` to specify a"
         " different output file."
     )
 
