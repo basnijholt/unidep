@@ -1,6 +1,6 @@
-# This file is created and managed by `unidep` 0.30.0.
+# This file is created and managed by `unidep` 0.33.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep `
+# File generated with: `unidep conda-lock -d tests/simple_monorepo`
 #
 # This environment can be installed with
 # `micromamba create -f conda-lock.yml -n myenv`
@@ -17,7 +17,7 @@ metadata:
   platforms:
   - osx-arm64
   sources:
-  - /Users/bas.nijholt/Work/unidep/tests/simple_monorepo/project1/requirements.yaml
+  - tests/simple_monorepo/project1/requirements.yaml
 package:
 - name: bzip2
   version: 1.0.8
