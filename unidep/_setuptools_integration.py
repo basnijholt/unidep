@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 from unidep._conflicts import resolve_conflicts
 from unidep._yaml_parsing import parse_yaml_requirements
 from unidep.utils import (
-    _maybe_expand_none_to_all_platforms,
     build_pep508_environment_marker,
     identify_current_platform,
 )
@@ -35,12 +34,13 @@ def filter_python_dependencies(
     Examples
     --------
     >>> requirements = parse_yaml_requirements("requirements.yaml")
-    >>> resolved_requirements = resolve_conflicts(requirements.requirements)
+    >>> resolved_requirements = resolve_conflicts(
+    ...     requirements.requirements, requirements.platforms
+    ... )
     >>> python_dependencies = filter_python_dependencies(resolved_requirements)
     """
     pip_deps = []
     for platform_data in resolved_requirements.values():
-        _maybe_expand_none_to_all_platforms(platform_data)
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
             if (
@@ -104,7 +104,10 @@ def get_python_dependencies(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        platforms or list(requirements.platforms),
+    )
     return filter_python_dependencies(
         resolved_requirements,
         platforms=platforms or list(requirements.platforms),

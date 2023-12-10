@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
+import sys
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from packaging import version
 
+from unidep.platform_definitions import Meta, Platform
 from unidep.utils import warn
 
+if sys.version_info >= (3, 8):
+    from typing import get_args
+else:  # pragma: no cover
+    from typing_extensions import get_args
+
+
 if TYPE_CHECKING:
-    import sys
-
-    from unidep.platform_definitions import CondaPip, Meta, Platform
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:  # pragma: no cover
-        from typing_extensions import Literal
+    from unidep.platform_definitions import CondaPip
 
 VALID_OPERATORS = ["<=", ">=", "<", ">", "="]
 
 
 def _prepare_metas_for_conflict_resolution(
     requirements: dict[str, list[Meta]],
+    platforms: list[Platform] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, list[Meta]]]]:
     """Prepare and group metadata for conflict resolution.
 
@@ -42,42 +44,50 @@ def _prepare_metas_for_conflict_resolution(
             if platforms is None:
                 platforms = [None]  # type: ignore[list-item]
             for _platform in platforms:
+                if platforms and _platform not in platforms:
+                    continue
                 grouped_metas[_platform][meta.which].append(meta)
         # Convert defaultdicts to dicts
         prepared_data[package] = {k: dict(v) for k, v in grouped_metas.items()}
     return prepared_data
 
 
+def _maybe_expand_none_to_all_platforms(
+    platform_data: dict[Platform | None, dict[CondaPip, list[Meta]]],
+    platforms: list[Platform] | None,
+) -> None:
+    """Expand `None` to all platforms if there is a platform besides None."""
+    allowed_platforms = get_args(Platform)
+    if platforms:
+        allowed_platforms = platforms  # type: ignore[assignment]
+    if len(platform_data) > 1 and None in platform_data:
+        sources = platform_data.pop(None)
+        for _platform in allowed_platforms:
+            for which, metas in sources.items():
+                platform_data.setdefault(_platform, {}).setdefault(which, []).extend(
+                    metas,
+                )
+
+
 def _select_preferred_version_within_platform(
     data: dict[Platform | None, dict[CondaPip, list[Meta]]],
-    strategy: Literal["discard", "combine"] = "discard",  # noqa: ARG001
 ) -> dict[Platform | None, dict[CondaPip, Meta]]:
     reduced_data: dict[Platform | None, dict[CondaPip, Meta]] = {}
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, metas in packages.items():
-            if len(metas) > 1:
-                # Remove duplicates (only pin is relevant here)
-                unique_metas = {meta.pin: meta for meta in metas}
-                metas = list(unique_metas.values())  # noqa: PLW2901
-                # Sort metas by presence of version pin and then by the pin itself
-                metas.sort(key=lambda m: (m.pin is not None, m.pin), reverse=True)
-                # Keep the first Meta, which has the highest priority
-                selected_meta = metas[0]
-                discarded_metas = [m for m in metas[1:] if m != selected_meta]
-                if any(m.pin is not None for m in discarded_metas):
-                    discarded_metas_str = ", ".join(
-                        f"`{m.pprint()}` ({m.which})" for m in discarded_metas
-                    )
-                    on_platform = _platform or "all platforms"
-                    warn(
-                        f"Platform Conflict Detected:\n"
-                        f"On '{on_platform}', '{selected_meta.pprint()}' ({which})"
-                        " is retained. The following conflicting dependencies are"
-                        f" discarded: {discarded_metas_str}.",
-                        stacklevel=2,
-                    )
-                reduced_data[_platform][which] = selected_meta
+            pinned_metas = [m for m in metas if m.pin is not None]
+            if len(pinned_metas) > 1:
+                pins = [m.pin for m in pinned_metas]
+                pin = combine_version_pinnings(pins, name=metas[0].name)  # type: ignore[arg-type]
+                new_meta = Meta(
+                    name=pinned_metas[0].name,
+                    which=pinned_metas[0].which,
+                    comment=None,
+                    pin=pin,
+                    identifier=pinned_metas[0].identifier,
+                )
+                reduced_data[_platform][which] = new_meta
             else:
                 # Flatten the list
                 reduced_data[_platform][which] = metas[0]
@@ -110,21 +120,25 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip
 
 def resolve_conflicts(
     requirements: dict[str, list[Meta]],
+    platforms: list[Platform] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, Meta]]]:
     """Resolve conflicts in a dictionary of requirements.
 
     Uses the ``ParsedRequirements.requirements`` dict returned by
     `parse_yaml_requirements`.
     """
-    prepared = _prepare_metas_for_conflict_resolution(requirements)
+    prepared = _prepare_metas_for_conflict_resolution(requirements, platforms)
+
+    for data in prepared.values():
+        _maybe_expand_none_to_all_platforms(data, platforms)
 
     resolved = {
         pkg: _select_preferred_version_within_platform(data)
         for pkg, data in prepared.items()
     }
-    for platforms in resolved.values():
-        for _platform, sources in platforms.items():
-            platforms[_platform] = _resolve_conda_pip_conflicts(sources)
+    for _platforms in resolved.values():
+        for _platform, sources in _platforms.items():
+            _platforms[_platform] = _resolve_conda_pip_conflicts(sources)
     return resolved
 
 
@@ -191,9 +205,20 @@ def _is_valid_pinning(pinning: str) -> bool:
     return False
 
 
-def combine_version_pinnings(pinnings: list[str]) -> str:
+def _deduplicate(pinnings: list[str]) -> list[str]:
+    """Removes duplicate strings."""
+    return list(dict.fromkeys(pinnings))  # preserve order
+
+
+def _split_pinnings(metas: list[str]) -> list[str]:
+    """Extracts version pinnings from a list of Meta objects."""
+    return [_pin.strip().replace(" ", "") for pin in metas for _pin in pin.split(",")]
+
+
+def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:
     """Combines a list of version pinnings into a single string."""
-    pinnings = [p.replace(" ", "") for p in pinnings if p]
+    pinnings = _split_pinnings(pinnings)
+    pinnings = _deduplicate(pinnings)
     valid_pinnings = [p for p in pinnings if _is_valid_pinning(p)]
     if not valid_pinnings:
         return ""
@@ -204,6 +229,9 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
         raise ValueError(msg)
 
     err_msg = "Contradictory version pinnings found"
+    if name is not None:
+        err_msg += f" for `{name}`"
+
     if exact_pinnings:
         exact_pin = exact_pinnings[0]
         exact_version = version.parse(exact_pin[1:])
@@ -228,10 +256,23 @@ def combine_version_pinnings(pinnings: list[str]) -> str:
         for other_pin in non_redundant_pinnings[i + 1 :]:
             op1, ver1 = _parse_pinning(pin)
             op2, ver2 = _parse_pinning(other_pin)
-            if (op1 in ["<", "<="] and op2 in [">", ">="] and ver1 < ver2) or (
-                op1 in [">", ">="] and op2 in ["<", "<="] and ver1 > ver2
+            msg = f"{err_msg}: {pin} and {other_pin}"
+            # Check for direct contradictions like >2 and <1
+            if (op1 == ">" and op2 == "<" and ver1 >= ver2) or (
+                op1 == "<" and op2 == ">" and ver1 <= ver2
             ):
-                msg = f"{err_msg}: {pin} and {other_pin}"
+                raise ValueError(msg)
+
+            # Check for contradictions involving inclusive bounds like >=2 and <1
+            if (op1 == ">=" and op2 == "<" and ver1 >= ver2) or (
+                op1 == "<=" and op2 == ">" and ver1 <= ver2
+            ):
+                raise ValueError(msg)
+
+            # Same as above but with the operators reversed
+            if (op1 == ">" and op2 == "<=" and ver1 >= ver2) or (
+                op1 == "<=" and op2 == ">" and ver1 <= ver2
+            ):
                 raise ValueError(msg)
 
     return ",".join(non_redundant_pinnings)

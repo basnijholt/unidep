@@ -585,7 +585,10 @@ def _install_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        [identify_current_platform()],
+    )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -726,7 +729,10 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms or platforms,
+    )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -774,7 +780,10 @@ def _pip_compile_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        [platform],
+    )
     python_deps = filter_python_dependencies(
         resolved_requirements,
         platforms=[platform],
@@ -872,7 +881,10 @@ def main() -> None:
             overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
-        resolved_requirements = resolve_conflicts(requirements.requirements)
+        resolved_requirements = resolve_conflicts(
+            requirements.requirements,
+            [args.platform],
+        )
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,

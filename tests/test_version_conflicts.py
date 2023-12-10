@@ -20,7 +20,12 @@ def test_combining_versions() -> None:
             ],
         },
     }
-    _select_preferred_version_within_platform(data)  # type: ignore[arg-type]
+    resolved = _select_preferred_version_within_platform(data)  # type: ignore[arg-type]
+    assert resolved == {
+        None: {
+            "conda": Meta(name="numpy", which="conda", pin=">1,<2"),
+        },
+    }
 
 
 @pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])
@@ -35,6 +40,8 @@ def test_single_pinning() -> None:
 
 def test_multiple_non_redundant_pinnings() -> None:
     assert combine_version_pinnings([">1", "<=3"]) == ">1,<=3"
+    assert combine_version_pinnings([">1", "<2"]) == ">1,<2"
+    assert combine_version_pinnings(["<2", ">1"]) == "<2,>1"
 
 
 def test_redundant_pinning() -> None:
@@ -71,6 +78,30 @@ def test_contradictory_pinnings() -> None:
     ):
         combine_version_pinnings([">2", "<1"])
 
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: <1 and >2",
+    ):
+        combine_version_pinnings(["<1", ">2"])
+
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: >1 and <1",
+    ):
+        combine_version_pinnings([">1", "<1"])
+
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: <=1 and >1",
+    ):
+        combine_version_pinnings(["<=1", ">1"])
+
+    with pytest.raises(
+        ValueError,
+        match="Contradictory version pinnings found: >1 and <=1",
+    ):
+        combine_version_pinnings([">1", "<=1"])
+
 
 def test_exact_pinning_with_contradictory_ranges() -> None:
     with pytest.raises(
@@ -93,6 +124,7 @@ def test_exact_pinning() -> None:
     assert combine_version_pinnings(["=3", ">1", "<4"]) == "=3"
     assert combine_version_pinnings(["=2", ">1", "<3"]) == "=2"
     assert combine_version_pinnings(["=2", "<3", "<=3", "<4"]) == "=2"
+    assert combine_version_pinnings([">=1", "<=1"]) == ">=1,<=1"
 
 
 def test_exact_pinning_with_irrelevant_ranges() -> None:
@@ -153,3 +185,8 @@ def test_invalid_parse_pinning() -> None:
         _parse_pinning("=<1")
     with pytest.raises(ValueError, match="Invalid version pinning:"):
         _parse_pinning("=>1")
+
+
+def test_duplicate_pinning() -> None:
+    assert combine_version_pinnings(["=1", "=1"]) == "=1"
+    assert combine_version_pinnings([">=1", ">=1", "=1"]) == "=1"

@@ -17,7 +17,6 @@ from unidep.platform_definitions import (
     Platform,
 )
 from unidep.utils import (
-    _maybe_expand_none_to_all_platforms,
     add_comment_to_file,
     build_pep508_environment_marker,
     warn,
@@ -58,7 +57,6 @@ def _extract_conda_pip_dependencies(
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
     for pkg, platform_data in resolved_requirements.items():
-        _maybe_expand_none_to_all_platforms(platform_data)
         for _platform, sources in platform_data.items():
             if "conda" in sources:
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
@@ -134,6 +132,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
+
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise ValueError(msg)
