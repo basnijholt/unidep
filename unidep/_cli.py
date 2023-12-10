@@ -431,6 +431,13 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
+    parser_pip_compile.add_argument(
+        "extra_flags",
+        nargs="*",
+        help="Extra flags to pass to `pip-compile`. These flags are passed directly"
+        " and should be provided in the format expected by `pip-compile`."
+        " For example, `unidep pip-compile --generate-hashes --allow-unsafe'`.",
+    )
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
@@ -734,6 +741,7 @@ def _pip_compile_command(
     skip_dependencies: list[str],
     overwrite_pins: list[str],
     verbose: bool,
+    extra_flags: list[str],
 ) -> None:
     found_files = find_requirements_files(
         directory,
@@ -757,7 +765,7 @@ def _pip_compile_command(
         f.write("\n".join(python_deps))
     print("✅ Generated `requirements.in` file.")
     # pip-compile --allow-unsafe --generate-hashes --output-file=requirements-lock.txt
-    subprocess.run(["pip-compile", "requirements.in"], check=True)  # noqa: S603, S607
+    subprocess.run(["pip-compile", *extra_flags, "requirements.in"], check=True)  # noqa: S603, S607
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
@@ -887,6 +895,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
+            extra_flags=args.extra_flags,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent
