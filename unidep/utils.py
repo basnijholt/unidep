@@ -154,7 +154,7 @@ def _simple_warning_format(
     filename: str,
     lineno: int,
     line: str | None = None,  # noqa: ARG001
-) -> str:
+) -> str:  # pragma: no cover
     """Format warnings without code context."""
     return (
         f"---------------------\n"
