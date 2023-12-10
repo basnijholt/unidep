@@ -1264,7 +1264,7 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
-    python_deps = filter_python_dependencies(resolved, platforms=["linux-64"])
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
@@ -1419,7 +1419,7 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
     assert env_spec.conda == ["foo"]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "osx-arm64"]
-    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == ["foo"]
 
 
@@ -1453,7 +1453,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
     assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "linux-aarch64"]
-    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
         "foo",
         "yolo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",

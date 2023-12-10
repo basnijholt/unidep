@@ -122,7 +122,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912, C901
+def create_conda_env_specification(  # noqa: PLR0912
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
@@ -167,11 +167,6 @@ def create_conda_env_specification(  # noqa: PLR0912, C901
         for meta, _platforms in meta_to_platforms.items():
             if meta.identifier in seen_identifiers:
                 continue
-            if _platforms != [None] and platforms:
-                assert None not in _platforms
-                _platforms = [p for p in _platforms if p in platforms]
-                if not _platforms:
-                    continue
 
             dep_str = meta.name
             if meta.pin is not None:

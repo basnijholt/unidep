@@ -784,10 +784,7 @@ def _pip_compile_command(
         requirements.requirements,
         [platform],
     )
-    python_deps = filter_python_dependencies(
-        resolved_requirements,
-        platforms=[platform],
-    )
+    python_deps = filter_python_dependencies(resolved_requirements)
     requirements_in = directory / "requirements.in"
     with requirements_in.open("w") as f:
         f.write("\n".join(python_deps))

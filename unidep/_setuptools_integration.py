@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 
 def filter_python_dependencies(
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
-    platforms: list[Platform] | None = None,
 ) -> list[str]:
     """Filter out conda dependencies and return only pip dependencies.
 
@@ -43,12 +42,6 @@ def filter_python_dependencies(
     for platform_data in resolved_requirements.values():
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
-            if (
-                _platform is not None
-                and platforms is not None
-                and _platform not in platforms
-            ):
-                continue
             pip_meta = sources.get("pip")
             if pip_meta:
                 to_process[_platform] = pip_meta
@@ -108,10 +101,7 @@ def get_python_dependencies(
         requirements.requirements,
         platforms or list(requirements.platforms),
     )
-    return filter_python_dependencies(
-        resolved_requirements,
-        platforms=platforms or list(requirements.platforms),
-    )
+    return filter_python_dependencies(resolved_requirements)
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
