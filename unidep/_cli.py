@@ -771,7 +771,8 @@ def _pip_compile_command(
         resolved_requirements,
         platforms=[platform],
     )
-    with open("requirements.in", "w") as f:  # noqa: PTH123
+    requirements_in = directory / "requirements.in"
+    with requirements_in.open("w") as f:
         f.write("\n".join(python_deps))
     print("✅ Generated `requirements.in` file.")
     if extra_flags:
@@ -780,7 +781,7 @@ def _pip_compile_command(
         if verbose:
             print(f"📝 Extra flags: {extra_flags}")
 
-    subprocess.run(["pip-compile", *extra_flags, "requirements.in"], check=True)  # noqa: S603, S607
+    subprocess.run(["pip-compile", *extra_flags, str(requirements_in)], check=True)  # noqa: S603, S607
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
