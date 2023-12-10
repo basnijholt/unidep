@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -433,10 +434,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser_pip_compile.add_argument(
         "extra_flags",
-        nargs="*",
+        nargs=argparse.REMAINDER,
         help="Extra flags to pass to `pip-compile`. These flags are passed directly"
-        " and should be provided in the format expected by `pip-compile`."
-        " For example, `unidep pip-compile --generate-hashes --allow-unsafe'`.",
+        " and should be provided in the format expected by `pip-compile`. For example,"
+        " `unidep pip-compile -- --generate-hashes --allow-unsafe`. Note that the"
+        " `--` is required to separate the flags for `unidep` from the flags for"
+        " `pip-compile`.",
     )
 
     # Subparser for the 'pip' and 'conda' command
@@ -743,6 +746,13 @@ def _pip_compile_command(
     verbose: bool,
     extra_flags: list[str],
 ) -> None:
+    if importlib.util.find_spec("piptools") is None:
+        print(
+            "❌ Could not import `pip-tools` module."
+            " Please install it with `pip install pip-tools`.",
+        )
+        sys.exit(1)
+
     found_files = find_requirements_files(
         directory,
         depth,
@@ -764,7 +774,12 @@ def _pip_compile_command(
     with open("requirements.in", "w") as f:  # noqa: PTH123
         f.write("\n".join(python_deps))
     print("✅ Generated `requirements.in` file.")
-    # pip-compile --allow-unsafe --generate-hashes --output-file=requirements-lock.txt
+    if extra_flags:
+        assert extra_flags[0] == "--"
+        extra_flags = extra_flags[1:]
+        if verbose:
+            print(f"📝 Extra flags: {extra_flags}")
+
     subprocess.run(["pip-compile", *extra_flags, "requirements.in"], check=True)  # noqa: S603, S607
 
 
