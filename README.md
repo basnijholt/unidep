@@ -20,6 +20,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🛠️ Conflict Resolution**: Simplifies complex dependency management by resolving version conflicts.
 - **🔄 `unidep install` CLI**: Automates installation of Conda, Pip, and local package dependencies.
+- **🔧 `pip-compile` Integration**: Enables generation of fully pinned `requirements.txt` files from `requirements.yaml` files using `pip-compile`.
 
 ## :books: Table of Contents
 
