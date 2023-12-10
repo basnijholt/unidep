@@ -754,7 +754,7 @@ def _pip_compile_command(
     extra_flags: list[str],
     output_file: Path | None = None,
 ) -> None:
-    if importlib.util.find_spec("piptools") is None:
+    if importlib.util.find_spec("piptools") is None:  # pragma: no cover
         print(
             "❌ Could not import `pip-tools` module."
             " Please install it with `pip install pip-tools`.",
