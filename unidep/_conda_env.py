@@ -144,9 +144,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in sorted(platform_to_meta.items()):
-            dep_str = meta.name
-            if meta.pin is not None:
-                dep_str += f" {meta.pin}"
+            dep_str = meta.name_with_pin()
             if len(platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
@@ -168,9 +166,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.identifier in seen_identifiers:
                 continue
 
-            dep_str = meta.name
-            if meta.pin is not None:
-                dep_str += f" {meta.pin}"
+            dep_str = meta.name_with_pin()
             if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
@@ -183,10 +179,8 @@ def create_conda_env_specification(  # noqa: PLR0912
                     # should be spread into two lines, one with [linux] and the
                     # other with [win].
                     for _platform in _platforms:
-                        # We're not adding a PEP508 marker here
-                        _platform = cast(Platform, _platform)
                         pip_deps.append(dep_str)
-                        _add_comment(pip_deps, _platform)
+                        _add_comment(pip_deps, cast(Platform, _platform))
             else:
                 pip_deps.append(dep_str)
 

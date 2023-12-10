@@ -93,7 +93,7 @@ def _combine_pinning_within_platform(
                     which=pinned_metas[0].which,
                     comment=None,
                     pin=pin,
-                    identifier=pinned_metas[0].identifier,
+                    identifier=pinned_metas[0].identifier,  # should I create a new one?
                 )
                 reduced_data[_platform][which] = new_meta
             else:

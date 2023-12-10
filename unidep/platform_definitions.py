@@ -95,3 +95,10 @@ class Meta(NamedTuple):
         if self.comment is not None:
             result += f" {self.comment}"
         return result
+
+    def name_with_pin(self) -> str:
+        """Return the name with the pin."""
+        result = f"{self.name}"
+        if self.pin is not None:
+            result += f" {self.pin}"
+        return result
