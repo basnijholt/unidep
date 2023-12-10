@@ -880,7 +880,8 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements)
+    with pytest.warns(UserWarning, match="Platform Conflict Detected"):
+        resolved = resolve_conflicts(requirements.requirements)
     assert resolved == {
         "foo": {
             "linux-64": {
@@ -1031,11 +1032,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             },
         },
     }
-    env_spec = create_conda_env_specification(
-        resolved,
-        requirements.channels,
-        requirements.platforms,
-    )
+    with pytest.warns(UserWarning, match="Dependency Conflict on"):
+        env_spec = create_conda_env_specification(
+            resolved,
+            requirements.channels,
+            requirements.platforms,
+        )
     assert env_spec.conda == [
         {"sel(linux)": "foo >1"},
         {"sel(osx)": "foo >2"},
@@ -1085,7 +1087,8 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements)
+    with pytest.warns(UserWarning, match="Version Pinning Conflict"):
+        resolved = resolve_conflicts(requirements.requirements)
     assert resolved == {
         "foo": {
             None: {
@@ -1254,7 +1257,8 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    with pytest.warns(UserWarning, match="Platform Conflict Detected"):
+        resolved = resolve_conflicts(requirements.requirements)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1362,12 +1366,13 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
     )
     requirements = parse_yaml_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements)
-    env_spec = create_conda_env_specification(
-        resolved,
-        requirements.channels,
-        requirements.platforms,
-        selector="sel",
-    )
+    with pytest.warns(UserWarning, match="Dependency Conflict on"):
+        env_spec = create_conda_env_specification(
+            resolved,
+            requirements.channels,
+            requirements.platforms,
+            selector="sel",
+        )
     assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "linux-aarch64"]
