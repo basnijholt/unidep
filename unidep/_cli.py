@@ -31,6 +31,7 @@ from unidep._yaml_parsing import (
 )
 from unidep.platform_definitions import Platform
 from unidep.utils import (
+    add_comment_to_file,
     escape_unicode,
     extract_name_and_pin,
     identify_current_platform,
@@ -419,7 +420,13 @@ def _parse_args() -> argparse.Namespace:
         description=pip_compile_help + pip_compile_example,
         formatter_class=_HelpFormatter,
     )
-
+    parser_pip_compile.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default="requirements.txt",
+        help="Output file for the pip requirements, by default `requirements.txt`",
+    )
     _add_common_args(
         parser_pip_compile,
         {
@@ -745,6 +752,7 @@ def _pip_compile_command(
     overwrite_pins: list[str],
     verbose: bool,
     extra_flags: list[str],
+    output: Path,
 ) -> None:
     if importlib.util.find_spec("piptools") is None:
         print(
@@ -781,7 +789,12 @@ def _pip_compile_command(
         if verbose:
             print(f"📝 Extra flags: {extra_flags}")
 
-    subprocess.run(["pip-compile", *extra_flags, str(requirements_in)], check=True)  # noqa: S603, S607
+    subprocess.run(
+        ["pip-compile", "--output", output, *extra_flags, str(requirements_in)],  # noqa: S603, S607
+        check=True,
+    )
+    add_comment_to_file(output)
+    print(f"✅ Generated `{output}`.")
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
@@ -912,6 +925,7 @@ def main() -> None:
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
             extra_flags=args.extra_flags,
+            output=args.output,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent
