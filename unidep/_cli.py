@@ -18,7 +18,10 @@ from unidep._conda_env import (
 )
 from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
-from unidep._setuptools_integration import get_python_dependencies
+from unidep._setuptools_integration import (
+    filter_python_dependencies,
+    get_python_dependencies,
+)
 from unidep._version import __version__
 from unidep._yaml_parsing import (
     find_requirements_files,
@@ -394,6 +397,41 @@ def _parse_args() -> argparse.Namespace:
         },
     )
 
+    # Subparser for the 'pip-compile' command
+    pip_compile_help = (
+        "Generate a fully pinned `requirements.txt` file from one or more"
+        " `requirements.yaml` files using `pip-compile` from `pip-tools`. This"
+        " command consolidates all pip dependencies defined in the `requirements.yaml`"
+        " files and compiles them into a single `requirements.txt` file, taking"
+        " into account the specific versions and dependencies of each package."
+    )
+    pip_compile_example = (
+        " Example usage: `unidep pip-compile --directory ./projects` to generate"
+        " a `requirements.txt` file for all `requirements.yaml` files in the"
+        " `./projects` directory. Use `--output requirements.txt` to specify a"
+        " different output file."
+    )
+
+    parser_pip_compile = subparsers.add_parser(
+        "pip-compile",
+        help=pip_compile_help,
+        description=pip_compile_help + pip_compile_example,
+        formatter_class=_HelpFormatter,
+    )
+
+    _add_common_args(
+        parser_pip_compile,
+        {
+            "directory",
+            "verbose",
+            "platform",
+            "depth",
+            "ignore-pin",
+            "skip-dependency",
+            "overwrite-pin",
+        },
+    )
+
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
     help_example = (
@@ -687,6 +725,41 @@ def _merge_command(
         )
 
 
+def _pip_compile_command(
+    *,
+    depth: int,
+    directory: Path,
+    platform: Platform,
+    ignore_pins: list[str],
+    skip_dependencies: list[str],
+    overwrite_pins: list[str],
+    verbose: bool,
+) -> None:
+    found_files = find_requirements_files(
+        directory,
+        depth,
+        verbose=verbose,
+    )
+
+    requirements = parse_yaml_requirements(
+        *found_files,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+    )
+    resolved_requirements = resolve_conflicts(requirements.requirements)
+    python_deps = filter_python_dependencies(
+        resolved_requirements,
+        platforms=[platform],
+    )
+    with open("requirements.in", "w") as f:  # noqa: PTH123
+        f.write("\n".join(python_deps))
+    print("✅ Generated `requirements.in` file.")
+    # pip-compile --allow-unsafe --generate-hashes --output-file=requirements-lock.txt
+    subprocess.run(["pip-compile", "requirements.in"], check=True)  # noqa: S603, S607
+
+
 def _check_conda_prefix() -> None:  # pragma: no cover
     """Check if sys.executable is in the $CONDA_PREFIX."""
     if "CONDA_PREFIX" not in os.environ:
@@ -804,6 +877,16 @@ def main() -> None:
             overwrite_pins=args.overwrite_pin,
             check_input_hash=args.check_input_hash,
             lockfile=args.lockfile,
+        )
+    elif args.command == "pip-compile":  # pragma: no cover
+        _pip_compile_command(
+            depth=args.depth,
+            directory=args.directory,
+            platform=args.platform,
+            verbose=args.verbose,
+            ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent
