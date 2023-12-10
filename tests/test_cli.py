@@ -202,8 +202,8 @@ def test_doubly_nested_project_folder_installable(
 
 
 def test_conda_lock_command(tmp_path: Path) -> None:
-    folder = tmp_path / "simple_monorepo"
-    shutil.copytree(Path(__file__).parent / "simple_monorepo", folder)
+    folder = tmp_path / "example"
+    shutil.copytree(REPO_ROOT / "example", folder)
     with patch("subprocess.run", return_value=None):
         _pip_compile_command(
             depth=2,
@@ -216,3 +216,5 @@ def test_conda_lock_command(tmp_path: Path) -> None:
             extra_flags=[],
         )
     assert (folder / "requirements.in").exists()
+    with (folder / "requirements.in").open() as f:
+        assert "adaptive" in f.read()
