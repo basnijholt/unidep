@@ -122,7 +122,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
+def create_conda_env_specification(  # noqa: PLR0912, C901
     resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
@@ -131,10 +131,6 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
     """Create a conda environment specification from resolved requirements."""
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
-        raise ValueError(msg)
-
-    if platforms and not set(platforms).issubset(get_args(Platform)):
-        msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
@@ -148,8 +144,6 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in sorted(platform_to_meta.items()):
-            if _platform is not None and platforms and _platform not in platforms:
-                continue
             dep_str = meta.name
             if meta.pin is not None:
                 dep_str += f" {meta.pin}"

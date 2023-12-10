@@ -241,6 +241,11 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     assert env.pip == expected_pip
 
     # Test on two platforms
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        ["osx-arm64", "win-64"],
+    )
+
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -265,9 +270,8 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         assert "- bar # [win64]" in text
 
     with pytest.raises(ValueError, match="Invalid platform"):
-        create_conda_env_specification(
-            resolved_requirements,
-            requirements.channels,
+        resolve_conflicts(
+            requirements.requirements,
             ["unknown-platform"],  # type: ignore[list-item]
         )
 
@@ -1782,6 +1786,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
 
+    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,

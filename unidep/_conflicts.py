@@ -60,6 +60,8 @@ def _maybe_expand_none_to_all_platforms(
     allowed_platforms = get_args(Platform)
     if platforms:
         allowed_platforms = platforms  # type: ignore[assignment]
+
+    # If there is a platform besides None, expand None to all platforms
     if len(platform_data) > 1 and None in platform_data:
         sources = platform_data.pop(None)
         for _platform in allowed_platforms:
@@ -67,6 +69,12 @@ def _maybe_expand_none_to_all_platforms(
                 platform_data.setdefault(_platform, {}).setdefault(which, []).extend(
                     metas,
                 )
+
+    # Remove platforms that are not allowed
+    to_pop = platform_data.keys() - allowed_platforms
+    to_pop.discard(None)
+    for _platform in to_pop:
+        platform_data.pop(_platform)
 
 
 def _select_preferred_version_within_platform(
@@ -127,6 +135,10 @@ def resolve_conflicts(
     Uses the ``ParsedRequirements.requirements`` dict returned by
     `parse_yaml_requirements`.
     """
+    if platforms and not set(platforms).issubset(get_args(Platform)):
+        msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
+        raise ValueError(msg)
+
     prepared = _prepare_metas_for_conflict_resolution(requirements, platforms)
 
     for data in prepared.values():
