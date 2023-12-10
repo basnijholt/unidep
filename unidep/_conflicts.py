@@ -5,10 +5,21 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+from packaging import version
+
 from unidep.utils import warn
 
 if TYPE_CHECKING:
+    import sys
+
     from unidep.platform_definitions import CondaPip, Meta, Platform
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:  # pragma: no cover
+        from typing_extensions import Literal
+
+VALID_OPERATORS = ["<=", ">=", "<", ">", "="]
 
 
 def _prepare_metas_for_conflict_resolution(
@@ -39,6 +50,7 @@ def _prepare_metas_for_conflict_resolution(
 
 def _select_preferred_version_within_platform(
     data: dict[Platform | None, dict[CondaPip, list[Meta]]],
+    strategy: Literal["discard", "combine"] = "discard",  # noqa: ARG001
 ) -> dict[Platform | None, dict[CondaPip, Meta]]:
     reduced_data: dict[Platform | None, dict[CondaPip, Meta]] = {}
     for _platform, packages in data.items():
@@ -114,3 +126,112 @@ def resolve_conflicts(
         for _platform, sources in platforms.items():
             platforms[_platform] = _resolve_conda_pip_conflicts(sources)
     return resolved
+
+
+def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
+    """Separates the operator and the version number."""
+    pinning = pinning.strip()
+    for operator in VALID_OPERATORS:
+        if pinning.startswith(operator):
+            version_part = pinning[len(operator) :].strip()
+            if version_part:
+                try:
+                    return operator, version.parse(version_part)
+                except version.InvalidVersion:
+                    break
+            else:
+                break  # Empty version string
+
+    msg = f"Invalid version pinning: '{pinning}', must start with one of {VALID_OPERATORS}"  # noqa: E501
+    raise ValueError(msg)
+
+
+def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
+    """Determines if a version pinning is redundant given a list of other pinnings."""
+    op, version = _parse_pinning(pinning)
+
+    for other in other_pinnings:
+        other_op, other_version = _parse_pinning(other)
+        if other == pinning:
+            continue
+
+        if op == "<" and (
+            other_op == "<"
+            and version >= other_version
+            or other_op == "<="
+            and version > other_version
+        ):
+            return True
+        if op == "<=" and other_op in ["<", "<="] and version >= other_version:
+            return True
+        if op == ">" and (
+            other_op == ">"
+            and version <= other_version
+            or other_op == ">="
+            and version < other_version
+        ):
+            return True
+        if op == ">=" and other_op in [">", ">="] and version <= other_version:
+            return True
+
+    return False
+
+
+def _is_valid_pinning(pinning: str) -> bool:
+    """Checks if a version pinning string is valid."""
+    if any(op in pinning for op in VALID_OPERATORS):
+        try:
+            # Attempt to parse the version part of the pinning
+            _parse_pinning(pinning)
+            return True  # noqa: TRY300
+        except ValueError:
+            # If parsing fails, the pinning is not valid
+            return False
+    # If the pinning doesn't contain any recognized operator, it's not valid
+    return False
+
+
+def combine_version_pinnings(pinnings: list[str]) -> str:
+    """Combines a list of version pinnings into a single string."""
+    pinnings = [p.replace(" ", "") for p in pinnings if p]
+    valid_pinnings = [p for p in pinnings if _is_valid_pinning(p)]
+    if not valid_pinnings:
+        return ""
+
+    exact_pinnings = [p for p in valid_pinnings if p.startswith("=")]
+    if len(exact_pinnings) > 1:
+        msg = f"Multiple exact version pinnings found: {', '.join(exact_pinnings)}"
+        raise ValueError(msg)
+
+    err_msg = "Contradictory version pinnings found"
+    if exact_pinnings:
+        exact_pin = exact_pinnings[0]
+        exact_version = version.parse(exact_pin[1:])
+        for other_pin in valid_pinnings:
+            if other_pin != exact_pin:
+                op, ver = _parse_pinning(other_pin)
+                if not (
+                    (op == "<" and exact_version < ver)
+                    or (op == "<=" and exact_version <= ver)
+                    or (op == ">" and exact_version > ver)
+                    or (op == ">=" and exact_version >= ver)
+                ):
+                    msg = f"{err_msg}: {exact_pin} and {other_pin}"
+                    raise ValueError(msg)
+        return exact_pin
+
+    non_redundant_pinnings = [
+        pin for pin in valid_pinnings if not _is_redundant(pin, valid_pinnings)
+    ]
+
+    for i, pin in enumerate(non_redundant_pinnings):
+        for other_pin in non_redundant_pinnings[i + 1 :]:
+            op1, ver1 = _parse_pinning(pin)
+            op2, ver2 = _parse_pinning(other_pin)
+            if (op1 in ["<", "<="] and op2 in [">", ">="] and ver1 < ver2) or (
+                op1 in [">", ">="] and op2 in ["<", "<="] and ver1 > ver2
+            ):
+                msg = f"{err_msg}: {pin} and {other_pin}"
+                raise ValueError(msg)
+
+    return ",".join(non_redundant_pinnings)
