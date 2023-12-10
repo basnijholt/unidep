@@ -2,10 +2,10 @@
 import pytest
 
 from unidep._conflicts import (
+    _combine_pinning_within_platform,
     _is_redundant,
     _is_valid_pinning,
     _parse_pinning,
-    _select_preferred_version_within_platform,
     combine_version_pinnings,
 )
 from unidep.platform_definitions import Meta
@@ -20,7 +20,7 @@ def test_combining_versions() -> None:
             ],
         },
     }
-    resolved = _select_preferred_version_within_platform(data)  # type: ignore[arg-type]
+    resolved = _combine_pinning_within_platform(data)  # type: ignore[arg-type]
     assert resolved == {
         None: {
             "conda": Meta(name="numpy", which="conda", pin=">1,<2"),

@@ -52,7 +52,7 @@ def _prepare_metas_for_conflict_resolution(
     return prepared_data
 
 
-def _maybe_expand_none_to_all_platforms(
+def _pop_unused_platforms_and_maybe_expand_none(
     platform_data: dict[Platform | None, dict[CondaPip, list[Meta]]],
     platforms: list[Platform] | None,
 ) -> None:
@@ -77,7 +77,7 @@ def _maybe_expand_none_to_all_platforms(
         platform_data.pop(_platform)
 
 
-def _select_preferred_version_within_platform(
+def _combine_pinning_within_platform(
     data: dict[Platform | None, dict[CondaPip, list[Meta]]],
 ) -> dict[Platform | None, dict[CondaPip, Meta]]:
     reduced_data: dict[Platform | None, dict[CondaPip, Meta]] = {}
@@ -142,11 +142,10 @@ def resolve_conflicts(
     prepared = _prepare_metas_for_conflict_resolution(requirements, platforms)
 
     for data in prepared.values():
-        _maybe_expand_none_to_all_platforms(data, platforms)
+        _pop_unused_platforms_and_maybe_expand_none(data, platforms)
 
     resolved = {
-        pkg: _select_preferred_version_within_platform(data)
-        for pkg, data in prepared.items()
+        pkg: _combine_pinning_within_platform(data) for pkg, data in prepared.items()
     }
     for _platforms in resolved.values():
         for _platform, sources in _platforms.items():
