@@ -204,7 +204,10 @@ def test_doubly_nested_project_folder_installable(
 def test_conda_lock_command(tmp_path: Path) -> None:
     folder = tmp_path / "example"
     shutil.copytree(REPO_ROOT / "example", folder)
-    with patch("subprocess.run", return_value=None):
+    with patch("subprocess.run", return_value=None), patch(
+        "importlib.util.find_spec",
+        return_value=True,
+    ):
         _pip_compile_command(
             depth=2,
             directory=folder,
