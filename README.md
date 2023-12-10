@@ -553,8 +553,8 @@ consolidates all pip dependencies defined in the `requirements.yaml` files and
 compiles them into a single `requirements.txt` file, taking into account the
 specific versions and dependencies of each package. Example usage: `unidep
 pip-compile --directory ./projects` to generate a `requirements.txt` file for
-all `requirements.yaml` files in the `./projects` directory. Use `--output
-requirements.txt` to specify a different output file.
+all `requirements.yaml` files in the `./projects` directory. Use `--output-
+file requirements.txt` to specify a different output file.
 
 positional arguments:
   extra_flags           Extra flags to pass to `pip-compile`. These flags are
