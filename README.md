@@ -534,7 +534,7 @@ See `unidep pip-compile -h` for more information:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- unidep conda-lock -h -->
+<!-- unidep pip-compile -h -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
