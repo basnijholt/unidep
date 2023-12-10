@@ -2,6 +2,6 @@ name: project2
 channels:
   - conda-forge
 dependencies:
-  - tzdata
+  - conda: tzdata
 includes:
   - ../common-requirements.yaml
