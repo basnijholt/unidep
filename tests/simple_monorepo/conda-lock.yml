@@ -1,6 +1,6 @@
-# This file is created and managed by `unidep` 0.22.0.
+# This file is created and managed by `unidep` 0.33.0.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep conda-lock -d tests/simple_monorepo -v`
+# File generated with: `unidep conda-lock -d tests/simple_monorepo`
 #
 # This environment can be installed with
 # `micromamba create -f conda-lock.yml -n myenv`

@@ -4,4 +4,4 @@ name: common-requirements
 channels:
   - conda-forge
 dependencies:
-  - python_abi
+  - conda: python_abi

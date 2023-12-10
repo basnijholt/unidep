@@ -2,16 +2,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import pytest
 from ruamel.yaml import YAML
 
 from unidep._conda_lock import conda_lock_command
 from unidep.utils import remove_top_comments
-
-if TYPE_CHECKING:
-    import pytest
 
 
 def test_conda_lock_command() -> None:
@@ -114,6 +111,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
     ]
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_conda_lock_command_pip_and_conda_different_name(
     capsys: pytest.CaptureFixture,
 ) -> None:

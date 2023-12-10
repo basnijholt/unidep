@@ -18,12 +18,27 @@ content-type = "text/markdown"
 Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
-test = ["pytest", "pre-commit", "coverage", "pytest-cov", "pytest-mock", "conda-package-handling"]
+test = [
+    "pytest",
+    "pre-commit",
+    "coverage",
+    "pytest-cov",
+    "pytest-mock",
+    "conda-package-handling",
+]
 conda-lock = ["conda-lock", "conda-package-handling"]
-pytest = ["pytest", "GitPython"]  # The pytest plugin
+pip-compile = ["pip-tools"]
+pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
 # Everything except testing
-all = ["conda-lock", "conda-package-handling", "pytest", "GitPython", "rich-argparse"]
+all = [
+    "conda-lock",
+    "conda-package-handling",
+    "pytest",
+    "GitPython",
+    "rich-argparse",
+    "pip-tools",
+]
 
 [project.scripts]
 unidep = "unidep:_cli.main"
@@ -38,7 +53,7 @@ affected = "unidep._pytest_plugin"
 include = ["unidep.*", "unidep"]
 
 [tool.setuptools.dynamic]
-version = {attr = "unidep._version.__version__"}
+version = { attr = "unidep._version.__version__" }
 
 [tool.pytest.ini_options]
 addopts = """
@@ -46,6 +61,7 @@ addopts = """
     --cov-report term
     --cov-report html
     --cov-fail-under=95
+    -W error
 """
 
 [tool.coverage.run]
@@ -93,7 +109,7 @@ python_version = "3.7"
 
 # Use bump-my-version, e.g., call `bump-my-version bump minor`
 [tool.bumpversion]
-current_version = "0.33.0"
+current_version = "0.35.0"
 commit = true
 commit_args = "--no-verify"
 tag = true

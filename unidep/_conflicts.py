@@ -57,12 +57,15 @@ def _select_preferred_version_within_platform(
         reduced_data[_platform] = {}
         for which, metas in packages.items():
             if len(metas) > 1:
+                # Remove duplicates (only pin is relevant here)
+                unique_metas = {meta.pin: meta for meta in metas}
+                metas = list(unique_metas.values())  # noqa: PLW2901
                 # Sort metas by presence of version pin and then by the pin itself
                 metas.sort(key=lambda m: (m.pin is not None, m.pin), reverse=True)
                 # Keep the first Meta, which has the highest priority
                 selected_meta = metas[0]
                 discarded_metas = [m for m in metas[1:] if m != selected_meta]
-                if discarded_metas:
+                if any(m.pin is not None for m in discarded_metas):
                     discarded_metas_str = ", ".join(
                         f"`{m.pprint()}` ({m.which})" for m in discarded_metas
                     )
