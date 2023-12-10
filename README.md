@@ -43,6 +43,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
     - [`unidep install`](#unidep-install)
     - [`unidep install-all`](#unidep-install-all)
     - [`unidep conda-lock`](#unidep-conda-lock)
+    - [`unidep pip-compile`](#unidep-pip-compile)
     - [`unidep pip`](#unidep-pip)
     - [`unidep conda`](#unidep-conda)
 - [Limitations](#limitations)
