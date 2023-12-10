@@ -422,7 +422,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser_pip_compile.add_argument(
         "-o",
-        "--output",
+        "--output-file",
         type=Path,
         default="requirements.txt",
         help="Output file for the pip requirements, by default `requirements.txt`",
@@ -790,7 +790,13 @@ def _pip_compile_command(
             print(f"📝 Extra flags: {extra_flags}")
 
     subprocess.run(
-        ["pip-compile", "--output", output, *extra_flags, str(requirements_in)],  # noqa: S603, S607
+        [  # noqa: S603, S607
+            "pip-compile",
+            "--output-file",
+            str(output),
+            *extra_flags,
+            str(requirements_in),
+        ],
         check=True,
     )
     add_comment_to_file(output)
