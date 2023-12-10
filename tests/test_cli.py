@@ -4,10 +4,11 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from unidep._cli import _install_all_command, _install_command
+from unidep._cli import _install_all_command, _install_command, _pip_compile_command
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -198,3 +199,22 @@ def test_doubly_nested_project_folder_installable(
         text=True,
     )
     assert f"pip install --no-dependencies -e {p1} -e {p2} -e {p3}`" in result.stdout
+
+
+def test_conda_lock_command(tmp_path: Path) -> None:
+    folder = tmp_path / "example"
+    shutil.copytree(REPO_ROOT / "example", folder)
+    with patch("subprocess.run", return_value=None):
+        _pip_compile_command(
+            depth=2,
+            directory=folder,
+            platform="linux-64",
+            ignore_pins=[],
+            skip_dependencies=[],
+            overwrite_pins=[],
+            verbose=True,
+            extra_flags=[],
+        )
+    assert (folder / "requirements.in").exists()
+    with (folder / "requirements.in").open() as f:
+        assert "adaptive" in f.read()
