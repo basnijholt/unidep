@@ -424,7 +424,7 @@ def _parse_args() -> argparse.Namespace:
         "-o",
         "--output-file",
         type=Path,
-        default="requirements.txt",
+        default=None,
         help="Output file for the pip requirements, by default `requirements.txt`",
     )
     _add_common_args(
@@ -752,7 +752,7 @@ def _pip_compile_command(
     overwrite_pins: list[str],
     verbose: bool,
     extra_flags: list[str],
-    output: Path,
+    output_file: Path | None = None,
 ) -> None:
     if importlib.util.find_spec("piptools") is None:
         print(
@@ -789,18 +789,22 @@ def _pip_compile_command(
         if verbose:
             print(f"📝 Extra flags: {extra_flags}")
 
+    if output_file is None:
+        output_file = directory / "requirements.txt"
+
     subprocess.run(
         [  # noqa: S603, S607
             "pip-compile",
             "--output-file",
-            str(output),
+            str(output_file),
             *extra_flags,
             str(requirements_in),
         ],
         check=True,
     )
-    add_comment_to_file(output)
-    print(f"✅ Generated `{output}`.")
+    if output_file.exists():  # might not exist in tests
+        add_comment_to_file(output_file)
+    print(f"✅ Generated `{output_file}`.")
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
@@ -931,7 +935,7 @@ def main() -> None:
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
             extra_flags=args.extra_flags,
-            output=args.output,
+            output_file=args.output_file,
         )
     elif args.command == "version":  # pragma: no cover
         path = Path(__file__).parent

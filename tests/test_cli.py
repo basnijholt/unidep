@@ -206,6 +206,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
     shutil.copytree(REPO_ROOT / "example", folder)
     with patch("subprocess.run", return_value=None):
         _pip_compile_command(
+            output_file=folder / "requirements.txt",
             depth=2,
             directory=folder,
             platform="linux-64",
