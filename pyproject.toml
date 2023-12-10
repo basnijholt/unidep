@@ -61,6 +61,7 @@ addopts = """
     --cov-report term
     --cov-report html
     --cov-fail-under=95
+    -W error
 """
 
 [tool.coverage.run]
