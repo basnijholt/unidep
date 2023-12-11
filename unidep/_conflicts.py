@@ -40,11 +40,11 @@ def _prepare_metas_for_conflict_resolution(
             lambda: defaultdict(list),
         )
         for meta in meta_list:
-            _platforms = meta.platforms().intersection(platforms)
+            _platforms = meta.platforms()
             if _platforms is None:
                 _platforms = [None]  # type: ignore[list-item]
             for _platform in _platforms:
-                if _platforms and _platform not in _platforms:
+                if _platform is not None and platforms and _platform not in platforms:
                     continue
                 grouped_metas[_platform][meta.which].append(meta)
         # Convert defaultdicts to dicts
