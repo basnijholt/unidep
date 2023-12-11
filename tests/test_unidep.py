@@ -17,6 +17,7 @@ from unidep import (
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
+from unidep._conflicts import VersionConflictError
 from unidep.platform_definitions import Meta, Platform
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -1833,3 +1834,75 @@ def test_with_unused_platform(tmp_path: Path) -> None:
     )
     assert env_spec.conda == ["adaptive", "rsync-time-machine >1,<3"]
     assert env_spec.pip == []
+
+
+def test_pip_with_pinning(tmp_path: Path) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: qiskit-terra ==0.25.2.1
+                - pip: qiskit-terra ==0.25.2.1
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p, verbose=False)
+    with pytest.raises(
+        VersionConflictError,
+        match="Invalid version pinning: ==0.25.2.1",
+    ):
+        resolve_conflicts(requirements.requirements, requirements.platforms)
+
+
+def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: qsimcirq * cuda*
+                - pip: qsimcirq * cuda*
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p1, verbose=False)
+
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "qsimcirq": {
+            None: {
+                "pip": Meta(
+                    name="qsimcirq",
+                    which="pip",
+                    comment=None,
+                    pin="* cuda*",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
+
+    p2 = tmp_path / "p2" / "requirements.yaml"
+    p2.parent.mkdir()
+    p2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: qsimcirq * cuda*
+                - pip: qsimcirq * cpu*
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p2, verbose=False)
+
+    with pytest.raises(
+        VersionConflictError,
+        match="['* cuda*', '* cpu*']",
+    ):
+        resolve_conflicts(requirements.requirements, requirements.platforms)

@@ -281,13 +281,13 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     found_files = find_requirements_files(example_folder)
     assert len(found_files) == 4
 
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         *found_files,
         check_pip_installable=True,
         verbose=True,
     )
-    assert requirements
-    assert requirements == {
+    assert local_dependencies
+    assert local_dependencies == {
         example_folder / "project1": [
             example_folder / "project2",
             example_folder / "project3",
