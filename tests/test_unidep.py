@@ -224,12 +224,12 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         requirements.requirements,
         requirements.platforms,
     )
-    env = create_conda_env_specification(
+    env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.platforms,
     )
-    assert env.conda == [
+    assert env_spec.conda == [
         {"sel(osx)": "yolo"},
         {"sel(linux)": "foo"},
         {"sel(win)": "bar"},
@@ -238,7 +238,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         "pip-package",
         "pip-package2; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
-    assert env.pip == expected_pip
+    assert env_spec.pip == expected_pip
 
     # Test on two platforms
     platforms: list[Platform] = ["osx-arm64", "win-64"]
@@ -247,24 +247,24 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         platforms,
     )
 
-    env = create_conda_env_specification(
+    env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         platforms,
     )
-    assert env.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
-    assert env.pip == expected_pip
+    assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
+    assert env_spec.pip == expected_pip
 
     # Test with comment selector
-    env = create_conda_env_specification(
+    env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         platforms,
         selector="comment",
     )
-    assert env.conda == ["yolo", "bar"]
-    assert env.pip == ["pip-package", "pip-package2"]
-    write_conda_environment_file(env, str(tmp_path / "environment.yaml"))
+    assert env_spec.conda == ["yolo", "bar"]
+    assert env_spec.pip == ["pip-package", "pip-package2"]
+    write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
         assert "- yolo  # [arm64]" in text
@@ -704,8 +704,8 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
     }
     # Pip
-    pip_deps = filter_python_dependencies(resolved)
-    assert pip_deps == [
+    python_deps = filter_python_dependencies(resolved)
+    assert python_deps == [
         "common_package; sys_platform == 'linux' or sys_platform == 'darwin'",
         "package3",
         "package4; sys_platform == 'linux' or sys_platform == 'darwin'",
