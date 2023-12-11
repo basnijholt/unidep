@@ -26,20 +26,20 @@ if TYPE_CHECKING:
 
 
 def filter_python_dependencies(
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
 ) -> list[str]:
     """Filter out conda dependencies and return only pip dependencies.
 
     Examples
     --------
     >>> requirements = parse_yaml_requirements("requirements.yaml")
-    >>> resolved_requirements = resolve_conflicts(
+    >>> resolved = resolve_conflicts(
     ...     requirements.requirements, requirements.platforms
     ... )
-    >>> python_dependencies = filter_python_dependencies(resolved_requirements)
+    >>> python_dependencies = filter_python_dependencies(resolved)
     """
     pip_deps = []
-    for platform_data in resolved_requirements.values():
+    for platform_data in resolved.values():
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
             pip_meta = sources.get("pip")
@@ -97,11 +97,11 @@ def get_python_dependencies(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         platforms or list(requirements.platforms),
     )
-    return filter_python_dependencies(resolved_requirements)
+    return filter_python_dependencies(resolved)
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover

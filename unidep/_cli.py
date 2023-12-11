@@ -586,12 +586,12 @@ def _install_command(
         verbose=verbose,
     )
     platforms = [identify_current_platform()]
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
     )
     env_spec = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         platforms=platforms,
     )
@@ -732,12 +732,12 @@ def _merge_command(
     )
 
     platforms = requirements.platforms or platforms
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
     )
     env_spec = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         platforms,
         selector=selector,
@@ -783,11 +783,11 @@ def _pip_compile_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         [platform],
     )
-    python_deps = filter_python_dependencies(resolved_requirements)
+    python_deps = filter_python_dependencies(resolved)
     requirements_in = directory / "requirements.in"
     with requirements_in.open("w") as f:
         f.write("\n".join(python_deps))
@@ -882,12 +882,12 @@ def main() -> None:
             verbose=args.verbose,
         )
         platforms = [args.platform]
-        resolved_requirements = resolve_conflicts(
+        resolved = resolve_conflicts(
             requirements.requirements,
             platforms,
         )
         env_spec = create_conda_env_specification(
-            resolved_requirements,
+            resolved,
             requirements.channels,
             platforms=platforms,
         )

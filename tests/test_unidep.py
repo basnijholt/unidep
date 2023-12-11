@@ -165,12 +165,12 @@ def test_generate_conda_env_file(
 ) -> None:
     output_file = tmp_path / "environment.yaml"
     requirements = parse_yaml_requirements(*setup_test_files, verbose=verbose)
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
     )
     env_spec = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         requirements.platforms,
     )
@@ -189,12 +189,12 @@ def test_generate_conda_env_stdout(
     capsys: pytest.CaptureFixture,
 ) -> None:
     requirements = parse_yaml_requirements(*setup_test_files)
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
     )
     env_spec = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         requirements.platforms,
     )
@@ -220,12 +220,12 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p)
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
     )
     env = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         requirements.platforms,
     )
@@ -242,13 +242,13 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
 
     # Test on two platforms
     platforms: list[Platform] = ["osx-arm64", "win-64"]
-    resolved_requirements = resolve_conflicts(
+    resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
     )
 
     env = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         platforms,
     )
@@ -257,7 +257,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
 
     # Test with comment selector
     env = create_conda_env_specification(
-        resolved_requirements,
+        resolved,
         requirements.channels,
         platforms,
         selector="comment",
@@ -319,8 +319,8 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
 def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
-    requirements_with_comments = parse_yaml_requirements(p, verbose=False)
-    assert requirements_with_comments.channels == ["conda-forge", "defaults"]
+    requirements = parse_yaml_requirements(p, verbose=False)
+    assert requirements.channels == ["conda-forge", "defaults"]
 
 
 def test_surrounding_comments(tmp_path: Path) -> None:
@@ -345,8 +345,8 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements_with_comments = parse_yaml_requirements(p, verbose=False)
-    assert requirements_with_comments.requirements == {
+    requirements = parse_yaml_requirements(p, verbose=False)
+    assert requirements.requirements == {
         "yolo": [
             Meta(
                 name="yolo",
@@ -443,8 +443,8 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             """,
         ),
     )
-    sample_requirements = parse_yaml_requirements(p, verbose=False)
-    assert sample_requirements.requirements == {
+    requirements = parse_yaml_requirements(p, verbose=False)
+    assert requirements.requirements == {
         "package1": [
             Meta(
                 name="package1",
@@ -516,8 +516,8 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     }
 
     resolved = resolve_conflicts(
-        sample_requirements.requirements,
-        sample_requirements.platforms,
+        requirements.requirements,
+        requirements.platforms,
     )
     assert resolved == {
         "package1": {
@@ -715,8 +715,8 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     # Conda
     conda_env_spec = create_conda_env_specification(
         resolved,
-        channels=sample_requirements.channels,
-        platforms=sample_requirements.platforms,
+        channels=requirements.channels,
+        platforms=requirements.platforms,
     )
 
     def sort(x: list[dict[str, str]]) -> list[dict[str, str]]:

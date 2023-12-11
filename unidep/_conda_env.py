@@ -52,7 +52,7 @@ def _conda_sel(sel: str) -> CondaPlatform:
 
 
 def _extract_conda_pip_dependencies(
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
 ) -> tuple[
     dict[str, dict[Platform | None, Meta]],
     dict[str, dict[Platform | None, Meta]],
@@ -60,7 +60,7 @@ def _extract_conda_pip_dependencies(
     """Extract and separate conda and pip dependencies."""
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
-    for pkg, platform_data in resolved_requirements.items():
+    for pkg, platform_data in resolved.items():
         for _platform, sources in platform_data.items():
             if "conda" in sources:
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
@@ -135,7 +135,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
 
 
 def create_conda_env_specification(  # noqa: PLR0912
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
@@ -146,7 +146,7 @@ def create_conda_env_specification(  # noqa: PLR0912
         raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
-    conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
+    conda, pip = _extract_conda_pip_dependencies(resolved)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
