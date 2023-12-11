@@ -108,5 +108,5 @@ class Meta(NamedTuple):
             ):
                 # Replace `=` with `==` for pip
                 pin = pin.replace("=", "==")
-            result += f" {self.pin}"
+            result += f" {pin}"
         return result
