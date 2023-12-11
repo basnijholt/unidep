@@ -36,29 +36,35 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
     assert _is_valid_pinning(f"{operator}{version}")
 
 
-def test_combine_version_pinnings() -> None:
-    assert combine_version_pinnings([" > 0.0.1", " < 2", " = 1.0.0"]) == "=1.0.0"
-    assert combine_version_pinnings(["<2", ">1"]) == "<2,>1"
-    assert combine_version_pinnings(["<3", "<=3", "<4"]) == "<3"
-    assert combine_version_pinnings(["=1", "=1"]) == "=1"
-    assert combine_version_pinnings(["=2", "<3", "<=3", "<4"]) == "=2"
-    assert combine_version_pinnings(["=2", ">1", "<3"]) == "=2"
-    assert combine_version_pinnings(["=3", ">=2", "<=4"]) == "=3"
-    assert combine_version_pinnings(["=3", ">1", "<4"]) == "=3"
-    assert combine_version_pinnings(["=3", ">2", "<4"]) == "=3"
-    assert combine_version_pinnings([">=1", "<=1"]) == ">=1,<=1"
-    assert combine_version_pinnings([">=1", ">=1", "=1"]) == "=1"
-    assert combine_version_pinnings([">=1", ">0", "<=3", "<4"]) == ">=1,<=3"
-    assert combine_version_pinnings([">=2", "<=2"]) == ">=2,<=2"
-    assert combine_version_pinnings([">=2", "<3"]) == ">=2,<3"
-    assert combine_version_pinnings([">0.0.1", "<2", "=1.0.0"]) == "=1.0.0"
-    assert combine_version_pinnings([">1", "<=3", "<4"]) == ">1,<=3"
-    assert combine_version_pinnings([">1", "<=3"]) == ">1,<=3"
-    assert combine_version_pinnings([">1", "<2"]) == ">1,<2"
-    assert combine_version_pinnings([">1", ">=1", "<3", "<=3"]) == ">1,<3"
-    assert combine_version_pinnings([">1"]) == ">1"
-    assert combine_version_pinnings(["3"]) == ""
-    assert combine_version_pinnings([]) == ""
+@pytest.mark.parametrize(
+    ("pinnings", "expected"),
+    [
+        ([" > 0.0.1", " < 2", " = 1.0.0"], "=1.0.0"),
+        (["<2", ">1"], "<2,>1"),
+        (["<3", "<=3", "<4"], "<3"),
+        (["=1", "=1"], "=1"),
+        (["=2", "<3", "<=3", "<4"], "=2"),
+        (["=2", ">1", "<3"], "=2"),
+        (["=3", ">=2", "<=4"], "=3"),
+        (["=3", ">1", "<4"], "=3"),
+        (["=3", ">2", "<4"], "=3"),
+        ([">=1", "<=1"], ">=1,<=1"),
+        ([">=1", ">=1", "=1"], "=1"),
+        ([">=1", ">0", "<=3", "<4"], ">=1,<=3"),
+        ([">=2", "<=2"], ">=2,<=2"),
+        ([">=2", "<3"], ">=2,<3"),
+        ([">0.0.1", "<2", "=1.0.0"], "=1.0.0"),
+        ([">1", "<=3", "<4"], ">1,<=3"),
+        ([">1", "<=3"], ">1,<=3"),
+        ([">1", "<2"], ">1,<2"),
+        ([">1", ">=1", "<3", "<=3"], ">1,<3"),
+        ([">1"], ">1"),
+        (["3"], ""),
+        ([], ""),
+    ],
+)
+def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
+    assert combine_version_pinnings(pinnings) == expected
 
 
 def test_invalid_pinnings() -> None:
