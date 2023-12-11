@@ -77,6 +77,26 @@ def _pop_unused_platforms_and_maybe_expand_none(
         platform_data.pop(_platform)
 
 
+def _maybe_new_meta_with_combined_pinnings(
+    metas: list[Meta],
+) -> Meta:
+    pinned_metas = [m for m in metas if m.pin is not None]
+    if len(pinned_metas) > 1:
+        first = pinned_metas[0]
+        pins = [m.pin for m in pinned_metas]
+        pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
+        return Meta(
+            name=first.name,
+            which=first.which,
+            comment=None,
+            pin=pin,
+            identifier=first.identifier,  # should I create a new one?
+        )
+
+    # Flatten the list
+    return metas[0]
+
+
 def _combine_pinning_within_platform(
     data: dict[Platform | None, dict[CondaPip, list[Meta]]],
 ) -> dict[Platform | None, dict[CondaPip, Meta]]:
@@ -84,22 +104,8 @@ def _combine_pinning_within_platform(
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, metas in packages.items():
-            pinned_metas = [m for m in metas if m.pin is not None]
-            if len(pinned_metas) > 1:
-                first = pinned_metas[0]
-                pins = [m.pin for m in pinned_metas]
-                pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
-                new_meta = Meta(
-                    name=first.name,
-                    which=first.which,
-                    comment=None,
-                    pin=pin,
-                    identifier=first.identifier,  # should I create a new one?
-                )
-                reduced_data[_platform][which] = new_meta
-            else:
-                # Flatten the list
-                reduced_data[_platform][which] = metas[0]
+            meta = _maybe_new_meta_with_combined_pinnings(metas)
+            reduced_data[_platform][which] = meta
     return reduced_data
 
 
@@ -127,6 +133,10 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip
     return {"conda": conda_meta, "pip": pip_meta}
 
 
+class VersionConflictError(ValueError):
+    """Raised when a version conflict is detected."""
+
+
 def resolve_conflicts(
     requirements: dict[str, list[Meta]],
     platforms: list[Platform] | None = None,
@@ -138,7 +148,7 @@ def resolve_conflicts(
     """
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
-        raise ValueError(msg)
+        raise VersionConflictError(msg)
 
     prepared = _prepare_metas_for_conflict_resolution(requirements, platforms)
 
@@ -169,7 +179,7 @@ def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
                 break  # Empty version string
 
     msg = f"Invalid version pinning: '{pinning}', must start with one of {VALID_OPERATORS}"  # noqa: E501
-    raise ValueError(msg)
+    raise VersionConflictError(msg)
 
 
 def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
@@ -210,7 +220,7 @@ def _is_valid_pinning(pinning: str) -> bool:
             # Attempt to parse the version part of the pinning
             _parse_pinning(pinning)
             return True  # noqa: TRY300
-        except ValueError:
+        except VersionConflictError:
             # If parsing fails, the pinning is not valid
             return False
     # If the pinning doesn't contain any recognized operator, it's not valid
@@ -239,7 +249,7 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
     if len(exact_pinnings) > 1:
         pinnings_str = ", ".join(exact_pinnings)
         msg = f"Multiple exact version pinnings found: {pinnings_str} for `{name}`"
-        raise ValueError(msg)
+        raise VersionConflictError(msg)
 
     err_msg = f"Contradictory version pinnings found for `{name}`"
 
@@ -256,7 +266,7 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
                     or (op == ">=" and exact_version >= ver)
                 ):
                     msg = f"{err_msg}: {exact_pin} and {other_pin}"
-                    raise ValueError(msg)
+                    raise VersionConflictError(msg)
         return exact_pin
 
     non_redundant_pinnings = [
@@ -272,7 +282,7 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
             if (op1 == ">" and op2 == "<" and ver1 >= ver2) or (
                 op1 == "<" and op2 == ">" and ver1 <= ver2
             ):
-                raise ValueError(msg)
+                raise VersionConflictError(msg)
 
             # Check for contradictions involving inclusive bounds like >=2 and <1
             if (
@@ -281,6 +291,6 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
                 or (op1 == "<=" and op2 == ">" and ver1 <= ver2)
                 or (op1 == ">" and op2 == "<=" and ver1 >= ver2)
             ):
-                raise ValueError(msg)
+                raise VersionConflictError(msg)
 
     return ",".join(non_redundant_pinnings)

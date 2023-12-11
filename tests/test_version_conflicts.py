@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from unidep._conflicts import (
+    VersionConflictError,
     _combine_pinning_within_platform,
     _is_redundant,
     _is_valid_pinning,
@@ -91,7 +92,7 @@ def test_mixed_valid_and_invalid_pinnings() -> None:
 def test_contradictory_pinnings(pinnings: list[str]) -> None:
     p1, p2 = pinnings
     with pytest.raises(
-        ValueError,
+        VersionConflictError,
         match=f"Contradictory version pinnings found for `None`: {p1} and {p2}",
     ):
         combine_version_pinnings(pinnings)
@@ -99,13 +100,13 @@ def test_contradictory_pinnings(pinnings: list[str]) -> None:
 
 def test_exact_pinning_with_contradictory_ranges() -> None:
     with pytest.raises(
-        ValueError,
+        VersionConflictError,
         match="Contradictory version pinnings found for `None`: =3 and <2",
     ):
         combine_version_pinnings(["=3", "<2", ">4"])
 
     with pytest.raises(
-        ValueError,
+        VersionConflictError,
         match="Contradictory version pinnings found for `None`: =3 and <1",
     ):
         assert combine_version_pinnings(["=3", "<1", ">4"])
@@ -113,16 +114,16 @@ def test_exact_pinning_with_contradictory_ranges() -> None:
 
 def test_multiple_exact_pinnings() -> None:
     with pytest.raises(
-        ValueError,
+        VersionConflictError,
         match="Multiple exact version pinnings found: =2, =3",
     ):
         combine_version_pinnings(["=2", "=3"])
 
 
 def test_general_contradictory_pinnings() -> None:
-    # This test ensures that contradictory non-exact pinnings raise a ValueError
+    # This test ensures that contradictory non-exact pinnings raise a VersionConflictError
     with pytest.raises(
-        ValueError,
+        VersionConflictError,
         match="Contradictory version pinnings found for `None`: >=2 and <1",
     ):
         combine_version_pinnings([">=2", "<1"])
@@ -138,5 +139,8 @@ def test_is_redundant() -> None:
 
 @pytest.mark.parametrize("pinning", ["<<1", ">>1", "=<1", "=>1"])
 def test_invalid_parse_pinning(pinning: str) -> None:
-    with pytest.raises(ValueError, match=f"Invalid version pinning: '{pinning}'"):
+    with pytest.raises(
+        VersionConflictError,
+        match=f"Invalid version pinning: '{pinning}'",
+    ):
         _parse_pinning(pinning)
