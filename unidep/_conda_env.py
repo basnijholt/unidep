@@ -178,7 +178,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             if meta.identifier in seen_identifiers:
                 continue
 
-            dep_str = meta.name_with_pin()
+            dep_str = meta.name_with_pin(is_pip=True)
             if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]

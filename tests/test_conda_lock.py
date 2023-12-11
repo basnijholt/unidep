@@ -1,6 +1,7 @@
 """unidep tests."""
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,12 +12,13 @@ from unidep._conda_lock import conda_lock_command
 from unidep.utils import remove_top_comments
 
 
-def test_conda_lock_command() -> None:
-    simple_monorepo = Path(__file__).parent / "simple_monorepo"
+def test_conda_lock_command(tmp_path: Path) -> None:
+    folder = tmp_path / "simple_monorepo"
+    shutil.copytree(Path(__file__).parent / "simple_monorepo", folder)
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         conda_lock_command(
             depth=1,
-            directory=simple_monorepo,
+            directory=folder,
             platform=["linux-64", "osx-arm64"],
             verbose=True,
             only_global=False,
@@ -26,20 +28,24 @@ def test_conda_lock_command() -> None:
             skip_dependencies=[],
         )
     with YAML(typ="safe") as yaml:
-        with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
+        with (folder / "project1" / "conda-lock.yml").open() as f:
             lock1 = yaml.load(f)
-        with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
+        with (folder / "project2" / "conda-lock.yml").open() as f:
             lock2 = yaml.load(f)
     assert [p["name"] for p in lock1["package"]] == ["bzip2", "python_abi", "tzdata"]
     assert [p["name"] for p in lock2["package"]] == ["python_abi", "tzdata"]
 
 
-def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
-    simple_monorepo = Path(__file__).parent / "test-pip-package-with-conda-dependency"
+def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) -> None:
+    folder = tmp_path / "test-pip-package-with-conda-dependency"
+    shutil.copytree(
+        Path(__file__).parent / "test-pip-package-with-conda-dependency",
+        folder,
+    )
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         conda_lock_command(
             depth=1,
-            directory=simple_monorepo,
+            directory=folder,
             platform=["linux-64"],
             verbose=True,
             only_global=False,
@@ -49,9 +55,9 @@ def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
             skip_dependencies=[],
         )
     with YAML(typ="safe") as yaml:
-        with (simple_monorepo / "project1" / "conda-lock.yml").open() as f:
+        with (folder / "project1" / "conda-lock.yml").open() as f:
             lock1 = yaml.load(f)
-        with (simple_monorepo / "project2" / "conda-lock.yml").open() as f:
+        with (folder / "project2" / "conda-lock.yml").open() as f:
             lock2 = yaml.load(f)
     assert [p["name"] for p in lock1["package"]] == [
         "_libgcc_mutex",
@@ -113,13 +119,16 @@ def test_conda_lock_command_pip_package_with_conda_dependency() -> None:
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_conda_lock_command_pip_and_conda_different_name(
+    tmp_path: Path,
     capsys: pytest.CaptureFixture,
 ) -> None:
-    simple_monorepo = Path(__file__).parent / "test-pip-and-conda-different-name"
+    folder = tmp_path / "test-pip-and-conda-different-name"
+    shutil.copytree(Path(__file__).parent / "test-pip-and-conda-different-name", folder)
+
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         conda_lock_command(
             depth=1,
-            directory=simple_monorepo,
+            directory=folder,
             platform=["linux-64"],
             verbose=True,
             only_global=False,

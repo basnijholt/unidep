@@ -58,11 +58,9 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
         ([">0.0.1", "<2", "=1.0.0"], "=1.0.0"),
         ([">1", "<=3", "<4"], ">1,<=3"),
         ([">1", "<=3"], ">1,<=3"),
-        ([">1", ">=1", "<3", "<=3"], ">1,<3"),
+        ([">1", ">=1", "<3", "<=3", ""], ">1,<3"),
         ([">1"], ">1"),
-        (["3"], ""),
         ([], ""),
-        ([">"], ""),
     ],
 )
 def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
@@ -75,15 +73,21 @@ def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
         assert combine_version_pinnings(pinnings[::-1]) == ",".join(parts[::-1])
 
 
-def test_invalid_pinnings() -> None:
-    assert combine_version_pinnings(["abc", "def"]) == ""
-    assert combine_version_pinnings(["==abc"]) == ""
-    assert combine_version_pinnings(["<=>abc"]) == ""
-
-
-def test_mixed_valid_and_invalid_pinnings() -> None:
-    assert combine_version_pinnings([">1", "abc", "<=3", ""]) == ">1,<=3"
-    assert combine_version_pinnings(["abc", ">=1", "<=2"]) == ">=1,<=2"
+@pytest.mark.parametrize(
+    "pinnings",
+    [
+        ["abc", "def"],
+        ["==abc"],
+        ["<=>abc"],
+        [">1", "abc", "<=3", ""],
+        ["abc", ">=1", "<=2"],
+        ["3"],
+        [">"],
+    ],
+)
+def test_invalid_pinnings(pinnings: list[str]) -> None:
+    with pytest.raises(VersionConflictError, match="Invalid version pinning:"):
+        assert combine_version_pinnings(pinnings)
 
 
 @pytest.mark.parametrize(

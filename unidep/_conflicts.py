@@ -234,10 +234,24 @@ def _split_pinnings(metas: list[str]) -> list[str]:
     return [_pin.strip().replace(" ", "") for pin in metas for _pin in pin.split(",")]
 
 
-def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:
+def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:  # noqa: PLR0912
     """Combines a list of version pinnings into a single string."""
+    if any("*" in p for p in pinnings):  # special case with *
+        if all(p == pinnings[0] for p in pinnings):
+            return pinnings[0]
+        msg = (
+            f"Invalid version pinning: `{pinnings}` for `{name}` which contains `*`,"
+            f" UniDep cannot combine these, however, if all `{name}` pinnings are"
+            " identical, this is not a problem."
+        )
+        raise VersionConflictError(msg)
+    pinnings = [p for p in pinnings if p != ""]
     pinnings = _split_pinnings(pinnings)
     pinnings = _deduplicate(pinnings)
+    for pin in pinnings:
+        if not _is_valid_pinning(pin):
+            msg = f"Invalid version pinning: {pin}"
+            raise VersionConflictError(msg)
     valid_pinnings = [p for p in pinnings if _is_valid_pinning(p)]
     if not valid_pinnings:
         return ""
