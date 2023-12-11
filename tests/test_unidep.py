@@ -954,15 +954,25 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
         requirements.channels,
         requirements.platforms,
     )
-    assert env_spec.conda == [{"sel(linux)": "foo >1"}]
+    assert env_spec.conda == [{"sel(linux)": "foo >1,<=2"}]
     assert env_spec.pip == []
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo <=2; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <=2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo >1,<=2; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
+
+    # now only use linux-64
+    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        ["linux-64"],
+    )
+    assert env_spec.conda == ["foo >1,<=2"]
+    assert env_spec.pip == []
 
 
 def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
@@ -1110,12 +1120,11 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             },
         },
     }
-    with pytest.warns(UserWarning, match="Dependency Conflict on"):
-        env_spec = create_conda_env_specification(
-            resolved,
-            requirements.channels,
-            requirements.platforms,
-        )
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env_spec.conda == [
         {"sel(linux)": "foo >1"},
         {"sel(osx)": "foo >2"},

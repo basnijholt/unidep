@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+from unidep._conflicts import (
+    VersionConflictError,
+    _maybe_new_meta_with_combined_pinnings,
+)
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
@@ -97,18 +101,26 @@ def _resolve_multiple_platform_conflicts(
                     platform_to_meta.pop(_platform)
 
         # Now make sure that valid[conda_platform] has only one key.
-        # This means that all `Meta`s for the different Platforms that map to a
-        # CondaPlatform are identical. If len > 1, we have a conflict, and we
-        # select one of the `Meta`s.
+        # That means that all `Meta`s for the different Platforms that map to a
+        # CondaPlatform are identical. If len > 1, we have a conflict.
         if len(meta_to_platforms) > 1:
-            # We have a conflict, select the first one.
-            first, *others = meta_to_platforms.keys()
-            msg = (
-                f"Dependency Conflict on '{conda_platform}':\n"
-                f"Multiple versions detected. Retaining '{first.pprint()}' and"
-                f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
-            )
-            warn(msg, stacklevel=2)
+            metas, (first_platform, *_) = zip(*meta_to_platforms.items())
+            first, *others = metas
+            try:
+                meta = _maybe_new_meta_with_combined_pinnings(metas)  # type: ignore[arg-type]
+            except VersionConflictError:
+                # We have a conflict, select the first one.
+                msg = (
+                    f"Dependency Conflict on '{conda_platform}':\n"
+                    f"Multiple versions detected. Retaining '{first.pprint()}' and"
+                    f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
+                )
+                warn(msg, stacklevel=2)
+            else:
+                # Means that we could combine the pinnings
+                meta_to_platforms.pop(first)
+                meta_to_platforms[meta] = [first_platform]
+
             for other in others:
                 platforms = meta_to_platforms[other]
                 for _platform in platforms:
