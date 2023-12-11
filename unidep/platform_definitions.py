@@ -96,9 +96,17 @@ class Meta(NamedTuple):
             result += f" {self.comment}"
         return result
 
-    def name_with_pin(self) -> str:
+    def name_with_pin(self, *, is_pip: bool = False) -> str:
         """Return the name with the pin."""
         result = f"{self.name}"
         if self.pin is not None:
+            pin = self.pin
+            if (
+                is_pip
+                and "=" in pin
+                and not (">=" in pin or "<=" in pin or "==" in pin)
+            ):
+                # Replace `=` with `==` for pip
+                pin = pin.replace("=", "==")
             result += f" {self.pin}"
         return result
