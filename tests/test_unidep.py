@@ -982,7 +982,7 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             """\
             dependencies:
                 - foo >1 # [linux64]
-                - foo >2
+                - foo <3
             """,
         ),
     )
@@ -1007,14 +1007,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 name="foo",
                 which="conda",
                 comment=None,
-                pin=">2",
+                pin="<3",
                 identifier="5eb93b8c",
             ),
             Meta(
                 name="foo",
                 which="pip",
                 comment=None,
-                pin=">2",
+                pin="<3",
                 identifier="5eb93b8c",
             ),
         ],
@@ -1027,14 +1027,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin=">1,<3",
                     identifier="c292b98a",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin=">1,<3",
                     identifier="c292b98a",
                 ),
             },
@@ -1043,14 +1043,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
@@ -1059,14 +1059,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
@@ -1075,14 +1075,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
@@ -1091,14 +1091,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
@@ -1107,14 +1107,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
@@ -1126,21 +1126,21 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
         requirements.platforms,
     )
     assert env_spec.conda == [
-        {"sel(linux)": "foo >1"},
-        {"sel(osx)": "foo >2"},
-        {"sel(win)": "foo >2"},
+        {"sel(linux)": "foo >1,<3"},
+        {"sel(osx)": "foo <3"},
+        {"sel(win)": "foo <3"},
     ]
 
     assert env_spec.pip == []
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "foo >2; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "foo >2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-        "foo >2; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo >2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo >2; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        "foo <3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "foo <3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+        "foo <3; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <3; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo <3; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        "foo >1,<3; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
 
 

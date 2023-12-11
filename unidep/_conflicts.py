@@ -158,6 +158,7 @@ def resolve_conflicts(
     resolved = {
         pkg: _combine_pinning_within_platform(data) for pkg, data in prepared.items()
     }
+
     for _platforms in resolved.values():
         for _platform, sources in _platforms.items():
             _platforms[_platform] = _resolve_conda_pip_conflicts(sources)
