@@ -1837,9 +1837,9 @@ def test_with_unused_platform(tmp_path: Path) -> None:
 
 
 def test_pip_with_pinning(tmp_path: Path) -> None:
-    p = tmp_path / "p" / "requirements.yaml"
-    p.parent.mkdir()
-    p.write_text(
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -1849,12 +1849,34 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_yaml_requirements(p1, verbose=False)
     with pytest.raises(
         VersionConflictError,
         match="Invalid version pinning: ==0.25.2.1",
     ):
         resolve_conflicts(requirements.requirements, requirements.platforms)
+
+    p2 = tmp_path / "p2" / "requirements.yaml"
+    p2.parent.mkdir()
+    p2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: qiskit-terra =0.25.2.1
+                - pip: qiskit-terra =0.25.2.1
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p2, verbose=False)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["qiskit-terra ==0.25.2.1"]
 
 
 def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
