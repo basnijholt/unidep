@@ -52,7 +52,7 @@ def test_circular_includes(tmp_path: Path) -> None:
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
     assert len(requirements.requirements["adaptive-scheduler"]) == 2
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert len(resolved["adaptive"]) == 1
     assert len(resolved["adaptive"][None]) == 2
     assert len(resolved["adaptive-scheduler"]) == 1
@@ -83,7 +83,7 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         r1,
         r2,
         verbose=False,
@@ -93,7 +93,7 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
         project1.resolve(): [project2.resolve()],
         project2.resolve(): [project1.resolve()],
     }
-    assert requirements == expected_dependencies
+    assert local_dependencies == expected_dependencies
 
 
 def test_nested_includes(tmp_path: Path) -> None:
@@ -136,7 +136,7 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         project1 / "requirements.yaml",
         project2 / "requirements.yaml",
         project3 / "requirements.yaml",
@@ -152,7 +152,7 @@ def test_nested_includes(tmp_path: Path) -> None:
         project2.resolve(): [project3.resolve(), project4.resolve()],
         project3.resolve(): [project4.resolve()],
     }
-    assert requirements == expected_dependencies
+    assert local_dependencies == expected_dependencies
 
 
 def test_nonexistent_includes(tmp_path: Path) -> None:
@@ -183,12 +183,12 @@ def test_no_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         r1,
         verbose=False,
         check_pip_installable=False,
     )
-    assert requirements == {}
+    assert local_dependencies == {}
 
 
 def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
@@ -205,12 +205,12 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         r1,
         verbose=False,
         check_pip_installable=False,
     )
-    assert requirements == {}
+    assert local_dependencies == {}
 
 
 def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
@@ -239,13 +239,13 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     common_requirements.write_text("includes: [project1]")
     found_files.append(common_requirements)
 
-    requirements = parse_project_dependencies(
+    local_dependencies = parse_project_dependencies(
         *found_files,
         check_pip_installable=True,
         verbose=True,
     )
-    assert requirements
-    assert requirements == {
+    assert local_dependencies
+    assert local_dependencies == {
         example_folder / "project1": [
             example_folder / "project2",
             example_folder / "project3",

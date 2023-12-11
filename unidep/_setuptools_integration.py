@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 from unidep._conflicts import resolve_conflicts
 from unidep._yaml_parsing import parse_yaml_requirements
 from unidep.utils import (
-    _maybe_expand_none_to_all_platforms,
     build_pep508_environment_marker,
     identify_current_platform,
 )
@@ -27,28 +26,22 @@ if TYPE_CHECKING:
 
 
 def filter_python_dependencies(
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
-    platforms: list[Platform] | None = None,
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
 ) -> list[str]:
     """Filter out conda dependencies and return only pip dependencies.
 
     Examples
     --------
     >>> requirements = parse_yaml_requirements("requirements.yaml")
-    >>> resolved_requirements = resolve_conflicts(requirements.requirements)
-    >>> python_dependencies = filter_python_dependencies(resolved_requirements)
+    >>> resolved = resolve_conflicts(
+    ...     requirements.requirements, requirements.platforms
+    ... )
+    >>> python_deps = filter_python_dependencies(resolved)
     """
     pip_deps = []
-    for platform_data in resolved_requirements.values():
-        _maybe_expand_none_to_all_platforms(platform_data)
+    for platform_data in resolved.values():
         to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
         for _platform, sources in platform_data.items():
-            if (
-                _platform is not None
-                and platforms is not None
-                and _platform not in platforms
-            ):
-                continue
             pip_meta = sources.get("pip")
             if pip_meta:
                 to_process[_platform] = pip_meta
@@ -104,11 +97,11 @@ def get_python_dependencies(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved_requirements = resolve_conflicts(requirements.requirements)
-    return filter_python_dependencies(
-        resolved_requirements,
-        platforms=platforms or list(requirements.platforms),
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        platforms or list(requirements.platforms),
     )
+    return filter_python_dependencies(resolved)
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover

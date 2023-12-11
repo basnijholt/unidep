@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+from unidep._conflicts import (
+    VersionConflictError,
+    _maybe_new_meta_with_combined_pinnings,
+)
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
@@ -17,7 +21,6 @@ from unidep.platform_definitions import (
     Platform,
 )
 from unidep.utils import (
-    _maybe_expand_none_to_all_platforms,
     add_comment_to_file,
     build_pep508_environment_marker,
     warn,
@@ -49,7 +52,7 @@ def _conda_sel(sel: str) -> CondaPlatform:
 
 
 def _extract_conda_pip_dependencies(
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
 ) -> tuple[
     dict[str, dict[Platform | None, Meta]],
     dict[str, dict[Platform | None, Meta]],
@@ -57,8 +60,7 @@ def _extract_conda_pip_dependencies(
     """Extract and separate conda and pip dependencies."""
     conda: dict[str, dict[Platform | None, Meta]] = {}
     pip: dict[str, dict[Platform | None, Meta]] = {}
-    for pkg, platform_data in resolved_requirements.items():
-        _maybe_expand_none_to_all_platforms(platform_data)
+    for pkg, platform_data in resolved.items():
         for _platform, sources in platform_data.items():
             if "conda" in sources:
                 conda.setdefault(pkg, {})[_platform] = sources["conda"]
@@ -99,18 +101,26 @@ def _resolve_multiple_platform_conflicts(
                     platform_to_meta.pop(_platform)
 
         # Now make sure that valid[conda_platform] has only one key.
-        # This means that all `Meta`s for the different Platforms that map to a
-        # CondaPlatform are identical. If len > 1, we have a conflict, and we
-        # select one of the `Meta`s.
+        # That means that all `Meta`s for the different Platforms that map to a
+        # CondaPlatform are identical. If len > 1, we have a conflict.
         if len(meta_to_platforms) > 1:
-            # We have a conflict, select the first one.
-            first, *others = meta_to_platforms.keys()
-            msg = (
-                f"Dependency Conflict on '{conda_platform}':\n"
-                f"Multiple versions detected. Retaining '{first.pprint()}' and"
-                f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
-            )
-            warn(msg, stacklevel=2)
+            metas, (first_platform, *_) = zip(*meta_to_platforms.items())
+            first, *others = metas
+            try:
+                meta = _maybe_new_meta_with_combined_pinnings(metas)  # type: ignore[arg-type]
+            except VersionConflictError:
+                # We have a conflict, select the first one.
+                msg = (
+                    f"Dependency Conflict on '{conda_platform}':\n"
+                    f"Multiple versions detected. Retaining '{first.pprint()}' and"
+                    f" discarding conflicts: {', '.join(o.pprint() for o in others)}."
+                )
+                warn(msg, stacklevel=2)
+            else:
+                # Means that we could combine the pinnings
+                meta_to_platforms.pop(first)
+                meta_to_platforms[meta] = [first_platform]
+
             for other in others:
                 platforms = meta_to_platforms[other]
                 for _platform in platforms:
@@ -124,8 +134,8 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
-    resolved_requirements: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+def create_conda_env_specification(  # noqa: PLR0912
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
@@ -134,12 +144,9 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
-    if platforms and not set(platforms).issubset(get_args(Platform)):
-        msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
-        raise ValueError(msg)
 
     # Split in conda and pip dependencies and prefer conda over pip
-    conda, pip = _extract_conda_pip_dependencies(resolved_requirements)
+    conda, pip = _extract_conda_pip_dependencies(resolved)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
@@ -149,11 +156,7 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
             # None has been expanded already if len>1
             _resolve_multiple_platform_conflicts(platform_to_meta)
         for _platform, meta in sorted(platform_to_meta.items()):
-            if _platform is not None and platforms and _platform not in platforms:
-                continue
-            dep_str = meta.name
-            if meta.pin is not None:
-                dep_str += f" {meta.pin}"
+            dep_str = meta.name_with_pin()
             if len(platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
@@ -174,15 +177,8 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
         for meta, _platforms in meta_to_platforms.items():
             if meta.identifier in seen_identifiers:
                 continue
-            if _platforms != [None] and platforms:
-                assert None not in _platforms
-                _platforms = [p for p in _platforms if p in platforms]
-                if not _platforms:
-                    continue
 
-            dep_str = meta.name
-            if meta.pin is not None:
-                dep_str += f" {meta.pin}"
+            dep_str = meta.name_with_pin()
             if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
@@ -195,10 +191,8 @@ def create_conda_env_specification(  # noqa: PLR0912, C901, PLR0915
                     # should be spread into two lines, one with [linux] and the
                     # other with [win].
                     for _platform in _platforms:
-                        # We're not adding a PEP508 marker here
-                        _platform = cast(Platform, _platform)
                         pip_deps.append(dep_str)
-                        _add_comment(pip_deps, _platform)
+                        _add_comment(pip_deps, cast(Platform, _platform))
             else:
                 pip_deps.append(dep_str)
 
