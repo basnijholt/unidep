@@ -42,10 +42,10 @@ def test_find_requirements_files(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     # Make sure to pass the depth argument correctly if your function expects it.
-    results = find_requirements_files(tmp_path, depth=1, verbose=True)
+    found_files = find_requirements_files(tmp_path, depth=1, verbose=True)
 
-    # Convert results to absolute paths for comparison
-    absolute_results = sorted(str(p.resolve()) for p in results)
+    # Convert found_files to absolute paths for comparison
+    absolute_results = sorted(str(p.resolve()) for p in found_files)
     absolute_test_files = sorted(str(p.resolve()) for p in setup_test_files)
 
     assert absolute_results == absolute_test_files

@@ -57,11 +57,11 @@ def pytest_collection_modifyitems(
     compare_branch = config.getoption("--branch")
     repo_root = Path(config.getoption("--repo-root")).absolute()
     repo = Repo(repo_root)
-    files = find_requirements_files(repo_root)
-    dependencies = parse_project_dependencies(*files)
+    found_files = find_requirements_files(repo_root)
+    local_dependencies = parse_project_dependencies(*found_files)
     diffs = repo.head.commit.diff(compare_branch)
     changed_files = [Path(diff.a_path) for diff in diffs]
-    affected_packages = _affected_packages(repo_root, changed_files, dependencies)
+    affected_packages = _affected_packages(repo_root, changed_files, local_dependencies)
     affected_tests = {
         item
         for item in items
