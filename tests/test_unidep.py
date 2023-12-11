@@ -165,7 +165,10 @@ def test_generate_conda_env_file(
 ) -> None:
     output_file = tmp_path / "environment.yaml"
     requirements = parse_yaml_requirements(*setup_test_files, verbose=verbose)
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+    )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -186,7 +189,10 @@ def test_generate_conda_env_stdout(
     capsys: pytest.CaptureFixture,
 ) -> None:
     requirements = parse_yaml_requirements(*setup_test_files)
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+    )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -214,7 +220,10 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p)
-    resolved_requirements = resolve_conflicts(requirements.requirements)
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+    )
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -232,6 +241,11 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     assert env.pip == expected_pip
 
     # Test on two platforms
+    resolved_requirements = resolve_conflicts(
+        requirements.requirements,
+        ["osx-arm64", "win-64"],
+    )
+
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
@@ -256,9 +270,8 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
         assert "- bar # [win64]" in text
 
     with pytest.raises(ValueError, match="Invalid platform"):
-        create_conda_env_specification(
-            resolved_requirements,
-            requirements.channels,
+        resolve_conflicts(
+            requirements.requirements,
             ["unknown-platform"],  # type: ignore[list-item]
         )
 
@@ -501,7 +514,10 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         ],
     }
 
-    resolved = resolve_conflicts(sample_requirements.requirements)
+    resolved = resolve_conflicts(
+        sample_requirements.requirements,
+        sample_requirements.platforms,
+    )
     assert resolved == {
         "package1": {
             "linux-64": {
@@ -782,7 +798,7 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             "linux-64": {
@@ -843,7 +859,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             """\
             dependencies:
                 - foo >1 # [linux64]
-                - foo <1 # [linux]
+                - foo <=2 # [linux]
             """,
         ),
     )
@@ -868,35 +884,34 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 name="foo",
                 which="conda",
                 comment="# [linux]",
-                pin="<1",
+                pin="<=2",
                 identifier="ecd4baa6",
             ),
             Meta(
                 name="foo",
                 which="pip",
                 comment="# [linux]",
-                pin="<1",
+                pin="<=2",
                 identifier="ecd4baa6",
             ),
         ],
     }
-    with pytest.warns(UserWarning, match="Platform Conflict Detected"):
-        resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             "linux-64": {
                 "conda": Meta(
                     name="foo",
                     which="conda",
-                    comment="# [linux64]",
-                    pin=">1",
+                    comment=None,
+                    pin=">1,<=2",
                     identifier="c292b98a",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
-                    comment="# [linux64]",
-                    pin=">1",
+                    comment=None,
+                    pin=">1,<=2",
                     identifier="c292b98a",
                 ),
             },
@@ -905,14 +920,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment="# [linux]",
-                    pin="<1",
+                    pin="<=2",
                     identifier="ecd4baa6",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment="# [linux]",
-                    pin="<1",
+                    pin="<=2",
                     identifier="ecd4baa6",
                 ),
             },
@@ -921,34 +936,43 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                     name="foo",
                     which="conda",
                     comment="# [linux]",
-                    pin="<1",
+                    pin="<=2",
                     identifier="ecd4baa6",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment="# [linux]",
-                    pin="<1",
+                    pin="<=2",
                     identifier="ecd4baa6",
                 ),
             },
         },
     }
-    with pytest.warns(UserWarning, match="Dependency Conflict on"):
-        env_spec = create_conda_env_specification(
-            resolved,
-            requirements.channels,
-            requirements.platforms,
-        )
-    assert env_spec.conda == [{"sel(linux)": "foo >1"}]
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == [{"sel(linux)": "foo >1,<=2"}]
     assert env_spec.pip == []
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo <1; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo <=2; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <=2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo >1,<=2; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
+
+    # now only use linux-64
+    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        ["linux-64"],
+    )
+    assert env_spec.conda == ["foo >1,<=2"]
+    assert env_spec.pip == []
 
 
 def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
@@ -958,7 +982,7 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             """\
             dependencies:
                 - foo >1 # [linux64]
-                - foo >2
+                - foo <3
             """,
         ),
     )
@@ -983,77 +1007,140 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 name="foo",
                 which="conda",
                 comment=None,
-                pin=">2",
+                pin="<3",
                 identifier="5eb93b8c",
             ),
             Meta(
                 name="foo",
                 which="pip",
                 comment=None,
-                pin=">2",
+                pin="<3",
                 identifier="5eb93b8c",
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             "linux-64": {
                 "conda": Meta(
                     name="foo",
                     which="conda",
-                    comment="# [linux64]",
-                    pin=">1",
+                    comment=None,
+                    pin=">1,<3",
                     identifier="c292b98a",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
-                    comment="# [linux64]",
-                    pin=">1",
+                    comment=None,
+                    pin=">1,<3",
                     identifier="c292b98a",
                 ),
             },
-            None: {
+            "linux-aarch64": {
                 "conda": Meta(
                     name="foo",
                     which="conda",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Meta(
                     name="foo",
                     which="pip",
                     comment=None,
-                    pin=">2",
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+            },
+            "linux-ppc64le": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+            },
+            "osx-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+            },
+            "osx-arm64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+            },
+            "win-64": {
+                "conda": Meta(
+                    name="foo",
+                    which="conda",
+                    comment=None,
+                    pin="<3",
+                    identifier="5eb93b8c",
+                ),
+                "pip": Meta(
+                    name="foo",
+                    which="pip",
+                    comment=None,
+                    pin="<3",
                     identifier="5eb93b8c",
                 ),
             },
         },
     }
-    with pytest.warns(UserWarning, match="Dependency Conflict on"):
-        env_spec = create_conda_env_specification(
-            resolved,
-            requirements.channels,
-            requirements.platforms,
-        )
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
     assert env_spec.conda == [
-        {"sel(linux)": "foo >1"},
-        {"sel(osx)": "foo >2"},
-        {"sel(win)": "foo >2"},
+        {"sel(linux)": "foo >1,<3"},
+        {"sel(osx)": "foo <3"},
+        {"sel(win)": "foo <3"},
     ]
 
     assert env_spec.pip == []
 
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
-        "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
-        "foo >2; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "foo >2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-        "foo >2; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo >2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo >2; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        "foo <3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "foo <3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+        "foo <3; sys_platform == 'linux' and platform_machine == 'aarch64'",
+        "foo <3; sys_platform == 'linux' and platform_machine == 'ppc64le'",
+        "foo <3; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        "foo >1,<3; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
 
 
@@ -1088,7 +1175,7 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
         ],
     }
     with pytest.warns(UserWarning, match="Version Pinning Conflict"):
-        resolved = resolve_conflicts(requirements.requirements)
+        resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             None: {
@@ -1134,7 +1221,7 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1160,7 +1247,7 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1185,8 +1272,8 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
-    python_deps = filter_python_dependencies(resolved, platforms=["linux-64"])
+    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
@@ -1203,7 +1290,7 @@ def test_conda_with_comments(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1232,7 +1319,7 @@ def test_duplicate_names(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1252,29 +1339,28 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """\
             dependencies:
                 - foo >1 # [linux64]
-                - foo <1 # [linux]
+                - foo <2 # [linux]
             """,
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    with pytest.warns(UserWarning, match="Platform Conflict Detected"):
-        resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.platforms,
         selector="comment",
     )
-    assert env_spec.conda == ["foo >1", "foo <1", "foo <1"]
+    assert env_spec.conda == ["foo >1,<2", "foo <2", "foo <2"]
     assert env_spec.pip == []
 
     write_conda_environment_file(env_spec, str(tmp_path / "environment.yaml"))
 
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
-        assert "- foo >1  # [linux64]" in text
-        assert "- foo <1 # [aarch64]" in text
-        assert "- foo <1 # [ppc64le]" in text
+        assert "- foo >1,<2  # [linux64]" in text
+        assert "- foo <2 # [aarch64]" in text
+        assert "- foo <2 # [ppc64le]" in text
 
     # With just [unix]
     p = tmp_path / "requirements.yaml"
@@ -1283,12 +1369,12 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """\
             dependencies:
                 - foo >1
-                - foo <1 # [unix]
+                - foo <2 # [unix]
             """,
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1296,11 +1382,11 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         selector="comment",
     )
     assert env_spec.conda == [
-        "foo <1",
-        "foo <1",
-        "foo <1",
-        "foo <1",
-        "foo <1",
+        "foo <2,>1",
+        "foo <2,>1",
+        "foo <2,>1",
+        "foo <2,>1",
+        "foo <2,>1",
         "foo >1",
     ]
     assert env_spec.pip == []
@@ -1309,11 +1395,11 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
 
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
-        assert "- foo <1  # [linux64]" in text
-        assert "- foo <1 # [osx64]" in text
-        assert "- foo <1 # [arm64]" in text
-        assert "- foo <1 # [aarch64]" in text
-        assert "- foo <1 # [ppc64le]" in text
+        assert "- foo <2,>1  # [linux64]" in text
+        assert "- foo <2,>1 # [osx64]" in text
+        assert "- foo <2,>1 # [arm64]" in text
+        assert "- foo <2,>1 # [aarch64]" in text
+        assert "- foo <2,>1 # [ppc64le]" in text
         assert "- foo >1 # [win64]" in text
 
 
@@ -1332,7 +1418,7 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1342,7 +1428,7 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
     assert env_spec.conda == ["foo"]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "osx-arm64"]
-    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == ["foo"]
 
 
@@ -1365,7 +1451,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     with pytest.warns(UserWarning, match="Dependency Conflict on"):
         env_spec = create_conda_env_specification(
             resolved,
@@ -1376,7 +1462,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
     assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "linux-aarch64"]
-    python_deps = filter_python_dependencies(resolved, platforms=requirements.platforms)
+    python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
         "foo",
         "yolo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
@@ -1418,7 +1504,7 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
         ),
     )
     requirements = parse_yaml_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1476,7 +1562,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
         ],
     }
     assert requirements.requirements == expected
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     expected_resolved = {
         "cuquantum-python": {
             "linux-64": {
@@ -1700,7 +1786,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, ["osx-arm64"])
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
@@ -1709,6 +1795,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
 
+    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
