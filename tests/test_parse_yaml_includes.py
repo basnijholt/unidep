@@ -52,7 +52,7 @@ def test_circular_includes(tmp_path: Path) -> None:
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
     assert len(requirements.requirements["adaptive-scheduler"]) == 2
-    resolved = resolve_conflicts(requirements.requirements)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert len(resolved["adaptive"]) == 1
     assert len(resolved["adaptive"][None]) == 2
     assert len(resolved["adaptive-scheduler"]) == 1
