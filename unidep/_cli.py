@@ -811,7 +811,8 @@ def _pip_compile_command(
         ],
         check=True,
     )
-    if output_file.exists():  # might not exist in tests
+    if output_file.exists():  # pragma: no cover
+        # might not exist in tests
         add_comment_to_file(output_file)
     print(f"✅ Generated `{output_file}`.")
 
