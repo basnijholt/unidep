@@ -237,12 +237,11 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
 
     exact_pinnings = [p for p in valid_pinnings if p.startswith("=")]
     if len(exact_pinnings) > 1:
-        msg = f"Multiple exact version pinnings found: {', '.join(exact_pinnings)}"
+        pinnings_str = ", ".join(exact_pinnings)
+        msg = f"Multiple exact version pinnings found: {pinnings_str} for `{name}`"
         raise ValueError(msg)
 
-    err_msg = "Contradictory version pinnings found"
-    if name is not None:
-        err_msg += f" for `{name}`"
+    err_msg = f"Contradictory version pinnings found for `{name}`"
 
     if exact_pinnings:
         exact_pin = exact_pinnings[0]

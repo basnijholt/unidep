@@ -74,31 +74,31 @@ def test_overlapping_pinnings() -> None:
 def test_contradictory_pinnings() -> None:
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: >2 and <1",
+        match="Contradictory version pinnings found for `None`: >2 and <1",
     ):
         combine_version_pinnings([">2", "<1"])
 
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: <1 and >2",
+        match="Contradictory version pinnings found for `None`: <1 and >2",
     ):
         combine_version_pinnings(["<1", ">2"])
 
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: >1 and <1",
+        match="Contradictory version pinnings found for `None`: >1 and <1",
     ):
         combine_version_pinnings([">1", "<1"])
 
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: <=1 and >1",
+        match="Contradictory version pinnings found for `None`: <=1 and >1",
     ):
         combine_version_pinnings(["<=1", ">1"])
 
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: >1 and <=1",
+        match="Contradictory version pinnings found for `None`: >1 and <=1",
     ):
         combine_version_pinnings([">1", "<=1"])
 
@@ -106,7 +106,7 @@ def test_contradictory_pinnings() -> None:
 def test_exact_pinning_with_contradictory_ranges() -> None:
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: =3 and <2",
+        match="Contradictory version pinnings found for `None`: =3 and <2",
     ):
         combine_version_pinnings(["=3", "<2", ">4"])
 
@@ -130,7 +130,7 @@ def test_exact_pinning() -> None:
 def test_exact_pinning_with_irrelevant_ranges() -> None:
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: =3 and <1",
+        match="Contradictory version pinnings found for `None`: =3 and <1",
     ):
         assert combine_version_pinnings(["=3", "<1", ">4"])
 
@@ -158,7 +158,7 @@ def test_general_contradictory_pinnings() -> None:
     # This test ensures that contradictory non-exact pinnings raise a ValueError
     with pytest.raises(
         ValueError,
-        match="Contradictory version pinnings found: >=2 and <1",
+        match="Contradictory version pinnings found for `None`: >=2 and <1",
     ):
         combine_version_pinnings([">=2", "<1"])
 
