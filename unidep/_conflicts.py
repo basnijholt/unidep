@@ -25,7 +25,6 @@ VALID_OPERATORS = ["<=", ">=", "<", ">", "="]
 
 def _prepare_metas_for_conflict_resolution(
     requirements: dict[str, list[Meta]],
-    platforms: list[Platform] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, list[Meta]]]]:
     """Prepare and group metadata for conflict resolution.
 
@@ -44,9 +43,8 @@ def _prepare_metas_for_conflict_resolution(
             if _platforms is None:
                 _platforms = [None]  # type: ignore[list-item]
             for _platform in _platforms:
-                if _platform is not None and platforms and _platform not in platforms:
-                    continue
                 grouped_metas[_platform][meta.which].append(meta)
+
         # Convert defaultdicts to dicts
         prepared_data[package] = {k: dict(v) for k, v in grouped_metas.items()}
     return prepared_data
@@ -150,11 +148,9 @@ def resolve_conflicts(
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise VersionConflictError(msg)
 
-    prepared = _prepare_metas_for_conflict_resolution(requirements, platforms)
-
+    prepared = _prepare_metas_for_conflict_resolution(requirements)
     for data in prepared.values():
         _pop_unused_platforms_and_maybe_expand_none(data, platforms)
-
     resolved = {
         pkg: _combine_pinning_within_platform(data) for pkg, data in prepared.items()
     }

@@ -1807,3 +1807,29 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
     )
     assert env_spec.conda == ["ray-core"]
     assert env_spec.pip == []
+
+
+def test_with_unused_platform(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive # [linux64]
+                - rsync-time-machine >0.1 # [osx64]
+                - rsync-time-machine <3
+                - rsync-time-machine >1 # [linux64]
+            """,
+        ),
+    )
+    requirements = parse_yaml_requirements(p, verbose=False)
+    platforms: list[Platform] = ["linux-64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms)
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        platforms,
+        selector="comment",
+    )
+    assert env_spec.conda == ["adaptive", "rsync-time-machine >1,<3"]
+    assert env_spec.pip == []
