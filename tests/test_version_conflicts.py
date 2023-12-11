@@ -62,6 +62,7 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
         ([">1"], ">1"),
         (["3"], ""),
         ([], ""),
+        ([">"], ""),
     ],
 )
 def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
