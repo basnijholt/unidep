@@ -86,14 +86,15 @@ def _combine_pinning_within_platform(
         for which, metas in packages.items():
             pinned_metas = [m for m in metas if m.pin is not None]
             if len(pinned_metas) > 1:
+                first = pinned_metas[0]
                 pins = [m.pin for m in pinned_metas]
-                pin = combine_version_pinnings(pins, name=metas[0].name)  # type: ignore[arg-type]
+                pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
                 new_meta = Meta(
-                    name=pinned_metas[0].name,
-                    which=pinned_metas[0].which,
+                    name=first.name,
+                    which=first.which,
                     comment=None,
                     pin=pin,
-                    identifier=pinned_metas[0].identifier,  # should I create a new one?
+                    identifier=first.identifier,  # should I create a new one?
                 )
                 reduced_data[_platform][which] = new_meta
             else:
@@ -275,14 +276,11 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
                 raise ValueError(msg)
 
             # Check for contradictions involving inclusive bounds like >=2 and <1
-            if (op1 == ">=" and op2 == "<" and ver1 >= ver2) or (
-                op1 == "<=" and op2 == ">" and ver1 <= ver2
-            ):
-                raise ValueError(msg)
-
-            # Same as above but with the operators reversed
-            if (op1 == ">" and op2 == "<=" and ver1 >= ver2) or (
-                op1 == "<=" and op2 == ">" and ver1 <= ver2
+            if (
+                (op1 == ">=" and op2 == "<" and ver1 >= ver2)
+                or (op1 == ">" and op2 == "<=" and ver1 >= ver2)
+                or (op1 == "<=" and op2 == ">" and ver1 <= ver2)
+                or (op1 == ">" and op2 == "<=" and ver1 >= ver2)
             ):
                 raise ValueError(msg)
 
