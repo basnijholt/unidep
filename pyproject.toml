@@ -7,7 +7,11 @@ name = "unidep"
 description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
-dependencies = ["ruamel.yaml", "typing_extensions; python_version < '3.8'"]
+dependencies = [
+    "ruamel.yaml",
+    "typing_extensions; python_version < '3.8'",
+    "packaging",
+]
 requires-python = ">=3.7"
 
 [project.readme]
@@ -62,6 +66,7 @@ addopts = """
     --cov-report html
     --cov-fail-under=95
     -W error
+    -vvv
 """
 
 [tool.coverage.run]

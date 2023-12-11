@@ -13,16 +13,9 @@ from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
     PLATFORM_SELECTOR_MAP_REVERSE,
-    CondaPip,
-    Meta,
     Platform,
     Selector,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import get_args
-else:  # pragma: no cover
-    from typing_extensions import get_args
 
 
 def add_comment_to_file(
@@ -209,16 +202,3 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
                     filtered_platforms.add(_platform)
 
     return sorted(filtered_platforms)
-
-
-def _maybe_expand_none_to_all_platforms(
-    platform_data: dict[Platform | None, dict[CondaPip, Meta]],
-) -> None:
-    """Expand `None` to all platforms if there is a platform besides None."""
-    # Is private because it is very specific to the `resolve_conflicts` function
-    if len(platform_data) > 1 and None in platform_data:
-        sources = platform_data.pop(None)
-        for _platform in get_args(Platform):
-            if _platform not in platform_data:
-                # Only add if there is not yet a specific platform
-                platform_data[_platform] = sources
