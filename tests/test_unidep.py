@@ -17,7 +17,7 @@ from unidep import (
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
-from unidep.platform_definitions import Meta
+from unidep.platform_definitions import Meta, Platform
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -241,15 +241,16 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     assert env.pip == expected_pip
 
     # Test on two platforms
+    platforms: list[Platform] = ["osx-arm64", "win-64"]
     resolved_requirements = resolve_conflicts(
         requirements.requirements,
-        ["osx-arm64", "win-64"],
+        platforms,
     )
 
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        ["osx-arm64", "win-64"],
+        platforms,
     )
     assert env.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
     assert env.pip == expected_pip
@@ -258,7 +259,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
     env = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        ["osx-arm64", "win-64"],
+        platforms,
         selector="comment",
     )
     assert env.conda == ["yolo", "bar"]
@@ -965,11 +966,12 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     ]
 
     # now only use linux-64
-    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
+    platforms: list[Platform] = ["linux-64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
-        ["linux-64"],
+        platforms,
     )
     assert env_spec.conda == ["foo >1,<=2"]
     assert env_spec.pip == []
@@ -1786,20 +1788,22 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements, ["osx-arm64"])
+    platforms_arm64: list[Platform] = ["osx-arm64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms_arm64)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
-        ["osx-arm64"],
+        platforms_arm64,
     )
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
 
-    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
+    platforms_linux64: list[Platform] = ["linux-64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms_linux64)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
-        ["linux-64"],
+        platforms_linux64,
     )
     assert env_spec.conda == ["ray-core"]
     assert env_spec.pip == []

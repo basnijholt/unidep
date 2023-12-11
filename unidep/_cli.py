@@ -585,14 +585,15 @@ def _install_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+    platforms = [identify_current_platform()]
     resolved_requirements = resolve_conflicts(
         requirements.requirements,
-        [identify_current_platform()],
+        platforms,
     )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        platforms=[identify_current_platform()],
+        platforms=platforms,
     )
     if env_spec.conda and not skip_conda:
         conda_executable = conda_executable or _identify_conda_executable()
@@ -729,14 +730,16 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+
+    platforms = requirements.platforms or platforms
     resolved_requirements = resolve_conflicts(
         requirements.requirements,
-        requirements.platforms or platforms,
+        platforms,
     )
     env_spec = create_conda_env_specification(
         resolved_requirements,
         requirements.channels,
-        requirements.platforms or platforms,
+        platforms,
         selector=selector,
     )
     output_file = None if stdout else output
@@ -878,14 +881,15 @@ def main() -> None:
             overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
+        platforms = [args.platform]
         resolved_requirements = resolve_conflicts(
             requirements.requirements,
-            [args.platform],
+            platforms,
         )
         env_spec = create_conda_env_specification(
             resolved_requirements,
             requirements.channels,
-            platforms=[args.platform],
+            platforms=platforms,
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
