@@ -41,6 +41,7 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
     [
         ([" > 0.0.1", " < 2", " = 1.0.0"], "=1.0.0"),
         (["<2", ">1"], "<2,>1"),
+        ([">1", "<2"], ">1,<2"),
         (["<3", "<=3", "<4"], "<3"),
         (["=1", "=1"], "=1"),
         (["=2", "<3", "<=3", "<4"], "=2"),
@@ -56,7 +57,6 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
         ([">0.0.1", "<2", "=1.0.0"], "=1.0.0"),
         ([">1", "<=3", "<4"], ">1,<=3"),
         ([">1", "<=3"], ">1,<=3"),
-        ([">1", "<2"], ">1,<2"),
         ([">1", ">=1", "<3", "<=3"], ">1,<3"),
         ([">1"], ">1"),
         (["3"], ""),
@@ -65,6 +65,12 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
 )
 def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
     assert combine_version_pinnings(pinnings) == expected
+    # Try reversing the order of the pinnings
+    if "," not in expected:
+        assert combine_version_pinnings(pinnings[::-1]) == expected
+    else:
+        parts = expected.split(",")
+        assert combine_version_pinnings(pinnings[::-1]) == ",".join(parts[::-1])
 
 
 def test_invalid_pinnings() -> None:
