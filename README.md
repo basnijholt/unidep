@@ -56,7 +56,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
 To install `unidep`, run the following command:
 
 ```bash
-pip install -U unidep
+pip install "unidep[all]"
 ```
 
 or
