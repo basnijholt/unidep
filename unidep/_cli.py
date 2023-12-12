@@ -619,11 +619,7 @@ def _install_command(  # noqa: PLR0912
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
-    pip_flags = []
-    if no_dependencies:
-        pip_flags.append("--no-dependencies")
-    if verbose:
-        pip_flags.append("--verbose")
+
     installable = []
     if not skip_local:
         for file in files:
@@ -651,6 +647,12 @@ def _install_command(  # noqa: PLR0912
             if dep.resolve() not in installable_set
         ]
         if installable:
+            pip_flags = []
+            if no_dependencies:
+                pip_flags.append("--no-dependencies")
+            if verbose:
+                pip_flags.append("--verbose")
+
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,
