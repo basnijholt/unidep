@@ -91,7 +91,7 @@ def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
     ],
 )
 def test_invalid_pinnings(pinnings: list[str]) -> None:
-    with pytest.raises(VersionConflictError, match="Invalid version pinning:"):
+    with pytest.raises(VersionConflictError, match="Invalid version pinning"):
         assert combine_version_pinnings(pinnings)
 
 
