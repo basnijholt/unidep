@@ -82,12 +82,12 @@ def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
     "pinnings",
     [
         ["abc", "def"],
-        ["==abc"],
-        ["<=>abc"],
+        ["==abc", ">2"],
+        ["<=>abc", ">2"],
         [">1", "abc", "<=3", ""],
         ["abc", ">=1", "<=2"],
-        ["3"],
-        [">"],
+        ["3", "6"],
+        [">", "<"],
     ],
 )
 def test_invalid_pinnings(pinnings: list[str]) -> None:

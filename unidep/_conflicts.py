@@ -262,6 +262,8 @@ def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) ->
     pinnings = [p for p in pinnings if p != ""]
     pinnings = _split_pinnings(pinnings)
     pinnings = _deduplicate(pinnings)
+    if len(pinnings) == 1:
+        return pinnings[0]
     for pin in pinnings:
         if not _is_valid_pinning(pin):
             msg = f"Invalid version pinning: {pin}"

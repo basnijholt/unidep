@@ -1844,7 +1844,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """\
             dependencies:
                 - pip: qiskit-terra ==0.25.2.1
-                - pip: qiskit-terra ==0.25.2.1
+                - pip: qiskit-terra ==0.25.2.2
             """,
         ),
     )
