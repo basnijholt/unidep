@@ -1844,7 +1844,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """\
             dependencies:
                 - pip: qiskit-terra ==0.25.2.1
-                - pip: qiskit-terra ==0.25.2.1
+                - pip: qiskit-terra ==0.25.2.2
             """,
         ),
     )
@@ -1852,7 +1852,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p1, verbose=False)
     with pytest.raises(
         VersionConflictError,
-        match="Invalid version pinning: ==0.25.2.1",
+        match="Invalid version pinning '==0.25.2.1' for 'qiskit-terra'",
     ):
         resolve_conflicts(requirements.requirements, requirements.platforms)
 

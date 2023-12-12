@@ -31,12 +31,13 @@ With `unidep`, manage all your dependencies efficiently in one place.
 - [:page_facing_up: `requirements.yaml` structure](#page_facing_up-requirementsyaml-structure)
   - [Example](#example)
   - [Key Points](#key-points)
+  - [Supported Version Pinnings](#supported-version-pinnings)
+  - [Conflict Resolution](#conflict-resolution)
+    - [How It Works](#how-it-works)
   - [Platform Selectors](#platform-selectors)
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
-  - [Conflict Resolution](#conflict-resolution)
-    - [How It Works](#how-it-works)
 - [:memo: Usage](#memo-usage)
   - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
   - [:memo: As a CLI](#memo-as-a-cli)
@@ -113,6 +114,48 @@ For a more in-depth example, see the [`example`](example/) directory.
 
 Using the CLI `unidep` will combine these dependencies into a single conda installable `environment.yaml` file.
 
+### Supported Version Pinnings
+
+UniDep supports a range of version pinning formats to ensure flexibility in dependency management. Here are the types of version specifications UniDep can handle:
+
+- **Standard Version Constraints**: Specify exact versions or ranges with standard operators like `=`, `>`, `<`, `>=`, `<=`.
+  - Example: `=1.0.0`, `>1.0.0, <2.0.0`.
+
+- **Version Exclusions**: Exclude specific versions using `!=`.
+  - Example: `!=1.5.0`.
+
+- **Redundant Pinning Resolution**: Automatically resolves redundant version specifications.
+  - Example: `>1.0.0, >0.5.0` simplifies to `>1.0.0`.
+
+- **Contradictory Version Detection**: Errors are raised for contradictory pinnings to maintain dependency integrity. See the [Conflict Resolution](#conflict-resolution) section for more information.
+  - Example: Specifying `>2.0.0, <1.5.0` triggers a `VersionConflictError`.
+
+- **Invalid Pinning Detection**: Detects and raises errors for unrecognized or improperly formatted version specifications.
+
+- **Conda Build Pinning**: UniDep also supports Conda's build pinning, allowing you to specify builds in your pinning patterns.
+  - Example: Conda supports pinning builds like `qsimcirq * cuda*` or `vtk * *egl*`.
+  - **UniDep Limitation**: While UniDep allows such build pinning, it requires that there be a single pin per package. UniDep cannot resolve conflicts where multiple build pinnings are specified for the same package.
+    - Example: UniDep can handle `qsimcirq * cuda*`, but it cannot resolve a scenario with both `qsimcirq * cuda*` and `qsimcirq * cpu*`.
+
+- **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
+  - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
+
+> :warning: **Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package. This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification. However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
+
+This diverse support for version pinning ensures that UniDep can cater to a wide range of dependency management needs, from simple projects to more complex ones with specific version or build requirements.
+
+### Conflict Resolution
+
+`unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
+
+#### How It Works
+
+- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+
+- **Minimal Scope Selection**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
+
+- **Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
+
 ### Platform Selectors
 
 This tool supports a range of platform selectors that allow for specific handling of dependencies based on the user's operating system and architecture. This feature is particularly useful for managing conditional dependencies in diverse environments.
@@ -157,18 +200,6 @@ In this example:
 
 The tool parses these selectors and filters dependencies according to the platform where it's being run.
 This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
-
-### Conflict Resolution
-
-`unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
-
-#### How It Works
-
-- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
-
-- **Minimal Scope Selection**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
-
-- **Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
 
 ## :memo: Usage
 
