@@ -158,6 +158,34 @@ In this example:
 The tool parses these selectors and filters dependencies according to the platform where it's being run.
 This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
+### Supported Version Pinnings
+
+UniDep supports a range of version pinning formats to ensure flexibility in dependency management. Here are the types of version specifications UniDep can handle:
+
+- **Standard Version Constraints**: Specify exact versions or ranges with standard operators like `=`, `>`, `<`, `>=`, `<=`.
+  - Example: `=1.0.0`, `>1.0.0, <2.0.0`.
+
+- **Version Exclusions**: Exclude specific versions using `!=`.
+  - Example: `!=1.5.0`.
+
+- **Redundant Pinning Resolution**: Automatically resolves redundant version specifications.
+  - Example: `>1.0.0, >0.5.0` simplifies to `>1.0.0`.
+
+- **Contradictory Version Detection**: Errors are raised for contradictory pinnings to maintain dependency integrity. See the [Conflict Resolution](#conflict-resolution) section for more information.
+  - Example: Specifying `>2.0.0, <1.5.0` triggers a `VersionConflictError`.
+
+- **Invalid Pinning Detection**: Detects and raises errors for unrecognized or improperly formatted version specifications.
+
+- **Conda Build Pinning**: UniDep also supports Conda's build pinning, allowing you to specify builds in your pinning patterns.
+  - Example: Conda supports pinning builds like `qsimcirq * cuda*` or `vtk * *egl*`.
+  - **UniDep Limitation**: While UniDep allows such build pinning, it requires that there be a single pin per package. UniDep cannot resolve conflicts where multiple build pinnings are specified for the same package.
+    - Example: UniDep can handle `qsimcirq * cuda*`, but it cannot resolve a scenario with both `qsimcirq * cuda*` and `qsimcirq * cpu*`.
+
+- **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
+  - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
+
+This diverse support for version pinning ensures that UniDep can cater to a wide range of dependency management needs, from simple projects to more complex ones with specific version or build requirements.
+
 ### Conflict Resolution
 
 `unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
