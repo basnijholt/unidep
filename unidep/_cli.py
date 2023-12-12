@@ -559,7 +559,7 @@ def _to_requirements_file(path: Path) -> Path:
     return path if path.is_file() else path / "requirements.yaml"
 
 
-def _install_command(
+def _install_command(  # noqa: PLR0912
     *files: Path,
     conda_executable: str,
     dry_run: bool,
@@ -619,7 +619,7 @@ def _install_command(
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
-    pip_flags = ["--no-dependencies"] if no_dependencies else None
+
     installable = []
     if not skip_local:
         for file in files:
@@ -647,6 +647,12 @@ def _install_command(
             if dep.resolve() not in installable_set
         ]
         if installable:
+            pip_flags = []
+            if no_dependencies:
+                pip_flags.append("--no-dependencies")
+            if verbose:
+                pip_flags.append("--verbose")
+
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,
