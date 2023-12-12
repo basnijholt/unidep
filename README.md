@@ -185,6 +185,8 @@ UniDep supports a range of version pinning formats to ensure flexibility in depe
 - **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
   - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
 
+> :warning: **Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package. This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification. However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
+
 This diverse support for version pinning ensures that UniDep can cater to a wide range of dependency management needs, from simple projects to more complex ones with specific version or build requirements.
 
 ### Conflict Resolution
