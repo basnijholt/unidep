@@ -35,6 +35,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
+  - [Supported Version Pinnings](#supported-version-pinnings)
   - [Conflict Resolution](#conflict-resolution)
     - [How It Works](#how-it-works)
 - [:memo: Usage](#memo-usage)
