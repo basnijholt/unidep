@@ -20,7 +20,7 @@ else:  # pragma: no cover
 if TYPE_CHECKING:
     from unidep.platform_definitions import CondaPip
 
-VALID_OPERATORS = ["<=", ">=", "<", ">", "="]
+VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
 
 
 def _prepare_metas_for_conflict_resolution(
@@ -234,17 +234,31 @@ def _split_pinnings(metas: list[str]) -> list[str]:
     return [_pin.strip().replace(" ", "") for pin in metas for _pin in pin.split(",")]
 
 
-def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:  # noqa: PLR0912
-    """Combines a list of version pinnings into a single string."""
-    if any("*" in p for p in pinnings):  # special case with *
+def _special_case(
+    pinnings: list[str],
+    special: str = "*",
+    *,
+    name: str | None,
+) -> str | None:
+    if any(special in p for p in pinnings):
         if all(p == pinnings[0] for p in pinnings):
             return pinnings[0]
         msg = (
-            f"Invalid version pinning: `{pinnings}` for `{name}` which contains `*`,"
-            f" UniDep cannot combine these, however, if all `{name}` pinnings are"
-            " identical, this is not a problem."
+            f"Invalid version pinning: `{pinnings}` for `{name}` which contains"
+            f" `{special}`, UniDep cannot combine these, however, if all"
+            f" `{name}` pinnings are identical, this is not a problem."
         )
         raise VersionConflictError(msg)
+    return None
+
+
+def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:  # noqa: PLR0912
+    """Combines a list of version pinnings into a single string."""
+    for special_pattern in ["*", "@"]:
+        special = _special_case(pinnings, special_pattern, name=name)
+        if special is not None:
+            return special
+
     pinnings = [p for p in pinnings if p != ""]
     pinnings = _split_pinnings(pinnings)
     pinnings = _deduplicate(pinnings)

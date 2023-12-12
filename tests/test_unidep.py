@@ -1928,3 +1928,72 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         match="['* cuda*', '* cpu*']",
     ):
         resolve_conflicts(requirements.requirements, requirements.platforms)
+
+
+def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: adaptive @ git+https://github.com/python-adaptive/adaptive.git@main
+                - pip: adaptive @ git+https://github.com/python-adaptive/adaptive.git@main
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p1, verbose=False)
+
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "pip": Meta(
+                    name="adaptive",
+                    which="pip",
+                    comment=None,
+                    pin="@ git+https://github.com/python-adaptive/adaptive.git@main",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
+
+
+def test_not_equal(tmp_path: Path) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive != 1.0.0
+                - adaptive <2
+            """,
+        ),
+    )
+
+    requirements = parse_yaml_requirements(p1, verbose=False)
+
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "conda": Meta(
+                    name="adaptive",
+                    which="conda",
+                    comment=None,
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                ),
+                "pip": Meta(
+                    name="adaptive",
+                    which="pip",
+                    comment=None,
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
