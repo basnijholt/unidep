@@ -254,6 +254,7 @@ def _special_case(
 
 def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:  # noqa: PLR0912
     """Combines a list of version pinnings into a single string."""
+    # TODO: this loop below is not required anymore?
     for special_pattern in ["*", "@"]:
         special = _special_case(pinnings, special_pattern, name=name)
         if special is not None:
