@@ -743,7 +743,10 @@ options:
 <!-- OUTPUT:END -->
 
 ## Limitations
+
 - **Conda-Focused**: Best suited for Conda environments.
+- **Setuptools only**: Currently only works with setuptools, not flit, hatch ([PR](https://github.com/basnijholt/unidep/pull/75)), poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
+- No [logic operators in platform selectors](https://github.com/basnijholt/unidep/issues/5) and [no Python selectors](https://github.com/basnijholt/unidep/issues/7)
 
 * * *
 
