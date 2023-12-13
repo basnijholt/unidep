@@ -105,6 +105,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".
     project_root = Path().resolve()
+    assert 0, dist.metadata.__dict__
     requirements_file = project_root / "requirements.yaml"
     if requirements_file.exists() and dist.install_requires:
         msg = (
