@@ -156,8 +156,7 @@ def _add_common_args(  # noqa: PLR0912
             "--no-dependencies",
             action="store_true",
             help="Skip installing dependencies from `requirements.yaml`"
-            " file(s) and only install local package(s). This passes the"
-            " `--no-dependencies` flag to `pip install`. Useful after"
+            " file(s) and only install local package(s). Useful after"
             " installing a `conda-lock.yml` file because then all"
             " dependencies have already been installed.",
         )
