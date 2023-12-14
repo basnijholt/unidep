@@ -28,7 +28,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [:package: Installation](#package-installation)
-- [:page_facing_up: `requirements.yaml` structure](#page_facing_up-requirementsyaml-structure)
+- [:memo: `requirements.yaml` structure](#memo-requirementsyaml-structure)
   - [Example](#example)
   - [Key Points](#key-points)
   - [Supported Version Pinnings](#supported-version-pinnings)
@@ -38,10 +38,10 @@ With `unidep`, manage all your dependencies efficiently in one place.
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
-- [:memo: Build System Integration](#memo-build-system-integration)
+- [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-- [:computer: As a CLI](#computer-as-a-cli)
+- [:desktop_computer: As a CLI](#desktop_computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
   - [`unidep install-all`](#unidep-install-all)
