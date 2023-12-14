@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools", "unidep"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
 
 [project]
 name = "hatch_project"
@@ -12,5 +12,6 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dynamic = ["dependencies"]
 version = "0.1.0"
 
-[tool.setuptools]
-py-modules = ["hatch_project"]
+[tool.hatch]
+
+[tool.hatch.metadata.hooks.unidep]

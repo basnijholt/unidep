@@ -32,7 +32,6 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
                 " [project.dependencies], but not both."
             )
             raise RuntimeError(error_msg)
-
         metadata["dependencies"] = get_python_dependencies(
             requirements_file,
             platforms=[identify_current_platform()],
