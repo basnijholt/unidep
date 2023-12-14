@@ -69,7 +69,7 @@ or
 conda install -c conda-forge unidep
 ```
 
-## :page_facing_up: `requirements.yaml` structure
+## :memo: `requirements.yaml` structure
 
 `unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file):
 
@@ -209,7 +209,7 @@ In this example:
 The tool parses these selectors and filters dependencies according to the platform where it's being run.
 This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
-## :memo: Build System Integration
+## :jigsaw: Build System Integration
 
 > [!TIP]
 > See [`example/`](example/) for working examples of using `unidep` with different build systems.
@@ -262,7 +262,7 @@ dynamic = ["dependencies"]
 
 See the [Hatch project example](example/hatch_project/pyproject.toml) for detailed setup.
 
-## :computer: As a CLI
+## :desktop_computer: As a CLI
 
 See [example](example/) for more information or check the output of `unidep -h` for the available sub commands:
 
