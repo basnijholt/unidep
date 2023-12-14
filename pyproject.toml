@@ -73,7 +73,7 @@ addopts = """
 """
 
 [tool.coverage.run]
-omit = ["unidep/_pytest_plugin.py"]
+omit = ["unidep/_pytest_plugin.py", "unidep/_hatch_integration.py"]
 
 [tool.coverage.report]
 exclude_lines = [
