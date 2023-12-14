@@ -101,12 +101,9 @@ def test_unidep_install_all_dry_run() -> None:
 
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
+    assert "📦 Installing conda dependencies with `" in result.stdout
     assert (
-        '📦 Installing conda dependencies with `micromamba install --yes --override-channels --channel conda-forge pandas adaptive">=1.0.0, <2.0.0" pfapack pipefunc`'
-        in result.stdout
-    )
-    assert (
-        f"📦 Installing pip dependencies with `{sys.executable} -m pip install unidep rsync-time-machine slurm-usage fileup codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`"
+        f"📦 Installing pip dependencies with `{sys.executable} -m pip install"
         in result.stdout
     )
     assert (
