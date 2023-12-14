@@ -220,15 +220,15 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     # Add an extra project
     extra_project = example_folder / "project69"
     extra_project.mkdir(exist_ok=True, parents=True)
-    (extra_project / "requirements.yaml").write_text("includes: [../project1]")
+    (extra_project / "requirements.yaml").write_text("includes: [../setup_py_project]")
 
     # Add a line to project1 includes
-    project1_req = example_folder / "project1" / "requirements.yaml"
+    setup_py_project_req = example_folder / "setup_py_project" / "requirements.yaml"
     yaml = YAML(typ="safe")
-    with project1_req.open("r") as f:
+    with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
     requirements["includes"].append("../project69")
-    with project1_req.open("w") as f:
+    with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
@@ -236,7 +236,7 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
 
     # Add a common requirements file
     common_requirements = example_folder / "common-requirements.yaml"
-    common_requirements.write_text("includes: [project1]")
+    common_requirements.write_text("includes: [setup_py_project]")
     found_files.append(common_requirements)
 
     local_dependencies = parse_project_dependencies(
@@ -246,12 +246,12 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     )
     assert local_dependencies
     assert local_dependencies == {
-        example_folder / "project1": [
-            example_folder / "project2",
-            example_folder / "project3",
+        example_folder / "setup_py_project": [
+            example_folder / "hatch_project",
+            example_folder / "setuptools_project",
         ],
-        example_folder / "project2": [
-            example_folder / "project3",
+        example_folder / "setuptools_project": [
+            example_folder / "hatch_project",
         ],
     }
 
@@ -265,17 +265,17 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     # Add an extra project
     extra_project = example_folder / "project4"
     extra_project.mkdir(exist_ok=True, parents=True)
-    (extra_project / "requirements.yaml").write_text("includes: [../project1]")
+    (extra_project / "requirements.yaml").write_text("includes: [../setup_py_project]")
 
-    # Add a line to project3 includes which should
-    # make project3 depend on project1, via project4! However, project4 is
+    # Add a line to hatch_project includes which should
+    # make hatch_project depend on setup_py_project, via project4! However, project4 is
     # not `pip installable` so we're testing that path.
-    project1_req = example_folder / "project3" / "requirements.yaml"
+    setup_py_project_req = example_folder / "hatch_project" / "requirements.yaml"
     yaml = YAML(typ="safe")
-    with project1_req.open("r") as f:
+    with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
     requirements["includes"] = ["../project4"]
-    with project1_req.open("w") as f:
+    with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
@@ -288,16 +288,16 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     )
     assert local_dependencies
     assert local_dependencies == {
-        example_folder / "project1": [
-            example_folder / "project2",
-            example_folder / "project3",
+        example_folder / "hatch_project": [
+            example_folder / "setup_py_project",
+            example_folder / "setuptools_project",
         ],
-        example_folder / "project2": [
-            example_folder / "project1",
-            example_folder / "project3",
+        example_folder / "setup_py_project": [
+            example_folder / "hatch_project",
+            example_folder / "setuptools_project",
         ],
-        example_folder / "project3": [
-            example_folder / "project1",
-            example_folder / "project2",
+        example_folder / "setuptools_project": [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
         ],
     }

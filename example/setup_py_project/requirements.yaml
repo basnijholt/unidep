@@ -1,4 +1,4 @@
-name: project1
+name: setup_py_project
 channels:
   - conda-forge
 dependencies:
@@ -11,7 +11,7 @@ dependencies:
   - pip: codestructure
   - pip: aiokef
 includes:
-  - ../project2  # depends on project2
+  - ../setuptools_project  # depends on setuptools_project
 platforms:
   - linux-64
   - osx-64

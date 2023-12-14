@@ -3,14 +3,14 @@ requires = ["setuptools", "unidep"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "project3"
-description = "Example project3 for `unidep`."
+name = "setuptools_project"
+description = "Example setuptools_project for `unidep`."
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 # `dependencies` is not needed because it is automatically
 # populated by `unidep` with the dependencies from the `requirements.yaml`
 # dependencies = []
-dynamic = ["dependencies"]
 version = "0.1.0"
+dynamic = ["dependencies"]
 
 [tool.setuptools]
-py-modules = ["project3"]
+py-modules = ["setuptools_project"]

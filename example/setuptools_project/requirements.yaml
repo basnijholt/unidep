@@ -1,4 +1,4 @@
-name: project2
+name: setuptools_project
 channels:
   - conda-forge
 dependencies:
@@ -8,4 +8,4 @@ dependencies:
   - pip: markdown-code-runner
   - pip: home-assistant-streamdeck-yaml
 includes:
-  - ../project3  # depends on project3
+  - ../hatch_project  # depends on hatch_project

@@ -38,16 +38,17 @@ With `unidep`, manage all your dependencies efficiently in one place.
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
-- [:memo: Usage](#memo-usage)
-  - [With `pyproject.toml` or `setup.py`](#with-pyprojecttoml-or-setuppy)
-  - [:memo: As a CLI](#memo-as-a-cli)
-    - [`unidep merge`](#unidep-merge)
-    - [`unidep install`](#unidep-install)
-    - [`unidep install-all`](#unidep-install-all)
-    - [`unidep conda-lock`](#unidep-conda-lock)
-    - [`unidep pip-compile`](#unidep-pip-compile)
-    - [`unidep pip`](#unidep-pip)
-    - [`unidep conda`](#unidep-conda)
+- [:memo: Build System Integration](#memo-build-system-integration)
+  - [Setuptools Integration](#setuptools-integration)
+  - [Hatchling Integration](#hatchling-integration)
+- [:memo: As a CLI](#memo-as-a-cli)
+  - [`unidep merge`](#unidep-merge)
+  - [`unidep install`](#unidep-install)
+  - [`unidep install-all`](#unidep-install-all)
+  - [`unidep conda-lock`](#unidep-conda-lock)
+  - [`unidep pip-compile`](#unidep-pip-compile)
+  - [`unidep pip`](#unidep-pip)
+  - [`unidep conda`](#unidep-conda)
 - [Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -201,16 +202,20 @@ In this example:
 The tool parses these selectors and filters dependencies according to the platform where it's being run.
 This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
-## :memo: Usage
+## :memo: Build System Integration
 
-### With `pyproject.toml` or `setup.py`
+> ⚠️ See [`example/`](example/) for working examples of using `unidep` with different build systems.
 
-To use `unidep` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
+`unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
-- **When using only `pyproject.toml`**: The `dependencies` field in `pyproject.toml` will be automatically populated based on the contents of `requirements.yaml`.
-- **When using `setup.py`**: The `install_requires` field in `setup.py` will be automatically populated, reflecting the dependencies defined in `requirements.yaml`.
+### Setuptools Integration
 
-Here's an example `pyproject.toml` configuration:
+For projects using `setuptools`, configure `unidep` in `pyproject.toml` alongside a `requirements.yaml` file. `unidep` automates dependency management based on your setup:
+
+- **Using `pyproject.toml` only**: The `dependencies` field in `pyproject.toml` gets automatically populated from `requirements.yaml`.
+- **Using `setup.py`**: The `install_requires` field in `setup.py` reflects dependencies specified in `requirements.yaml`.
+
+**Example `pyproject.toml` Configuration**:
 
 ```toml
 [build-system]
@@ -221,9 +226,35 @@ requires = ["setuptools", "unidep"]
 dynamic = ["dependencies"]
 ```
 
-In this configuration, `unidep` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
+For practical examples:
 
-### :memo: As a CLI
+- [`setup.py` integration example](example/setup_py_project/)
+- [`pyproject.toml` with Setuptools (PEP 621) example](example/pyproject_toml_project/)
+
+### Hatchling Integration
+
+For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process `requirements.yaml`.
+
+**Example Configuration for Hatch**:
+
+```toml
+[build-system]
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
+
+[project]
+dynamic = ["dependencies"]
+# Additional project configurations
+
+[tool.hatch]
+# Additional Hatch configurations
+
+[tool.hatch.metadata.hooks.unidep]
+```
+
+See the [Hatch project example](example/hatch_project/pyproject.toml) for detailed setup.
+
+## :memo: As a CLI
 
 See [example](example/) for more information or check the output of `unidep -h` for the available sub commands:
 
@@ -282,7 +313,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep merge`
+### `unidep merge`
 
 Use `unidep merge` to scan directories for `requirements.yaml` file(s) and combine them into an `environment.yaml` file.
 See `unidep merge -h` for more information:
@@ -348,7 +379,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep install`
+### `unidep install`
 
 Use `unidep install` on one or more `requirements.yaml` files and install the dependencies on the current platform using conda, then install the remaining dependencies with pip, and finally install the current package with `pip install [-e] .`.
 See `unidep install -h` for more information:
@@ -419,7 +450,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep install-all`
+### `unidep install-all`
 
 Use `unidep install-all` on a folder with packages that contain `requirements.yaml` files and install the dependencies on the current platform using conda, then install the remaining dependencies with pip, and finally install the current package with `pip install [-e] ./package1 ./package2`.
 See `unidep install-all -h` for more information:
@@ -490,7 +521,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep conda-lock`
+### `unidep conda-lock`
 
 Use `unidep conda-lock` on one or multiple `requirements.yaml` files and output the conda-lock file.
 Optionally, when using a monorepo with multiple subpackages (with their own `requirements.yaml` files), generate a lock file for each subpackage.
@@ -559,7 +590,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep pip-compile`
+### `unidep pip-compile`
 
 Use `unidep pip-compile` on one or multiple `requirements.yaml` files and output a fully locked `requirements.txt` file using `pip-compile` from [`pip-tools`](https://pip-tools.readthedocs.io/en/latest/).
 See `unidep pip-compile -h` for more information:
@@ -630,7 +661,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep pip`
+### `unidep pip`
 
 Use `unidep pip` on a `requirements.yaml` file and output the pip installable dependencies on the current platform (default).
 See `unidep pip -h` for more information:
@@ -686,7 +717,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-#### `unidep conda`
+### `unidep conda`
 
 Use `unidep conda` on a `requirements.yaml` file and output the conda installable dependencies on the current platform (default).
 See `unidep conda -h` for more information:
@@ -745,7 +776,7 @@ options:
 ## Limitations
 
 - **Conda-Focused**: Best suited for Conda environments. However, note that having `conda` is not a requirement to install packages that use UniDep.
-- **Setuptools only**: Currently only works with setuptools, not flit, hatch ([PR](https://github.com/basnijholt/unidep/pull/75)), poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
+- **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
 - No [logic operators in platform selectors](https://github.com/basnijholt/unidep/issues/5) and [no Python selectors](https://github.com/basnijholt/unidep/issues/7).
 
 * * *
