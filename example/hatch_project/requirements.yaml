@@ -1,4 +1,4 @@
-name: project3
+name: hatch_project
 channels:
   - conda-forge
 dependencies:

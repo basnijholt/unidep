@@ -25,12 +25,13 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
         if not requirements_file.exists():
             return
         if "dependencies" in metadata:
-            msg = (
-                "You have a requirements.yaml file in your project root, "
-                "but you are also using [project.depencencies]. "
-                "Please use one or the other, but not both."
+            error_msg = (
+                "You have a requirements.yaml file in your project root,"
+                " but you are also using [project.dependencies]."
+                " Please choose either requirements.yaml or"
+                " [project.dependencies], but not both."
             )
-            raise RuntimeError(msg)
+            raise RuntimeError(error_msg)
 
         metadata["dependencies"] = get_python_dependencies(
             requirements_file,
