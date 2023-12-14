@@ -144,7 +144,7 @@ UniDep supports a range of version pinning formats to ensure flexibility in depe
   - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
 
 > [!WARNING]
-> Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package.
+> **Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package.
 > This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification.
 > However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
 
@@ -209,7 +209,7 @@ This is particularly useful for creating environment files that are portable acr
 
 ## :memo: Build System Integration
 
-> [!NOTE]
+> [!TIP]
 > See [`example/`](example/) for working examples of using `unidep` with different build systems.
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
