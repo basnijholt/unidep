@@ -783,7 +783,7 @@ options:
 
 ## :hammer_and_wrench: Troubleshooting
 
-### `pip install` fails with `FileNotFoundError` when using `include: [../common-requirements.yaml]`
+### `pip install` fails with `FileNotFoundError`
 
 When using a project that uses `includes: [../not/current/dir]` in the `requirements.yaml` file:
 
@@ -796,7 +796,7 @@ includes:
 You might get an error like this when using a `pip` version older than `22.0`:
 
 ```bash
-$ pip install /path/your/project/using/unidep
+$ pip install /path/to/your/project/using/unidep
   ...
   File "/usr/lib/python3.8/pathlib.py", line 1222, in open
     return io.open(self, mode, buffering, encoding, errors, newline,
