@@ -204,7 +204,7 @@ This is particularly useful for creating environment files that are portable acr
 
 ## :memo: Build System Integration
 
-> See [`example/`](example/) for working examples of using `unidep` with different build systems.
+> ⚠️ See [`example/`](example/) for working examples of using `unidep` with different build systems.
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
