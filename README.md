@@ -41,7 +41,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
 - [:memo: Build System Integration](#memo-build-system-integration)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-- [:memo: As a CLI](#memo-as-a-cli)
+- [:computer: As a CLI](#computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
   - [`unidep install-all`](#unidep-install-all)
@@ -49,7 +49,9 @@ With `unidep`, manage all your dependencies efficiently in one place.
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
-- [Limitations](#limitations)
+- [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
+  - [`pip install` fails with `FileNotFoundError` when using `include: [../common-requirements.yaml]`](#pip-install-fails-with-filenotfounderror-when-using-include-common-requirementsyaml)
+- [:construction: Limitations](#construction-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
