@@ -776,7 +776,7 @@ options:
 ## Limitations
 
 - **Conda-Focused**: Best suited for Conda environments. However, note that having `conda` is not a requirement to install packages that use UniDep.
-- **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
+- **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling, not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
 - No [logic operators in platform selectors](https://github.com/basnijholt/unidep/issues/5) and [no Python selectors](https://github.com/basnijholt/unidep/issues/7).
 
 * * *
