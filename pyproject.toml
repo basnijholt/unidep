@@ -53,6 +53,9 @@ unidep = "unidep:_setuptools_integration._setuptools_finalizer"
 [project.entry-points.hatch]
 unidep = "unidep._hatch_integration"
 
+[tool.poetry.plugins."poetry.plugin"]
+poetry-dynamic-versioning = "unidep._poetry_integration:UniDepPlugin"
+
 [project.entry-points.pytest11]
 affected = "unidep._pytest_plugin"
 
