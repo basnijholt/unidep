@@ -41,7 +41,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
 - [:memo: Build System Integration](#memo-build-system-integration)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-- [:memo: As a CLI](#memo-as-a-cli)
+- [:computer: As a CLI](#computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
   - [`unidep install-all`](#unidep-install-all)
@@ -49,7 +49,9 @@ With `unidep`, manage all your dependencies efficiently in one place.
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
-- [Limitations](#limitations)
+- [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
+  - [`pip install` fails with `FileNotFoundError` when using `include: [../common-requirements.yaml]`](#pip-install-fails-with-filenotfounderror-when-using-include-common-requirementsyaml)
+- [:construction: Limitations](#construction-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -260,7 +262,7 @@ dynamic = ["dependencies"]
 
 See the [Hatch project example](example/hatch_project/pyproject.toml) for detailed setup.
 
-## :memo: As a CLI
+## :computer: As a CLI
 
 See [example](example/) for more information or check the output of `unidep -h` for the available sub commands:
 
@@ -779,7 +781,37 @@ options:
 
 <!-- OUTPUT:END -->
 
-## Limitations
+## :hammer_and_wrench: Troubleshooting
+
+### `pip install` fails with `FileNotFoundError` when using `include: [../common-requirements.yaml]`
+
+When using a project that uses `includes: [../not/current/dir]` in the `requirements.yaml` file:
+
+```yaml
+includes:
+  # File in a different directory than the pyproject.toml file
+  - ../common-requirements.yaml
+```
+
+You might get an error like this when using a `pip` version older than `22.0`:
+
+```bash
+$ pip install /path/your/project/using/unidep
+  ...
+  File "/usr/lib/python3.8/pathlib.py", line 1222, in open
+    return io.open(self, mode, buffering, encoding, errors, newline,
+  File "/usr/lib/python3.8/pathlib.py", line 1078, in _opener
+    return self._accessor.open(self, flags, mode)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/common-requirements.yaml'
+```
+
+The solution is to upgrade `pip` to version `22.0` or newer:
+
+```bash
+pip install --upgrade pip
+```
+
+## :construction: Limitations
 
 - **Conda-Focused**: Best suited for Conda environments. However, note that having `conda` is not a requirement to install packages that use UniDep.
 - **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling, not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
