@@ -647,9 +647,7 @@ def _install_command(  # noqa: PLR0912
             if dep.resolve() not in installable_set
         ]
         if installable:
-            pip_flags = []
-            if no_dependencies:
-                pip_flags.append("--no-dependencies")
+            pip_flags = ["--no-dependencies"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
 
