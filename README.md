@@ -203,7 +203,7 @@ This is particularly useful for creating environment files that are portable acr
 
 ## :memo: Usage
 
-### With `pyproject.toml` or `setup.py`
+### Setuptools: with `pyproject.toml` or `setup.py`
 
 To use `unidep` in your project, you can configure it in `pyproject.toml`. This setup works alongside a `requirements.yaml` file located in the same directory. The behavior depends on your project's setup:
 
@@ -222,6 +222,28 @@ dynamic = ["dependencies"]
 ```
 
 In this configuration, `unidep` is included as a build requirement, allowing it to process the Python dependencies in the `requirements.yaml` file and update the project's dependencies accordingly.
+
+See [`example/setup_py_project/` for a working example](example/setup_project/) of using `setup.py`.
+And see [`example/setuptool_project/` for a working example](example/pyproject_toml_project/) of using `pyproject.toml` with Setuptools.
+
+### Hatchling: with `pyproject.toml`
+
+If you're using [Hatch](https://hatch.pypa.io/) to manage your project, you can configure `unidep` in `pyproject.toml` to automatically parse your `requirements.yaml` file. Here's an example configuration:
+
+```toml
+[build-system]
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
+
+[project]
+dynamic = ["dependencies"]
+
+[tool.hatch]
+
+[tool.hatch.metadata.hooks.unidep]
+```
+
+See [`example/hatch_project/pyproject.toml` for a working example](example/hatch_project/pyproject.toml).
 
 ### :memo: As a CLI
 
@@ -745,7 +767,7 @@ options:
 ## Limitations
 
 - **Conda-Focused**: Best suited for Conda environments. However, note that having `conda` is not a requirement to install packages that use UniDep.
-- **Setuptools only**: Currently only works with setuptools, not flit, hatch ([PR](https://github.com/basnijholt/unidep/pull/75)), poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
+- **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
 - No [logic operators in platform selectors](https://github.com/basnijholt/unidep/issues/5) and [no Python selectors](https://github.com/basnijholt/unidep/issues/7).
 
 * * *
