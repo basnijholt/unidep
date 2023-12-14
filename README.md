@@ -50,7 +50,7 @@ With `unidep`, manage all your dependencies efficiently in one place.
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
-  - [`pip install` fails with `FileNotFoundError` when using `include: [../common-requirements.yaml]`](#pip-install-fails-with-filenotfounderror-when-using-include-common-requirementsyaml)
+  - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
