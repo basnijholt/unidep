@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -71,7 +72,7 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
     assert (
-        f"pip install -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
+        f"pip install --no-dependencies -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
         in captured.out
     )
 
@@ -100,10 +101,20 @@ def test_unidep_install_all_dry_run() -> None:
 
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
-    assert "📦 Installing pip dependencies with" in result.stdout
-    assert "📦 Installing project with" in result.stdout
     assert (
-        f"-m pip install -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
+        '📦 Installing conda dependencies with `micromamba install --yes --override-channels --channel conda-forge pandas adaptive">=1.0.0, <2.0.0" pfapack pipefunc`'
+        in result.stdout
+    )
+    assert (
+        f"📦 Installing pip dependencies with `{sys.executable} -m pip install unidep rsync-time-machine slurm-usage fileup codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`"
+        in result.stdout
+    )
+    assert (
+        "📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
+        in result.stdout
+    )
+    assert (
+        f"📦 Installing project with `{sys.executable} -m pip install --no-dependencies -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
         in result.stdout
     )
 
