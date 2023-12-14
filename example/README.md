@@ -1,4 +1,18 @@
-# Example
+# Examples
+
+Check
+
+- [`setup.py` integration example](setup_py_project/)
+- [`pyproject.toml` with Setuptools (PEP 621) example](pyproject_toml_project/)
+- [`hatch_project` using Hatchling example](hatch_project)
+
+One can try out `unidep` here by running, for example:
+
+- `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages
+- `unidep install-all -e` to install all packages in editable mode
+- `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
+- `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
+- `unidep pip-compile` to generate a locked `requirements.txt` file
 
 ## Table of Contents
 
