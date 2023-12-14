@@ -89,7 +89,7 @@ Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_pr
 
 📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install --no-dependencies -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
 
 ```
 
