@@ -250,7 +250,6 @@ dynamic = ["dependencies"]
 # Additional Hatch configurations
 
 [tool.hatch.metadata.hooks.unidep]
-# unidep hook configurations
 ```
 
 See the [Hatch project example](example/hatch_project/pyproject.toml) for detailed setup.
