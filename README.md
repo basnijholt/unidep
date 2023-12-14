@@ -99,9 +99,11 @@ includes:
   - ../common-requirements.yaml  # include other requirements.yaml files
 ```
 
-**⚠️ `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.**
+> [!IMPORTANT]
+> `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.
 
-For a more in-depth example, see the [`example`](example/) directory.
+> [!NOTE]
+> For a more in-depth example, see the [`example`](example/) directory.
 
 ### Key Points
 
