@@ -50,6 +50,9 @@ unidep = "unidep:_cli.main"
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep:_setuptools_integration._setuptools_finalizer"
 
+[project.entry-points.hatch]
+unidep = "unidep._hatch_integration"
+
 [project.entry-points.pytest11]
 affected = "unidep._pytest_plugin"
 
@@ -70,7 +73,7 @@ addopts = """
 """
 
 [tool.coverage.run]
-omit = ["unidep/_pytest_plugin.py"]
+omit = ["unidep/_pytest_plugin.py", "unidep/_hatch_integration.py"]
 
 [tool.coverage.report]
 exclude_lines = [

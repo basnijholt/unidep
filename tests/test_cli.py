@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).parent.parent
 
 def test_install_command(capsys: pytest.CaptureFixture) -> None:
     _install_command(
-        REPO_ROOT / "example" / "project1" / "requirements.yaml",
+        REPO_ROOT / "example" / "setup_py_project" / "requirements.yaml",
         conda_executable="",
         dry_run=True,
         editable=False,
@@ -26,7 +26,10 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing pip dependencies" in captured.out
 
 
-@pytest.mark.parametrize("project", ["project1", "project2", "project3"])
+@pytest.mark.parametrize(
+    "project",
+    ["setup_py_project", "setuptools_project", "hatch_project"],
+)
 def test_unidep_install_dry_run(project: str) -> None:
     # Path to the requirements file
     requirements_path = REPO_ROOT / "example" / project
@@ -49,7 +52,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
-    if project in ("project1", "project2"):
+    if project in ("setup_py_project", "setuptools_project"):
         assert "📦 Installing conda dependencies with" in result.stdout
     assert "📦 Installing pip dependencies with" in result.stdout
     assert "📦 Installing project with" in result.stdout
@@ -68,7 +71,7 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
     assert (
-        f"pip install -e {REPO_ROOT}/example/project1 -e {REPO_ROOT}/example/project2 -e {REPO_ROOT}/example/project3`"
+        f"pip install -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
         in captured.out
     )
 
@@ -100,7 +103,7 @@ def test_unidep_install_all_dry_run() -> None:
     assert "📦 Installing pip dependencies with" in result.stdout
     assert "📦 Installing project with" in result.stdout
     assert (
-        f"-m pip install -e {REPO_ROOT}/example/project1 -e {REPO_ROOT}/example/project2 -e {REPO_ROOT}/example/project3`"
+        f"-m pip install -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
         in result.stdout
     )
 
@@ -116,7 +119,7 @@ def test_doubly_nested_project_folder_installable(
     extra_projects.mkdir(exist_ok=True, parents=True)
     project4 = extra_projects / "project4"
     project4.mkdir(exist_ok=True, parents=True)
-    (project4 / "requirements.yaml").write_text("includes: [../../project1]")
+    (project4 / "requirements.yaml").write_text("includes: [../../setup_py_project]")
     pyproject_toml = "\n".join(  # noqa: FLY002
         (
             "[build-system]",
@@ -129,7 +132,7 @@ def test_doubly_nested_project_folder_installable(
     setup = "\n".join(  # noqa: FLY002
         (
             "from setuptools import setup",
-            'setup(name="project4", version="0.1.0", description="yolo", py_modules=["project1"])',
+            'setup(name="project4", version="0.1.0", description="yolo", py_modules=["setup_py_project"])',
         ),
     )
     (project4 / "setup.py").write_text(setup)
@@ -150,9 +153,9 @@ def test_doubly_nested_project_folder_installable(
         text=True,
     )
 
-    p1 = f"{tmp_path}/example/project1"
-    p2 = f"{tmp_path}/example/project2"
-    p3 = f"{tmp_path}/example/project3"
+    p1 = f"{tmp_path}/example/hatch_project"
+    p2 = f"{tmp_path}/example/setup_py_project"
+    p3 = f"{tmp_path}/example/setuptools_project"
     p4 = f"{tmp_path}/example/extra_projects/project4"
     assert (
         f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
@@ -201,7 +204,7 @@ def test_doubly_nested_project_folder_installable(
     assert f"pip install --no-dependencies -e {p1} -e {p2} -e {p3}`" in result.stdout
 
 
-def test_conda_lock_command(tmp_path: Path) -> None:
+def test_pip_compile_command(tmp_path: Path) -> None:
     folder = tmp_path / "example"
     shutil.copytree(REPO_ROOT / "example", folder)
     with patch("subprocess.run", return_value=None), patch(
