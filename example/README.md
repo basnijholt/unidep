@@ -44,17 +44,20 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 🔍 Scanning in `.` at depth 0
 🔍 Scanning in `hatch_project` at depth 1
 🔍 Found `requirements.yaml` at `hatch_project/requirements.yaml`
+🔍 Scanning in `poetry_project` at depth 1
+🔍 Found `requirements.yaml` at `poetry_project/requirements.yaml`
 🔍 Scanning in `setuptools_project` at depth 1
 🔍 Found `requirements.yaml` at `setuptools_project/requirements.yaml`
 🔍 Scanning in `setup_py_project` at depth 1
 🔍 Found `requirements.yaml` at `setup_py_project/requirements.yaml`
 📄 Parsing `hatch_project/requirements.yaml`
+📄 Parsing `poetry_project/requirements.yaml`
 📄 Parsing `setup_py_project/requirements.yaml`
 📄 Parsing include `../setuptools_project`
 📄 Parsing `setuptools_project/requirements.yaml`
 📝 Generating environment file at `environment.yaml`
 📝 Environment file generated successfully.
-✅ Generated environment file at `environment.yaml` from `hatch_project/requirements.yaml`, `setup_py_project/requirements.yaml`, `setuptools_project/requirements.yaml`
+✅ Generated environment file at `environment.yaml` from `hatch_project/requirements.yaml`, `poetry_project/requirements.yaml`, `setup_py_project/requirements.yaml`, `setuptools_project/requirements.yaml`
 ```
 
 <!-- OUTPUT:END -->
