@@ -438,8 +438,7 @@ options:
                         package to skip. For example, use `--skip-dependency
                         pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
-                        file(s) and only install local package(s). This passes
-                        the `--no-dependencies` flag to `pip install`. Useful
+                        file(s) and only install local package(s). Useful
                         after installing a `conda-lock.yml` file because then
                         all dependencies have already been installed.
   --conda-executable {conda,mamba,micromamba}
@@ -509,8 +508,7 @@ options:
                         package to skip. For example, use `--skip-dependency
                         pandas` to skip installing pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
-                        file(s) and only install local package(s). This passes
-                        the `--no-dependencies` flag to `pip install`. Useful
+                        file(s) and only install local package(s). Useful
                         after installing a `conda-lock.yml` file because then
                         all dependencies have already been installed.
   --conda-executable {conda,mamba,micromamba}
