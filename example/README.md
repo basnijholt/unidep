@@ -132,7 +132,7 @@ unidep install-all -e
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
-<!-- echo '$ unidep install-all -e --dry-run -->
+<!-- echo '$ unidep install-all -e --dry-run' -->
 <!-- unidep install-all -e --dry-run -->
 <!-- echo '```' -->
 <!-- CODE:END -->
