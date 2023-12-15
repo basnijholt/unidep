@@ -68,7 +68,7 @@ This method allows you to install packages defined in a `requirements.yaml` file
 **How to Use**:
 
 - Run `pip install ./setup_py_project`.
-- This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies and then the local project itself.
+- This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies, including the local project itself.
 
 ### Installing with `unidep` from a `requirements.yaml` File
 
