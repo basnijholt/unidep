@@ -14,7 +14,7 @@ __all__ = ["UniDepPlugin"]
 # See example: https://github.com/mtkennerly/poetry-dynamic-versioning
 
 
-class MyPlugin(Plugin):
+class UniDepPlugin(Plugin):
     def activate(self, poetry: Poetry, io: IO):
         io.write_line("Setting dependencies with UniDep")
         project_root = Path().resolve()

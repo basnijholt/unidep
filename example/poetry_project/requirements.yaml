@@ -1,7 +1,9 @@
-name: hatch_project
+name: poetry_project
 channels:
   - conda-forge
 dependencies:
-  - adaptive-scheduler  # [linux64]
+  - numpy
+  - pandas
+  - wexpect # [win]
+  - pexpect # [unix]
   - pip: unidep
-  - hpc05  # [linux64]

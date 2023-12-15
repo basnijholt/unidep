@@ -1,17 +1,13 @@
 [build-system]
-requires = ["poetry", "unidep"]
-build-backend = "hatchling.build"
+requires = ["poetry-core>=1.0.0", "unidep @ file://localhost/Users/basnijholt/Code/unidep"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "poetry_project"
+version = "0.1.0"
 description = "Example poetry_project for `unidep`."
-authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
+authors = ["Bas Nijholt <bas@nijho.lt>"]
+
 # `dependencies` is not needed because it is automatically
 # populated by `unidep` with the dependencies from the `requirements.yaml`
-# dependencies = []
-dynamic = ["dependencies"]
-version = "0.1.0"
-
-[tool.hatch]
-
-[tool.hatch.metadata.hooks.unidep]
+# [tool.poetry.dependencies]
