@@ -804,16 +804,15 @@ def _pip_compile_command(
     if output_file is None:
         output_file = directory / "requirements.txt"
 
-    subprocess.run(
-        [  # noqa: S603, S607
-            "pip-compile",
-            "--output-file",
-            str(output_file),
-            *extra_flags,
-            str(requirements_in),
-        ],
-        check=True,
-    )
+    cmd = [
+        "pip-compile",
+        "--output-file",
+        str(output_file),
+        *extra_flags,
+        str(requirements_in),
+    ]
+    print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
+    subprocess.run(cmd, check=True)  # noqa: S603
     if output_file.exists():  # pragma: no cover
         # might not exist in tests
         add_comment_to_file(output_file)
