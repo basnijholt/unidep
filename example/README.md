@@ -75,6 +75,7 @@ Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_pr
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
+<!-- echo '$ unidep install --dry-run -e ./setup_py_project' -->
 <!-- unidep install --dry-run -e ./setup_py_project -->
 <!-- echo '```' -->
 <!-- CODE:END -->
