@@ -1,31 +1,32 @@
 # Examples
 
-Check
+> [!TIP]
+> Try out `unidep` in this folder by running:
+> - `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages with `conda` and the rest of the dependencies with `pip`
+> - `unidep install-all -e` to install all packages (`setup_py_project`, `hatch_project`, and `setuptools_project`) in editable mode
+> - `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
+> - `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
+> - `unidep pip-compile` to generate a locked `requirements.txt` file
 
-- [`setup.py` integration example](setup_py_project/)
-- [`pyproject.toml` with Setuptools (PEP 621) example](pyproject_toml_project/)
-- [`hatch_project` using Hatchling example](hatch_project)
+Check the installable Python packages in this directory for examples of how to use `unidep` with different project types:
 
-One can try out `unidep` here by running, for example:
+- [`setup_py_project`](setup_py_project): for a `setup.py` integration example
+- [`pyproject_toml_project`](pyproject_toml_project): for a `pyproject.toml` with Setuptools example
+- [`hatch_project`](hatch_project): for Hatchling project example
 
-- `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages
-- `unidep install-all -e` to install all packages in editable mode
-- `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
-- `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
-- `unidep pip-compile` to generate a locked `requirements.txt` file
-
-## Table of Contents
+## A few examples of `unidep` in action
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
-- [Install a `requirements.yaml` file directly with `pip`](#install-a-requirementsyaml-file-directly-with-pip)
-- [Install a `requirements.yaml` file directly with `unidep`](#install-a-requirementsyaml-file-directly-with-unidep)
+- [Using `pip install` with a `requirements.yaml` File](#using-pip-install-with-a-requirementsyaml-file)
+- [Using `unidep install` with a `requirements.yaml` File](#using-unidep-install-with-a-requirementsyaml-file)
+- [Using `unidep install-all` for installation across multiple projects](#using-unidep-install-all-for-installation-across-multiple-projects)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
+### Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
 
 Combine `requirements.yaml` files in subdirectories and into an `environment.yaml` file that can be installed with `conda`.
 
@@ -59,30 +60,39 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 <!-- OUTPUT:END -->
 
-See the resulting [`environment.yaml`](environment.yaml) file.
+See the resulting [`environment.yaml`](environment.yaml) file which is installable with [`mamba`](https://mamba.readthedocs.io/en/latest/).
+This file is using `sel(linux|osx|win)` to specify platform specific dependencies.
+Alternatively, use `unidep merge --selector comment` to generate a file that uses comments to specify platform specific dependencies, which can be read by [`conda-lock`](https://github.com/conda/conda-lock).
 
-## Install a `requirements.yaml` file directly with `pip`
+### Using `pip install` with a `requirements.yaml` File
 
-Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages.
+This method allows you to install packages defined in a `requirements.yaml` file using `pip`. It focuses on installing only those dependencies that are pip-installable, followed by the local project package.
 
-Just run `pip install ./setup_py_project/`.
+**How to Use**:
 
-Because `unidep` is in the `[build-system]` section of [the `pyproject.toml` file](example/setup_py_project/pyproject.toml), it will be installed automatically.
+- Run `pip install ./setup_py_project`.
+- This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies, including the local project itself.
 
-## Install a `requirements.yaml` file directly with `unidep`
+### Using `unidep install` with a `requirements.yaml` File
 
-Install a `requirements.yaml` file directly with `unidep`, which first installs the conda installable packages, then the Pip installable packages, and finally the local package itself.
+Using `unidep` for installation offers a more comprehensive approach. It handles both Conda and Pip dependencies specified in the `requirements.yaml` file, ensuring all necessary packages are installed, including those not available through pip.
 
-Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_project` for an editable install.
+**How to Use**:
+
+- To perform a standard installation, run `unidep install ./setup_py_project`.
+- For an editable installation (useful during development), use `unidep install -e ./setup_py_project`.
+- The `unidep install` command first installs any Conda-specific dependencies from the `requirements.yaml` file, then proceeds to install pip-specific dependencies. Finally, it installs the local project package.
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
+<!-- echo '$ unidep install --dry-run -e ./setup_py_project' -->
 <!-- unidep install --dry-run -e ./setup_py_project -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 <!-- OUTPUT:START -->
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```bash
+$ unidep install --dry-run -e ./setup_py_project
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge pandas adaptive">=1.0.0, <2.0.0" pfapack pipefunc`
 
 📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
@@ -94,3 +104,42 @@ Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_pr
 ```
 
 <!-- OUTPUT:END -->
+
+### Using `unidep install-all` for installation across multiple projects
+
+The `unidep install-all` command provides a convenient way to install all dependencies across multiple projects or packages within a given directory.
+This command is especially useful in monorepos or when managing several related projects with their own `requirements.yaml` files.
+
+**How `unidep install-all` Works**:
+
+- This command scans a specified directory (or the current directory if none is specified) for `requirements.yaml` files.
+- It then installs dependencies for each found project, handling both Conda and Pip dependencies.
+- The local packages are also installed, making this command a one-stop solution for setting up your entire workspace.
+
+**Usage Examples**:
+
+- Run `unidep install-all` to install all dependencies in the current directory.
+- Use `unidep install-all -e` for an editable install, which is useful during development. This flag ensures that local packages are installed in a way that allows changes to be reflected immediately without needing reinstallation.
+
+**Example Command**:
+
+```bash
+# To install all projects in the current directory in editable mode
+unidep install-all -e
+```
+
+**Output Example**:
+
+<!-- CODE:BASH:START -->
+<!-- echo '```bash' -->
+<!-- echo '$ unidep install-all -e --dry-run' -->
+<!-- unidep install-all -e --dry-run -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```bash
+
+<!-- OUTPUT:END -->
+
+This command streamlines the process of getting a development environment up and running, particularly in complex setups with multiple interdependent projects.
