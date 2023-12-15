@@ -2,7 +2,7 @@
 
 > [!TIP]
 > Try out `unidep` in this folder by running:
-> - `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages with `conda` and the rest of the dependencies with `pip`
+> - `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages and its dependencies with `conda`, then the remaining dependencies with `pip`, and finally the local packages with `pip`
 > - `unidep install-all -e` to install all packages (`setup_py_project`, `hatch_project`, and `setuptools_project`) in editable mode
 > - `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
 > - `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
