@@ -14,7 +14,7 @@ Check the installable Python packages in this directory for examples of how to u
 - [`pyproject_toml_project`](pyproject_toml_project): for a `pyproject.toml` with Setuptools example
 - [`hatch_project`](hatch_project): for Hatchling project example
 
-## A few examples of `unidep` in action
+## Exploring `unidep` Through Practical Examples
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
