@@ -60,7 +60,9 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 <!-- OUTPUT:END -->
 
-See the resulting [`environment.yaml`](environment.yaml) file.
+See the resulting [`environment.yaml`](environment.yaml) file which is installable with [`mamba`](https://mamba.readthedocs.io/en/latest/).
+This file is using `sel(linux|osx|win)` to specify platform specific dependencies.
+Alternatively, use `unidep merge --selector comment` to generate a file that uses comments to specify platform specific dependencies, which can be read by [`conda-lock`](https://github.com/conda/conda-lock).
 
 ### Using `pip install` with a `requirements.yaml` File
 
