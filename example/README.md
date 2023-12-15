@@ -1,31 +1,31 @@
 # Examples
 
-Check
+> [!TIP]
+> Try out `unidep` in this folder by running:
+> - `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages with `conda` and the rest of the dependencies with `pip`
+> - `unidep install-all -e` to install all packages (`setup_py_project`, `hatch_project`, and `setuptools_project`) in editable mode
+> - `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
+> - `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
+> - `unidep pip-compile` to generate a locked `requirements.txt` file
 
-- [`setup.py` integration example](setup_py_project/)
-- [`pyproject.toml` with Setuptools (PEP 621) example](pyproject_toml_project/)
-- [`hatch_project` using Hatchling example](hatch_project)
+Check the installable Python packages in this directory for examples of how to use `unidep` with different project types:
 
-One can try out `unidep` here by running, for example:
+- [`setup_py_project` for a `setup.py` integration example](setup_py_project/)
+- [`pyproject_toml_project` for a `pyproject.toml` with Setuptools example](pyproject_toml_project/)
+- [`hatch_project` for Hatchling project example](hatch_project)
 
-- `unidep install ./setup_py_project ./hatch_project` to install the `setup_py_project` and `hatch_project` packages
-- `unidep install-all -e` to install all packages in editable mode
-- `unidep conda-lock` to generate a global `conda-lock.yml` file and consistent per package `conda-lock.yml` files
-- `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
-- `unidep pip-compile` to generate a locked `requirements.txt` file
-
-## Table of Contents
+## A few examples of `unidep` in action
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
-- [Install a `requirements.yaml` file directly with `pip`](#install-a-requirementsyaml-file-directly-with-pip)
+- [Install a package using `requirements.yaml` file directly with `pip`](#install-a-package-using-requirementsyaml-file-directly-with-pip)
 - [Install a `requirements.yaml` file directly with `unidep`](#install-a-requirementsyaml-file-directly-with-unidep)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
+### Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
 
 Combine `requirements.yaml` files in subdirectories and into an `environment.yaml` file that can be installed with `conda`.
 
@@ -61,15 +61,13 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 See the resulting [`environment.yaml`](environment.yaml) file.
 
-## Install a `requirements.yaml` file directly with `pip`
+### Install a package using `requirements.yaml` file directly with `pip`
 
-Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages.
+Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages and then the local project itself.
 
 Just run `pip install ./setup_py_project/`.
 
-Because `unidep` is in the `[build-system]` section of [the `pyproject.toml` file](example/setup_py_project/pyproject.toml), it will be installed automatically.
-
-## Install a `requirements.yaml` file directly with `unidep`
+### Install a `requirements.yaml` file directly with `unidep`
 
 Install a `requirements.yaml` file directly with `unidep`, which first installs the conda installable packages, then the Pip installable packages, and finally the local package itself.
 
@@ -77,6 +75,7 @@ Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_pr
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
+<!-- echo '$ unidep install --dry-run -e ./setup_py_project' -->
 <!-- unidep install --dry-run -e ./setup_py_project -->
 <!-- echo '```' -->
 <!-- CODE:END -->
