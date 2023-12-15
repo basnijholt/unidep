@@ -8,7 +8,7 @@
 > - `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
 > - `unidep pip-compile` to generate a locked `requirements.txt` file
 
-Check the folders in this directory for examples of how to use `unidep` with different project types:
+Check the installable Python packages in this directory for examples of how to use `unidep` with different project types:
 
 - [`setup_py_project` for a `setup.py` integration example](setup_py_project/)
 - [`pyproject_toml_project` for a `pyproject.toml` with Setuptools example](pyproject_toml_project/)
@@ -25,7 +25,7 @@ Check the folders in this directory for examples of how to use `unidep` with dif
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
+### Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
 
 Combine `requirements.yaml` files in subdirectories and into an `environment.yaml` file that can be installed with `conda`.
 
@@ -61,7 +61,7 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 See the resulting [`environment.yaml`](environment.yaml) file.
 
-## Install a package using `requirements.yaml` file directly with `pip`
+### Install a package using `requirements.yaml` file directly with `pip`
 
 Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages and then the local project itself.
 
@@ -69,7 +69,7 @@ Just run `pip install ./setup_py_project/`.
 
 Because `unidep` is in the `[build-system]` section of [the `pyproject.toml` file](setup_py_project/pyproject.toml), it will be installed automatically.
 
-## Install a `requirements.yaml` file directly with `unidep`
+### Install a `requirements.yaml` file directly with `unidep`
 
 Install a `requirements.yaml` file directly with `unidep`, which first installs the conda installable packages, then the Pip installable packages, and finally the local package itself.
 
