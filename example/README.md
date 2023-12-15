@@ -20,8 +20,8 @@ Check the installable Python packages in this directory for examples of how to u
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
-- [Install a package using `requirements.yaml` file directly with `pip`](#install-a-package-using-requirementsyaml-file-directly-with-pip)
-- [Install a `requirements.yaml` file directly with `unidep`](#install-a-requirementsyaml-file-directly-with-unidep)
+- [Installing with `pip` from a `requirements.yaml` File](#installing-with-pip-from-a-requirementsyaml-file)
+- [Installing with `unidep` from a `requirements.yaml` File](#installing-with-unidep-from-a-requirementsyaml-file)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
