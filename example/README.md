@@ -10,9 +10,9 @@
 
 Check the installable Python packages in this directory for examples of how to use `unidep` with different project types:
 
-- [`setup_py_project` for a `setup.py` integration example](setup_py_project/)
-- [`pyproject_toml_project` for a `pyproject.toml` with Setuptools example](pyproject_toml_project/)
-- [`hatch_project` for Hatchling project example](hatch_project)
+- [`setup_py_project`](setup_py_project): for a `setup.py` integration example
+- [`pyproject_toml_project`](pyproject_toml_project): for a `pyproject.toml` with Setuptools example
+- [`hatch_project`](hatch_project): for Hatchling project example
 
 ## A few examples of `unidep` in action
 
