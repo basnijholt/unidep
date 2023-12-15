@@ -61,17 +61,24 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 See the resulting [`environment.yaml`](environment.yaml) file.
 
-### Install a package using `requirements.yaml` file directly with `pip`
+### Installing with `pip` from a `requirements.yaml` File
 
-Install a `requirements.yaml` file directly with pip, which installs only the pip installable packages and then the local project itself.
+This method allows you to install packages defined in a `requirements.yaml` file using `pip`. It focuses on installing only those dependencies that are pip-installable, followed by the local project package.
 
-Just run `pip install ./setup_py_project/`.
+**How to Use**:
 
-### Install a `requirements.yaml` file directly with `unidep`
+- Run `pip install ./setup_py_project`.
+- This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies and then the local project itself.
 
-Install a `requirements.yaml` file directly with `unidep`, which first installs the conda installable packages, then the Pip installable packages, and finally the local package itself.
+### Installing with `unidep` from a `requirements.yaml` File
 
-Just run `unidep install ./setup_py_project` or `unidep install -e ./setup_py_project` for an editable install.
+Using `unidep` for installation offers a more comprehensive approach. It handles both Conda and Pip dependencies specified in the `requirements.yaml` file, ensuring all necessary packages are installed, including those not available through pip.
+
+**How to Use**:
+
+- To perform a standard installation, run `unidep install ./setup_py_project`.
+- For an editable installation (useful during development), use `unidep install -e ./setup_py_project`.
+- The `unidep install` command first installs any Conda-specific dependencies from the `requirements.yaml` file, then proceeds to install pip-specific dependencies. Finally, it installs the local project package.
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->
