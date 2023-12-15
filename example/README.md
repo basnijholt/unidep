@@ -62,7 +62,7 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 
 See the resulting [`environment.yaml`](environment.yaml) file.
 
-### Installing with `pip` from a `requirements.yaml` File
+### Using `pip install` from a `requirements.yaml` File
 
 This method allows you to install packages defined in a `requirements.yaml` file using `pip`. It focuses on installing only those dependencies that are pip-installable, followed by the local project package.
 
@@ -71,7 +71,7 @@ This method allows you to install packages defined in a `requirements.yaml` file
 - Run `pip install ./setup_py_project`.
 - This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies, including the local project itself.
 
-### Installing with `unidep` from a `requirements.yaml` File
+### Using `unidep install` from a `requirements.yaml` File
 
 Using `unidep` for installation offers a more comprehensive approach. It handles both Conda and Pip dependencies specified in the `requirements.yaml` file, ensuring all necessary packages are installed, including those not available through pip.
 
