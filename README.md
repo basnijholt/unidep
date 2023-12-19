@@ -102,7 +102,7 @@ includes:
 ```
 
 > [!IMPORTANT]
-> `unidep` can process this file in `pyproject.toml` or `setup.py` and create a `environment.yaml` file.
+> `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
 
 > [!NOTE]
 > For a more in-depth example, see the [`example`](example/) directory.
