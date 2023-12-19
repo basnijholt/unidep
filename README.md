@@ -16,10 +16,11 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Enables generation of fully pinned `requirements.txt` files from `requirements.yaml` files using `pip-compile`.
 
-> [!NOTE]
-> `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
-> Try it now and streamline your development process!
-> Check out [an example below](#example).
+`unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
+Try it now and streamline your development process!
+
+> [!TIP]
+> Check out the [example `requirements.yaml` below](#example).
 
 ## :books: Table of Contents
 
