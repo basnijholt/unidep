@@ -6,21 +6,21 @@
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
 [![CodeCov](https://codecov.io/gh/basnijholt/unidep/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/unidep)
 
-`unidep` streamlines Python project dependency management by allowing a single `requirements.yaml` file to handle both Conda and Pip dependencies.
-This approach enables the creation of a unified Conda `environment.yaml`, while also integrating with `setup.py` or `pyproject.toml`.
-As a command-line interface (CLI) tool, `unidep` merges multiple `requirements.yaml` files into a consolidated `environment.yaml`, and supports generating consistent [`conda-lock` files](https://conda.github.io/conda-lock/output/), which is particularly useful for monorepos.
-Additionally, it facilitates the installation of Conda, Pip, and local dependencies with a single `unidep install` command.
-With `unidep`, manage all your dependencies efficiently in one place.
+Managing dependencies in Python projects can be a complex task, especially when dealing with both Pip and Conda (non Python) packages.
+This often leads to confusion and inefficiency, as developers juggle between multiple dependency files.
 
-## :rocket: Features
-
-- **🔗 Unified Management**: Single-file handling of Conda and Pip dependencies.
-- **⚙️ Project Tool Integration**: Easily works with `pyproject.toml` and `setup.py`, so `requirements.yaml` is used during `pip install`.
-- **🏢 Monorepo Support**: Merge multiple `requirements.yaml` into one Conda environment `environment.yaml` using the CLI tool and maintain a global and per-package `conda-lock` files.
+- **📝 Use a Single File (`requirements.yaml`)**: Manage both Conda and Pip dependencies, reducing complexity.
+- **⚙️ Integrates with `pyproject.toml` and `setup.py`**: `requirements.yaml` is automatically parsed during `pip install`.
+- **🏢 Monorepo Support**: Render (multiple) `requirements.yaml` into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
+- **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
-- **🛠️ Conflict Resolution**: Simplifies complex dependency management by resolving version conflicts.
-- **🔄 `unidep install` CLI**: Automates installation of Conda, Pip, and local package dependencies.
 - **🔧 `pip-compile` Integration**: Enables generation of fully pinned `requirements.txt` files from `requirements.yaml` files using `pip-compile`.
+
+`unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
+Try it now and streamline your development process!
+
+> [!TIP]
+> Check out the [example `requirements.yaml` below](#example).
 
 ## :books: Table of Contents
 
@@ -105,7 +105,7 @@ includes:
 > `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
 
 > [!NOTE]
-> For a more in-depth example, see the [`example`](example/) directory.
+> For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
 ### Key Points
 
