@@ -19,6 +19,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 > [!NOTE]
 > `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 > Try it now and streamline your development process!
+> Check out [an example below](#example).
 
 ## :books: Table of Contents
 
@@ -103,7 +104,7 @@ includes:
 > `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
 
 > [!NOTE]
-> For a more in-depth example, see the [`example`](example/) directory.
+> For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
 ### Key Points
 
