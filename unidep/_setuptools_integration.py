@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""requirements.yaml - Unified Conda and Pip requirements management.
+"""unidep - Unified Conda and Pip requirements management.
 
-This module provides a command-line tool for managing conda environment.yaml files.
+This module provides setuptools integration for unidep.
 """
 from __future__ import annotations
 

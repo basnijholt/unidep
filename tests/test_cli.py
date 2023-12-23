@@ -1,4 +1,4 @@
-"""unidep tests."""
+"""unidep CLI tests."""
 from __future__ import annotations
 
 import shutil

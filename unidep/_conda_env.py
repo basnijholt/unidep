@@ -1,4 +1,7 @@
-"""Conda environment file generation functions."""
+"""unidep - Unified Conda and Pip requirements management.
+
+Conda environment file generation functions.
+"""
 from __future__ import annotations
 
 import sys

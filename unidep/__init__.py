@@ -1,4 +1,4 @@
-"""Top-level package for unidep."""
+"""unidep - Unified Conda and Pip requirements management."""
 
 from unidep._conda_env import (
     create_conda_env_specification,

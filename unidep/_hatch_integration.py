@@ -1,3 +1,7 @@
+"""unidep - Unified Conda and Pip requirements management.
+
+This module contains the Hatchling integration.
+"""
 from __future__ import annotations
 
 from pathlib import Path

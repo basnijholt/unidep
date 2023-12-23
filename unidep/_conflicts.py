@@ -1,4 +1,7 @@
-"""Conflict resolution for `unidep`."""
+"""unidep - Unified Conda and Pip requirements management.
+
+Verion conflict detections and resolution.
+"""
 
 from __future__ import annotations
 

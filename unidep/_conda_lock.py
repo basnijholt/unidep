@@ -1,6 +1,6 @@
-"""requirements.yaml - Unified Conda and Pip requirements management.
+"""unidep - Unified Conda and Pip requirements management.
 
-This module provides a command-line tool for managing conda environment.yaml files.
+This module provides the `unidep conda-lock` CLI command, used in `unidep._cli`.
 """
 from __future__ import annotations
 

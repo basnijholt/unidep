@@ -1,6 +1,8 @@
-"""requirements.yaml - Unified Conda and Pip requirements management.
+"""unidep - Unified Conda and Pip requirements management.
 
-This module provides a command-line tool for managing conda environment.yaml files.
+Pytest plugin for running only tests of changed files.
+
+WARNING: Still experimental and not documented.
 """
 from __future__ import annotations
 

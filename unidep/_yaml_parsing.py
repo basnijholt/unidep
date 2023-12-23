@@ -1,4 +1,7 @@
-"""YAML parsing for `unidep`."""
+"""unidep - Unified Conda and Pip requirements management.
+
+This module provides YAML parsing for `requirements.yaml` files.
+"""
 
 from __future__ import annotations
 
