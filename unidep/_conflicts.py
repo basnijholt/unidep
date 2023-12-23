@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from packaging import version
 
-from unidep.platform_definitions import Meta, Platform
+from unidep.platform_definitions import Platform, Spec
 from unidep.utils import warn
 
 if sys.version_info >= (3, 8):
@@ -28,18 +28,18 @@ _REPO_URL = "https://github.com/basnijholt/unidep"
 
 
 def _prepare_metas_for_conflict_resolution(
-    requirements: dict[str, list[Meta]],
-) -> dict[str, dict[Platform | None, dict[CondaPip, list[Meta]]]]:
+    requirements: dict[str, list[Spec]],
+) -> dict[str, dict[Platform | None, dict[CondaPip, list[Spec]]]]:
     """Prepare and group metadata for conflict resolution.
 
     This function groups metadata by platform and source for each package.
 
-    :param requirements: Dictionary mapping package names to a list of Meta objects.
+    :param requirements: Dictionary mapping package names to a list of Spec objects.
     :return: Dictionary mapping package names to grouped metadata.
     """
     prepared_data = {}
     for package, meta_list in requirements.items():
-        grouped_metas: dict[Platform | None, dict[CondaPip, list[Meta]]] = defaultdict(
+        grouped_metas: dict[Platform | None, dict[CondaPip, list[Spec]]] = defaultdict(
             lambda: defaultdict(list),
         )
         for meta in meta_list:
@@ -55,7 +55,7 @@ def _prepare_metas_for_conflict_resolution(
 
 
 def _pop_unused_platforms_and_maybe_expand_none(
-    platform_data: dict[Platform | None, dict[CondaPip, list[Meta]]],
+    platform_data: dict[Platform | None, dict[CondaPip, list[Spec]]],
     platforms: list[Platform] | None,
 ) -> None:
     """Expand `None` to all platforms if there is a platform besides None."""
@@ -80,14 +80,14 @@ def _pop_unused_platforms_and_maybe_expand_none(
 
 
 def _maybe_new_meta_with_combined_pinnings(
-    metas: list[Meta],
-) -> Meta:
+    metas: list[Spec],
+) -> Spec:
     pinned_metas = [m for m in metas if m.pin is not None]
     if len(pinned_metas) > 1:
         first = pinned_metas[0]
         pins = [m.pin for m in pinned_metas]
         pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
-        return Meta(
+        return Spec(
             name=first.name,
             which=first.which,
             comment=None,
@@ -100,9 +100,9 @@ def _maybe_new_meta_with_combined_pinnings(
 
 
 def _combine_pinning_within_platform(
-    data: dict[Platform | None, dict[CondaPip, list[Meta]]],
-) -> dict[Platform | None, dict[CondaPip, Meta]]:
-    reduced_data: dict[Platform | None, dict[CondaPip, Meta]] = {}
+    data: dict[Platform | None, dict[CondaPip, list[Spec]]],
+) -> dict[Platform | None, dict[CondaPip, Spec]]:
+    reduced_data: dict[Platform | None, dict[CondaPip, Spec]] = {}
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, metas in packages.items():
@@ -111,7 +111,7 @@ def _combine_pinning_within_platform(
     return reduced_data
 
 
-def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Meta]) -> dict[CondaPip, Meta]:
+def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip, Spec]:
     conda_meta = sources.get("conda")
     pip_meta = sources.get("pip")
     if not conda_meta or not pip_meta:  # If either is missing, there is no conflict
@@ -140,9 +140,9 @@ class VersionConflictError(ValueError):
 
 
 def resolve_conflicts(
-    requirements: dict[str, list[Meta]],
+    requirements: dict[str, list[Spec]],
     platforms: list[Platform] | None = None,
-) -> dict[str, dict[Platform | None, dict[CondaPip, Meta]]]:
+) -> dict[str, dict[Platform | None, dict[CondaPip, Spec]]]:
     """Resolve conflicts in a dictionary of requirements.
 
     Uses the ``ParsedRequirements.requirements`` dict returned by
@@ -234,7 +234,7 @@ def _deduplicate(pinnings: list[str]) -> list[str]:
 
 
 def _split_pinnings(metas: list[str]) -> list[str]:
-    """Extracts version pinnings from a list of Meta objects."""
+    """Extracts version pinnings from a list of Spec objects."""
     return [_pin.lstrip().rstrip() for pin in metas for _pin in pin.split(",")]
 
 

@@ -73,8 +73,8 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
-class Meta(NamedTuple):
-    """Metadata for a dependency."""
+class Spec(NamedTuple):
+    """A dependency specification."""
 
     name: str
     which: CondaPip

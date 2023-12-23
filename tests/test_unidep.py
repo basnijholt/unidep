@@ -18,7 +18,7 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
-from unidep.platform_definitions import Meta, Platform
+from unidep.platform_definitions import Platform, Spec
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -96,28 +96,28 @@ def test_parse_requirements(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [unix]",
                 pin=None,
                 identifier="530d9eaa",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [unix]",
@@ -126,28 +126,28 @@ def test_parse_requirements(tmp_path: Path) -> None:
             ),
         ],
         "bar": [
-            Meta(
+            Spec(
                 name="bar",
                 which="conda",
                 comment=None,
                 pin=">1",
                 identifier="08fd8713",
             ),
-            Meta(
+            Spec(
                 name="bar",
                 which="pip",
                 comment=None,
                 pin=">1",
                 identifier="08fd8713",
             ),
-            Meta(
+            Spec(
                 name="bar",
                 which="conda",
                 comment=None,
                 pin=None,
                 identifier="9e467fa1",
             ),
-            Meta(
+            Spec(
                 name="bar",
                 which="pip",
                 comment=None,
@@ -349,14 +349,14 @@ def test_surrounding_comments(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "yolo": [
-            Meta(
+            Spec(
                 name="yolo",
                 which="conda",
                 comment="# [osx]",
                 pin=None,
                 identifier="8b0c4c31",
             ),
-            Meta(
+            Spec(
                 name="yolo",
                 which="pip",
                 comment="# [osx]",
@@ -365,14 +365,14 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             ),
         ],
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux]",
                 pin=None,
                 identifier="ecd4baa6",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux]",
@@ -381,14 +381,14 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             ),
         ],
         "bar": [
-            Meta(
+            Spec(
                 name="bar",
                 which="conda",
                 comment="# [win]",
                 pin=None,
                 identifier="8528de75",
             ),
-            Meta(
+            Spec(
                 name="bar",
                 which="pip",
                 comment="# [win]",
@@ -397,17 +397,17 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             ),
         ],
         "baz": [
-            Meta(
+            Spec(
                 name="baz",
                 which="conda",
                 comment="#",
                 pin=None,
                 identifier="fce1baee",
             ),
-            Meta(name="baz", which="pip", comment="#", pin=None, identifier="fce1baee"),
+            Spec(name="baz", which="pip", comment="#", pin=None, identifier="fce1baee"),
         ],
         "pip-package": [
-            Meta(
+            Spec(
                 name="pip-package",
                 which="pip",
                 comment=None,
@@ -416,7 +416,7 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             ),
         ],
         "pip-package2": [
-            Meta(
+            Spec(
                 name="pip-package2",
                 which="pip",
                 comment="# [osx]",
@@ -447,7 +447,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "package1": [
-            Meta(
+            Spec(
                 name="package1",
                 which="conda",
                 comment="# [linux64]",
@@ -456,7 +456,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             ),
         ],
         "package2": [
-            Meta(
+            Spec(
                 name="package2",
                 which="conda",
                 comment="# [osx64]",
@@ -465,7 +465,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             ),
         ],
         "package3": [
-            Meta(
+            Spec(
                 name="package3",
                 which="pip",
                 comment=None,
@@ -474,7 +474,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             ),
         ],
         "package4": [
-            Meta(
+            Spec(
                 name="package4",
                 which="pip",
                 comment="# [unix]",
@@ -483,14 +483,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             ),
         ],
         "common_package": [
-            Meta(
+            Spec(
                 name="common_package",
                 which="conda",
                 comment="# [unix]",
                 pin=None,
                 identifier="f78244dc",
             ),
-            Meta(
+            Spec(
                 name="common_package",
                 which="pip",
                 comment="# [unix]",
@@ -499,14 +499,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             ),
         ],
         "shared_package": [
-            Meta(
+            Spec(
                 name="shared_package",
                 which="conda",
                 comment="# [linux64]",
                 pin=None,
                 identifier="1599d575",
             ),
-            Meta(
+            Spec(
                 name="shared_package",
                 which="pip",
                 comment="# [win64]",
@@ -523,7 +523,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     assert resolved == {
         "package1": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="package1",
                     which="conda",
                     comment="# [linux64]",
@@ -534,7 +534,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
         "package2": {
             "osx-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="package2",
                     which="conda",
                     comment="# [osx64]",
@@ -545,7 +545,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
         "package3": {
             None: {
-                "pip": Meta(
+                "pip": Spec(
                     name="package3",
                     which="pip",
                     comment=None,
@@ -556,7 +556,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
         "package4": {
             "linux-64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="package4",
                     which="pip",
                     comment="# [unix]",
@@ -565,7 +565,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "linux-aarch64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="package4",
                     which="pip",
                     comment="# [unix]",
@@ -574,7 +574,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "linux-ppc64le": {
-                "pip": Meta(
+                "pip": Spec(
                     name="package4",
                     which="pip",
                     comment="# [unix]",
@@ -583,7 +583,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "osx-64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="package4",
                     which="pip",
                     comment="# [unix]",
@@ -592,7 +592,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "osx-arm64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="package4",
                     which="pip",
                     comment="# [unix]",
@@ -603,14 +603,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
         "common_package": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="common_package",
                     which="conda",
                     comment="# [unix]",
                     pin=None,
                     identifier="f78244dc",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="common_package",
                     which="pip",
                     comment="# [unix]",
@@ -619,14 +619,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "linux-aarch64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="common_package",
                     which="conda",
                     comment="# [unix]",
                     pin=None,
                     identifier="f78244dc",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="common_package",
                     which="pip",
                     comment="# [unix]",
@@ -635,14 +635,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "linux-ppc64le": {
-                "conda": Meta(
+                "conda": Spec(
                     name="common_package",
                     which="conda",
                     comment="# [unix]",
                     pin=None,
                     identifier="f78244dc",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="common_package",
                     which="pip",
                     comment="# [unix]",
@@ -651,14 +651,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "osx-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="common_package",
                     which="conda",
                     comment="# [unix]",
                     pin=None,
                     identifier="f78244dc",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="common_package",
                     which="pip",
                     comment="# [unix]",
@@ -667,14 +667,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "osx-arm64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="common_package",
                     which="conda",
                     comment="# [unix]",
                     pin=None,
                     identifier="f78244dc",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="common_package",
                     which="pip",
                     comment="# [unix]",
@@ -685,7 +685,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
         },
         "shared_package": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="shared_package",
                     which="conda",
                     comment="# [linux64]",
@@ -694,7 +694,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 ),
             },
             "win-64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="shared_package",
                     which="pip",
                     comment="# [win64]",
@@ -754,28 +754,28 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux64]",
                 pin=None,
                 identifier="dd6a8aaf",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux64]",
@@ -784,14 +784,14 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             ),
         ],
         "bar": [
-            Meta(
+            Spec(
                 name="bar",
                 which="conda",
                 comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
-            Meta(
+            Spec(
                 name="bar",
                 which="pip",
                 comment=None,
@@ -804,14 +804,14 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     assert resolved == {
         "foo": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment="# [linux64]",
                     pin=">1",
                     identifier="c292b98a",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment="# [linux64]",
@@ -822,14 +822,14 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
         },
         "bar": {
             None: {
-                "conda": Meta(
+                "conda": Spec(
                     name="bar",
                     which="conda",
                     comment=None,
                     pin=None,
                     identifier="08fd8713",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="bar",
                     which="pip",
                     comment=None,
@@ -868,28 +868,28 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux]",
                 pin="<=2",
                 identifier="ecd4baa6",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux]",
@@ -902,14 +902,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     assert resolved == {
         "foo": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin=">1,<=2",
                     identifier="c292b98a",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -918,14 +918,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "linux-aarch64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment="# [linux]",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment="# [linux]",
@@ -934,14 +934,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "linux-ppc64le": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment="# [linux]",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment="# [linux]",
@@ -992,28 +992,28 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment="# [linux64]",
                 pin=">1",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment=None,
                 pin="<3",
                 identifier="5eb93b8c",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment=None,
@@ -1026,14 +1026,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     assert resolved == {
         "foo": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin=">1,<3",
                     identifier="c292b98a",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1042,14 +1042,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "linux-aarch64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1058,14 +1058,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "linux-ppc64le": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1074,14 +1074,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "osx-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1090,14 +1090,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "osx-arm64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1106,14 +1106,14 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 ),
             },
             "win-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1161,14 +1161,14 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment=None,
                 pin="<1",
                 identifier="17e5d607",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment=None,
@@ -1182,14 +1182,14 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     assert resolved == {
         "foo": {
             None: {
-                "conda": Meta(
+                "conda": Spec(
                     name="foo",
                     which="conda",
                     comment=None,
                     pin="<1",
                     identifier="17e5d607",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="foo",
                     which="pip",
                     comment=None,
@@ -1546,7 +1546,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, verbose=True)
     expected = {
         "cuquantum-python": [
-            Meta(
+            Spec(
                 name="cuquantum-python",
                 which="conda",
                 comment="# [linux64]",
@@ -1555,7 +1555,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
             ),
         ],
         "cuquantum": [
-            Meta(
+            Spec(
                 name="cuquantum",
                 which="pip",
                 comment="# [linux64]",
@@ -1569,7 +1569,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
     expected_resolved = {
         "cuquantum-python": {
             "linux-64": {
-                "conda": Meta(
+                "conda": Spec(
                     name="cuquantum-python",
                     which="conda",
                     comment="# [linux64]",
@@ -1580,7 +1580,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
         },
         "cuquantum": {
             "linux-64": {
-                "pip": Meta(
+                "pip": Spec(
                     name="cuquantum",
                     which="pip",
                     comment="# [linux64]",
@@ -1613,14 +1613,14 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p, ignore_pins=["foo"], verbose=False)
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment=None,
                 pin=None,
                 identifier="17e5d607",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment=None,
@@ -1650,14 +1650,14 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
     )
     assert requirements.requirements == {
         "baz": [
-            Meta(
+            Spec(
                 name="baz",
                 which="conda",
                 comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
-            Meta(
+            Spec(
                 name="baz",
                 which="pip",
                 comment=None,
@@ -1682,14 +1682,14 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
     requirements = parse_yaml_requirements(p)
     assert requirements.requirements == {
         "qsimcirq": [
-            Meta(
+            Spec(
                 name="qsimcirq",
                 which="conda",
                 comment="# [linux64]",
                 pin="* cuda*",
                 identifier="c292b98a",
             ),
-            Meta(
+            Spec(
                 name="qsimcirq",
                 which="conda",
                 comment="# [arm64]",
@@ -1718,14 +1718,14 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
     )
     assert requirements.requirements == {
         "foo": [
-            Meta(
+            Spec(
                 name="foo",
                 which="conda",
                 comment=None,
                 pin="=1",
                 identifier="17e5d607",
             ),
-            Meta(
+            Spec(
                 name="foo",
                 which="pip",
                 comment=None,
@@ -1734,7 +1734,7 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             ),
         ],
         "bar": [
-            Meta(
+            Spec(
                 name="bar",
                 which="conda",
                 comment=None,
@@ -1764,14 +1764,14 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
     )
     assert requirements.requirements == {
         "ray": [
-            Meta(
+            Spec(
                 name="ray",
                 which="pip",
                 comment="# [arm64]",
                 pin=None,
                 identifier="1b26c5b2",
             ),
-            Meta(
+            Spec(
                 name="ray",
                 which="pip",
                 comment="# [linux64]",
@@ -1780,7 +1780,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             ),
         ],
         "ray-core": [
-            Meta(
+            Spec(
                 name="ray-core",
                 which="conda",
                 comment="# [linux64]",
@@ -1898,7 +1898,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
     assert resolved == {
         "qsimcirq": {
             None: {
-                "pip": Meta(
+                "pip": Spec(
                     name="qsimcirq",
                     which="pip",
                     comment=None,
@@ -1949,7 +1949,7 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
     assert resolved == {
         "adaptive": {
             None: {
-                "pip": Meta(
+                "pip": Spec(
                     name="adaptive",
                     which="pip",
                     comment=None,
@@ -1980,14 +1980,14 @@ def test_not_equal(tmp_path: Path) -> None:
     assert resolved == {
         "adaptive": {
             None: {
-                "conda": Meta(
+                "conda": Spec(
                     name="adaptive",
                     which="conda",
                     comment=None,
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
                 ),
-                "pip": Meta(
+                "pip": Spec(
                     name="adaptive",
                     which="pip",
                     comment=None,

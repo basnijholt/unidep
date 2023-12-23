@@ -20,13 +20,13 @@ if TYPE_CHECKING:
 
     from unidep.platform_definitions import (
         CondaPip,
-        Meta,
         Platform,
+        Spec,
     )
 
 
 def filter_python_dependencies(
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
 ) -> list[str]:
     """Filter out conda dependencies and return only pip dependencies.
 
@@ -40,7 +40,7 @@ def filter_python_dependencies(
     """
     pip_deps = []
     for platform_data in resolved.values():
-        to_process: dict[Platform | None, Meta] = {}  # platform -> Meta
+        to_process: dict[Platform | None, Spec] = {}  # platform -> Spec
         for _platform, sources in platform_data.items():
             pip_meta = sources.get("pip")
             if pip_meta:
@@ -48,7 +48,7 @@ def filter_python_dependencies(
         if not to_process:
             continue
 
-        # Check if all Meta objects are identical
+        # Check if all Spec objects are identical
         first_meta = next(iter(to_process.values()))
         if all(meta == first_meta for meta in to_process.values()):
             # Build a single combined environment marker

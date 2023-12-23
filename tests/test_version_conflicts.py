@@ -11,22 +11,22 @@ from unidep._conflicts import (
     _parse_pinning,
     combine_version_pinnings,
 )
-from unidep.platform_definitions import Meta
+from unidep.platform_definitions import Spec
 
 
 def test_combining_versions() -> None:
     data = {
         None: {
             "conda": [
-                Meta(name="numpy", which="conda", pin=">1"),
-                Meta(name="numpy", which="conda", pin="<2"),
+                Spec(name="numpy", which="conda", pin=">1"),
+                Spec(name="numpy", which="conda", pin="<2"),
             ],
         },
     }
     resolved = _combine_pinning_within_platform(data)  # type: ignore[arg-type]
     assert resolved == {
         None: {
-            "conda": Meta(name="numpy", which="conda", pin=">1,<2"),
+            "conda": Spec(name="numpy", which="conda", pin=">1,<2"),
         },
     }
 

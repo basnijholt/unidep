@@ -20,8 +20,8 @@ from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
     CondaPlatform,
-    Meta,
     Platform,
+    Spec,
 )
 from unidep.utils import (
     add_comment_to_file,
@@ -55,14 +55,14 @@ def _conda_sel(sel: str) -> CondaPlatform:
 
 
 def _extract_conda_pip_dependencies(
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
 ) -> tuple[
-    dict[str, dict[Platform | None, Meta]],
-    dict[str, dict[Platform | None, Meta]],
+    dict[str, dict[Platform | None, Spec]],
+    dict[str, dict[Platform | None, Spec]],
 ]:
     """Extract and separate conda and pip dependencies."""
-    conda: dict[str, dict[Platform | None, Meta]] = {}
-    pip: dict[str, dict[Platform | None, Meta]] = {}
+    conda: dict[str, dict[Platform | None, Spec]] = {}
+    pip: dict[str, dict[Platform | None, Spec]] = {}
     for pkg, platform_data in resolved.items():
         for _platform, sources in platform_data.items():
             if "conda" in sources:
@@ -73,20 +73,20 @@ def _extract_conda_pip_dependencies(
 
 
 def _resolve_multiple_platform_conflicts(
-    platform_to_meta: dict[Platform | None, Meta],
+    platform_to_meta: dict[Platform | None, Spec],
 ) -> None:
     """Fix conflicts for deps with platforms that map to a single Conda platform.
 
     In a Conda environment with dependencies across various platforms (like
     'linux-aarch64', 'linux64'), this function ensures consistency in metadata
     for each Conda platform (e.g., 'sel(linux): ...'). It maps each platform to
-    a Conda platform and resolves conflicts by retaining the first `Meta` object
+    a Conda platform and resolves conflicts by retaining the first `Spec` object
     per Conda platform, discarding others. This approach guarantees uniform
     metadata across different but equivalent platforms.
     """
     valid: dict[
         CondaPlatform,
-        dict[Meta, list[Platform | None]],
+        dict[Spec, list[Platform | None]],
     ] = defaultdict(lambda: defaultdict(list))
     for _platform, meta in platform_to_meta.items():
         assert _platform is not None
@@ -97,14 +97,14 @@ def _resolve_multiple_platform_conflicts(
         # We cannot distinguish between e.g., linux-64 and linux-aarch64
         # (which becomes linux). So of the list[Platform] we only need to keep
         # one Platform. We can pop the rest from `platform_to_meta`. This is
-        # not a problem because they share the same `Meta` object.
+        # not a problem because they share the same `Spec` object.
         for platforms in meta_to_platforms.values():
             for j, _platform in enumerate(platforms):
                 if j >= 1:
                     platform_to_meta.pop(_platform)
 
         # Now make sure that valid[conda_platform] has only one key.
-        # That means that all `Meta`s for the different Platforms that map to a
+        # That means that all `Spec`s for the different Platforms that map to a
         # CondaPlatform are identical. If len > 1, we have a conflict.
         if len(meta_to_platforms) > 1:
             metas, (first_platform, *_) = zip(*meta_to_platforms.items())
@@ -129,7 +129,7 @@ def _resolve_multiple_platform_conflicts(
                 for _platform in platforms:
                     if _platform in platform_to_meta:  # might have been popped already
                         platform_to_meta.pop(_platform)
-        # Now we have only one `Meta` left, so we can select it.
+        # Now we have only one `Spec` left, so we can select it.
 
 
 def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
@@ -138,7 +138,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
 
 
 def create_conda_env_specification(  # noqa: PLR0912
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
@@ -173,7 +173,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             seen_identifiers.add(meta.identifier)
 
     for platform_to_meta in pip.values():
-        meta_to_platforms: dict[Meta, list[Platform | None]] = {}
+        meta_to_platforms: dict[Spec, list[Platform | None]] = {}
         for _platform, meta in platform_to_meta.items():
             meta_to_platforms.setdefault(meta, []).append(_platform)
 
