@@ -129,28 +129,24 @@ def test_parse_requirements(tmp_path: Path) -> None:
             Spec(
                 name="bar",
                 which="conda",
-                comment=None,
                 pin=">1",
                 identifier="08fd8713",
             ),
             Spec(
                 name="bar",
                 which="pip",
-                comment=None,
                 pin=">1",
                 identifier="08fd8713",
             ),
             Spec(
                 name="bar",
                 which="conda",
-                comment=None,
                 pin=None,
                 identifier="9e467fa1",
             ),
             Spec(
                 name="bar",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="9e467fa1",
             ),
@@ -410,7 +406,6 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Spec(
                 name="pip-package",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="5813b64a",
             ),
@@ -468,7 +463,6 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             Spec(
                 name="package3",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
@@ -548,7 +542,6 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package3",
                     which="pip",
-                    comment=None,
                     pin=None,
                     identifier="08fd8713",
                 ),
@@ -787,14 +780,12 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             Spec(
                 name="bar",
                 which="conda",
-                comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
             Spec(
                 name="bar",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
@@ -825,14 +816,12 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="bar",
                     which="conda",
-                    comment=None,
                     pin=None,
                     identifier="08fd8713",
                 ),
                 "pip": Spec(
                     name="bar",
                     which="pip",
-                    comment=None,
                     pin=None,
                     identifier="08fd8713",
                 ),
@@ -905,14 +894,12 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin=">1,<=2",
                     identifier="c292b98a",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin=">1,<=2",
                     identifier="c292b98a",
                 ),
@@ -1009,14 +996,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             Spec(
                 name="foo",
                 which="conda",
-                comment=None,
                 pin="<3",
                 identifier="5eb93b8c",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment=None,
                 pin="<3",
                 identifier="5eb93b8c",
             ),
@@ -1029,14 +1014,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin=">1,<3",
                     identifier="c292b98a",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin=">1,<3",
                     identifier="c292b98a",
                 ),
@@ -1045,14 +1028,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
@@ -1061,14 +1042,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
@@ -1077,14 +1056,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
@@ -1093,14 +1070,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
@@ -1109,14 +1084,12 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin="<3",
                     identifier="5eb93b8c",
                 ),
@@ -1164,14 +1137,12 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
             Spec(
                 name="foo",
                 which="conda",
-                comment=None,
                 pin="<1",
                 identifier="17e5d607",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment=None,
                 pin=">1",
                 identifier="17e5d607",
             ),
@@ -1185,14 +1156,12 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment=None,
                     pin="<1",
                     identifier="17e5d607",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment=None,
                     pin=">1",
                     identifier="17e5d607",
                 ),
@@ -1616,14 +1585,12 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
             Spec(
                 name="foo",
                 which="conda",
-                comment=None,
                 pin=None,
                 identifier="17e5d607",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="17e5d607",
             ),
@@ -1653,14 +1620,12 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
             Spec(
                 name="baz",
                 which="conda",
-                comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
             Spec(
                 name="baz",
                 which="pip",
-                comment=None,
                 pin=None,
                 identifier="08fd8713",
             ),
@@ -1721,14 +1686,12 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             Spec(
                 name="foo",
                 which="conda",
-                comment=None,
                 pin="=1",
                 identifier="17e5d607",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment=None,
                 pin="=1",
                 identifier="17e5d607",
             ),
@@ -1737,7 +1700,6 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             Spec(
                 name="bar",
                 which="conda",
-                comment=None,
                 pin="* cpu*",
                 identifier="5eb93b8c",
             ),
@@ -1901,7 +1863,6 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="qsimcirq",
                     which="pip",
-                    comment=None,
                     pin="* cuda*",
                     identifier="17e5d607",
                 ),
@@ -1952,7 +1913,6 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="adaptive",
                     which="pip",
-                    comment=None,
                     pin="@ git+https://github.com/python-adaptive/adaptive.git@main",
                     identifier="17e5d607",
                 ),
@@ -1983,14 +1943,12 @@ def test_not_equal(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="adaptive",
                     which="conda",
-                    comment=None,
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
                 ),
                 "pip": Spec(
                     name="adaptive",
                     which="pip",
-                    comment=None,
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
                 ),
