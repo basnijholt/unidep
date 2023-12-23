@@ -81,22 +81,14 @@ class Spec(NamedTuple):
     comment: str | None = None
     pin: str | None = None
     identifier: str | None = None
-    selector: Selector | None = None  # can be specified instead of via comment
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""
         from unidep.utils import extract_matching_platforms
 
-        assert not (self.comment and self.selector), "Cannot specify both"
-
-        if self.comment is None and self.selector is None:
+        if self.comment is None:
             return None
-        if self.comment is not None:
-            return extract_matching_platforms(self.comment)
-        if self.selector is not None:
-            return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
-        msg = "Should not be reached"
-        raise RuntimeError(msg)
+        return extract_matching_platforms(self.comment) or None
 
     def pprint(self) -> str:
         """Pretty print the dependency."""
