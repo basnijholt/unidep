@@ -192,7 +192,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
         for i, dep in enumerate(data["dependencies"]):
             identifier += 1
             if isinstance(dep, str):
-                metas = _parse_dependency(
+                specs = _parse_dependency(
                     dep,
                     dependencies,
                     i,
@@ -202,13 +202,13 @@ def parse_yaml_requirements(  # noqa: PLR0912
                     overwrite_pins_map,
                     skip_dependencies,
                 )
-                for meta in metas:
-                    requirements[meta.name].append(meta)
+                for spec in specs:
+                    requirements[spec.name].append(spec)
                 continue
             assert isinstance(dep, dict)
             for which in ["conda", "pip"]:
                 if which in dep:
-                    metas = _parse_dependency(
+                    specs = _parse_dependency(
                         dep[which],
                         dep,
                         which,
@@ -218,8 +218,8 @@ def parse_yaml_requirements(  # noqa: PLR0912
                         overwrite_pins_map,
                         skip_dependencies,
                     )
-                    for meta in metas:
-                        requirements[meta.name].append(meta)
+                    for spec in specs:
+                        requirements[spec.name].append(spec)
 
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 

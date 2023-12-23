@@ -42,15 +42,15 @@ def filter_python_dependencies(
     for platform_data in resolved.values():
         to_process: dict[Platform | None, Spec] = {}  # platform -> Spec
         for _platform, sources in platform_data.items():
-            pip_meta = sources.get("pip")
-            if pip_meta:
-                to_process[_platform] = pip_meta
+            pip_spec = sources.get("pip")
+            if pip_spec:
+                to_process[_platform] = pip_spec
         if not to_process:
             continue
 
         # Check if all Spec objects are identical
         first_meta = next(iter(to_process.values()))
-        if all(meta == first_meta for meta in to_process.values()):
+        if all(spec == first_meta for spec in to_process.values()):
             # Build a single combined environment marker
             dep_str = first_meta.name_with_pin(is_pip=True)
             if _platform is not None:
@@ -59,8 +59,8 @@ def filter_python_dependencies(
             pip_deps.append(dep_str)
             continue
 
-        for _platform, pip_meta in to_process.items():
-            dep_str = pip_meta.name_with_pin(is_pip=True)
+        for _platform, pip_spec in to_process.items():
+            dep_str = pip_spec.name_with_pin(is_pip=True)
             if _platform is not None:
                 selector = build_pep508_environment_marker([_platform])
                 dep_str = f"{dep_str}; {selector}"

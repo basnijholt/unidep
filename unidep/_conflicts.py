@@ -27,7 +27,7 @@ VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
 _REPO_URL = "https://github.com/basnijholt/unidep"
 
 
-def _prepare_metas_for_conflict_resolution(
+def _prepare_specs_for_conflict_resolution(
     requirements: dict[str, list[Spec]],
 ) -> dict[str, dict[Platform | None, dict[CondaPip, list[Spec]]]]:
     """Prepare and group metadata for conflict resolution.
@@ -38,19 +38,19 @@ def _prepare_metas_for_conflict_resolution(
     :return: Dictionary mapping package names to grouped metadata.
     """
     prepared_data = {}
-    for package, meta_list in requirements.items():
-        grouped_metas: dict[Platform | None, dict[CondaPip, list[Spec]]] = defaultdict(
+    for package, spec_list in requirements.items():
+        grouped_specs: dict[Platform | None, dict[CondaPip, list[Spec]]] = defaultdict(
             lambda: defaultdict(list),
         )
-        for meta in meta_list:
-            _platforms = meta.platforms()
+        for spec in spec_list:
+            _platforms = spec.platforms()
             if _platforms is None:
                 _platforms = [None]  # type: ignore[list-item]
             for _platform in _platforms:
-                grouped_metas[_platform][meta.which].append(meta)
+                grouped_specs[_platform][spec.which].append(spec)
 
         # Convert defaultdicts to dicts
-        prepared_data[package] = {k: dict(v) for k, v in grouped_metas.items()}
+        prepared_data[package] = {k: dict(v) for k, v in grouped_specs.items()}
     return prepared_data
 
 
@@ -67,9 +67,9 @@ def _pop_unused_platforms_and_maybe_expand_none(
     if len(platform_data) > 1 and None in platform_data:
         sources = platform_data.pop(None)
         for _platform in allowed_platforms:
-            for which, metas in sources.items():
+            for which, specs in sources.items():
                 platform_data.setdefault(_platform, {}).setdefault(which, []).extend(
-                    metas,
+                    specs,
                 )
 
     # Remove platforms that are not allowed
@@ -79,13 +79,13 @@ def _pop_unused_platforms_and_maybe_expand_none(
         platform_data.pop(_platform)
 
 
-def _maybe_new_meta_with_combined_pinnings(
-    metas: list[Spec],
+def _maybe_new_spec_with_combined_pinnings(
+    specs: list[Spec],
 ) -> Spec:
-    pinned_metas = [m for m in metas if m.pin is not None]
-    if len(pinned_metas) > 1:
-        first = pinned_metas[0]
-        pins = [m.pin for m in pinned_metas]
+    pinned_specs = [m for m in specs if m.pin is not None]
+    if len(pinned_specs) > 1:
+        first = pinned_specs[0]
+        pins = [m.pin for m in pinned_specs]
         pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
         return Spec(
             name=first.name,
@@ -96,7 +96,7 @@ def _maybe_new_meta_with_combined_pinnings(
         )
 
     # Flatten the list
-    return metas[0]
+    return specs[0]
 
 
 def _combine_pinning_within_platform(
@@ -105,34 +105,34 @@ def _combine_pinning_within_platform(
     reduced_data: dict[Platform | None, dict[CondaPip, Spec]] = {}
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
-        for which, metas in packages.items():
-            meta = _maybe_new_meta_with_combined_pinnings(metas)
-            reduced_data[_platform][which] = meta
+        for which, specs in packages.items():
+            spec = _maybe_new_spec_with_combined_pinnings(specs)
+            reduced_data[_platform][which] = spec
     return reduced_data
 
 
 def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip, Spec]:
-    conda_meta = sources.get("conda")
-    pip_meta = sources.get("pip")
-    if not conda_meta or not pip_meta:  # If either is missing, there is no conflict
+    conda_spec = sources.get("conda")
+    pip_spec = sources.get("pip")
+    if not conda_spec or not pip_spec:  # If either is missing, there is no conflict
         return sources
 
     # Compare version pins to resolve conflicts
-    if conda_meta.pin and not pip_meta.pin:
-        return {"conda": conda_meta}  # Prefer conda if it has a pin
-    if pip_meta.pin and not conda_meta.pin:
-        return {"pip": pip_meta}  # Prefer pip if it has a pin
-    if conda_meta.pin == pip_meta.pin:
-        return {"conda": conda_meta, "pip": pip_meta}  # Keep both if pins are identical
+    if conda_spec.pin and not pip_spec.pin:
+        return {"conda": conda_spec}  # Prefer conda if it has a pin
+    if pip_spec.pin and not conda_spec.pin:
+        return {"pip": pip_spec}  # Prefer pip if it has a pin
+    if conda_spec.pin == pip_spec.pin:
+        return {"conda": conda_spec, "pip": pip_spec}  # Keep both if pins are identical
 
     # Handle conflict where both conda and pip have different pins
     warn(
         "Version Pinning Conflict:\n"
-        f"Different version specifications for Conda ('{conda_meta.pin}') and Pip"
-        f" ('{pip_meta.pin}'). Both versions are retained.",
+        f"Different version specifications for Conda ('{conda_spec.pin}') and Pip"
+        f" ('{pip_spec.pin}'). Both versions are retained.",
         stacklevel=2,
     )
-    return {"conda": conda_meta, "pip": pip_meta}
+    return {"conda": conda_spec, "pip": pip_spec}
 
 
 class VersionConflictError(ValueError):
@@ -152,7 +152,7 @@ def resolve_conflicts(
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise VersionConflictError(msg)
 
-    prepared = _prepare_metas_for_conflict_resolution(requirements)
+    prepared = _prepare_specs_for_conflict_resolution(requirements)
     for data in prepared.values():
         _pop_unused_platforms_and_maybe_expand_none(data, platforms)
     resolved = {
@@ -233,9 +233,9 @@ def _deduplicate(pinnings: list[str]) -> list[str]:
     return list(dict.fromkeys(pinnings))  # preserve order
 
 
-def _split_pinnings(metas: list[str]) -> list[str]:
+def _split_pinnings(pinnings: list[str]) -> list[str]:
     """Extracts version pinnings from a list of Spec objects."""
-    return [_pin.lstrip().rstrip() for pin in metas for _pin in pin.split(",")]
+    return [_pin.lstrip().rstrip() for pin in pinnings for _pin in pin.split(",")]
 
 
 def combine_version_pinnings(pinnings: list[str], *, name: str | None = None) -> str:
