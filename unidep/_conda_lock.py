@@ -300,11 +300,11 @@ def _conda_lock_subpackage(
         missing_keys=missing_keys,
     )
 
-    for name, metas in requirements.requirements.items():
+    for name, specs in requirements.requirements.items():
         if name.startswith("__"):
             continue  # Skip meta packages
-        for meta in metas:
-            _platforms = meta.platforms()
+        for spec in specs:
+            _platforms = spec.platforms()
             if _platforms is None:
                 _platforms = platforms
             else:
@@ -313,7 +313,7 @@ def _conda_lock_subpackage(
             for _platform in _platforms:
                 if _platform not in platforms:
                     continue
-                add_pkg(name=name, which=meta.which, platform=_platform)
+                add_pkg(name=name, which=spec.which, platform=_platform)
     _handle_missing_keys(
         lock_spec=lock_spec,
         locked_keys=locked_keys,

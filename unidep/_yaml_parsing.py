@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep.platform_definitions import Meta, Platform
+from unidep.platform_definitions import Platform, Spec
 
 if TYPE_CHECKING:
     import sys
@@ -93,7 +93,7 @@ def _parse_dependency(
     ignore_pins: list[str],
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
-) -> list[Meta]:
+) -> list[Spec]:
     comment = _extract_first_comment(dependencies, index_or_key)
     name, pin = extract_name_and_pin(dependency)
     if name in ignore_pins:
@@ -105,10 +105,10 @@ def _parse_dependency(
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
-            Meta(name, "conda", comment, pin, identifier_hash),
-            Meta(name, "pip", comment, pin, identifier_hash),
+            Spec(name, "conda", comment, pin, identifier_hash),
+            Spec(name, "pip", comment, pin, identifier_hash),
         ]
-    return [Meta(name, which, comment, pin, identifier_hash)]
+    return [Spec(name, which, comment, pin, identifier_hash)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -116,7 +116,7 @@ class ParsedRequirements(NamedTuple):
 
     channels: list[str]
     platforms: list[Platform]
-    requirements: dict[str, list[Meta]]
+    requirements: dict[str, list[Spec]]
 
 
 class Requirements(NamedTuple):
@@ -156,7 +156,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
-    requirements: dict[str, list[Meta]] = defaultdict(list)
+    requirements: dict[str, list[Spec]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
@@ -192,7 +192,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
         for i, dep in enumerate(data["dependencies"]):
             identifier += 1
             if isinstance(dep, str):
-                metas = _parse_dependency(
+                specs = _parse_dependency(
                     dep,
                     dependencies,
                     i,
@@ -202,13 +202,13 @@ def parse_yaml_requirements(  # noqa: PLR0912
                     overwrite_pins_map,
                     skip_dependencies,
                 )
-                for meta in metas:
-                    requirements[meta.name].append(meta)
+                for spec in specs:
+                    requirements[spec.name].append(spec)
                 continue
             assert isinstance(dep, dict)
             for which in ["conda", "pip"]:
                 if which in dep:
-                    metas = _parse_dependency(
+                    specs = _parse_dependency(
                         dep[which],
                         dep,
                         which,
@@ -218,8 +218,8 @@ def parse_yaml_requirements(  # noqa: PLR0912
                         overwrite_pins_map,
                         skip_dependencies,
                     )
-                    for meta in metas:
-                        requirements[meta.name].append(meta)
+                    for spec in specs:
+                        requirements[spec.name].append(spec)
 
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 

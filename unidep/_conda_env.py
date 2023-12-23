@@ -14,14 +14,14 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep._conflicts import (
     VersionConflictError,
-    _maybe_new_meta_with_combined_pinnings,
+    _maybe_new_spec_with_combined_pinnings,
 )
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
     CondaPip,
     CondaPlatform,
-    Meta,
     Platform,
+    Spec,
 )
 from unidep.utils import (
     add_comment_to_file,
@@ -55,14 +55,14 @@ def _conda_sel(sel: str) -> CondaPlatform:
 
 
 def _extract_conda_pip_dependencies(
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
 ) -> tuple[
-    dict[str, dict[Platform | None, Meta]],
-    dict[str, dict[Platform | None, Meta]],
+    dict[str, dict[Platform | None, Spec]],
+    dict[str, dict[Platform | None, Spec]],
 ]:
     """Extract and separate conda and pip dependencies."""
-    conda: dict[str, dict[Platform | None, Meta]] = {}
-    pip: dict[str, dict[Platform | None, Meta]] = {}
+    conda: dict[str, dict[Platform | None, Spec]] = {}
+    pip: dict[str, dict[Platform | None, Spec]] = {}
     for pkg, platform_data in resolved.items():
         for _platform, sources in platform_data.items():
             if "conda" in sources:
@@ -73,44 +73,44 @@ def _extract_conda_pip_dependencies(
 
 
 def _resolve_multiple_platform_conflicts(
-    platform_to_meta: dict[Platform | None, Meta],
+    platform_to_spec: dict[Platform | None, Spec],
 ) -> None:
     """Fix conflicts for deps with platforms that map to a single Conda platform.
 
     In a Conda environment with dependencies across various platforms (like
     'linux-aarch64', 'linux64'), this function ensures consistency in metadata
     for each Conda platform (e.g., 'sel(linux): ...'). It maps each platform to
-    a Conda platform and resolves conflicts by retaining the first `Meta` object
+    a Conda platform and resolves conflicts by retaining the first `Spec` object
     per Conda platform, discarding others. This approach guarantees uniform
     metadata across different but equivalent platforms.
     """
     valid: dict[
         CondaPlatform,
-        dict[Meta, list[Platform | None]],
+        dict[Spec, list[Platform | None]],
     ] = defaultdict(lambda: defaultdict(list))
-    for _platform, meta in platform_to_meta.items():
+    for _platform, spec in platform_to_spec.items():
         assert _platform is not None
         conda_platform = _conda_sel(_platform)
-        valid[conda_platform][meta].append(_platform)
+        valid[conda_platform][spec].append(_platform)
 
-    for conda_platform, meta_to_platforms in valid.items():
+    for conda_platform, spec_to_platforms in valid.items():
         # We cannot distinguish between e.g., linux-64 and linux-aarch64
         # (which becomes linux). So of the list[Platform] we only need to keep
-        # one Platform. We can pop the rest from `platform_to_meta`. This is
-        # not a problem because they share the same `Meta` object.
-        for platforms in meta_to_platforms.values():
+        # one Platform. We can pop the rest from `platform_to_spec`. This is
+        # not a problem because they share the same `Spec` object.
+        for platforms in spec_to_platforms.values():
             for j, _platform in enumerate(platforms):
                 if j >= 1:
-                    platform_to_meta.pop(_platform)
+                    platform_to_spec.pop(_platform)
 
         # Now make sure that valid[conda_platform] has only one key.
-        # That means that all `Meta`s for the different Platforms that map to a
+        # That means that all `Spec`s for the different Platforms that map to a
         # CondaPlatform are identical. If len > 1, we have a conflict.
-        if len(meta_to_platforms) > 1:
-            metas, (first_platform, *_) = zip(*meta_to_platforms.items())
-            first, *others = metas
+        if len(spec_to_platforms) > 1:
+            specs, (first_platform, *_) = zip(*spec_to_platforms.items())
+            first, *others = specs
             try:
-                meta = _maybe_new_meta_with_combined_pinnings(metas)  # type: ignore[arg-type]
+                spec = _maybe_new_spec_with_combined_pinnings(specs)  # type: ignore[arg-type]
             except VersionConflictError:
                 # We have a conflict, select the first one.
                 msg = (
@@ -121,15 +121,15 @@ def _resolve_multiple_platform_conflicts(
                 warn(msg, stacklevel=2)
             else:
                 # Means that we could combine the pinnings
-                meta_to_platforms.pop(first)
-                meta_to_platforms[meta] = [first_platform]
+                spec_to_platforms.pop(first)
+                spec_to_platforms[spec] = [first_platform]
 
             for other in others:
-                platforms = meta_to_platforms[other]
+                platforms = spec_to_platforms[other]
                 for _platform in platforms:
-                    if _platform in platform_to_meta:  # might have been popped already
-                        platform_to_meta.pop(_platform)
-        # Now we have only one `Meta` left, so we can select it.
+                    if _platform in platform_to_spec:  # might have been popped already
+                        platform_to_spec.pop(_platform)
+        # Now we have only one `Spec` left, so we can select it.
 
 
 def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
@@ -138,7 +138,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
 
 
 def create_conda_env_specification(  # noqa: PLR0912
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Meta]]],
+    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
@@ -154,12 +154,12 @@ def create_conda_env_specification(  # noqa: PLR0912
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
     seen_identifiers: set[str] = set()
-    for platform_to_meta in conda.values():
-        if len(platform_to_meta) > 1 and selector == "sel":
+    for platform_to_spec in conda.values():
+        if len(platform_to_spec) > 1 and selector == "sel":
             # None has been expanded already if len>1
-            _resolve_multiple_platform_conflicts(platform_to_meta)
-        for _platform, meta in sorted(platform_to_meta.items()):
-            dep_str = meta.name_with_pin()
+            _resolve_multiple_platform_conflicts(platform_to_spec)
+        for _platform, spec in sorted(platform_to_spec.items()):
+            dep_str = spec.name_with_pin()
             if len(platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
@@ -169,19 +169,19 @@ def create_conda_env_specification(  # noqa: PLR0912
                     _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
-            assert isinstance(meta.identifier, str)
-            seen_identifiers.add(meta.identifier)
+            assert isinstance(spec.identifier, str)
+            seen_identifiers.add(spec.identifier)
 
-    for platform_to_meta in pip.values():
-        meta_to_platforms: dict[Meta, list[Platform | None]] = {}
-        for _platform, meta in platform_to_meta.items():
-            meta_to_platforms.setdefault(meta, []).append(_platform)
+    for platform_to_spec in pip.values():
+        spec_to_platforms: dict[Spec, list[Platform | None]] = {}
+        for _platform, spec in platform_to_spec.items():
+            spec_to_platforms.setdefault(spec, []).append(_platform)
 
-        for meta, _platforms in meta_to_platforms.items():
-            if meta.identifier in seen_identifiers:
+        for spec, _platforms in spec_to_platforms.items():
+            if spec.identifier in seen_identifiers:
                 continue
 
-            dep_str = meta.name_with_pin(is_pip=True)
+            dep_str = spec.name_with_pin(is_pip=True)
             if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
