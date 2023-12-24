@@ -3,8 +3,8 @@
 > [!TIP]
 > - **Standard Installation**: In this example folder, use `pip install .` to install all Python dependencies that are pip-installable, along with the local package itself.
 > - **Comprehensive Installation with `unidep`**: To install all dependencies, including those that are not Python-specific, use `unidep install .`. This command performs the following actions in sequence:
->   1. `conda install [dependencies from requirements.yaml]` – Installs Conda-specific dependencies.
->   2. `pip install [dependencies from requirements.yaml]` – Installs pip-specific dependencies.
+>   1. `conda install [dependencies from pyproject.toml]` – Installs all Conda installable dependencies.
+>   2. `pip install [dependencies from pyproject.toml]` – Installs remaining pip-only dependencies.
 >   3. `pip install .` – Installs the local package.
 
 For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured fully in `pyproject.toml` including all its dependencies.
