@@ -41,7 +41,7 @@ except ImportError:
 def find_requirements_files(
     base_dir: str | Path = ".",
     depth: int = 1,
-    filename: str = "requirements.yaml",
+    filename: str = "requirements.yaml",  # TODO: should this be an argument?
     *,
     verbose: bool = False,
 ) -> list[Path]:
