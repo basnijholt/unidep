@@ -115,13 +115,15 @@ def _parse_dependency(
         if isinstance(dependencies, (CommentedMap, CommentedSeq))
         else None
     )
+    if comment:
+        selector = selector_from_comment(comment)
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
-            Spec(name, "conda", comment, pin, identifier_hash, selector),
-            Spec(name, "pip", comment, pin, identifier_hash, selector),
+            Spec(name, "conda", pin, identifier_hash, selector),
+            Spec(name, "pip", pin, identifier_hash, selector),
         ]
-    return [Spec(name, which, comment, pin, identifier_hash, selector)]
+    return [Spec(name, which, pin, identifier_hash, selector)]
 
 
 class ParsedRequirements(NamedTuple):

@@ -5,7 +5,7 @@ Types and definitions for platforms, selectors, and markers.
 from __future__ import annotations
 
 import sys
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
@@ -83,37 +83,44 @@ def validate_selector(selector: Selector) -> None:
         raise ValueError(msg)
 
 
+def platforms_from_selector(selector: str) -> list[Platform]:
+    """Extract platforms from a selector.
+
+    For example, selector can be ``'linux64 win64'`` or ``'osx'``.
+    """
+    # we support a very limited set of selectors that adhere to platform only
+    # refs:
+    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
+    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+    platforms: set[Platform] = set()
+    for s in selector.split():
+        s = cast(Selector, s)
+        platforms |= set(PLATFORM_SELECTOR_MAP_REVERSE[s])
+    return sorted(platforms)
+
+
 class Spec(NamedTuple):
     """A dependency specification."""
 
     name: str
     which: CondaPip
-    comment: str | None = None
     pin: str | None = None
     identifier: str | None = None
-    selector: Selector | None = None  # can be specified instead of via comment
+    selector: Selector | None = None
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""
-        from unidep.utils import extract_matching_platforms
-
-        assert not (self.comment and self.selector), "Cannot specify both"
-
-        if self.comment is None and self.selector is None:
+        if self.selector is None:
             return None
-        if self.comment is not None:
-            return extract_matching_platforms(self.comment) or None
-        assert self.selector is not None
-        validate_selector(self.selector)
-        return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
+        return platforms_from_selector(self.selector)
 
     def pprint(self) -> str:
         """Pretty print the dependency."""
         result = f"{self.name}"
         if self.pin is not None:
             result += f" {self.pin}"
-        if self.comment is not None:
-            result += f" {self.comment}"
+        if self.selector is not None:
+            result += f" # [{self.selector}]"
         return result
 
     def name_with_pin(self, *, is_pip: bool = False) -> str:

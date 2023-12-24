@@ -90,7 +90,6 @@ def _maybe_new_spec_with_combined_pinnings(
         return Spec(
             name=first.name,
             which=first.which,
-            comment=None,
             pin=pin,
             identifier=first.identifier,  # should I create a new one?
         )

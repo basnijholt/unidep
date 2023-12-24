@@ -15,10 +15,10 @@ from typing import NamedTuple, cast
 from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
-    PLATFORM_SELECTOR_MAP_REVERSE,
     VALID_SELECTORS,
     Platform,
     Selector,
+    platforms_from_selector,
     validate_selector,
 )
 
@@ -198,39 +198,28 @@ def warn(
 
 def selector_from_comment(comment: str) -> str | None:
     """Extract a valid selector from a comment."""
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+    if multiple_brackets_pat.search(comment):
+        msg = f"Multiple bracketed selectors found in comment: '{comment}'"
+        raise ValueError(msg)
+
     sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
     m = sel_pat.search(comment)
-    if m:
-        selector = m.group(1).strip()
-        if selector in VALID_SELECTORS:
-            return selector
-    return None
+    if not m:
+        return None
+    selectors = m.group(1).strip().split()
+    valid = [s in VALID_SELECTORS for s in selectors]
+    if not all(valid):
+        msg = (
+            f"Unsupported platform specifier: '{comment}' use one of {VALID_SELECTORS}"
+        )
+        raise ValueError(msg)
+    return " ".join(selectors)
 
 
 def extract_matching_platforms(comment: str) -> list[Platform]:
-    """Filter out lines from a requirements file that don't match the platform."""
-    # we support a very limited set of selectors that adhere to platform only
-    # refs:
-    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
-    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
-    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
-    filtered_platforms = set()
-
-    for line in comment.splitlines(keepends=False):
-        if multiple_brackets_pat.search(line):
-            msg = f"Multiple bracketed selectors found in line: '{line}'"
-            raise ValueError(msg)
-
-        selector = selector_from_comment(line)
-        if selector:
-            conds = selector.split()
-            for cond in conds:
-                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
-                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
-                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
-                    raise ValueError(msg)
-                cond = cast(Selector, cond)
-                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
-                    filtered_platforms.add(_platform)
-
-    return sorted(filtered_platforms)
+    """Get all platforms matching a comment."""
+    selector = selector_from_comment(comment)
+    if selector is None:
+        return []
+    return platforms_from_selector(selector)
