@@ -6,19 +6,17 @@ This module provides YAML parsing for `requirements.yaml` files.
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec
 
 if TYPE_CHECKING:
-    import sys
-
-    from ruamel.yaml.comments import CommentedMap
-
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:  # pragma: no cover
@@ -26,9 +24,18 @@ if TYPE_CHECKING:
 
 from unidep.utils import (
     extract_matching_platforms,
-    extract_name_and_pin,
     is_pip_installable,
+    parse_package_str,
 )
+
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:
+    HAS_TOML = False
 
 
 def find_requirements_files(
@@ -64,6 +71,7 @@ def _extract_first_comment(
     commented_map: CommentedMap,
     index_or_key: int | str,
 ) -> str | None:
+    """Extract the first comment from a CommentedMap."""
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
@@ -94,21 +102,25 @@ def _parse_dependency(
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
 ) -> list[Spec]:
-    comment = _extract_first_comment(dependencies, index_or_key)
-    name, pin = extract_name_and_pin(dependency)
+    name, pin, selector = parse_package_str(dependency)
     if name in ignore_pins:
         pin = None
     if name in skip_dependencies:
         return []
     if name in overwrite_pins:
         pin = overwrite_pins[name]
+    comment = (
+        _extract_first_comment(dependencies, index_or_key)
+        if isinstance(dependencies, (CommentedMap, CommentedSeq))
+        else None
+    )
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
-            Spec(name, "conda", comment, pin, identifier_hash),
-            Spec(name, "pip", comment, pin, identifier_hash),
+            Spec(name, "conda", comment, pin, identifier_hash, selector),
+            Spec(name, "pip", comment, pin, identifier_hash, selector),
         ]
-    return [Spec(name, which, comment, pin, identifier_hash)]
+    return [Spec(name, which, comment, pin, identifier_hash, selector)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -140,9 +152,23 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     """Parse overwrite pins."""
     result = {}
     for overwrite_pin in overwrite_pins:
-        name, pin = extract_name_and_pin(overwrite_pin)
-        result[name] = pin
+        pkg = parse_package_str(overwrite_pin)
+        result[pkg.name] = pkg.pin
     return result
+
+
+def _load(p: Path, yaml: YAML) -> dict[str, Any]:
+    if p.suffix == ".toml":
+        if not HAS_TOML:
+            msg = (
+                "❌ No toml support found in your Python installation."
+                " Please install it with `pip install tomli`."
+            )
+            raise ImportError(msg)
+        with p.open("rb") as f:
+            return tomllib.load(f)["tool"]["unidep"]
+    with p.open() as f:
+        return yaml.load(f)
 
 
 def parse_yaml_requirements(  # noqa: PLR0912
@@ -165,21 +191,20 @@ def parse_yaml_requirements(  # noqa: PLR0912
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
-        with p.open() as f:
-            data = yaml.load(f)
+        data = _load(p, yaml)
         datas.append(data)
         seen.add(p.resolve())
 
-        # Deal with includes
+        # Handle includes
         for include in data.get("includes", []):
             include_path = _include_path(p.parent / include)
             if include_path in seen:
                 continue  # Avoids circular includes
             if verbose:
                 print(f"📄 Parsing include `{include}`")
-            with include_path.open() as f:
-                datas.append(yaml.load(f))
+            datas.append(_load(include_path, yaml))
             seen.add(include_path)
+
     identifier = -1
     for data in datas:
         for channel in data.get("channels", []):
@@ -237,8 +262,7 @@ def _extract_project_dependencies(
         return
     processed.add(path)
     yaml = YAML(typ="safe")
-    with path.open() as f:
-        data = yaml.load(f)
+    data = _load(path, yaml)
     for include in data.get("includes", []):
         include_path = _include_path(path.parent / include)
         if not include_path.exists():

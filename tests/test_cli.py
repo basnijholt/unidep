@@ -131,7 +131,7 @@ def test_doubly_nested_project_folder_installable(
     pyproject_toml = "\n".join(  # noqa: FLY002
         (
             "[build-system]",
-            'requires = ["setuptools", "unidep"]',
+            'requires = ["setuptools", "unidep[yaml]"]',
             'build-backend = "setuptools.build_meta"',
         ),
     )

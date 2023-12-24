@@ -8,9 +8,9 @@ import sys
 from typing import NamedTuple
 
 if sys.version_info >= (3, 8):
-    from typing import Literal
+    from typing import Literal, get_args
 else:  # pragma: no cover
-    from typing_extensions import Literal
+    from typing_extensions import Literal, get_args
 
 CondaPlatform = Literal["unix", "linux", "osx", "win"]
 Platform = Literal[
@@ -73,6 +73,14 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
+def validate_selector(selector: Selector) -> None:
+    """Check if a selector is valid."""
+    valid_selectors = get_args(Selector)
+    if selector not in get_args(Selector):
+        msg = f"Invalid selector: `{selector}`, use one of `{valid_selectors}`"
+        raise ValueError(msg)
+
+
 class Spec(NamedTuple):
     """A dependency specification."""
 
@@ -81,14 +89,21 @@ class Spec(NamedTuple):
     comment: str | None = None
     pin: str | None = None
     identifier: str | None = None
+    selector: Selector | None = None  # can be specified instead of via comment
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""
         from unidep.utils import extract_matching_platforms
 
-        if self.comment is None:
+        assert not (self.comment and self.selector), "Cannot specify both"
+
+        if self.comment is None and self.selector is None:
             return None
-        return extract_matching_platforms(self.comment) or None
+        if self.comment is not None:
+            return extract_matching_platforms(self.comment) or None
+        assert self.selector is not None
+        validate_selector(self.selector)
+        return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
 
     def pprint(self) -> str:
         """Pretty print the dependency."""
