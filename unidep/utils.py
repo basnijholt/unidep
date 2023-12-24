@@ -10,15 +10,25 @@ import re
 import sys
 import warnings
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
-    PLATFORM_SELECTOR_MAP_REVERSE,
     Platform,
     Selector,
+    platforms_from_selector,
+    validate_selector,
 )
+
+try:  # pragma: no cover
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:  # pragma: no cover
+    HAS_TOML = False
 
 
 def add_comment_to_file(
@@ -127,18 +137,38 @@ def build_pep508_environment_marker(
     return " or ".join(environment_markers)
 
 
-def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
-    """Splits a string into package name and version pinning."""
-    # Regular expression to match package name and version pinning
-    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
+class ParsedPackageStr(NamedTuple):
+    """A package name and version pinning."""
+
+    name: str
+    pin: str | None = None
+    # can be of type `Selector` but also space separated string of `Selector`s
+    selector: str | None = None
+
+
+def parse_package_str(package_str: str) -> ParsedPackageStr:
+    """Splits a string into package name, version pinning, and platform selector."""
+    # Regex to match package name, version pinning, and optionally platform selector
+    name_pattern = r"[a-zA-Z0-9_-]+"
+    version_pin_pattern = r".*?"
+    selector_pattern = r"[a-z0-9\s]+"
+    pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
+    match = re.match(pattern, package_str)
+
     if match:
         package_name = match.group(1).strip()
-        version_pin = match.group(2).strip()
+        version_pin = match.group(2).strip() if match.group(2) else None
+        selector = match.group(4).strip() if match.group(4) else None
 
-        # Return None if version pinning is missing or empty
-        if not version_pin:
-            return package_name, None
-        return package_name, version_pin
+        if selector is not None:
+            for s in selector.split():
+                validate_selector(cast(Selector, s))
+
+        return ParsedPackageStr(
+            package_name,
+            version_pin,
+            selector,
+        )
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
@@ -175,33 +205,65 @@ def warn(
         warnings.formatwarning = original_format
 
 
-def extract_matching_platforms(comment: str) -> list[Platform]:
-    """Filter out lines from a requirements file that don't match the platform."""
-    # we support a very limited set of selectors that adhere to platform only
-    # refs:
-    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
-    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+def selector_from_comment(comment: str) -> str | None:
+    """Extract a valid selector from a comment."""
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+    if multiple_brackets_pat.search(comment):
+        msg = f"Multiple bracketed selectors found in comment: '{comment}'"
+        raise ValueError(msg)
 
     sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
-    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+    m = sel_pat.search(comment)
+    if not m:
+        return None
+    selectors = m.group(1).strip().split()
+    for s in selectors:
+        validate_selector(cast(Selector, s))
+    return " ".join(selectors)
 
-    filtered_platforms = set()
 
-    for line in comment.splitlines(keepends=False):
-        if multiple_brackets_pat.search(line):
-            msg = f"Multiple bracketed selectors found in line: '{line}'"
-            raise ValueError(msg)
+def extract_matching_platforms(comment: str) -> list[Platform]:
+    """Get all platforms matching a comment."""
+    selector = selector_from_comment(comment)
+    if selector is None:
+        return []
+    return platforms_from_selector(selector)
 
-        m = sel_pat.search(line)
-        if m:
-            conds = m.group(1).split()
-            for cond in conds:
-                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
-                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
-                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
-                    raise ValueError(msg)
-                cond = cast(Selector, cond)
-                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
-                    filtered_platforms.add(_platform)
 
-    return sorted(filtered_platforms)
+def unidep_configured_in_toml(path: Path) -> bool:
+    """Check if dependencies are specified in pyproject.toml.
+
+    If a TOML parser is not available it finds `[tool.unidep]` in `pyproject.toml`.
+    """
+    if HAS_TOML:
+        with path.open("rb") as f:
+            data = tomllib.load(f)
+        return bool(data.get("tool", {}).get("unidep", {}))
+    # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002
+    # pyproject.toml directly e.g., it contains:
+    # `tool = {unidep = {dependencies = ...}}`
+    return any(  # pragma: no cover
+        line.lstrip().startswith("[tool.unidep")
+        for line in path.read_text().splitlines()
+    )
+
+
+def dependencies_filename(folder_or_path: str | Path) -> Path:
+    """Get the path to `requirements.yaml` or `pyproject.toml` file."""
+    path = Path(folder_or_path)
+    if path.is_dir():
+        fname_yaml = path / "requirements.yaml"
+        if fname_yaml.exists():
+            return fname_yaml
+        fname_toml = path / "pyproject.toml"
+        if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
+            return fname_toml
+        msg = (
+            f"File {fname_yaml} or {fname_toml} (with unidep configuration)"
+            f" not found in {folder_or_path}."
+        )
+        raise FileNotFoundError(msg)
+    if not path.exists():
+        msg = f"File {path} not found."
+        raise FileNotFoundError(msg)
+    return path

@@ -19,23 +19,24 @@ from unidep._conda_env import (
 )
 from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
+from unidep._dependencies_parsing import (
+    find_requirements_files,
+    parse_project_dependencies,
+    parse_requirements,
+)
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
 )
 from unidep._version import __version__
-from unidep._yaml_parsing import (
-    find_requirements_files,
-    parse_project_dependencies,
-    parse_yaml_requirements,
-)
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
+    dependencies_filename,
     escape_unicode,
-    extract_name_and_pin,
     identify_current_platform,
     is_pip_installable,
+    parse_package_str,
     warn,
 )
 
@@ -503,7 +504,7 @@ def _parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     if "file" in args and args.file.is_dir():  # pragma: no cover
-        args.file = _to_requirements_file(args.file)
+        args.file = dependencies_filename(args.file)
     return args
 
 
@@ -523,10 +524,10 @@ def _identify_conda_executable() -> str:  # pragma: no cover
 
 
 def _format_inline_conda_package(package: str) -> str:
-    name, pin = extract_name_and_pin(package)
-    if pin is None:
-        return name
-    return f'{name}"{pin.strip()}"'
+    pkg = parse_package_str(package)
+    if pkg.pin is None:
+        return pkg.name
+    return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
 def _pip_install_local(
@@ -539,7 +540,7 @@ def _pip_install_local(
     if flags:
         pip_command.extend(flags)
 
-    for folder in folders:
+    for folder in sorted(folders):
         if not os.path.isabs(folder):  # noqa: PTH117
             relative_prefix = ".\\" if os.name == "nt" else "./"
             folder = f"{relative_prefix}{folder}"  # noqa: PLW2901
@@ -552,10 +553,6 @@ def _pip_install_local(
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
-
-
-def _to_requirements_file(path: Path) -> Path:
-    return path if path.is_file() else path / "requirements.yaml"
 
 
 def _install_command(  # noqa: PLR0912
@@ -576,8 +573,8 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
-    files = tuple(_to_requirements_file(f) for f in files)
-    requirements = parse_yaml_requirements(
+    files = tuple(dependencies_filename(f) for f in files)
+    requirements = parse_requirements(
         *files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -726,7 +723,7 @@ def _merge_command(
     if not found_files:
         print(f"❌ No `requirements.yaml` files found in {directory}")
         sys.exit(1)
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -779,7 +776,7 @@ def _pip_compile_command(
         verbose=verbose,
     )
 
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -865,19 +862,17 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
-        pip_dependencies = list(
-            get_python_dependencies(
-                args.file,
-                platforms=[args.platform],
-                verbose=args.verbose,
-                ignore_pins=args.ignore_pin,
-                skip_dependencies=args.skip_dependency,
-                overwrite_pins=args.overwrite_pin,
-            ),
+        pip_dependencies = get_python_dependencies(
+            args.file,
+            platforms=[args.platform],
+            verbose=args.verbose,
+            ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
-        requirements = parse_yaml_requirements(
+        requirements = parse_requirements(
             args.file,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,

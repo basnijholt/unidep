@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from ruamel.yaml import YAML
@@ -12,19 +13,41 @@ from unidep import (
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
     resolve_conflicts,
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
+from unidep._dependencies_parsing import yaml_to_toml
 from unidep.platform_definitions import Platform, Spec
+
+if TYPE_CHECKING:
+    import sys
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:  # pragma: no cover
+        from typing_extensions import Literal
+
 
 REPO_ROOT = Path(__file__).parent.parent
 
 
-@pytest.fixture()
-def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
+def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
+    if toml_or_yaml == "toml":
+        toml = yaml_to_toml(p)
+        p.unlink()
+        p = p.with_name("pyproject.toml")
+        p.write_text(toml)
+    return p
+
+
+@pytest.fixture(params=["toml", "yaml"])
+def setup_test_files(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+) -> tuple[Path, Path]:
     d1 = tmp_path / "dir1"
     d1.mkdir()
     f1 = d1 / "requirements.yaml"
@@ -34,7 +57,8 @@ def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
     d2.mkdir()
     f2 = d2 / "requirements.yaml"
     f2.write_text("dependencies:\n  - pip: pandas")
-
+    f1 = maybe_as_toml(request.param, f1)
+    f2 = maybe_as_toml(request.param, f2)
     return (f1, f2)
 
 
@@ -43,7 +67,11 @@ def test_find_requirements_files(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     # Make sure to pass the depth argument correctly if your function expects it.
-    found_files = find_requirements_files(tmp_path, depth=1, verbose=True)
+    found_files = find_requirements_files(
+        tmp_path,
+        depth=1,
+        verbose=True,
+    )
 
     # Convert found_files to absolute paths for comparison
     absolute_results = sorted(str(p.resolve()) for p in found_files)
@@ -80,7 +108,11 @@ def test_find_requirements_files_depth(tmp_path: Path) -> None:
     assert len(find_requirements_files(tmp_path, depth=4)) == 4
 
 
-def test_parse_requirements(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -93,33 +125,34 @@ def test_parse_requirements(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [unix]",
+                selector="unix",
                 identifier="530d9eaa",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [unix]",
+                selector="unix",
                 identifier="530d9eaa",
             ),
         ],
@@ -157,7 +190,7 @@ def test_generate_conda_env_file(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     output_file = tmp_path / "environment.yaml"
-    requirements = parse_yaml_requirements(*setup_test_files, verbose=verbose)
+    requirements = parse_requirements(*setup_test_files, verbose=verbose)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -181,7 +214,7 @@ def test_generate_conda_env_stdout(
     setup_test_files: tuple[Path, Path],
     capsys: pytest.CaptureFixture,
 ) -> None:
-    requirements = parse_yaml_requirements(*setup_test_files)
+    requirements = parse_requirements(*setup_test_files)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -198,7 +231,11 @@ def test_generate_conda_env_stdout(
     assert "- pandas" in captured.out
 
 
-def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_create_conda_env_specification_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -212,7 +249,8 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -280,7 +318,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Scanning in" in captured.out
     assert str(tmp_path / "dir3") in captured.out
 
-    parse_yaml_requirements(f, verbose=True)
+    parse_requirements(f, verbose=True)
     captured = capsys.readouterr()
     assert "Parsing" in captured.out
     assert str(f) in captured.out
@@ -309,14 +347,20 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     )
 
 
-def test_channels(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_channels(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.channels == ["conda-forge", "defaults"]
 
 
-def test_surrounding_comments(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_surrounding_comments(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -338,19 +382,20 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "yolo": [
             Spec(
                 name="yolo",
                 which="conda",
-                comment="# [osx]",
+                selector="osx",
                 identifier="8b0c4c31",
             ),
             Spec(
                 name="yolo",
                 which="pip",
-                comment="# [osx]",
+                selector="osx",
                 identifier="8b0c4c31",
             ),
         ],
@@ -358,13 +403,13 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux]",
+                selector="linux",
                 identifier="ecd4baa6",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux]",
+                selector="linux",
                 identifier="ecd4baa6",
             ),
         ],
@@ -372,13 +417,13 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Spec(
                 name="bar",
                 which="conda",
-                comment="# [win]",
+                selector="win",
                 identifier="8528de75",
             ),
             Spec(
                 name="bar",
                 which="pip",
-                comment="# [win]",
+                selector="win",
                 identifier="8528de75",
             ),
         ],
@@ -386,10 +431,9 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Spec(
                 name="baz",
                 which="conda",
-                comment="#",
-                identifier="fce1baee",
+                identifier="9e467fa1",
             ),
-            Spec(name="baz", which="pip", comment="#", identifier="fce1baee"),
+            Spec(name="baz", which="pip", identifier="9e467fa1"),
         ],
         "pip-package": [
             Spec(
@@ -402,14 +446,18 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             Spec(
                 name="pip-package2",
                 which="pip",
-                comment="# [osx]",
+                selector="osx",
                 identifier="1c0fa4c4",
             ),
         ],
     }
 
 
-def test_filter_pip_and_conda(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_filter_pip_and_conda(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     # Setup a sample ParsedRequirements instance with platform selectors
     p = tmp_path / "requirements.yaml"
     p.write_text(
@@ -426,13 +474,14 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "package1": [
             Spec(
                 name="package1",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="c292b98a",
             ),
         ],
@@ -440,7 +489,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             Spec(
                 name="package2",
                 which="conda",
-                comment="# [osx64]",
+                selector="osx64",
                 identifier="b2ac468f",
             ),
         ],
@@ -455,7 +504,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             Spec(
                 name="package4",
                 which="pip",
-                comment="# [unix]",
+                selector="unix",
                 identifier="1d5d7757",
             ),
         ],
@@ -463,13 +512,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             Spec(
                 name="common_package",
                 which="conda",
-                comment="# [unix]",
+                selector="unix",
                 identifier="f78244dc",
             ),
             Spec(
                 name="common_package",
                 which="pip",
-                comment="# [unix]",
+                selector="unix",
                 identifier="f78244dc",
             ),
         ],
@@ -477,13 +526,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             Spec(
                 name="shared_package",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="1599d575",
             ),
             Spec(
                 name="shared_package",
                 which="pip",
-                comment="# [win64]",
+                selector="win64",
                 identifier="46630b59",
             ),
         ],
@@ -499,7 +548,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="package1",
                     which="conda",
-                    comment="# [linux64]",
+                    selector="linux64",
                     identifier="c292b98a",
                 ),
             },
@@ -509,7 +558,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="package2",
                     which="conda",
-                    comment="# [osx64]",
+                    selector="osx64",
                     identifier="b2ac468f",
                 ),
             },
@@ -528,7 +577,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package4",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="1d5d7757",
                 ),
             },
@@ -536,7 +585,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package4",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="1d5d7757",
                 ),
             },
@@ -544,7 +593,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package4",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="1d5d7757",
                 ),
             },
@@ -552,7 +601,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package4",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="1d5d7757",
                 ),
             },
@@ -560,7 +609,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="package4",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="1d5d7757",
                 ),
             },
@@ -570,13 +619,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="common_package",
                     which="conda",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
             },
@@ -584,13 +633,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="common_package",
                     which="conda",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
             },
@@ -598,13 +647,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="common_package",
                     which="conda",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
             },
@@ -612,13 +661,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="common_package",
                     which="conda",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
             },
@@ -626,13 +675,13 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="common_package",
                     which="conda",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
-                    comment="# [unix]",
+                    selector="unix",
                     identifier="f78244dc",
                 ),
             },
@@ -642,7 +691,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="shared_package",
                     which="conda",
-                    comment="# [linux64]",
+                    selector="linux64",
                     identifier="1599d575",
                 ),
             },
@@ -650,7 +699,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="shared_package",
                     which="pip",
-                    comment="# [win64]",
+                    selector="win64",
                     identifier="46630b59",
                 ),
             },
@@ -691,7 +740,11 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
     ]
 
 
-def test_duplicates_with_version(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_duplicates_with_version(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -703,33 +756,34 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="dd6a8aaf",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="dd6a8aaf",
             ),
         ],
@@ -753,14 +807,14 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment="# [linux64]",
+                    selector="linux64",
                     pin=">1",
                     identifier="c292b98a",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment="# [linux64]",
+                    selector="linux64",
                     pin=">1",
                     identifier="c292b98a",
                 ),
@@ -796,7 +850,11 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
     ]
 
 
-def test_duplicates_different_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_duplicates_different_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -807,34 +865,35 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux]",
+                selector="linux",
                 pin="<=2",
                 identifier="ecd4baa6",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux]",
+                selector="linux",
                 pin="<=2",
                 identifier="ecd4baa6",
             ),
@@ -861,14 +920,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment="# [linux]",
+                    selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment="# [linux]",
+                    selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
@@ -877,14 +936,14 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="foo",
                     which="conda",
-                    comment="# [linux]",
+                    selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
-                    comment="# [linux]",
+                    selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
                 ),
@@ -918,7 +977,11 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
     assert env_spec.pip == []
 
 
-def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_expand_none_with_different_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -929,20 +992,21 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
                 name="foo",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
             Spec(
                 name="foo",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
             ),
@@ -1073,7 +1137,11 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
     ]
 
 
-def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_different_pins_on_conda_and_pip(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1084,7 +1152,8 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -1134,7 +1203,11 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
     assert python_deps == ["foo >1"]
 
 
-def test_pip_pinned_conda_not(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_pinned_conda_not(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1145,7 +1218,8 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1160,7 +1234,11 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
     assert python_deps == ["foo >1"]
 
 
-def test_conda_pinned_pip_not(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_conda_pinned_pip_not(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1171,7 +1249,8 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1186,7 +1265,11 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
     assert python_deps == []
 
 
-def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_filter_python_dependencies_with_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1196,7 +1279,8 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
@@ -1204,7 +1288,11 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
     ]
 
 
-def test_conda_with_comments(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_conda_with_comments(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1214,7 +1302,8 @@ def test_conda_with_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1231,7 +1320,8 @@ def test_conda_with_comments(tmp_path: Path) -> None:
         assert "- adaptive  # [linux64]" in dependency_line
 
 
-def test_duplicate_names(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_duplicate_names(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1243,7 +1333,8 @@ def test_duplicate_names(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1257,7 +1348,11 @@ def test_duplicate_names(tmp_path: Path) -> None:
     assert python_deps == ["flatbuffers"]
 
 
-def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_conflicts_when_selector_comment(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1268,7 +1363,8 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1298,7 +1394,8 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1328,7 +1425,11 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
         assert "- foo >1 # [win64]" in text
 
 
-def test_platforms_section_in_yaml(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_platforms_section_in_yaml(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1342,7 +1443,8 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1357,7 +1459,11 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
     assert python_deps == ["foo"]
 
 
-def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_platforms_section_in_yaml_similar_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1375,7 +1481,8 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     with pytest.warns(UserWarning, match="Dependency Conflict on"):
         env_spec = create_conda_env_specification(
@@ -1415,7 +1522,11 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
         assert "- linux-aarch64" in text
 
 
-def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_conda_with_non_platform_comment(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1428,7 +1539,8 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1446,7 +1558,11 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
     assert "  - pip:" in lines
 
 
-def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_and_conda_different_name_on_linux64(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     # On linux64, the conda package is called "cuquantum-python" and
     # the pip package is called "cuquantum". We test that not both
@@ -1465,13 +1581,14 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=True)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=True)
     expected = {
         "cuquantum-python": [
             Spec(
                 name="cuquantum-python",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="c292b98a",
             ),
         ],
@@ -1479,7 +1596,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
             Spec(
                 name="cuquantum",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="c292b98a",
             ),
         ],
@@ -1492,7 +1609,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
                 "conda": Spec(
                     name="cuquantum-python",
                     which="conda",
-                    comment="# [linux64]",
+                    selector="linux64",
                     identifier="c292b98a",
                 ),
             },
@@ -1502,7 +1619,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
                 "pip": Spec(
                     name="cuquantum",
                     which="pip",
-                    comment="# [linux64]",
+                    selector="linux64",
                     identifier="c292b98a",
                 ),
             },
@@ -1518,7 +1635,11 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
     assert env_spec.pip == []
 
 
-def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_ignore_pin(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1528,7 +1649,8 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, ignore_pins=["foo"], verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, ignore_pins=["foo"], verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -1545,7 +1667,11 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
     }
 
 
-def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_skip_dependency(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1557,7 +1683,8 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(
         p,
         skip_dependencies=["foo", "bar"],
         verbose=False,
@@ -1578,7 +1705,8 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
     }
 
 
-def test_pin_star_cuda(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pin_star_cuda(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1589,20 +1717,21 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p)
     assert requirements.requirements == {
         "qsimcirq": [
             Spec(
                 name="qsimcirq",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 pin="* cuda*",
                 identifier="c292b98a",
             ),
             Spec(
                 name="qsimcirq",
                 which="conda",
-                comment="# [arm64]",
+                selector="arm64",
                 pin="* cpu*",
                 identifier="489f33e0",
             ),
@@ -1610,7 +1739,11 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
     }
 
 
-def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_overwrite_pins(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1621,7 +1754,8 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
         verbose=False,
@@ -1652,7 +1786,11 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
     }
 
 
-def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_duplicate_names_different_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1664,7 +1802,8 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
         verbose=False,
@@ -1674,13 +1813,13 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             Spec(
                 name="ray",
                 which="pip",
-                comment="# [arm64]",
+                selector="arm64",
                 identifier="1b26c5b2",
             ),
             Spec(
                 name="ray",
                 which="pip",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="dd6a8aaf",
             ),
         ],
@@ -1688,7 +1827,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             Spec(
                 name="ray-core",
                 which="conda",
-                comment="# [linux64]",
+                selector="linux64",
                 identifier="dd6a8aaf",
             ),
         ],
@@ -1714,7 +1853,11 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
     assert env_spec.pip == []
 
 
-def test_with_unused_platform(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_with_unused_platform(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1727,7 +1870,8 @@ def test_with_unused_platform(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=False)
     platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
@@ -1753,7 +1897,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
     with pytest.raises(
         VersionConflictError,
         match="Invalid version pinning '==0.25.2.1' for 'qiskit-terra'",
@@ -1772,7 +1916,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p2, verbose=False)
+    requirements = parse_requirements(p2, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1796,7 +1940,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
@@ -1824,7 +1968,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p2, verbose=False)
+    requirements = parse_requirements(p2, verbose=False)
 
     with pytest.raises(
         VersionConflictError,
@@ -1846,7 +1990,7 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
@@ -1876,7 +2020,7 @@ def test_not_equal(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {

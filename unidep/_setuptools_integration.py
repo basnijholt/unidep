@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unidep._conflicts import resolve_conflicts
-from unidep._yaml_parsing import parse_yaml_requirements
+from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
     build_pep508_environment_marker,
+    dependencies_filename,
     identify_current_platform,
 )
 
@@ -32,7 +33,7 @@ def filter_python_dependencies(
 
     Examples
     --------
-    >>> requirements = parse_yaml_requirements("requirements.yaml")
+    >>> requirements = parse_requirements("requirements.yaml")
     >>> resolved = resolve_conflicts(
     ...     requirements.requirements, requirements.platforms
     ... )
@@ -86,7 +87,7 @@ def get_python_dependencies(
             raise FileNotFoundError(msg)
         return []
 
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -105,18 +106,20 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".
     project_root = Path().resolve()
-    requirements_file = project_root / "requirements.yaml"
+    try:
+        requirements_file = dependencies_filename(project_root)
+    except FileNotFoundError:
+        return
     if requirements_file.exists() and dist.install_requires:
         msg = (
-            "You have a requirements.yaml file in your project root, "
-            "but you are also using setuptools' install_requires. "
-            "Please use one or the other, but not both."
+            "You have a requirements.yaml file in your project root or"
+            " configured unidep in `pyproject.toml` with [tool.unidep],"
+            " but you are also using setuptools' install_requires."
+            " Remove the `install_requires` line from setup.py."
         )
         raise RuntimeError(msg)
-    dist.install_requires = list(
-        get_python_dependencies(
-            requirements_file,
-            platforms=[identify_current_platform()],
-            raises_if_missing=False,
-        ),
+    dist.install_requires = get_python_dependencies(
+        requirements_file,
+        platforms=[identify_current_platform()],
+        raises_if_missing=False,
     )

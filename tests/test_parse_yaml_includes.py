@@ -4,6 +4,7 @@ from __future__ import annotations
 import shutil
 import textwrap
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from ruamel.yaml import YAML
@@ -11,14 +12,37 @@ from ruamel.yaml import YAML
 from unidep import (
     find_requirements_files,
     parse_project_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
     resolve_conflicts,
 )
+from unidep._dependencies_parsing import yaml_to_toml
+
+if TYPE_CHECKING:
+    import sys
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:  # pragma: no cover
+        from typing_extensions import Literal
+
 
 REPO_ROOT = Path(__file__).parent.parent
 
 
-def test_circular_includes(tmp_path: Path) -> None:
+def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
+    if toml_or_yaml == "toml":
+        toml = yaml_to_toml(p)
+        p.unlink()
+        p = p.with_name("pyproject.toml")
+        p.write_text(toml)
+    return p
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_circular_includes(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     project2 = tmp_path / "project2"
@@ -47,7 +71,9 @@ def test_circular_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(r1, r2, verbose=False)
+    r1 = maybe_as_toml(toml_or_yaml, r1)
+    # Only convert r1 to toml, not r2, because we want to test that
+    requirements = parse_requirements(r1, r2, verbose=False)
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
@@ -59,7 +85,11 @@ def test_circular_includes(tmp_path: Path) -> None:
     assert len(resolved["adaptive-scheduler"][None]) == 2
 
 
-def test_parse_project_dependencies(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_project_dependencies(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     project2 = tmp_path / "project2"
@@ -83,6 +113,8 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
+    r2 = maybe_as_toml(toml_or_yaml, r2)
+    # Only convert r2 to toml, not r1, because we want to test that
     local_dependencies = parse_project_dependencies(
         r1,
         r2,
@@ -96,7 +128,8 @@ def test_parse_project_dependencies(tmp_path: Path) -> None:
     assert local_dependencies == expected_dependencies
 
 
-def test_nested_includes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     project1 = tmp_path / "project1"
     project2 = tmp_path / "project2"
     project3 = tmp_path / "project3"
@@ -104,7 +137,11 @@ def test_nested_includes(tmp_path: Path) -> None:
     for project in [project1, project2, project3, project4]:
         project.mkdir(exist_ok=True, parents=True)
 
-    (project1 / "requirements.yaml").write_text(
+    p1 = project1 / "requirements.yaml"
+    p2 = project2 / "requirements.yaml"
+    p3 = project3 / "requirements.yaml"
+    p4 = project4 / "requirements.yaml"
+    p1.write_text(
         textwrap.dedent(
             """\
             includes:
@@ -112,7 +149,7 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    (project2 / "requirements.yaml").write_text(
+    p2.write_text(
         textwrap.dedent(
             """\
             includes:
@@ -120,7 +157,7 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    (project3 / "requirements.yaml").write_text(
+    p3.write_text(
         textwrap.dedent(
             """\
             includes:
@@ -128,7 +165,7 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    (project4 / "requirements.yaml").write_text(
+    p4.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -136,10 +173,14 @@ def test_nested_includes(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+    p2 = maybe_as_toml(toml_or_yaml, p2)
+    p3 = maybe_as_toml(toml_or_yaml, p3)
+    p4 = maybe_as_toml(toml_or_yaml, p4)
     local_dependencies = parse_project_dependencies(
-        project1 / "requirements.yaml",
-        project2 / "requirements.yaml",
-        project3 / "requirements.yaml",
+        p1,
+        p2,
+        p3,
         verbose=False,
         check_pip_installable=False,
     )
@@ -155,7 +196,11 @@ def test_nested_includes(tmp_path: Path) -> None:
     assert local_dependencies == expected_dependencies
 
 
-def test_nonexistent_includes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_nonexistent_includes(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     r1 = project1 / "requirements.yaml"
@@ -167,11 +212,13 @@ def test_nonexistent_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    with pytest.raises(FileNotFoundError, match="Include file"):
+    r1 = maybe_as_toml(toml_or_yaml, r1)
+    with pytest.raises(FileNotFoundError, match="not found."):
         parse_project_dependencies(r1, verbose=False, check_pip_installable=False)
 
 
-def test_no_includes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_no_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     r1 = project1 / "requirements.yaml"
@@ -183,6 +230,7 @@ def test_no_includes(tmp_path: Path) -> None:
             """,
         ),
     )
+    r1 = maybe_as_toml(toml_or_yaml, r1)
     local_dependencies = parse_project_dependencies(
         r1,
         verbose=False,
@@ -191,7 +239,11 @@ def test_no_includes(tmp_path: Path) -> None:
     assert local_dependencies == {}
 
 
-def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_mixed_real_and_placeholder_dependencies(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     r1 = project1 / "requirements.yaml"
@@ -205,6 +257,7 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
             """,
         ),
     )
+    r1 = maybe_as_toml(toml_or_yaml, r1)
     local_dependencies = parse_project_dependencies(
         r1,
         verbose=False,
@@ -213,7 +266,11 @@ def test_mixed_real_and_placeholder_dependencies(tmp_path: Path) -> None:
     assert local_dependencies == {}
 
 
-def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_project_dependencies_pip_installable(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     example_folder = tmp_path / "example"
     shutil.copytree(REPO_ROOT / "example", example_folder)
 
@@ -231,12 +288,14 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
     with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
+    setup_py_project_req = maybe_as_toml(toml_or_yaml, setup_py_project_req)
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 4
+    assert len(found_files) == 6
 
     # Add a common requirements file
     common_requirements = example_folder / "common-requirements.yaml"
-    common_requirements.write_text("includes: [setup_py_project]")
+    common_requirements.write_text("includes: [./setup_py_project]")
+    common_requirements = maybe_as_toml(toml_or_yaml, common_requirements)
     found_files.append(common_requirements)
 
     local_dependencies = parse_project_dependencies(
@@ -253,10 +312,15 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
         example_folder / "setuptools_project": [
             example_folder / "hatch_project",
         ],
+        example_folder / "pyproject_toml_project": [
+            example_folder / "hatch_project",
+        ],
     }
 
 
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_parse_project_dependencies_pip_installable_with_non_installable_project(
+    toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
     example_folder = tmp_path / "example"
@@ -265,7 +329,9 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     # Add an extra project
     extra_project = example_folder / "project4"
     extra_project.mkdir(exist_ok=True, parents=True)
-    (extra_project / "requirements.yaml").write_text("includes: [../setup_py_project]")
+    r_extra = extra_project / "requirements.yaml"
+    r_extra.write_text("includes: [../setup_py_project]")
+    r_extra = maybe_as_toml(toml_or_yaml, r_extra)
 
     # Add a line to hatch_project includes which should
     # make hatch_project depend on setup_py_project, via project4! However, project4 is
@@ -279,7 +345,7 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 4
+    assert len(found_files) == 6
 
     local_dependencies = parse_project_dependencies(
         *found_files,
@@ -294,6 +360,11 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
         ],
         example_folder / "setup_py_project": [
             example_folder / "hatch_project",
+            example_folder / "setuptools_project",
+        ],
+        example_folder / "pyproject_toml_project": [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
             example_folder / "setuptools_project",
         ],
         example_folder / "setuptools_project": [
