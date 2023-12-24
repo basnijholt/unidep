@@ -8,9 +8,9 @@ import sys
 from typing import NamedTuple
 
 if sys.version_info >= (3, 8):
-    from typing import Literal
+    from typing import Literal, get_args
 else:  # pragma: no cover
-    from typing_extensions import Literal
+    from typing_extensions import Literal, get_args
 
 CondaPlatform = Literal["unix", "linux", "osx", "win"]
 Platform = Literal[
@@ -94,9 +94,9 @@ class Spec(NamedTuple):
         if self.comment is not None:
             return extract_matching_platforms(self.comment) or None
         assert self.selector is not None
-        if self.selector not in PLATFORM_SELECTOR_MAP_REVERSE:
-            options = sorted(PLATFORM_SELECTOR_MAP_REVERSE.keys())
-            msg = f"Invalid selector: {self.selector}, use one of {options}"
+        valid_selectors = get_args(Selector)
+        if self.selector not in valid_selectors:
+            msg = f"Invalid selector: {self.selector}, use one of {valid_selectors}"
             raise ValueError(msg)
         return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
 
