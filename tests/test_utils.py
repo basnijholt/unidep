@@ -174,6 +174,11 @@ def test_parse_package_str_with_selector() -> None:
     for sel in get_args(Selector):
         assert parse_package_str(f"numpy:{sel}") == ("numpy", None, sel)
 
+    # Test with multiple selectors
+    assert parse_package_str("numpy:linux64 win64") == ("numpy", None, "linux64 win64")
+    with pytest.raises(ValueError, match="Invalid selector: `unknown`"):
+        assert parse_package_str("numpy:linux64 unknown")
+
 
 def test_extract_matching_platforms() -> None:
     # Test with a line having a linux selector

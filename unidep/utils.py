@@ -134,8 +134,8 @@ class ParsedPackageStr(NamedTuple):
 
     name: str
     pin: str | None = None
-    # Only populated when parsing a package_str like "numpy >=1.18.1:linux64".
-    selector: Selector | None = None
+    # can be of type `Selector` but also space separated string of `Selector`s
+    selector: str | None = None
 
 
 def parse_package_str(package_str: str) -> ParsedPackageStr:
@@ -143,17 +143,18 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
     # Regex to match package name, version pinning, and optionally platform selector
     name_pattern = r"[a-zA-Z0-9_-]+"
     version_pin_pattern = r".*?"
-    selector_pattern = r"[a-zA-Z0-9]+"
+    selector_pattern = r"[a-zA-Z0-9\s]+"
     pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
     match = re.match(pattern, package_str)
 
     if match:
         package_name = match.group(1).strip()
         version_pin = match.group(2).strip() if match.group(2) else None
-        selector = cast(Selector, match.group(4).strip()) if match.group(4) else None
+        selector = match.group(4).strip() if match.group(4) else None
 
         if selector is not None:
-            validate_selector(selector)
+            for s in selector.split():
+                validate_selector(cast(Selector, s))
 
         return ParsedPackageStr(
             package_name,
