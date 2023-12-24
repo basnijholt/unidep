@@ -222,7 +222,11 @@ def test_generate_conda_env_stdout(
     assert "- pandas" in captured.out
 
 
-def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_create_conda_env_specification_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -236,6 +240,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p)
     resolved = resolve_conflicts(
         requirements.requirements,
@@ -1619,7 +1624,11 @@ def test_pip_and_conda_different_name_on_linux64(
     assert env_spec.pip == []
 
 
-def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_ignore_pin(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1629,6 +1638,7 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, ignore_pins=["foo"], verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -1646,7 +1656,11 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
     }
 
 
-def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_skip_dependency(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1658,6 +1672,7 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(
         p,
         skip_dependencies=["foo", "bar"],
@@ -1679,7 +1694,8 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
     }
 
 
-def test_pin_star_cuda(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pin_star_cuda(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1690,6 +1706,7 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p)
     assert requirements.requirements == {
         "qsimcirq": [
@@ -1711,7 +1728,11 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
     }
 
 
-def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_with_overwrite_pins(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1722,6 +1743,7 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
@@ -1753,7 +1775,11 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
     }
 
 
-def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_duplicate_names_different_platforms(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -1765,6 +1791,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
