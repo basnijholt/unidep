@@ -335,8 +335,8 @@ def yaml_to_toml(yaml_path: Path) -> str:
     yaml = YAML(typ="rt")
     data = _load(yaml_path, yaml)
     data.pop("name", None)
-    dependencies = data["dependencies"]
-    for i, dep in enumerate(data["dependencies"]):
+    dependencies = data.get("dependencies", [])
+    for i, dep in enumerate(dependencies):
         if isinstance(dep, str):
             comment = _extract_first_comment(dependencies, i)
             if comment is not None:

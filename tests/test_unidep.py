@@ -42,8 +42,11 @@ def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
     return p
 
 
-@pytest.fixture()
-def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
+@pytest.fixture(params=["toml", "yaml"])
+def setup_test_files(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+) -> tuple[Path, Path]:
     d1 = tmp_path / "dir1"
     d1.mkdir()
     f1 = d1 / "requirements.yaml"
@@ -53,7 +56,8 @@ def setup_test_files(tmp_path: Path) -> tuple[Path, Path]:
     d2.mkdir()
     f2 = d2 / "requirements.yaml"
     f2.write_text("dependencies:\n  - pip: pandas")
-
+    f1 = maybe_as_toml(request.param, f1)
+    f2 = maybe_as_toml(request.param, f2)
     return (f1, f2)
 
 
