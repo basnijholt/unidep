@@ -13,7 +13,7 @@ from unidep._version import __version__
 from unidep._yaml_parsing import (
     find_requirements_files,
     parse_project_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
 )
 
 __all__ = [
@@ -22,7 +22,7 @@ __all__ = [
     "find_requirements_files",
     "get_python_dependencies",
     "parse_project_dependencies",
-    "parse_yaml_requirements",
+    "parse_requirements",
     "resolve_conflicts",
     "write_conda_environment_file",
     "__version__",

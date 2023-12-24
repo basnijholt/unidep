@@ -12,7 +12,7 @@ from unidep import (
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
     resolve_conflicts,
     write_conda_environment_file,
 )
@@ -93,7 +93,7 @@ def test_parse_requirements(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -157,7 +157,7 @@ def test_generate_conda_env_file(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     output_file = tmp_path / "environment.yaml"
-    requirements = parse_yaml_requirements(*setup_test_files, verbose=verbose)
+    requirements = parse_requirements(*setup_test_files, verbose=verbose)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -181,7 +181,7 @@ def test_generate_conda_env_stdout(
     setup_test_files: tuple[Path, Path],
     capsys: pytest.CaptureFixture,
 ) -> None:
-    requirements = parse_yaml_requirements(*setup_test_files)
+    requirements = parse_requirements(*setup_test_files)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -212,7 +212,7 @@ def test_create_conda_env_specification_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p)
+    requirements = parse_requirements(p)
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
@@ -280,7 +280,7 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Scanning in" in captured.out
     assert str(tmp_path / "dir3") in captured.out
 
-    parse_yaml_requirements(f, verbose=True)
+    parse_requirements(f, verbose=True)
     captured = capsys.readouterr()
     assert "Parsing" in captured.out
     assert str(f) in captured.out
@@ -312,7 +312,7 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
 def test_channels(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.channels == ["conda-forge", "defaults"]
 
 
@@ -338,7 +338,7 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "yolo": [
             Spec(
@@ -426,7 +426,7 @@ def test_filter_pip_and_conda(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "package1": [
             Spec(
@@ -703,7 +703,7 @@ def test_duplicates_with_version(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -807,7 +807,7 @@ def test_duplicates_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -929,7 +929,7 @@ def test_expand_none_with_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -1084,7 +1084,7 @@ def test_different_pins_on_conda_and_pip(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -1145,7 +1145,7 @@ def test_pip_pinned_conda_not(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1171,7 +1171,7 @@ def test_conda_pinned_pip_not(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1196,7 +1196,7 @@ def test_filter_python_dependencies_with_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
     python_deps = filter_python_dependencies(resolved)
     assert python_deps == [
@@ -1214,7 +1214,7 @@ def test_conda_with_comments(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1243,7 +1243,7 @@ def test_duplicate_names(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1268,7 +1268,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1298,7 +1298,7 @@ def test_conflicts_when_selector_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1342,7 +1342,7 @@ def test_platforms_section_in_yaml(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1375,7 +1375,7 @@ def test_platforms_section_in_yaml_similar_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     with pytest.warns(UserWarning, match="Dependency Conflict on"):
         env_spec = create_conda_env_specification(
@@ -1428,7 +1428,7 @@ def test_conda_with_non_platform_comment(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1465,7 +1465,7 @@ def test_pip_and_conda_different_name_on_linux64(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=True)
+    requirements = parse_requirements(p, verbose=True)
     expected = {
         "cuquantum-python": [
             Spec(
@@ -1528,7 +1528,7 @@ def test_parse_requirements_with_ignore_pin(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, ignore_pins=["foo"], verbose=False)
+    requirements = parse_requirements(p, ignore_pins=["foo"], verbose=False)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -1557,7 +1557,7 @@ def test_parse_requirements_with_skip_dependency(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         skip_dependencies=["foo", "bar"],
         verbose=False,
@@ -1589,7 +1589,7 @@ def test_pin_star_cuda(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p)
+    requirements = parse_requirements(p)
     assert requirements.requirements == {
         "qsimcirq": [
             Spec(
@@ -1621,7 +1621,7 @@ def test_parse_requirements_with_overwrite_pins(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
         verbose=False,
@@ -1664,7 +1664,7 @@ def test_duplicate_names_different_platforms(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
         verbose=False,
@@ -1727,7 +1727,7 @@ def test_with_unused_platform(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
     platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
@@ -1753,7 +1753,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
     with pytest.raises(
         VersionConflictError,
         match="Invalid version pinning '==0.25.2.1' for 'qiskit-terra'",
@@ -1772,7 +1772,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p2, verbose=False)
+    requirements = parse_requirements(p2, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
         resolved,
@@ -1796,7 +1796,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
@@ -1824,7 +1824,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p2, verbose=False)
+    requirements = parse_requirements(p2, verbose=False)
 
     with pytest.raises(
         VersionConflictError,
@@ -1846,7 +1846,7 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
@@ -1876,7 +1876,7 @@ def test_not_equal(tmp_path: Path) -> None:
         ),
     )
 
-    requirements = parse_yaml_requirements(p1, verbose=False)
+    requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {

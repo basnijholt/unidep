@@ -172,14 +172,14 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
         return yaml.load(f)
 
 
-def parse_yaml_requirements(  # noqa: PLR0912
+def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> ParsedRequirements:
-    """Parse a list of `requirements.yaml` files including comments."""
+    """Parse a list of `requirements.yaml` or `pyproject.toml` files."""
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
@@ -248,6 +248,10 @@ def parse_yaml_requirements(  # noqa: PLR0912
                         requirements[spec.name].append(spec)
 
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
+
+
+# Alias for backwards compatibility
+parse_yaml_requirements = parse_requirements
 
 
 def _extract_project_dependencies(

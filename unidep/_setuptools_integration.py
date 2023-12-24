@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unidep._conflicts import resolve_conflicts
-from unidep._yaml_parsing import parse_yaml_requirements
+from unidep._yaml_parsing import parse_requirements
 from unidep.utils import (
     build_pep508_environment_marker,
     identify_current_platform,
@@ -32,7 +32,7 @@ def filter_python_dependencies(
 
     Examples
     --------
-    >>> requirements = parse_yaml_requirements("requirements.yaml")
+    >>> requirements = parse_requirements("requirements.yaml")
     >>> resolved = resolve_conflicts(
     ...     requirements.requirements, requirements.platforms
     ... )
@@ -86,7 +86,7 @@ def get_python_dependencies(
             raise FileNotFoundError(msg)
         return []
 
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,

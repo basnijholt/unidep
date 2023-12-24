@@ -146,7 +146,7 @@ def resolve_conflicts(
     """Resolve conflicts in a dictionary of requirements.
 
     Uses the ``ParsedRequirements.requirements`` dict returned by
-    `parse_yaml_requirements`.
+    `parse_requirements`.
     """
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
