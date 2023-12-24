@@ -4,4 +4,5 @@ channels:
 dependencies:
   - adaptive-scheduler  # [linux64]
   - pip: unidep
+  - numpy >=1.22
   - hpc05  # [linux64]
