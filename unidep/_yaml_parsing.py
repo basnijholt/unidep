@@ -200,8 +200,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
                 continue  # Avoids circular includes
             if verbose:
                 print(f"📄 Parsing include `{include}`")
-            with include_path.open() as f:
-                datas.append(yaml.load(f))
+            datas.append(_load(include_path, yaml))
             seen.add(include_path)
 
     identifier = -1
@@ -261,8 +260,7 @@ def _extract_project_dependencies(
         return
     processed.add(path)
     yaml = YAML(typ="safe")
-    with path.open() as f:
-        data = yaml.load(f)
+    data = _load(path, yaml)
     for include in data.get("includes", []):
         include_path = _include_path(path.parent / include)
         if not include_path.exists():
