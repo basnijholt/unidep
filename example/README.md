@@ -8,12 +8,16 @@
 > - `unidep merge` to merge all `requirements.yaml` files into a single `environment.yaml` file
 > - `unidep pip-compile` to generate a locked `requirements.txt` file
 
-Check the installable Python packages in this directory for examples of how to use `unidep` with different project types:
+Explore these example projects to understand how `unidep` integrates with different build tools and configurations:
 
-- [`setup_py_project`](setup_py_project): for a `setup.py` integration example with a `requirements.yaml` file
-- [`setuptools_project`](setuptools_project): for a `pyproject.toml` with Setuptools example with a `requirements.yaml` file
-- [`pyproject_toml_project`](pyproject_toml_project): for a `pyproject.toml` with Setuptools example where all dependencies are also specified in `pyproject.toml`
-- [`hatch_project`](hatch_project): for Hatchling project example with a `requirements.yaml` file
+| Project                                            | Build Tool   | `pyproject.toml` | `requirements.yaml` | Description                                                                        |
+| -------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| [`setup_py_project`](setup_py_project)             | `setuptools` | ✅                | ✅                   | Traditional `setuptools` project with `requirements.yaml`.                         |
+| [`setuptools_project`](setuptools_project)         | `setuptools` | ✅                | ✅                   | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
+| [`pyproject_toml_project`](pyproject_toml_project) | `setuptools` | ✅                | ❌                   | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
+| [`hatch_project`](hatch_project)                   | `hatch`      | ✅                | ✅                   | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
+
+✅
 
 ## Exploring `unidep` Through Practical Examples
 
