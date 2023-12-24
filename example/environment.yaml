@@ -6,8 +6,8 @@ name: myenv
 channels:
   - conda-forge
 dependencies:
-  - sel(linux): adaptive-scheduler
-  - sel(linux): hpc05
+  - adaptive-scheduler
+  - hpc05
   - pandas
   - adaptive >=1.0.0, <2.0.0
   - pfapack
