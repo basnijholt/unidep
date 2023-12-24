@@ -172,7 +172,10 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
         if not HAS_TOML:  # pragma: no cover
             msg = (
                 "❌ No toml support found in your Python installation."
-                " Please install it with `pip install tomli`."
+                " If you are using unidep from `pyproject.toml` and this"
+                " error occurs during installation, make sure you add"
+                '\n\n[build-system]\nrequires = [..., "unidep[toml]"]\n\n'
+                " Otherwise, please install it with `pip install tomli`."
             )
             raise ImportError(msg)
         with p.open("rb") as f:
