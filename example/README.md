@@ -24,14 +24,14 @@ Explore these example projects to understand how `unidep` integrates with differ
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
-- [Using `pip install`](#using-pip-install)
-- [Using `unidep install`](#using-unidep-install)
+- [Combine one or multiple `requirements.yaml`/`pyproject.toml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
+- [Using `pip install`](#using-pip-install-with-a-requirementsyaml-file)
+- [Using `unidep install`](#using-unidep-install-with-a-requirementsyaml-file)
 - [Using `unidep install-all` for installation across multiple projects](#using-unidep-install-all-for-installation-across-multiple-projects)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-### Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file
+### Combine one or multiple `requirements.yaml`/`pyproject.toml` files into a single `environment.yaml` file
 
 Combine `requirements.yaml` files in subdirectories and into an `environment.yaml` file that can be installed with `conda`.
 
