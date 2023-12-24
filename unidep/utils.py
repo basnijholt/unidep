@@ -242,7 +242,7 @@ def unidep_configured_in_toml(path: Path) -> bool:
     # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002
     # pyproject.toml directly e.g., it contains:
     # `tool = {unidep = {dependencies = ...}}`
-    return any(
+    return any(  # pragma: no cover
         line.lstrip().startswith("[tool.unidep")
         for line in path.read_text().splitlines()
     )

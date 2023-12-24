@@ -862,15 +862,13 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
-        pip_dependencies = list(
-            get_python_dependencies(
-                args.file,
-                platforms=[args.platform],
-                verbose=args.verbose,
-                ignore_pins=args.ignore_pin,
-                skip_dependencies=args.skip_dependency,
-                overwrite_pins=args.overwrite_pin,
-            ),
+        pip_dependencies = get_python_dependencies(
+            args.file,
+            platforms=[args.platform],
+            verbose=args.verbose,
+            ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover

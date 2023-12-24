@@ -14,7 +14,6 @@ from unidep.utils import (
     build_pep508_environment_marker,
     dependencies_filename,
     identify_current_platform,
-    unidep_configured_in_toml,
 )
 
 if TYPE_CHECKING:
@@ -83,14 +82,10 @@ def get_python_dependencies(
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
-        p_toml = p.parent / "pyproject.toml"
-        if p_toml.exists() and unidep_configured_in_toml(p_toml):
-            p = p_toml
-        elif raises_if_missing:
+        if raises_if_missing:
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
-        else:
-            return []
+        return []
 
     requirements = parse_requirements(
         p,
@@ -111,7 +106,10 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     # PEP 517 says that "All hooks are run with working directory set to the
     # root of the source tree".
     project_root = Path().resolve()
-    requirements_file = dependencies_filename(project_root)
+    try:
+        requirements_file = dependencies_filename(project_root)
+    except FileNotFoundError:
+        return
     if requirements_file.exists() and dist.install_requires:
         msg = (
             "You have a requirements.yaml file in your project root or"
@@ -120,10 +118,8 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
             " Remove the `install_requires` line from setup.py."
         )
         raise RuntimeError(msg)
-    dist.install_requires = list(
-        get_python_dependencies(
-            requirements_file,
-            platforms=[identify_current_platform()],
-            raises_if_missing=False,
-        ),
+    dist.install_requires = get_python_dependencies(
+        requirements_file,
+        platforms=[identify_current_platform()],
+        raises_if_missing=False,
     )
