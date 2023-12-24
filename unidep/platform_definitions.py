@@ -73,7 +73,7 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
         PLATFORM_SELECTOR_MAP_REVERSE.setdefault(_selector, set()).add(_platform)
 
 
-def check_valid_selector(selector: Selector) -> None:
+def validate_selector(selector: Selector) -> None:
     """Check if a selector is valid."""
     valid_selectors = get_args(Selector)
     if selector not in get_args(Selector):
@@ -102,7 +102,7 @@ class Spec(NamedTuple):
         if self.comment is not None:
             return extract_matching_platforms(self.comment) or None
         assert self.selector is not None
-        check_valid_selector(self.selector)
+        validate_selector(self.selector)
         return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
 
     def pprint(self) -> str:

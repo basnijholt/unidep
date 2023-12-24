@@ -18,13 +18,8 @@ from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP_REVERSE,
     Platform,
     Selector,
-    check_valid_selector,
+    validate_selector,
 )
-
-if sys.version_info >= (3, 8):
-    pass
-else:  # pragma: no cover
-    pass
 
 
 def add_comment_to_file(
@@ -157,7 +152,7 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
         selector = cast(Selector, match.group(4).strip()) if match.group(4) else None
 
         if selector is not None:
-            check_valid_selector(selector)
+            validate_selector(selector)
 
         return ParsedPackageStr(
             package_name,
