@@ -7,7 +7,7 @@
 >  2. `pip install [dependencies from requirements.yaml]` – Installs pip-specific dependencies.
 >  3. `pip install .` – Installs the local package.
 
-For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process `requirements.yaml`.
+For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured fully in `pyproject.toml` including all its dependencies.
 
 **Example Configuration for Hatch**:
 
