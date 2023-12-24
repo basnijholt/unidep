@@ -26,6 +26,7 @@ yaml = ["ruamel.yaml"] # might become an optional dependency in the future
 toml = ["tomli; python_version < '3.11'"]
 test = [
     "tomli; python_version < '3.11'",
+    "tomli_w",
     "pytest",
     "pre-commit",
     "coverage",
