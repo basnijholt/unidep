@@ -132,7 +132,8 @@ includes = [
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
 In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `pyproject.toml` file is `:linux64` at the end of the package name.
 
-> [!IMPORTANT] In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
+> [!IMPORTANT]
+> In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
 > Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`.
 
 ### Key Points
