@@ -18,12 +18,13 @@ from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP_REVERSE,
     Platform,
     Selector,
+    check_valid_selector,
 )
 
 if sys.version_info >= (3, 8):
-    from typing import get_args
+    pass
 else:  # pragma: no cover
-    from typing_extensions import get_args
+    pass
 
 
 def add_comment_to_file(
@@ -155,10 +156,8 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
         version_pin = match.group(2).strip() if match.group(2) else None
         selector = cast(Selector, match.group(4).strip()) if match.group(4) else None
 
-        valid_selectors = get_args(Selector)
-        if selector is not None and selector not in valid_selectors:
-            msg = f"Invalid selector: {selector}, use one of {valid_selectors}"
-            raise ValueError(msg)
+        if selector is not None:
+            check_valid_selector(selector)
 
         return ParsedPackageStr(
             package_name,
