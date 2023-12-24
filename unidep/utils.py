@@ -16,6 +16,7 @@ from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
     PLATFORM_SELECTOR_MAP_REVERSE,
+    VALID_SELECTORS,
     Platform,
     Selector,
     validate_selector,
@@ -195,16 +196,24 @@ def warn(
         warnings.formatwarning = original_format
 
 
+def selector_from_comment(comment: str) -> str | None:
+    """Extract a valid selector from a comment."""
+    sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
+    m = sel_pat.search(comment)
+    if m:
+        selector = m.group(1).strip()
+        if selector in VALID_SELECTORS:
+            return selector
+    return None
+
+
 def extract_matching_platforms(comment: str) -> list[Platform]:
     """Filter out lines from a requirements file that don't match the platform."""
     # we support a very limited set of selectors that adhere to platform only
     # refs:
     # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
-
-    sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
     multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
-
     filtered_platforms = set()
 
     for line in comment.splitlines(keepends=False):
@@ -212,9 +221,9 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
             msg = f"Multiple bracketed selectors found in line: '{line}'"
             raise ValueError(msg)
 
-        m = sel_pat.search(line)
-        if m:
-            conds = m.group(1).split()
+        selector = selector_from_comment(line)
+        if selector:
+            conds = selector.split()
             for cond in conds:
                 if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
                     valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())

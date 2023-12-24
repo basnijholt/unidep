@@ -26,6 +26,7 @@ from unidep.utils import (
     extract_matching_platforms,
     is_pip_installable,
     parse_package_str,
+    selector_from_comment,
 )
 
 try:
@@ -314,3 +315,37 @@ def parse_project_dependencies(
         Path(k): sorted({Path(v) for v in v_set})
         for k, v_set in sorted(dependencies.items())
     }
+
+
+def yaml_to_toml(yaml_path: Path) -> str:
+    """Converts a `requirements.yaml` file TOML format."""
+    try:
+        import tomli_w
+    except ImportError:
+        msg = (
+            "❌ `tomli_w` is required to convert YAML to TOML."
+            " Install it with `pip install tomli_w`."
+        )
+        raise ImportError(msg) from None
+    yaml = YAML(typ="rt")
+    data = _load(yaml_path, yaml)
+    data.pop("name", None)
+    dependencies = data["dependencies"]
+    for i, dep in enumerate(data["dependencies"]):
+        if isinstance(dep, str):
+            comment = _extract_first_comment(dependencies, i)
+            if comment is not None:
+                selector = selector_from_comment(comment)
+                if selector is not None:
+                    dependencies[i] = f"{dep}:{selector}"
+            continue
+        assert isinstance(dep, dict)
+        for which in ["conda", "pip"]:
+            if which in dep:
+                comment = _extract_first_comment(dep, which)
+                if comment is not None:
+                    selector = selector_from_comment(comment)
+                    if selector is not None:
+                        dep[which] = f"{dep[which]}:{selector}"
+
+    return tomli_w.dumps({"tools": {"unidep": data}})

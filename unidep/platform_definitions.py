@@ -36,6 +36,8 @@ Selector = Literal[
 ]
 CondaPip = Literal["conda", "pip"]
 
+VALID_SELECTORS = get_args(Selector)
+
 PEP508_MARKERS = {
     "linux-64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "linux-aarch64": "sys_platform == 'linux' and platform_machine == 'aarch64'",
@@ -75,8 +77,8 @@ for _platform, _selectors in PLATFORM_SELECTOR_MAP.items():
 
 def validate_selector(selector: Selector) -> None:
     """Check if a selector is valid."""
-    valid_selectors = get_args(Selector)
-    if selector not in get_args(Selector):
+    valid_selectors = VALID_SELECTORS
+    if selector not in VALID_SELECTORS:
         msg = f"Invalid selector: `{selector}`, use one of `{valid_selectors}`"
         raise ValueError(msg)
 
