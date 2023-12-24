@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec
 
@@ -71,9 +71,7 @@ def _extract_first_comment(
     commented_map: CommentedMap,
     index_or_key: int | str,
 ) -> str | None:
-    if not isinstance(commented_map, CommentedMap):
-        # Means we are reading from a TOML
-        return None
+    """Extract the first comment from a CommentedMap."""
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
@@ -105,13 +103,17 @@ def _parse_dependency(
     skip_dependencies: list[str],
 ) -> list[Spec]:
     name, pin, selector = parse_package_str(dependency)
-    comment = _extract_first_comment(dependencies, index_or_key)
     if name in ignore_pins:
         pin = None
     if name in skip_dependencies:
         return []
     if name in overwrite_pins:
         pin = overwrite_pins[name]
+    comment = (
+        _extract_first_comment(dependencies, index_or_key)
+        if isinstance(dependencies, (CommentedMap, CommentedSeq))
+        else None
+    )
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [

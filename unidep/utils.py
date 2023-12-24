@@ -142,7 +142,7 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
     # Regex to match package name, version pinning, and optionally platform selector
     name_pattern = r"[a-zA-Z0-9_-]+"
     version_pin_pattern = r".*?"
-    selector_pattern = r"[a-zA-Z0-9_-]+"
+    selector_pattern = r"[a-zA-Z0-9]+"
     pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
     match = re.match(pattern, package_str)
 

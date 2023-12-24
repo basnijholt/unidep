@@ -1,6 +1,7 @@
 """Tests for the unidep.utils module."""
 from __future__ import annotations
 
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -8,12 +9,18 @@ import pytest
 from unidep._setuptools_integration import (
     identify_current_platform,
 )
+from unidep.platform_definitions import Selector
 from unidep.utils import (
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
     parse_package_str,
 )
+
+if sys.version_info >= (3, 8):
+    from typing import get_args
+else:  # pragma: no cover
+    from typing_extensions import get_args
 
 
 def test_escape_unicode() -> None:
@@ -163,6 +170,9 @@ def test_parse_package_str_with_selector() -> None:
     url = "https://github.com/python-adaptive/adaptive.git@main"
     pin = f"@ git+{url}"
     assert parse_package_str(f"adaptive {pin}:win") == ("adaptive", pin, "win")
+
+    for sel in get_args(Selector):
+        assert parse_package_str(f"numpy:{sel}") == ("numpy", None, sel)
 
 
 def test_extract_matching_platforms() -> None:
