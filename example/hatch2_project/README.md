@@ -13,7 +13,7 @@ For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be confi
 
 ```toml
 [build-system]
-requires = ["hatchling", "unidep[toml]"]  # add "unidep" here
+requires = ["hatchling", "unidep[toml]"]  # add "unidep[toml]" here
 build-backend = "hatchling.build"
 
 [project]

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "unidep[toml] @ file://localhost/Users/basnijholt/Code/unidep"]
+requires = ["hatchling", "unidep[toml]"]
 build-backend = "hatchling.build"
 
 [project]

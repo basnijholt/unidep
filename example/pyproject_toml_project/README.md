@@ -16,7 +16,7 @@ Add this to `pyproject.toml`:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "unidep[toml]"]  # add "unidep" here
+requires = ["setuptools", "unidep[toml]"]  # add "unidep[toml]" here
 
 [project]
 dynamic = ["dependencies"]  # add "dependencies" here
