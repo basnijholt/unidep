@@ -24,22 +24,23 @@ Homepage = "https://github.com/basnijholt/unidep"
 yaml = ["ruamel.yaml"]
 toml = ["tomli; python_version <= '3.11'"]
 test = [
+    "ruamel.yaml",
+    "tomli; python_version <= '3.11'",
     "pytest",
     "pre-commit",
     "coverage",
     "pytest-cov",
     "pytest-mock",
     "conda-package-handling",
-    "ruamel.yaml",
-    "tomli; python_version <= '3.11'",
 ]
-conda-lock = ["conda-lock", "conda-package-handling", "ruamel.yaml"]
-pip-compile = ["pip-tools", "ruamel.yaml"]
-pytest = ["pytest", "GitPython", "ruamel.yaml"] # The pytest plugin
-rich = ["rich-argparse"]
+conda-lock = ["ruamel.yaml", "conda-lock", "conda-package-handling"]
+pip-compile = ["ruamel.yaml", "pip-tools"]
+pytest = ["ruamel.yaml", "pytest", "GitPython"] # The pytest plugin
+rich = ["ruamel.yaml", "rich-argparse"]
 # Everything except testing
 all = [
     "ruamel.yaml",
+    "tomli; python_version <= '3.11'",
     "conda-lock",
     "conda-package-handling",
     "pytest",
