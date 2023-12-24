@@ -176,7 +176,7 @@ def test_parse_package_str_with_selector() -> None:
 
     # Test with multiple selectors
     assert parse_package_str("numpy:linux64 win64") == ("numpy", None, "linux64 win64")
-    with pytest.raises(ValueError, match="Invalid selector: `unknown`"):
+    with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
 
 
@@ -233,5 +233,5 @@ def test_extract_matching_platforms() -> None:
         extract_matching_platforms(content_multi)
 
     incorrect_platform = "dependency8  # [unknown-platform]"
-    with pytest.raises(ValueError, match="Unsupported platform"):
+    with pytest.raises(ValueError, match="Invalid platform selector"):
         extract_matching_platforms(incorrect_platform)

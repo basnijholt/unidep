@@ -79,7 +79,7 @@ def validate_selector(selector: Selector) -> None:
     """Check if a selector is valid."""
     valid_selectors = VALID_SELECTORS
     if selector not in VALID_SELECTORS:
-        msg = f"Invalid selector: `{selector}`, use one of `{valid_selectors}`"
+        msg = f"Invalid platform selector: `{selector}`, use one of `{valid_selectors}`"
         raise ValueError(msg)
 
 

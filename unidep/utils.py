@@ -15,7 +15,6 @@ from typing import NamedTuple, cast
 from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
-    VALID_SELECTORS,
     Platform,
     Selector,
     platforms_from_selector,
@@ -209,12 +208,8 @@ def selector_from_comment(comment: str) -> str | None:
     if not m:
         return None
     selectors = m.group(1).strip().split()
-    valid = [s in VALID_SELECTORS for s in selectors]
-    if not all(valid):
-        msg = (
-            f"Unsupported platform specifier: '{comment}' use one of {VALID_SELECTORS}"
-        )
-        raise ValueError(msg)
+    for s in selectors:
+        validate_selector(cast(Selector, s))
     return " ".join(selectors)
 
 
