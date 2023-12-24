@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unidep._conflicts import resolve_conflicts
-from unidep._yaml_parsing import parse_requirements
+from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
     build_pep508_environment_marker,
     identify_current_platform,

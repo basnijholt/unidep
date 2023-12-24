@@ -19,7 +19,7 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
-from unidep._yaml_parsing import yaml_to_toml
+from unidep._dependencies_parsing import yaml_to_toml
 from unidep.platform_definitions import Platform, Spec
 
 if TYPE_CHECKING:
