@@ -33,9 +33,9 @@ from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     escape_unicode,
-    extract_name_and_pin,
     identify_current_platform,
     is_pip_installable,
+    parse_package_str,
     warn,
 )
 
@@ -523,10 +523,10 @@ def _identify_conda_executable() -> str:  # pragma: no cover
 
 
 def _format_inline_conda_package(package: str) -> str:
-    name, pin = extract_name_and_pin(package)
-    if pin is None:
-        return name
-    return f'{name}"{pin.strip()}"'
+    pkg = parse_package_str(package)
+    if pkg.pin is None:
+        return pkg.name
+    return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
 def _pip_install_local(
