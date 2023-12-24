@@ -338,9 +338,11 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     )
 
 
-def test_channels(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_channels(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
+    p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.channels == ["conda-forge", "defaults"]
 
