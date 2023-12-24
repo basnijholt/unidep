@@ -1,4 +1,4 @@
-# Setuptools `pyproject.toml` integration example
+# Hatchling Integration
 
 > [!TIP]
 > - **Standard Installation**: In this example folder, use `pip install .` to install all Python dependencies that are pip-installable, along with the local package itself.
@@ -7,22 +7,24 @@
 >  2. `pip install [dependencies from requirements.yaml]` – Installs pip-specific dependencies.
 >  3. `pip install .` – Installs the local package.
 
-For projects using `setuptools` with only a `pyproject.toml` file, configure `unidep` in `pyproject.toml` alongside a `requirements.yaml` file.
+For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process `requirements.yaml`.
 
-**Example Configuration for projects using `pyproject.toml`**:
-
-Add this to `pyproject.toml`:
+**Example Configuration for Hatch**:
 
 ```toml
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools", "unidep[yaml]"]  # add "unidep" here
+requires = ["hatchling", "unidep"]  # add "unidep" here
+build-backend = "hatchling.build"
 
 [project]
 dynamic = ["dependencies"]  # add "dependencies" here
+# Additional project configurations
+
+[tool.hatch]
+# Additional Hatch configurations
+
+[tool.hatch.metadata.hooks.unidep]  # add this to enable the hook
 ```
 
-Then, of course, add a `requirements.yaml` and you are good to go! 🎉
-
 > [!NOTE]
-> See the [`pyproject.toml`](pyproject.toml) for a working example.
+> See the [`pyproject.toml`](pyproject.toml) a working example.

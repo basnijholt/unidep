@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "unidep[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyproject_toml_project"
+description = "Example pyproject_toml_project for `unidep`."
+authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
+# `dependencies` is not needed because it is automatically
+# populated by `unidep` with the dependencies defined in the [tool.unidep] section!
+# dependencies = []
+version = "0.1.0"
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+py-modules = ["pyproject_toml_project"]
+
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "adaptive",
+    "pfapack:linux64",
+    "pipefunc",
+    { pip = "markdown-code-runner" },
+    { pip = "home-assistant-streamdeck-yaml" },
+]
+includes = [
+    "../hatch_project",
+]

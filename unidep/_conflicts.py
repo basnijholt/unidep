@@ -90,7 +90,6 @@ def _maybe_new_spec_with_combined_pinnings(
         return Spec(
             name=first.name,
             which=first.which,
-            comment=None,
             pin=pin,
             identifier=first.identifier,  # should I create a new one?
         )
@@ -146,7 +145,7 @@ def resolve_conflicts(
     """Resolve conflicts in a dictionary of requirements.
 
     Uses the ``ParsedRequirements.requirements`` dict returned by
-    `parse_yaml_requirements`.
+    `parse_requirements`.
     """
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"

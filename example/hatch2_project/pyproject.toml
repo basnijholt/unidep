@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hatch2_project"
+description = "Example hatch2_project for `unidep`."
+authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
+# `dependencies` is not needed because it is automatically
+# populated by `unidep` with the dependencies defined in the [tool.unidep] section!
+# dependencies = []
+dynamic = ["dependencies"]
+version = "0.1.0"
+
+[tool.hatch]
+
+[tool.hatch.metadata.hooks.unidep]
+
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "adaptive-scheduler:linux64",
+    { pip = "unidep" },
+    "hpc05:linux64",
+]
