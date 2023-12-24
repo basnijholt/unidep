@@ -133,6 +133,38 @@ def test_parse_package_str() -> None:
         parse_package_str(">=1.20.0 numpy")
 
 
+def test_parse_package_str_with_selector() -> None:
+    # Test with version pin
+    assert parse_package_str("numpy >=1.20.0:linux64") == (
+        "numpy",
+        ">=1.20.0",
+        "linux64",
+    )
+    assert parse_package_str("pandas<2.0,>=1.1.3:osx") == (
+        "pandas",
+        "<2.0,>=1.1.3",
+        "osx",
+    )
+
+    # Test with multiple version conditions
+    assert parse_package_str("scipy>=1.2.3, <1.3:win") == (
+        "scipy",
+        ">=1.2.3, <1.3",
+        "win",
+    )
+
+    # Test with no version pin
+    assert parse_package_str("matplotlib:win") == ("matplotlib", None, "win")
+
+    # Test with whitespace variations
+    assert parse_package_str("requests >= 2.25:win") == ("requests", ">= 2.25", "win")
+
+    # Test when installing from a URL
+    url = "https://github.com/python-adaptive/adaptive.git@main"
+    pin = f"@ git+{url}"
+    assert parse_package_str(f"adaptive {pin}:win") == ("adaptive", pin, "win")
+
+
 def test_extract_matching_platforms() -> None:
     # Test with a line having a linux selector
     content_linux = "dependency1  # [linux]"

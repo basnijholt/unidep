@@ -137,17 +137,20 @@ class ParsedPackageStr(NamedTuple):
 
 
 def parse_package_str(package_str: str) -> ParsedPackageStr:
-    """Splits a string into package name and version pinning."""
-    # Regular expression to match package name and version pinning
-    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
+    """Splits a string into package name, version pinning, and platform selector."""
+    # Regular expression to match package name, version pinning, and
+    # optional platform selector
+    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*?)?(:([a-zA-Z0-9_-]+))?$", package_str)
     if match:
         package_name = match.group(1).strip()
-        version_pin = match.group(2).strip()
+        version_pin = match.group(2).strip() if match.group(2) else None
+        selector = cast(Selector, match.group(4).strip()) if match.group(4) else None
 
-        # Return None if version pinning is missing or empty
-        if not version_pin:
-            return ParsedPackageStr(package_name, None)
-        return ParsedPackageStr(package_name, version_pin)
+        return ParsedPackageStr(
+            package_name,
+            version_pin,
+            selector,
+        )
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
