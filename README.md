@@ -129,8 +129,8 @@ includes = [
 ]
 ```
 
-This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the platform selectors.
-In the `requirements.yaml` file, one can use e.g., `# [linux64]` which in the `pyproject.toml` file is `:linux64` at the end of the package name.
+This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
+In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `pyproject.toml` file is `:linux64` at the end of the package name.
 
 
 ### Key Points
