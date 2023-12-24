@@ -21,6 +21,15 @@ from unidep.platform_definitions import (
     validate_selector,
 )
 
+try:  # pragma: no cover
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:  # pragma: no cover
+    HAS_TOML = False
+
 
 def add_comment_to_file(
     filename: str | Path,
@@ -219,3 +228,21 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
     if selector is None:
         return []
     return platforms_from_selector(selector)
+
+
+def unidep_configured_in_toml(path: Path) -> bool:
+    """Check if dependencies are specified in pyproject.toml.
+
+    If a TOML parser is not available it finds `[tool.unidep]` in `pyproject.toml`.
+    """
+    if HAS_TOML:
+        with path.open("rb") as f:
+            data = tomllib.load(f)
+        return bool(data.get("tool", {}).get("unidep", {}))
+    # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002
+    # pyproject.toml directly e.g., it contains:
+    # `tool = {unidep = {dependencies = ...}}`
+    return any(
+        line.lstrip().startswith("[tool.unidep")
+        for line in path.read_text().splitlines()
+    )

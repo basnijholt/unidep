@@ -15,6 +15,12 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
+from unidep.utils import (
+    is_pip_installable,
+    parse_package_str,
+    selector_from_comment,
+    unidep_configured_in_toml,
+)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -22,11 +28,6 @@ if TYPE_CHECKING:
     else:  # pragma: no cover
         from typing_extensions import Literal
 
-from unidep.utils import (
-    is_pip_installable,
-    parse_package_str,
-    selector_from_comment,
-)
 
 try:  # pragma: no cover
     if sys.version_info >= (3, 11):
@@ -62,13 +63,7 @@ def find_requirements_files(
                 found_files.append(child)
                 if verbose:
                     print(f"🔍 Found `{filename_yaml}` at `{child}`")
-            elif child.name == "pyproject.toml" and any(
-                line.lstrip().startswith("[tool.unidep")
-                for line in child.read_text().splitlines()
-                # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002, E501
-                # pyproject.toml directly e.g., it contains:
-                # `tool = {unidep = {dependencies = ...}}`
-            ):
+            elif child.name == "pyproject.toml" and unidep_configured_in_toml(child):
                 found_files.append(child)
 
     _scan_dir(base_path, 0)
