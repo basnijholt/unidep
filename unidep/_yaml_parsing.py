@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from unidep.platform_definitions import Platform, Spec
+from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
@@ -23,7 +23,6 @@ if TYPE_CHECKING:
         from typing_extensions import Literal
 
 from unidep.utils import (
-    extract_matching_platforms,
     is_pip_installable,
     parse_package_str,
     selector_from_comment,
@@ -85,9 +84,9 @@ def _extract_first_comment(
     return "".join(comment_strings)
 
 
-def _identifier(identifier: int, comment: str | None) -> str:
+def _identifier(identifier: int, selector: str | None) -> str:
     """Return a unique identifier based on the comment."""
-    platforms = None if comment is None else tuple(extract_matching_platforms(comment))
+    platforms = None if selector is None else tuple(platforms_from_selector(selector))
     data_str = f"{identifier}-{platforms}"
     # Hash using SHA256 and take the first 8 characters for a shorter hash
     return hashlib.sha256(data_str.encode()).hexdigest()[:8]
@@ -115,7 +114,7 @@ def _parse_dependency(
         if isinstance(dependencies, (CommentedMap, CommentedSeq))
         else None
     )
-    if comment:
+    if comment and selector is None:
         selector = selector_from_comment(comment)
     identifier_hash = _identifier(identifier, selector)
     if which == "both":

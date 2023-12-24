@@ -392,9 +392,9 @@ def test_surrounding_comments(toml_or_yaml: str, tmp_path: Path) -> None:
             Spec(
                 name="baz",
                 which="conda",
-                identifier="fce1baee",
+                identifier="9e467fa1",
             ),
-            Spec(name="baz", which="pip", identifier="fce1baee"),
+            Spec(name="baz", which="pip", identifier="9e467fa1"),
         ],
         "pip-package": [
             Spec(
