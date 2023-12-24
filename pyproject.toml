@@ -8,9 +8,9 @@ description = "Unified Conda and Pip requirements management."
 dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = [
+    "packaging",
     "ruamel.yaml",
     "typing_extensions; python_version < '3.8'",
-    "packaging",
 ]
 requires-python = ">=3.7"
 
@@ -22,7 +22,10 @@ content-type = "text/markdown"
 Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
+yaml = ["ruamel.yaml"] # might become an optional dependency in the future
+toml = ["tomli; python_version <= '3.11'"]
 test = [
+    "tomli; python_version <= '3.11'",
     "pytest",
     "pre-commit",
     "coverage",
@@ -36,6 +39,7 @@ pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
 # Everything except testing
 all = [
+    "tomli; python_version <= '3.11'",
     "conda-lock",
     "conda-package-handling",
     "pytest",

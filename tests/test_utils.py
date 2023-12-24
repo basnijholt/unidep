@@ -12,7 +12,7 @@ from unidep.utils import (
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
-    extract_name_and_pin,
+    parse_package_str,
 )
 
 
@@ -109,28 +109,60 @@ def test_detect_platform() -> None:
         identify_current_platform()
 
 
-def test_extract_name_and_pin() -> None:
+def test_parse_package_str() -> None:
     # Test with version pin
-    assert extract_name_and_pin("numpy >=1.20.0") == ("numpy", ">=1.20.0")
-    assert extract_name_and_pin("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3")
+    assert parse_package_str("numpy >=1.20.0") == ("numpy", ">=1.20.0", None)
+    assert parse_package_str("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3", None)
 
     # Test with multiple version conditions
-    assert extract_name_and_pin("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3")
+    assert parse_package_str("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3", None)
 
     # Test with no version pin
-    assert extract_name_and_pin("matplotlib") == ("matplotlib", None)
+    assert parse_package_str("matplotlib") == ("matplotlib", None, None)
 
     # Test with whitespace variations
-    assert extract_name_and_pin("requests >= 2.25") == ("requests", ">= 2.25")
+    assert parse_package_str("requests >= 2.25") == ("requests", ">= 2.25", None)
 
     # Test when installing from a URL
     url = "https://github.com/python-adaptive/adaptive.git@main"
     pin = f"@ git+{url}"
-    assert extract_name_and_pin(f"adaptive {pin}") == ("adaptive", pin)
+    assert parse_package_str(f"adaptive {pin}") == ("adaptive", pin, None)
 
     # Test with invalid input
     with pytest.raises(ValueError, match="Invalid package string"):
-        extract_name_and_pin(">=1.20.0 numpy")
+        parse_package_str(">=1.20.0 numpy")
+
+
+def test_parse_package_str_with_selector() -> None:
+    # Test with version pin
+    assert parse_package_str("numpy >=1.20.0:linux64") == (
+        "numpy",
+        ">=1.20.0",
+        "linux64",
+    )
+    assert parse_package_str("pandas<2.0,>=1.1.3:osx") == (
+        "pandas",
+        "<2.0,>=1.1.3",
+        "osx",
+    )
+
+    # Test with multiple version conditions
+    assert parse_package_str("scipy>=1.2.3, <1.3:win") == (
+        "scipy",
+        ">=1.2.3, <1.3",
+        "win",
+    )
+
+    # Test with no version pin
+    assert parse_package_str("matplotlib:win") == ("matplotlib", None, "win")
+
+    # Test with whitespace variations
+    assert parse_package_str("requests >= 2.25:win") == ("requests", ">= 2.25", "win")
+
+    # Test when installing from a URL
+    url = "https://github.com/python-adaptive/adaptive.git@main"
+    pin = f"@ git+{url}"
+    assert parse_package_str(f"adaptive {pin}:win") == ("adaptive", pin, "win")
 
 
 def test_extract_matching_platforms() -> None:
