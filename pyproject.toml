@@ -23,9 +23,9 @@ Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
 yaml = ["ruamel.yaml"] # might become an optional dependency in the future
-toml = ["tomli; python_version <= '3.11'"]
+toml = ["tomli; python_version < '3.11'"]
 test = [
-    "tomli; python_version <= '3.11'",
+    "tomli; python_version < '3.11'",
     "pytest",
     "pre-commit",
     "coverage",
@@ -39,7 +39,7 @@ pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
 # Everything except testing
 all = [
-    "tomli; python_version <= '3.11'",
+    "tomli; python_version < '3.11'",
     "conda-lock",
     "conda-package-handling",
     "pytest",

@@ -6,19 +6,17 @@ This module provides YAML parsing for `requirements.yaml` files.
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 from unidep.platform_definitions import Platform, Spec
 
 if TYPE_CHECKING:
-    import sys
-
-    from ruamel.yaml.comments import CommentedMap
-
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:  # pragma: no cover
@@ -29,6 +27,15 @@ from unidep.utils import (
     is_pip_installable,
     parse_package_str,
 )
+
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:
+    HAS_TOML = False
 
 
 def find_requirements_files(
@@ -64,6 +71,9 @@ def _extract_first_comment(
     commented_map: CommentedMap,
     index_or_key: int | str,
 ) -> str | None:
+    if not isinstance(commented_map, CommentedMap):
+        # Means we are reading from a TOML
+        return None
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
@@ -145,6 +155,20 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     return result
 
 
+def _load(p: Path, yaml: YAML) -> dict[str, Any]:
+    if p.suffix == ".toml":
+        if not HAS_TOML:
+            msg = (
+                "❌ No toml support found in your Python installation."
+                " Please install it with `pip install tomli`."
+            )
+            raise ImportError(msg)
+        with p.open("rb") as f:
+            return tomllib.load(f)["tool"]["unidep"]
+    with p.open() as f:
+        return yaml.load(f)
+
+
 def parse_yaml_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
@@ -165,8 +189,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
-        with p.open() as f:
-            data = yaml.load(f)
+        data = _load(p, yaml)
         datas.append(data)
         seen.add(p.resolve())
 
