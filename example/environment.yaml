@@ -10,7 +10,7 @@ dependencies:
   - sel(linux): hpc05
   - pandas
   - adaptive >=1.0.0, <2.0.0
-  - pfapack
+  - sel(linux): pfapack
   - pipefunc
   - pip:
     - unidep
