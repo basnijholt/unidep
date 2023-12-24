@@ -16,7 +16,7 @@ Add this to `pyproject.toml`:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "unidep[yaml]"]
+requires = ["setuptools", "unidep"]
 ```
 
 And just do not use `install_requires` in `setup.py`.

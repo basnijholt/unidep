@@ -228,7 +228,7 @@ For projects using `setuptools`, configure `unidep` in `pyproject.toml` alongsid
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "unidep[yaml]"]
+requires = ["setuptools", "unidep"]
 
 [project]
 dynamic = ["dependencies"]
