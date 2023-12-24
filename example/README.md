@@ -50,12 +50,14 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 ```bash
 🔍 Scanning in `.` at depth 0
 🔍 Scanning in `pyproject_toml_project` at depth 1
+🔍 Scanning in `hatch2_project` at depth 1
 🔍 Scanning in `setup_py_project` at depth 1
 🔍 Found `requirements.yaml` at `setup_py_project/requirements.yaml`
 🔍 Scanning in `setuptools_project` at depth 1
 🔍 Found `requirements.yaml` at `setuptools_project/requirements.yaml`
 🔍 Scanning in `hatch_project` at depth 1
 🔍 Found `requirements.yaml` at `hatch_project/requirements.yaml`
+📄 Parsing `hatch2_project/pyproject.toml`
 📄 Parsing `hatch_project/requirements.yaml`
 📄 Parsing `pyproject_toml_project/pyproject.toml`
 📄 Parsing `setup_py_project/requirements.yaml`
@@ -63,7 +65,7 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 📄 Parsing `setuptools_project/requirements.yaml`
 📝 Generating environment file at `environment.yaml`
 📝 Environment file generated successfully.
-✅ Generated environment file at `environment.yaml` from `hatch_project/requirements.yaml`, `pyproject_toml_project/pyproject.toml`, `setup_py_project/requirements.yaml`, `setuptools_project/requirements.yaml`
+✅ Generated environment file at `environment.yaml` from `hatch2_project/pyproject.toml`, `hatch_project/requirements.yaml`, `pyproject_toml_project/pyproject.toml`, `setup_py_project/requirements.yaml`, `setuptools_project/requirements.yaml`
 ```
 
 <!-- OUTPUT:END -->
@@ -154,7 +156,7 @@ $ unidep install-all -e --dry-run
 
 📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install --no-dependencies -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install --no-dependencies -e ./hatch2_project -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
 
 ```
 
