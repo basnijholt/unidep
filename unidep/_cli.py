@@ -27,15 +27,15 @@ from unidep._version import __version__
 from unidep._yaml_parsing import (
     find_requirements_files,
     parse_project_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
 )
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     escape_unicode,
-    extract_name_and_pin,
     identify_current_platform,
     is_pip_installable,
+    parse_package_str,
     warn,
 )
 
@@ -523,10 +523,10 @@ def _identify_conda_executable() -> str:  # pragma: no cover
 
 
 def _format_inline_conda_package(package: str) -> str:
-    name, pin = extract_name_and_pin(package)
-    if pin is None:
-        return name
-    return f'{name}"{pin.strip()}"'
+    pkg = parse_package_str(package)
+    if pkg.pin is None:
+        return pkg.name
+    return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
 def _pip_install_local(
@@ -577,7 +577,7 @@ def _install_command(  # noqa: PLR0912
         skip_pip = True
         skip_conda = True
     files = tuple(_to_requirements_file(f) for f in files)
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         *files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -726,7 +726,7 @@ def _merge_command(
     if not found_files:
         print(f"❌ No `requirements.yaml` files found in {directory}")
         sys.exit(1)
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -779,7 +779,7 @@ def _pip_compile_command(
         verbose=verbose,
     )
 
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
@@ -877,7 +877,7 @@ def main() -> None:
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
-        requirements = parse_yaml_requirements(
+        requirements = parse_requirements(
             args.file,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,

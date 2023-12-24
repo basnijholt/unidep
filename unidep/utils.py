@@ -10,14 +10,15 @@ import re
 import sys
 import warnings
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
-    PLATFORM_SELECTOR_MAP_REVERSE,
     Platform,
     Selector,
+    platforms_from_selector,
+    validate_selector,
 )
 
 
@@ -127,18 +128,38 @@ def build_pep508_environment_marker(
     return " or ".join(environment_markers)
 
 
-def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
-    """Splits a string into package name and version pinning."""
-    # Regular expression to match package name and version pinning
-    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
+class ParsedPackageStr(NamedTuple):
+    """A package name and version pinning."""
+
+    name: str
+    pin: str | None = None
+    # can be of type `Selector` but also space separated string of `Selector`s
+    selector: str | None = None
+
+
+def parse_package_str(package_str: str) -> ParsedPackageStr:
+    """Splits a string into package name, version pinning, and platform selector."""
+    # Regex to match package name, version pinning, and optionally platform selector
+    name_pattern = r"[a-zA-Z0-9_-]+"
+    version_pin_pattern = r".*?"
+    selector_pattern = r"[a-zA-Z0-9\s]+"
+    pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
+    match = re.match(pattern, package_str)
+
     if match:
         package_name = match.group(1).strip()
-        version_pin = match.group(2).strip()
+        version_pin = match.group(2).strip() if match.group(2) else None
+        selector = match.group(4).strip() if match.group(4) else None
 
-        # Return None if version pinning is missing or empty
-        if not version_pin:
-            return package_name, None
-        return package_name, version_pin
+        if selector is not None:
+            for s in selector.split():
+                validate_selector(cast(Selector, s))
+
+        return ParsedPackageStr(
+            package_name,
+            version_pin,
+            selector,
+        )
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
@@ -175,33 +196,26 @@ def warn(
         warnings.formatwarning = original_format
 
 
-def extract_matching_platforms(comment: str) -> list[Platform]:
-    """Filter out lines from a requirements file that don't match the platform."""
-    # we support a very limited set of selectors that adhere to platform only
-    # refs:
-    # https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html#preprocessing-selectors
-    # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
+def selector_from_comment(comment: str) -> str | None:
+    """Extract a valid selector from a comment."""
+    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+    if multiple_brackets_pat.search(comment):
+        msg = f"Multiple bracketed selectors found in comment: '{comment}'"
+        raise ValueError(msg)
 
     sel_pat = re.compile(r"#\s*\[([^\[\]]+)\]")
-    multiple_brackets_pat = re.compile(r"#.*\].*\[")  # Detects multiple brackets
+    m = sel_pat.search(comment)
+    if not m:
+        return None
+    selectors = m.group(1).strip().split()
+    for s in selectors:
+        validate_selector(cast(Selector, s))
+    return " ".join(selectors)
 
-    filtered_platforms = set()
 
-    for line in comment.splitlines(keepends=False):
-        if multiple_brackets_pat.search(line):
-            msg = f"Multiple bracketed selectors found in line: '{line}'"
-            raise ValueError(msg)
-
-        m = sel_pat.search(line)
-        if m:
-            conds = m.group(1).split()
-            for cond in conds:
-                if cond not in PLATFORM_SELECTOR_MAP_REVERSE:
-                    valid = list(PLATFORM_SELECTOR_MAP_REVERSE.keys())
-                    msg = f"Unsupported platform specifier: '{comment}' use one of {valid}"  # noqa: E501
-                    raise ValueError(msg)
-                cond = cast(Selector, cond)
-                for _platform in PLATFORM_SELECTOR_MAP_REVERSE[cond]:
-                    filtered_platforms.add(_platform)
-
-    return sorted(filtered_platforms)
+def extract_matching_platforms(comment: str) -> list[Platform]:
+    """Get all platforms matching a comment."""
+    selector = selector_from_comment(comment)
+    if selector is None:
+        return []
+    return platforms_from_selector(selector)

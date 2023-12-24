@@ -11,7 +11,7 @@ from ruamel.yaml import YAML
 from unidep import (
     find_requirements_files,
     parse_project_dependencies,
-    parse_yaml_requirements,
+    parse_requirements,
     resolve_conflicts,
 )
 
@@ -47,7 +47,7 @@ def test_circular_includes(tmp_path: Path) -> None:
             """,
         ),
     )
-    requirements = parse_yaml_requirements(r1, r2, verbose=False)
+    requirements = parse_requirements(r1, r2, verbose=False)
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
