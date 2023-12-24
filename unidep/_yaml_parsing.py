@@ -169,7 +169,7 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
 
 def _load(p: Path, yaml: YAML) -> dict[str, Any]:
     if p.suffix == ".toml":
-        if not HAS_TOML:
+        if not HAS_TOML:  # pragma: no cover
             msg = (
                 "❌ No toml support found in your Python installation."
                 " Please install it with `pip install tomli`."
@@ -334,7 +334,7 @@ def yaml_to_toml(yaml_path: Path) -> str:
     """Converts a `requirements.yaml` file TOML format."""
     try:
         import tomli_w
-    except ImportError:
+    except ImportError:  # pragma: no cover
         msg = (
             "❌ `tomli_w` is required to convert YAML to TOML."
             " Install it with `pip install tomli_w`."
