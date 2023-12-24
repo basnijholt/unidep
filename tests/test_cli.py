@@ -19,7 +19,7 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
         conda_executable="",
         dry_run=True,
         editable=False,
-        verbose=False,
+        verbose=True,
     )
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
