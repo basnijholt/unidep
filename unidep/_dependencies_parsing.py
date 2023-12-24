@@ -146,20 +146,6 @@ class Requirements(NamedTuple):
     pip: list[str]  # actually a CommentedSeq[str]
 
 
-def _include_path(include: str) -> Path:
-    """Return the path to an included file."""
-    path = Path(include)
-    if path.is_dir():
-        fname_yaml = path / "requirements.yaml"
-        fname_toml = path / "pyproject.toml"
-        if fname_yaml.exists():
-            path = fname_yaml
-        elif fname_toml.exists() and unidep_configured_in_toml(fname_toml):
-            path = fname_toml
-
-    return path.resolve()
-
-
 def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     """Parse overwrite pins."""
     result = {}

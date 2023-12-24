@@ -253,12 +253,15 @@ def dependencies_filename(folder_or_path: str | Path) -> Path:
     path = Path(folder_or_path)
     if path.is_dir():
         fname_yaml = path / "requirements.yaml"
-        fname_toml = path / "pyproject.toml"
         if fname_yaml.exists():
             return fname_yaml
+        fname_toml = path / "pyproject.toml"
         if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
             return fname_toml
-        msg = f"File {fname_yaml} or {fname_toml} not found."
+        msg = (
+            f"File {fname_yaml} or {fname_toml} (with unidep configuration)"
+            f" not found in {folder_or_path}."
+        )
         raise FileNotFoundError(msg)
     if not path.exists():
         msg = f"File {path} not found."
