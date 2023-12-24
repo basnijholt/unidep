@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep._yaml_parsing import find_requirements_files, parse_yaml_requirements
+from unidep._dependencies_parsing import find_requirements_files, parse_requirements
 from unidep.utils import add_comment_to_file, remove_top_comments, warn
 
 if TYPE_CHECKING:
@@ -287,7 +287,7 @@ def _conda_lock_subpackage(
     platforms: list[Platform],
     yaml: YAML | None,  # Passing this to preserve order!
 ) -> Path:
-    requirements = parse_yaml_requirements(file)
+    requirements = parse_requirements(file)
     locked: list[dict[str, Any]] = []
     locked_keys: set[tuple[CondaPip, Platform, str]] = set()
     missing_keys: set[tuple[CondaPip, Platform, str]] = set()

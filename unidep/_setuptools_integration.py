@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from unidep._conflicts import resolve_conflicts
-from unidep._yaml_parsing import parse_yaml_requirements
+from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
     build_pep508_environment_marker,
     identify_current_platform,
+    unidep_configured_in_toml,
 )
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ def filter_python_dependencies(
 
     Examples
     --------
-    >>> requirements = parse_yaml_requirements("requirements.yaml")
+    >>> requirements = parse_requirements("requirements.yaml")
     >>> resolved = resolve_conflicts(
     ...     requirements.requirements, requirements.platforms
     ... )
@@ -81,12 +82,16 @@ def get_python_dependencies(
     """Extract Python (pip) requirements from requirements.yaml file."""
     p = Path(filename)
     if not p.exists():
-        if raises_if_missing:
+        p_toml = p.parent / "pyproject.toml"
+        if p_toml.exists() and unidep_configured_in_toml(p_toml):
+            p = p_toml
+        elif raises_if_missing:
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
-        return []
+        else:
+            return []
 
-    requirements = parse_yaml_requirements(
+    requirements = parse_requirements(
         p,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,

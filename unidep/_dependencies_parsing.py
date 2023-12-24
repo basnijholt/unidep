@@ -6,39 +6,47 @@ This module provides YAML parsing for `requirements.yaml` files.
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from unidep.platform_definitions import Platform, Spec
+from unidep.platform_definitions import Platform, Spec, platforms_from_selector
+from unidep.utils import (
+    is_pip_installable,
+    parse_package_str,
+    selector_from_comment,
+    unidep_configured_in_toml,
+)
 
 if TYPE_CHECKING:
-    import sys
-
-    from ruamel.yaml.comments import CommentedMap
-
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:  # pragma: no cover
         from typing_extensions import Literal
 
-from unidep.utils import (
-    extract_matching_platforms,
-    extract_name_and_pin,
-    is_pip_installable,
-)
+
+try:  # pragma: no cover
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:  # pragma: no cover
+    HAS_TOML = False
 
 
 def find_requirements_files(
     base_dir: str | Path = ".",
     depth: int = 1,
-    filename: str = "requirements.yaml",
     *,
     verbose: bool = False,
 ) -> list[Path]:
     """Scan a directory for requirements.yaml files."""
+    filename_yaml = "requirements.yaml"
     base_path = Path(base_dir)
     found_files = []
 
@@ -51,10 +59,12 @@ def find_requirements_files(
         for child in path.iterdir():
             if child.is_dir():
                 _scan_dir(child, current_depth + 1)
-            elif child.name == filename:
+            elif child.name == filename_yaml:
                 found_files.append(child)
                 if verbose:
-                    print(f"🔍 Found `{filename}` at `{child}`")
+                    print(f"🔍 Found `{filename_yaml}` at `{child}`")
+            elif child.name == "pyproject.toml" and unidep_configured_in_toml(child):
+                found_files.append(child)
 
     _scan_dir(base_path, 0)
     return sorted(found_files)
@@ -64,6 +74,7 @@ def _extract_first_comment(
     commented_map: CommentedMap,
     index_or_key: int | str,
 ) -> str | None:
+    """Extract the first comment from a CommentedMap."""
     comments = commented_map.ca.items.get(index_or_key, None)
     if comments is None:
         return None
@@ -76,9 +87,9 @@ def _extract_first_comment(
     return "".join(comment_strings)
 
 
-def _identifier(identifier: int, comment: str | None) -> str:
+def _identifier(identifier: int, selector: str | None) -> str:
     """Return a unique identifier based on the comment."""
-    platforms = None if comment is None else tuple(extract_matching_platforms(comment))
+    platforms = None if selector is None else tuple(platforms_from_selector(selector))
     data_str = f"{identifier}-{platforms}"
     # Hash using SHA256 and take the first 8 characters for a shorter hash
     return hashlib.sha256(data_str.encode()).hexdigest()[:8]
@@ -94,21 +105,27 @@ def _parse_dependency(
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
 ) -> list[Spec]:
-    comment = _extract_first_comment(dependencies, index_or_key)
-    name, pin = extract_name_and_pin(dependency)
+    name, pin, selector = parse_package_str(dependency)
     if name in ignore_pins:
         pin = None
     if name in skip_dependencies:
         return []
     if name in overwrite_pins:
         pin = overwrite_pins[name]
-    identifier_hash = _identifier(identifier, comment)
+    comment = (
+        _extract_first_comment(dependencies, index_or_key)
+        if isinstance(dependencies, (CommentedMap, CommentedSeq))
+        else None
+    )
+    if comment and selector is None:
+        selector = selector_from_comment(comment)
+    identifier_hash = _identifier(identifier, selector)
     if which == "both":
         return [
-            Spec(name, "conda", comment, pin, identifier_hash),
-            Spec(name, "pip", comment, pin, identifier_hash),
+            Spec(name, "conda", pin, identifier_hash, selector),
+            Spec(name, "pip", pin, identifier_hash, selector),
         ]
-    return [Spec(name, which, comment, pin, identifier_hash)]
+    return [Spec(name, which, pin, identifier_hash, selector)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -140,19 +157,36 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     """Parse overwrite pins."""
     result = {}
     for overwrite_pin in overwrite_pins:
-        name, pin = extract_name_and_pin(overwrite_pin)
-        result[name] = pin
+        pkg = parse_package_str(overwrite_pin)
+        result[pkg.name] = pkg.pin
     return result
 
 
-def parse_yaml_requirements(  # noqa: PLR0912
+def _load(p: Path, yaml: YAML) -> dict[str, Any]:
+    if p.suffix == ".toml":
+        if not HAS_TOML:  # pragma: no cover
+            msg = (
+                "❌ No toml support found in your Python installation."
+                " If you are using unidep from `pyproject.toml` and this"
+                " error occurs during installation, make sure you add"
+                '\n\n[build-system]\nrequires = [..., "unidep[toml]"]\n\n'
+                " Otherwise, please install it with `pip install tomli`."
+            )
+            raise ImportError(msg)
+        with p.open("rb") as f:
+            return tomllib.load(f)["tool"]["unidep"]
+    with p.open() as f:
+        return yaml.load(f)
+
+
+def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> ParsedRequirements:
-    """Parse a list of `requirements.yaml` files including comments."""
+    """Parse a list of `requirements.yaml` or `pyproject.toml` files."""
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
@@ -165,21 +199,20 @@ def parse_yaml_requirements(  # noqa: PLR0912
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
-        with p.open() as f:
-            data = yaml.load(f)
+        data = _load(p, yaml)
         datas.append(data)
         seen.add(p.resolve())
 
-        # Deal with includes
+        # Handle includes
         for include in data.get("includes", []):
             include_path = _include_path(p.parent / include)
             if include_path in seen:
                 continue  # Avoids circular includes
             if verbose:
                 print(f"📄 Parsing include `{include}`")
-            with include_path.open() as f:
-                datas.append(yaml.load(f))
+            datas.append(_load(include_path, yaml))
             seen.add(include_path)
+
     identifier = -1
     for data in datas:
         for channel in data.get("channels", []):
@@ -224,6 +257,10 @@ def parse_yaml_requirements(  # noqa: PLR0912
     return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
 
 
+# Alias for backwards compatibility
+parse_yaml_requirements = parse_requirements
+
+
 def _extract_project_dependencies(
     path: Path,
     base_path: Path,
@@ -237,8 +274,7 @@ def _extract_project_dependencies(
         return
     processed.add(path)
     yaml = YAML(typ="safe")
-    with path.open() as f:
-        data = yaml.load(f)
+    data = _load(path, yaml)
     for include in data.get("includes", []):
         include_path = _include_path(path.parent / include)
         if not include_path.exists():
@@ -290,3 +326,37 @@ def parse_project_dependencies(
         Path(k): sorted({Path(v) for v in v_set})
         for k, v_set in sorted(dependencies.items())
     }
+
+
+def yaml_to_toml(yaml_path: Path) -> str:
+    """Converts a `requirements.yaml` file TOML format."""
+    try:
+        import tomli_w
+    except ImportError:  # pragma: no cover
+        msg = (
+            "❌ `tomli_w` is required to convert YAML to TOML."
+            " Install it with `pip install tomli_w`."
+        )
+        raise ImportError(msg) from None
+    yaml = YAML(typ="rt")
+    data = _load(yaml_path, yaml)
+    data.pop("name", None)
+    dependencies = data.get("dependencies", [])
+    for i, dep in enumerate(dependencies):
+        if isinstance(dep, str):
+            comment = _extract_first_comment(dependencies, i)
+            if comment is not None:
+                selector = selector_from_comment(comment)
+                if selector is not None:
+                    dependencies[i] = f"{dep}:{selector}"
+            continue
+        assert isinstance(dep, dict)
+        for which in ["conda", "pip"]:
+            if which in dep:
+                comment = _extract_first_comment(dep, which)
+                if comment is not None:
+                    selector = selector_from_comment(comment)
+                    if selector is not None:
+                        dep[which] = f"{dep[which]}:{selector}"
+
+    return tomli_w.dumps({"tool": {"unidep": data}})

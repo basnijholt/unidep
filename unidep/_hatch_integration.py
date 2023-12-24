@@ -10,7 +10,7 @@ from hatchling.metadata.plugin.interface import MetadataHookInterface
 from hatchling.plugin import hookimpl
 
 from unidep._setuptools_integration import get_python_dependencies
-from unidep.utils import identify_current_platform
+from unidep.utils import identify_current_platform, unidep_configured_in_toml
 
 __all__ = ["UnidepRequirementsMetadataHook"]
 
@@ -24,9 +24,12 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
         """Update the project table's metadata."""
         project_root = Path().resolve()
         requirements_file = project_root / "requirements.yaml"
+        pyproject_toml = project_root / "pyproject.toml"
         if "dependencies" not in metadata.get("dynamic", []):
             return
-        if not requirements_file.exists():
+        if not requirements_file.exists() and not unidep_configured_in_toml(
+            pyproject_toml,
+        ):
             return
         if "dependencies" in metadata:
             error_msg = (
