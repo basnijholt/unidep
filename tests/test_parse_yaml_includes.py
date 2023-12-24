@@ -232,11 +232,11 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 4
+    assert len(found_files) == 5
 
     # Add a common requirements file
     common_requirements = example_folder / "common-requirements.yaml"
-    common_requirements.write_text("includes: [setup_py_project]")
+    common_requirements.write_text("includes: [./setup_py_project]")
     found_files.append(common_requirements)
 
     local_dependencies = parse_project_dependencies(
@@ -251,6 +251,9 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
             example_folder / "setuptools_project",
         ],
         example_folder / "setuptools_project": [
+            example_folder / "hatch_project",
+        ],
+        example_folder / "pyproject_toml_project": [
             example_folder / "hatch_project",
         ],
     }
@@ -279,7 +282,7 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 4
+    assert len(found_files) == 5
 
     local_dependencies = parse_project_dependencies(
         *found_files,
@@ -294,6 +297,11 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
         ],
         example_folder / "setup_py_project": [
             example_folder / "hatch_project",
+            example_folder / "setuptools_project",
+        ],
+        example_folder / "pyproject_toml_project": [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
             example_folder / "setuptools_project",
         ],
         example_folder / "setuptools_project": [
