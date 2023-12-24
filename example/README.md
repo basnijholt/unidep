@@ -16,7 +16,7 @@ Explore these example projects to understand how `unidep` integrates with differ
 | [`setuptools_project`](setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
 | [`pyproject_toml_project`](pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
 | [`hatch_project`](hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
-| [`hatch2_project`](hatch_project)                  | `hatch`      | ✅                | ❌                   | ❌          | Pure `pyproject.toml` Hatchling project.                                           |
+| [`hatch2_project`](hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          | Pure `pyproject.toml` Hatchling project.                                           |
 
 ✅
 
