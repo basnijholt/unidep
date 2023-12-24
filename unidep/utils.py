@@ -138,9 +138,13 @@ class ParsedPackageStr(NamedTuple):
 
 def parse_package_str(package_str: str) -> ParsedPackageStr:
     """Splits a string into package name, version pinning, and platform selector."""
-    # Regular expression to match package name, version pinning, and
-    # optional platform selector
-    match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*?)?(:([a-zA-Z0-9_-]+))?$", package_str)
+    # Regex to match package name, version pinning, and optionally platform selector
+    name_pattern = r"[a-zA-Z0-9_-]+"
+    version_pin_pattern = r".*?"
+    selector_pattern = r"[a-zA-Z0-9_-]+"
+    pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
+    match = re.match(pattern, package_str)
+
     if match:
         package_name = match.group(1).strip()
         version_pin = match.group(2).strip() if match.group(2) else None
