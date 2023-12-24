@@ -25,8 +25,8 @@ Explore these example projects to understand how `unidep` integrates with differ
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Combine one or multiple `requirements.yaml` files into a single `environment.yaml` file](#combine-one-or-multiple-requirementsyaml-files-into-a-single-environmentyaml-file)
-- [Using `pip install` with a `requirements.yaml` file](#using-pip-install-with-a-requirementsyaml-file)
-- [Using `unidep install` with a `requirements.yaml` file](#using-unidep-install-with-a-requirementsyaml-file)
+- [Using `pip install`](#using-pip-install-with-a-requirementsyaml-file)
+- [Using `unidep install`](#using-unidep-install-with-a-requirementsyaml-file)
 - [Using `unidep install-all` for installation across multiple projects](#using-unidep-install-all-for-installation-across-multiple-projects)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -71,7 +71,7 @@ See the resulting [`environment.yaml`](environment.yaml) file which is installab
 This file is using `sel(linux|osx|win)` to specify platform specific dependencies.
 Alternatively, use `unidep merge --selector comment` to generate a file that uses comments to specify platform specific dependencies, which can be read by [`conda-lock`](https://github.com/conda/conda-lock).
 
-### Using `pip install` with a `requirements.yaml` file
+### Using `pip install`
 
 This method allows you to install packages defined in a `requirements.yaml` file using `pip`. It focuses on installing only those dependencies that are pip-installable, followed by the local project package.
 
@@ -80,7 +80,7 @@ This method allows you to install packages defined in a `requirements.yaml` file
 - Run `pip install ./setup_py_project`.
 - This command will process the `requirements.yaml` in the specified directory (`./setup_py_project/`), installing all pip-installable dependencies, including the local project itself.
 
-### Using `unidep install` with a `requirements.yaml` file
+### Using `unidep install`
 
 Using `unidep` for installation offers a more comprehensive approach. It handles both Conda and Pip dependencies specified in the `requirements.yaml` file, ensuring all necessary packages are installed, including those not available through pip.
 
