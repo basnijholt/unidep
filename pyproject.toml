@@ -62,6 +62,9 @@ include = ["unidep.*", "unidep"]
 [tool.setuptools.dynamic]
 version = { attr = "unidep._version.__version__" }
 
+[tool.setuptools.package-data]
+"pkgname" = ["py.typed"]
+
 [tool.pytest.ini_options]
 addopts = """
     --cov=unidep
