@@ -9,6 +9,7 @@ dynamic = ["version"]
 authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = [
     "packaging",
+    "ruamel.yaml",
     "typing_extensions; python_version < '3.8'",
 ]
 requires-python = ">=3.7"
@@ -21,10 +22,9 @@ content-type = "text/markdown"
 Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
-yaml = ["ruamel.yaml"]
+yaml = ["ruamel.yaml"] # might become an optional dependency in the future
 toml = ["tomli; python_version <= '3.11'"]
 test = [
-    "ruamel.yaml",
     "tomli; python_version <= '3.11'",
     "pytest",
     "pre-commit",
@@ -33,13 +33,12 @@ test = [
     "pytest-mock",
     "conda-package-handling",
 ]
-conda-lock = ["ruamel.yaml", "conda-lock", "conda-package-handling"]
-pip-compile = ["ruamel.yaml", "pip-tools"]
-pytest = ["ruamel.yaml", "pytest", "GitPython"] # The pytest plugin
-rich = ["ruamel.yaml", "rich-argparse"]
+conda-lock = ["conda-lock", "conda-package-handling"]
+pip-compile = ["pip-tools"]
+pytest = ["pytest", "GitPython"] # The pytest plugin
+rich = ["rich-argparse"]
 # Everything except testing
 all = [
-    "ruamel.yaml",
     "tomli; python_version <= '3.11'",
     "conda-lock",
     "conda-package-handling",
