@@ -18,6 +18,7 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
+from unidep._yaml_parsing import yaml_to_toml
 from unidep.platform_definitions import Platform, Spec
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -316,7 +317,8 @@ def test_channels(tmp_path: Path) -> None:
     assert requirements.channels == ["conda-forge", "defaults"]
 
 
-def test_surrounding_comments(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_surrounding_comments(toml_or_yaml: str, tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -338,6 +340,10 @@ def test_surrounding_comments(tmp_path: Path) -> None:
             """,
         ),
     )
+    if toml_or_yaml == "toml":
+        toml = yaml_to_toml(p)
+        p = p.with_suffix(".toml")
+        p.write_text(toml)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "yolo": [

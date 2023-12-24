@@ -117,7 +117,7 @@ def _parse_dependency(
     )
     if comment:
         selector = selector_from_comment(comment)
-    identifier_hash = _identifier(identifier, comment)
+    identifier_hash = _identifier(identifier, selector)
     if which == "both":
         return [
             Spec(name, "conda", pin, identifier_hash, selector),
@@ -354,4 +354,4 @@ def yaml_to_toml(yaml_path: Path) -> str:
                     if selector is not None:
                         dep[which] = f"{dep[which]}:{selector}"
 
-    return tomli_w.dumps({"tools": {"unidep": data}})
+    return tomli_w.dumps({"tool": {"unidep": data}})
