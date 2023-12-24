@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 from unidep.utils import (
     extract_matching_platforms,
-    extract_name_and_pin,
     is_pip_installable,
+    parse_package_str,
 )
 
 
@@ -94,8 +94,8 @@ def _parse_dependency(
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
 ) -> list[Spec]:
+    name, pin, selector = parse_package_str(dependency)
     comment = _extract_first_comment(dependencies, index_or_key)
-    name, pin = extract_name_and_pin(dependency)
     if name in ignore_pins:
         pin = None
     if name in skip_dependencies:
@@ -105,10 +105,10 @@ def _parse_dependency(
     identifier_hash = _identifier(identifier, comment)
     if which == "both":
         return [
-            Spec(name, "conda", comment, pin, identifier_hash),
-            Spec(name, "pip", comment, pin, identifier_hash),
+            Spec(name, "conda", comment, pin, identifier_hash, selector),
+            Spec(name, "pip", comment, pin, identifier_hash, selector),
         ]
-    return [Spec(name, which, comment, pin, identifier_hash)]
+    return [Spec(name, which, comment, pin, identifier_hash, selector)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -140,8 +140,8 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     """Parse overwrite pins."""
     result = {}
     for overwrite_pin in overwrite_pins:
-        name, pin = extract_name_and_pin(overwrite_pin)
-        result[name] = pin
+        pkg = parse_package_str(overwrite_pin)
+        result[pkg.name] = pkg.pin
     return result
 
 

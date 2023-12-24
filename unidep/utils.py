@@ -10,7 +10,7 @@ import re
 import sys
 import warnings
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -127,7 +127,16 @@ def build_pep508_environment_marker(
     return " or ".join(environment_markers)
 
 
-def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
+class ParsedPackageStr(NamedTuple):
+    """A package name and version pinning."""
+
+    name: str
+    pin: str | None = None
+    # Only populated when parsing a package_str like "numpy >=1.18.1:linux64".
+    selector: Selector | None = None
+
+
+def parse_package_str(package_str: str) -> ParsedPackageStr:
     """Splits a string into package name and version pinning."""
     # Regular expression to match package name and version pinning
     match = re.match(r"([a-zA-Z0-9_-]+)\s*(.*)", package_str)
@@ -137,8 +146,8 @@ def extract_name_and_pin(package_str: str) -> tuple[str, str | None]:
 
         # Return None if version pinning is missing or empty
         if not version_pin:
-            return package_name, None
-        return package_name, version_pin
+            return ParsedPackageStr(package_name, None)
+        return ParsedPackageStr(package_name, version_pin)
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
