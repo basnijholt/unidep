@@ -71,10 +71,12 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
-    assert (
-        f"pip install --no-dependencies -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
-        in captured.out
-    )
+    p1 = f"{REPO_ROOT}/example/hatch_project"
+    p2 = f"{REPO_ROOT}/example/setup_py_project"
+    p3 = f"{REPO_ROOT}/example/setuptools_project"
+    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
+    assert f"pip install --no-dependencies {pkgs}`" in captured.out
 
 
 def test_unidep_install_all_dry_run() -> None:
@@ -165,11 +167,10 @@ def test_doubly_nested_project_folder_installable(
     p2 = f"{tmp_path}/example/setup_py_project"
     p3 = f"{tmp_path}/example/setuptools_project"
     p4 = f"{tmp_path}/example/extra_projects/project4"
-    assert (
-        f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
-        in result.stdout
-    )
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
+    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
+    p5 = f"{tmp_path}/example/pyproject_toml_project"
     # Test depth 2
     result = subprocess.run(
         [  # noqa: S607, S603
@@ -187,10 +188,8 @@ def test_doubly_nested_project_folder_installable(
         capture_output=True,
         text=True,
     )
-    assert (
-        f"pip install --no-dependencies -e {p4} -e {p1} -e {p2} -e {p3}`"
-        in result.stdout
-    )
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
     # Test depth 1 (should not install project4)
     result = subprocess.run(
@@ -209,7 +208,8 @@ def test_doubly_nested_project_folder_installable(
         capture_output=True,
         text=True,
     )
-    assert f"pip install --no-dependencies -e {p1} -e {p2} -e {p3}`" in result.stdout
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5))])
+    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
 
 def test_pip_compile_command(tmp_path: Path) -> None:

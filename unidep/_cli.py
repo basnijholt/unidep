@@ -539,7 +539,7 @@ def _pip_install_local(
     if flags:
         pip_command.extend(flags)
 
-    for folder in folders:
+    for folder in sorted(folders):
         if not os.path.isabs(folder):  # noqa: PTH117
             relative_prefix = ".\\" if os.name == "nt" else "./"
             folder = f"{relative_prefix}{folder}"  # noqa: PLW2901
