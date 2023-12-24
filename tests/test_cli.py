@@ -74,7 +74,8 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     p2 = f"{REPO_ROOT}/example/setup_py_project"
     p3 = f"{REPO_ROOT}/example/setuptools_project"
     p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
+    p5 = f"{REPO_ROOT}/example/hatch2_project"
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
     assert f"pip install --no-dependencies {pkgs}`" in captured.out
 
 
@@ -113,7 +114,8 @@ def test_unidep_install_all_dry_run() -> None:
     p2 = f"{REPO_ROOT}/example/setup_py_project"
     p3 = f"{REPO_ROOT}/example/setuptools_project"
     p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
+    p5 = f"{REPO_ROOT}/example/hatch2_project"
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
     assert "📦 Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 
@@ -171,6 +173,7 @@ def test_doubly_nested_project_folder_installable(
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
     p5 = f"{tmp_path}/example/pyproject_toml_project"
+    p6 = f"{tmp_path}/example/hatch2_project"
     # Test depth 2
     result = subprocess.run(
         [  # noqa: S607, S603
@@ -188,7 +191,7 @@ def test_doubly_nested_project_folder_installable(
         capture_output=True,
         text=True,
     )
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
     # Test depth 1 (should not install project4)
@@ -208,7 +211,7 @@ def test_doubly_nested_project_folder_installable(
         capture_output=True,
         text=True,
     )
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5))])
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
 

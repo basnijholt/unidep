@@ -232,7 +232,7 @@ def test_parse_project_dependencies_pip_installable(tmp_path: Path) -> None:
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 5
+    assert len(found_files) == 6
 
     # Add a common requirements file
     common_requirements = example_folder / "common-requirements.yaml"
@@ -282,7 +282,7 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
-    assert len(found_files) == 5
+    assert len(found_files) == 6
 
     local_dependencies = parse_project_dependencies(
         *found_files,
