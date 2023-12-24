@@ -1,4 +1,4 @@
-# Setuptools `pyproject.toml` integration example
+# Full `pyproject.toml` integration example
 
 > [!TIP]
 > - **Standard Installation**: In this example folder, use `pip install .` to install all Python dependencies that are pip-installable, along with the local package itself.
@@ -7,7 +7,7 @@
 >  2. `pip install [dependencies from requirements.yaml]` – Installs pip-specific dependencies.
 >  3. `pip install .` – Installs the local package.
 
-For projects using `setuptools` with only a `pyproject.toml` file, configure `unidep` in `pyproject.toml` alongside a `requirements.yaml` file.
+For projects using `setuptools` with only a `pyproject.toml` file, configure `unidep` in `pyproject.toml` and specify all dependencies there too.
 
 **Example Configuration for projects using `pyproject.toml`**:
 
@@ -16,10 +16,20 @@ Add this to `pyproject.toml`:
 ```toml
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "unidep[yaml]"]  # add "unidep" here
+requires = ["setuptools", "unidep[toml]"]  # add "unidep" here
 
 [project]
 dynamic = ["dependencies"]  # add "dependencies" here
+
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "adaptive",
+    "pfapack:linux64",
+    "pipefunc",
+    { pip = "markdown-code-runner" },
+    { pip = "home-assistant-streamdeck-yaml" },
+]
 ```
 
 Then, of course, add a `requirements.yaml` and you are good to go! 🎉
