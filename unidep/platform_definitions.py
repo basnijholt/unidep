@@ -93,10 +93,12 @@ class Spec(NamedTuple):
             return None
         if self.comment is not None:
             return extract_matching_platforms(self.comment) or None
-        if self.selector is not None:
-            return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
-        msg = "Should not be reached"
-        raise RuntimeError(msg)
+        assert self.selector is not None
+        if self.selector not in PLATFORM_SELECTOR_MAP_REVERSE:
+            options = sorted(PLATFORM_SELECTOR_MAP_REVERSE.keys())
+            msg = f"Invalid selector: {self.selector}, use one of {options}"
+            raise ValueError(msg)
+        return list(PLATFORM_SELECTOR_MAP_REVERSE[self.selector])
 
     def pprint(self) -> str:
         """Pretty print the dependency."""

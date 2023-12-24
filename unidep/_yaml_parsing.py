@@ -170,7 +170,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
         datas.append(data)
         seen.add(p.resolve())
 
-        # Deal with includes
+        # Handle includes
         for include in data.get("includes", []):
             include_path = _include_path(p.parent / include)
             if include_path in seen:
@@ -180,6 +180,7 @@ def parse_yaml_requirements(  # noqa: PLR0912
             with include_path.open() as f:
                 datas.append(yaml.load(f))
             seen.add(include_path)
+
     identifier = -1
     for data in datas:
         for channel in data.get("channels", []):
