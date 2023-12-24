@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).parent.parent
 def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
     if toml_or_yaml == "toml":
         toml = yaml_to_toml(p)
+        p.unlink()
         p = p.with_suffix(".toml")
         p.write_text(toml)
     return p
