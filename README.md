@@ -89,7 +89,7 @@ dependencies:
   - numpy  # same name on conda and pip
   - conda: python-graphviz  # When names differ between Conda and Pip
     pip: graphviz
-  - pip: slurm-usage >=1.1.0  # pip-only
+  - pip: slurm-usage >=1.1.0,<2  # pip-only
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
   - conda: cuda-toolkit =11.8 # [linux64]
@@ -115,7 +115,7 @@ channels = ["conda-forge"]
 dependencies = [
     "numpy", # same name on conda and pip
     { conda = "python-graphviz", pip = "graphviz" }, # When names differ between Conda and Pip
-    { pip = "slurm-usage >1.1.0" }, # pip-only
+    { pip = "slurm-usage >=1.1.0,<2" }, # pip-only
     { conda = "mumps" }, # conda-only
     { conda = "cuda-toolkit =11.8:linux64" }, # Use platform selectors by appending `:linux64`
 ]
