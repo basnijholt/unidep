@@ -10,12 +10,12 @@
 
 Explore these example projects to understand how `unidep` integrates with different build tools and configurations:
 
-| Project                                            | Build Tool   | `pyproject.toml` | `requirements.yaml` | Description                                                                        |
-| -------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------------------------------------------------------------------------------- |
-| [`setup_py_project`](setup_py_project)             | `setuptools` | ✅                | ✅                   | Traditional `setuptools` project with `requirements.yaml`.                         |
-| [`setuptools_project`](setuptools_project)         | `setuptools` | ✅                | ✅                   | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
-| [`pyproject_toml_project`](pyproject_toml_project) | `setuptools` | ✅                | ❌                   | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
-| [`hatch_project`](hatch_project)                   | `hatch`      | ✅                | ✅                   | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
+| Project                                            | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` | Description                                                                        |
+| -------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| [`setup_py_project`](setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          | Traditional `setuptools` project with `requirements.yaml`.                         |
+| [`setuptools_project`](setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
+| [`pyproject_toml_project`](pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
+| [`hatch_project`](hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
 
 ✅
 
