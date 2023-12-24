@@ -62,6 +62,11 @@ def find_requirements_files(
                 found_files.append(child)
                 if verbose:
                     print(f"🔍 Found `{filename}` at `{child}`")
+            elif child.name == "pyproject.toml" and any(
+                line.startswith("[tool.unidep]")
+                for line in child.read_text().splitlines()
+            ):
+                found_files.append(child)
 
     _scan_dir(base_path, 0)
     return sorted(found_files)
