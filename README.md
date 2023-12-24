@@ -89,10 +89,10 @@ dependencies:
   - numpy  # same name on conda and pip
   - conda: python-graphviz  # When names differ between Conda and Pip
     pip: graphviz
-  - pip: slurm-usage  # pip-only
+  - pip: slurm-usage >=1.1.0  # pip-only
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
-  - conda: cuda-toolkit  # [linux64]
+  - conda: cuda-toolkit =11.8 # [linux64]
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
@@ -115,9 +115,9 @@ channels = ["conda-forge"]
 dependencies = [
     "numpy", # same name on conda and pip
     { conda = "python-graphviz", pip = "graphviz" }, # When names differ between Conda and Pip
-    { pip = "slurm-usage" }, # pip-only
+    { pip = "slurm-usage >1.1.0" }, # pip-only
     { conda = "mumps" }, # conda-only
-    { conda = "cuda-toolkit:linux64" }, # Use platform selectors by appending `:linux64`
+    { conda = "cuda-toolkit =11.8:linux64" }, # Use platform selectors by appending `:linux64`
 ]
 platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
     "linux-64",
@@ -128,6 +128,10 @@ includes = [
     "../common-requirements.yaml", # include other requirements.yaml files
 ]
 ```
+
+This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the platform selectors.
+In the `requirements.yaml` file, one can use e.g., `# [linux64]` which in the `pyproject.toml` file is `:linux64` at the end of the package name.
+
 
 ### Key Points
 
