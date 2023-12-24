@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,18 +103,19 @@ def test_unidep_install_all_dry_run() -> None:
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
     assert "📦 Installing conda dependencies with `" in result.stdout
+
+    assert r"📦 Installing pip dependencies with `" in result.stdout
     assert (
-        f"📦 Installing pip dependencies with `{sys.executable} -m pip install"
+        "📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
         in result.stdout
     )
-    assert (
-        "📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
-        in result.stdout
-    )
-    assert (
-        f"📦 Installing project with `{sys.executable} -m pip install --no-dependencies -e {REPO_ROOT}/example/hatch_project -e {REPO_ROOT}/example/setup_py_project -e {REPO_ROOT}/example/setuptools_project`"
-        in result.stdout
-    )
+    p1 = f"{REPO_ROOT}/example/hatch_project"
+    p2 = f"{REPO_ROOT}/example/setup_py_project"
+    p3 = f"{REPO_ROOT}/example/setuptools_project"
+    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
+    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
+    assert "📦 Installing project with `" in result.stdout
+    assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 
 
 def test_doubly_nested_project_folder_installable(
