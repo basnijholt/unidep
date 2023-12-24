@@ -1,0 +1,7 @@
+name: hatch_project
+channels:
+  - conda-forge
+dependencies:
+  - adaptive-scheduler  # [linux64]
+  - pip: unidep
+  - hpc05  # [linux64]
