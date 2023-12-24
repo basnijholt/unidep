@@ -38,7 +38,7 @@ def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
     if toml_or_yaml == "toml":
         toml = yaml_to_toml(p)
         p.unlink()
-        p = p.with_suffix(".toml")
+        p = p.with_name("pyproject.toml")
         p.write_text(toml)
     return p
 
@@ -67,12 +67,10 @@ def test_find_requirements_files(
     setup_test_files: tuple[Path, Path],
 ) -> None:
     # Make sure to pass the depth argument correctly if your function expects it.
-    filename = setup_test_files[0].name
     found_files = find_requirements_files(
         tmp_path,
         depth=1,
         verbose=True,
-        filename=filename,
     )
 
     # Convert found_files to absolute paths for comparison

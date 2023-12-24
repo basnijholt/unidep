@@ -28,24 +28,24 @@ from unidep.utils import (
     selector_from_comment,
 )
 
-try:
+try:  # pragma: no cover
     if sys.version_info >= (3, 11):
         import tomllib
     else:
         import tomli as tomllib
     HAS_TOML = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAS_TOML = False
 
 
 def find_requirements_files(
     base_dir: str | Path = ".",
     depth: int = 1,
-    filename: str = "requirements.yaml",  # TODO: should this be an argument?
     *,
     verbose: bool = False,
 ) -> list[Path]:
     """Scan a directory for requirements.yaml files."""
+    filename_yaml = "requirements.yaml"
     base_path = Path(base_dir)
     found_files = []
 
@@ -58,13 +58,16 @@ def find_requirements_files(
         for child in path.iterdir():
             if child.is_dir():
                 _scan_dir(child, current_depth + 1)
-            elif child.name == filename:
+            elif child.name == filename_yaml:
                 found_files.append(child)
                 if verbose:
-                    print(f"🔍 Found `{filename}` at `{child}`")
+                    print(f"🔍 Found `{filename_yaml}` at `{child}`")
             elif child.name == "pyproject.toml" and any(
-                line.startswith("[tool.unidep]")
+                line.lstrip().startswith("[tool.unidep")
                 for line in child.read_text().splitlines()
+                # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002, E501
+                # pyproject.toml directly e.g., it contains:
+                # `tool = {unidep = {dependencies = ...}}`
             ):
                 found_files.append(child)
 
