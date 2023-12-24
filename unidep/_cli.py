@@ -32,6 +32,7 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
+    dependencies_filename,
     escape_unicode,
     identify_current_platform,
     is_pip_installable,
@@ -503,7 +504,7 @@ def _parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     if "file" in args and args.file.is_dir():  # pragma: no cover
-        args.file = _to_requirements_file(args.file)
+        args.file = dependencies_filename(args.file)
     return args
 
 
@@ -554,10 +555,6 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)  # noqa: S603
 
 
-def _to_requirements_file(path: Path) -> Path:
-    return path if path.is_file() else path / "requirements.yaml"
-
-
 def _install_command(  # noqa: PLR0912
     *files: Path,
     conda_executable: str,
@@ -576,7 +573,7 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
-    files = tuple(_to_requirements_file(f) for f in files)
+    files = tuple(dependencies_filename(f) for f in files)
     requirements = parse_requirements(
         *files,
         ignore_pins=ignore_pins,

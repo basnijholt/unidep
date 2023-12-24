@@ -16,6 +16,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
+    dependencies_filename,
     is_pip_installable,
     parse_package_str,
     selector_from_comment,
@@ -149,7 +150,13 @@ def _include_path(include: str) -> Path:
     """Return the path to an included file."""
     path = Path(include)
     if path.is_dir():
-        path /= "requirements.yaml"
+        fname_yaml = path / "requirements.yaml"
+        fname_toml = path / "pyproject.toml"
+        if fname_yaml.exists():
+            path = fname_yaml
+        elif fname_toml.exists() and unidep_configured_in_toml(fname_toml):
+            path = fname_toml
+
     return path.resolve()
 
 
@@ -205,7 +212,7 @@ def parse_requirements(  # noqa: PLR0912
 
         # Handle includes
         for include in data.get("includes", []):
-            include_path = _include_path(p.parent / include)
+            include_path = dependencies_filename(p.parent / include).resolve()
             if include_path in seen:
                 continue  # Avoids circular includes
             if verbose:
@@ -276,10 +283,7 @@ def _extract_project_dependencies(
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     for include in data.get("includes", []):
-        include_path = _include_path(path.parent / include)
-        if not include_path.exists():
-            msg = f"Include file `{include_path}` does not exist."
-            raise FileNotFoundError(msg)
+        include_path = dependencies_filename(path.parent / include).resolve()
         include_base_path = str(include_path.parent)
         if include_base_path == str(base_path):
             continue

@@ -246,3 +246,21 @@ def unidep_configured_in_toml(path: Path) -> bool:
         line.lstrip().startswith("[tool.unidep")
         for line in path.read_text().splitlines()
     )
+
+
+def dependencies_filename(folder_or_path: str | Path) -> Path:
+    """Get the path to `requirements.yaml` or `pyproject.toml` file."""
+    path = Path(folder_or_path)
+    if path.is_dir():
+        fname_yaml = path / "requirements.yaml"
+        fname_toml = path / "pyproject.toml"
+        if fname_yaml.exists():
+            return fname_yaml
+        if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
+            return fname_toml
+        msg = f"File {fname_yaml} or {fname_toml} not found."
+        raise FileNotFoundError(msg)
+    if not path.exists():
+        msg = f"File {path} not found."
+        raise FileNotFoundError(msg)
+    return path
