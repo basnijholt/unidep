@@ -93,7 +93,7 @@ dependencies:
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
   - conda: cuda-toolkit  # [linux64]
-platforms:  # (Optional) specify platforms that are supported (like conda-lock)
+platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
 includes:
@@ -106,6 +106,28 @@ includes:
 
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
+
+Alternatively, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section`:
+
+```toml
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "numpy", # same name on conda and pip
+    { conda = "python-graphviz", pip = "graphviz" }, # When names differ between Conda and Pip
+    { pip = "slurm-usage" }, # pip-only
+    { conda = "mumps" }, # conda-only
+    { conda = "cuda-toolkit:linux64" }, # Use platform selectors by appending `:linux64`
+]
+platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
+    "linux-64",
+    "osx-arm64",
+]
+includes = [
+    "../other-project-using-unidep", # include other projects that use unidep
+    "../common-requirements.yaml", # include other requirements.yaml files
+]
+```
 
 ### Key Points
 
