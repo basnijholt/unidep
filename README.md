@@ -272,7 +272,7 @@ It is also used for creating environment and lock files that are portable across
 
 ### Example packages
 
-Explore these installable example packages to understand how `unidep` integrates with different build tools and configurations:
+Explore these installable [example](example) packages to understand how `unidep` integrates with different build tools and configurations:
 
 | Project                                                    | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` |
 | ---------------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- |
