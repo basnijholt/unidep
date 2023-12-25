@@ -138,13 +138,13 @@ dependencies = [
     { conda = "mumps" },                             # conda-only
     { conda = "cuda-toolkit =11.8:linux64" }         # Use platform selectors by appending `:linux64`
 ]
-platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
-    "linux-64",
-    "osx-arm64"
-]
 local_dependencies = [
     "../other-project-using-unidep", # include other projects that use unidep
     "../common-requirements.yaml"    # include other requirements.yaml files
+]
+platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
+    "linux-64",
+    "osx-arm64"
 ]
 ```
 
