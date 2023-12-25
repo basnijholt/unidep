@@ -220,7 +220,7 @@ def test_doubly_nested_project_folder_installable(
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
 
-def test_pip_compile_command(tmp_path: Path) -> None:
+def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     folder = tmp_path / "example"
     shutil.copytree(REPO_ROOT / "example", folder)
     with patch("subprocess.run", return_value=None), patch(
@@ -237,6 +237,13 @@ def test_pip_compile_command(tmp_path: Path) -> None:
             verbose=True,
             extra_flags=["--", "--allow-unsafe"],
         )
-    assert (folder / "requirements.in").exists()
-    with (folder / "requirements.in").open() as f:
+    requirements_in = folder / "requirements.in"
+    assert requirements_in.exists()
+    with requirements_in.open() as f:
         assert "adaptive" in f.read()
+    requirements_txt = folder / "requirements.txt"
+
+    assert (
+        f"Locking dependencies with `pip-compile --output-file {requirements_txt} --allow-unsafe {requirements_in}`"
+        in capsys.readouterr().out
+    )
