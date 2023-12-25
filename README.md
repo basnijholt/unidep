@@ -476,13 +476,12 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install requirements.yaml` for a single
-file. For multiple files or folders: `unidep install ./project1 ./project2`.
-The command accepts both file paths and directories containing a
-`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
-install the local packages in editable mode. See `unidep install-all` to
-install all `requirements.yaml` or `pyproject.toml` files in and below the
-current folder.
+./project`. Example usage: `unidep install .` for a single project. For
+multiple projects: `unidep install ./project1 ./project2`. The command accepts
+both file paths and directories containing a `requirements.yaml` or
+`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
+in editable mode. See `unidep install-all` to install all `requirements.yaml`
+or `pyproject.toml` files in and below the current folder.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
@@ -551,13 +550,12 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install requirements.yaml` for a single
-file. For multiple files or folders: `unidep install ./project1 ./project2`.
-The command accepts both file paths and directories containing a
-`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
-install the local packages in editable mode. See `unidep install-all` to
-install all `requirements.yaml` or `pyproject.toml` files in and below the
-current folder.
+./project`. Example usage: `unidep install .` for a single project. For
+multiple projects: `unidep install ./project1 ./project2`. The command accepts
+both file paths and directories containing a `requirements.yaml` or
+`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
+in editable mode. See `unidep install-all` to install all `requirements.yaml`
+or `pyproject.toml` files in and below the current folder.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
