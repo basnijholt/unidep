@@ -79,7 +79,7 @@ def get_python_dependencies(
     platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
 ) -> list[str]:
-    """Extract Python (pip) requirements from requirements.yaml file."""
+    """Extract Python (pip) requirements from a `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     p = Path(filename)
     if not p.exists():
         if raises_if_missing:
@@ -112,10 +112,10 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         return
     if requirements_file.exists() and dist.install_requires:
         msg = (
-            "You have a requirements.yaml file in your project root or"
-            " configured unidep in `pyproject.toml` with [tool.unidep],"
-            " but you are also using setuptools' install_requires."
-            " Remove the `install_requires` line from setup.py."
+            "You have a `requirements.yaml` file in your project root or"
+            " configured unidep in `pyproject.toml` with `[tool.unidep]`,"
+            " but you are also using setuptools' `install_requires`."
+            " Remove the `install_requires` line from `setup.py`."
         )
         raise RuntimeError(msg)
     dist.install_requires = get_python_dependencies(
