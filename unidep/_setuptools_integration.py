@@ -17,6 +17,8 @@ from unidep.utils import (
 )
 
 if TYPE_CHECKING:
+    import sys
+
     from setuptools import Distribution
 
     from unidep.platform_definitions import (
@@ -24,6 +26,11 @@ if TYPE_CHECKING:
         Platform,
         Spec,
     )
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:
+        from typing_extensions import Literal
 
 
 def filter_python_dependencies(
@@ -70,7 +77,9 @@ def filter_python_dependencies(
 
 
 def get_python_dependencies(
-    filename: str | Path = "requirements.yaml",
+    filename: str
+    | Path
+    | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
     *,
     verbose: bool = False,
     ignore_pins: list[str] | None = None,
