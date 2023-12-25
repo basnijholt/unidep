@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import shutil
 from pathlib import Path
 
 package_path = Path("../..").resolve()
@@ -148,24 +149,41 @@ def split_markdown_by_headers(
     # Split content based on headers
     split_contents = []
     start = 0
+    previous_header = ""
     for header in headers:
+        header_title = header.group(1).strip("# ").strip()
         end = header.start()
-        split_contents.append(content[start:end].strip())
+        if not any(s in previous_header for s in to_skip):
+            split_contents.append(content[start:end].strip())
         start = end
+        previous_header = header_title
 
     # Add the last section
     split_contents.append(content[start:].strip())
 
     # Create individual files for each section
+    toctree_entries = []
     for i, section in enumerate(split_contents):
         fname = out_folder / f"section_{i}.md"
+        toctree_entries.append(f"sections/section_{i}")
         with open(fname, "w", encoding="utf-8") as file:
             file.write(section)
 
-    # Generate toctree entries
-    toctree_entries = [f"section_{i}" for i in range(len(split_contents))]
-
     return toctree_entries
+
+
+def replace_header(file_path, new_header):
+    with open(file_path, "r", encoding="utf-8") as file:
+        content = file.read()
+
+    # Find the first-level header (indicated by '# ')
+    # We use a regular expression to match the first occurrence of '# ' and any following characters until a newline
+    content = re.sub(
+        r"^# .+?\n", f"# {new_header}\n", content, count=1, flags=re.MULTILINE
+    )
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(content)
 
 
 input_file = package_path / "README.md"
@@ -173,9 +191,12 @@ output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
 replace_blocks(output_file, output_file)
 replace_links(output_file, output_file)
-out_folder = docs_path / "source" / "sections"
-out_folder.mkdir(exist_ok=True)
-split_markdown_by_headers(output_file, out_folder)
+sections_folder = docs_path / "source" / "sections"
+shutil.rmtree(sections_folder, ignore_errors=True)
+sections_folder.mkdir(exist_ok=True)
+split_markdown_by_headers(output_file, sections_folder)
+shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
+replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
 
 
 def setup(app):

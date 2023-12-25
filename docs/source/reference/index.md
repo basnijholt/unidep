@@ -1,4 +1,4 @@
-# API documentation
+# 🔌 API documentation
 
 ```{toctree}
 unidep

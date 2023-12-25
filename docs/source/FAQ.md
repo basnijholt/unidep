@@ -1,4 +1,4 @@
-# FAQ
+# ❓ FAQ
 
 Here is a list of questions we have either been asked by users or potential pitfalls we hope to help users avoid:
 
