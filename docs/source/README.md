@@ -30,8 +30,8 @@ Check out the [example `requirements.yaml` and `pyproject.toml` below](#example)
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [📦 Installation](#package-installation)
-- [📝 `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
+- [📦 Installation](#installation)
+- [📝 `requirements.yaml` and `pyproject.toml` structure](#requirementsyaml-and-pyprojecttoml-structure)
   - [Example](#example)
     - [Example `requirements.yaml`](#example-requirementsyaml)
     - [Example `pyproject.toml`](#example-pyprojecttoml)
@@ -43,11 +43,11 @@ Check out the [example `requirements.yaml` and `pyproject.toml` below](#example)
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
-- [🧩 Build System Integration](#jigsaw-build-system-integration)
+- [🧩 Build System Integration](#build-system-integration)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-- [🖥️ As a CLI](#desktop_computer-as-a-cli)
+- [🖥️ As a CLI](#as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
   - [`unidep install-all`](#unidep-install-all)
@@ -55,9 +55,9 @@ Check out the [example `requirements.yaml` and `pyproject.toml` below](#example)
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
-- [🛠️ Troubleshooting](#hammer_and_wrench-troubleshooting)
+- [🛠️ Troubleshooting](#troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
-- [⚠️ Limitations](#warning-limitations)
+- [⚠️ Limitations](#limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -118,7 +118,7 @@ includes:
 ```
 
 ```{important}
-`unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
+`unidep` can process this during `pip install` and create a Conda installable `environment.yaml` or `conda-lock.yml` file, and more!
 ```
 
 ```{note}
@@ -152,7 +152,7 @@ includes = [
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
 In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `pyproject.toml` file is `:linux64` at the end of the package name.
 
-See [Build System Integration](#jigsaw-build-system-integration) for more information on how to set up `unidep` with different build systems (Setuptools or Hatchling).
+See [Build System Integration](#build-system-integration) for more information on how to set up `unidep` with different build systems (Setuptools or Hatchling).
 
 ```{important}
 In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.

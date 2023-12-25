@@ -137,6 +137,24 @@ def replace_links(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
+def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
+    to_remove = [
+        "package",
+        "memo",
+        "jigsaw",
+        "desktop_computer",
+        "hammer_and_wrench",
+        "warning",
+    ]
+    with input_file.open("r") as infile:
+        content = infile.read()
+    new_content = content
+    for emoji_name in to_remove:
+        new_content = new_content.replace(f"#{emoji_name}-", "#")
+    with output_file.open("w") as outfile:
+        outfile.write(new_content)
+
+
 def split_markdown_by_headers(
     readme_path: Path, out_folder: Path, to_skip=("Table of Contents",)
 ):
@@ -191,6 +209,7 @@ output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
 replace_blocks(output_file, output_file)
 replace_links(output_file, output_file)
+fix_anchors_with_named_emojis(output_file, output_file)
 sections_folder = docs_path / "source" / "sections"
 shutil.rmtree(sections_folder, ignore_errors=True)
 sections_folder.mkdir(exist_ok=True)
