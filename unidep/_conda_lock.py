@@ -207,7 +207,7 @@ def _add_package_with_dependencies_to_lock(
     if missing_key is not None:
         missing_keys.add(missing_key)
     for dep in lock_spec.dependencies.get((which, platform, name), set()):
-        if dep.startswith("__"):
+        if dep.startswith("__"):  # pragma: no cover
             continue  # Skip meta packages
         missing_key = _add_package_to_lock(
             name=dep,
@@ -301,7 +301,7 @@ def _conda_lock_subpackage(
     )
 
     for name, specs in requirements.requirements.items():
-        if name.startswith("__"):
+        if name.startswith("__"):  # pragma: no cover
             continue  # Skip meta packages
         for spec in specs:
             _platforms = spec.platforms()

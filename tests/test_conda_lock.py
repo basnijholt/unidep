@@ -3,13 +3,17 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
 from ruamel.yaml import YAML
 
-from unidep._conda_lock import conda_lock_command
+from unidep._conda_lock import LockSpec, _handle_missing_keys, conda_lock_command
 from unidep.utils import remove_top_comments
+
+if TYPE_CHECKING:
+    from unidep.platform_definitions import CondaPip, Platform
 
 
 def test_conda_lock_command(tmp_path: Path) -> None:
@@ -152,3 +156,34 @@ def test_remove_top_comments(tmp_path: Path) -> None:
         content = file.read()
 
     assert content == "Actual content line 1\nActual content line 2"
+
+
+def test_handle_missing_keys(capsys: pytest.CaptureFixture) -> None:
+    lock_spec = LockSpec(
+        packages={
+            ("conda", "linux-64", "python-nonexistent"): {
+                "name": "python-nonexistent",
+                "manager": "conda",
+                "platform": "linux-64",
+                "dependencies": [],
+                "url": "https://example.com/nonexistent",
+            },
+        },
+        dependencies={("conda", "linux-64", "nonexistent"): set()},
+    )
+
+    locked: list[dict[str, Any]] = []
+    locked_keys: set[tuple[CondaPip, Platform, str]] = {}  # type: ignore[assignment]
+    missing_keys: set[tuple[CondaPip, Platform, str]] = {
+        ("pip", "linux-64", "nonexistent"),
+    }
+    with patch("unidep._conda_lock._download_and_get_package_names", return_value=None):
+        _handle_missing_keys(
+            lock_spec=lock_spec,
+            locked_keys=locked_keys,
+            missing_keys=missing_keys,
+            locked=locked,
+        )
+
+    assert f"❌ Missing keys {missing_keys}" in capsys.readouterr().out
+    assert ("pip", "linux-64", "nonexistent") in missing_keys
