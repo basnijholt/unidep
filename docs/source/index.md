@@ -1,24 +1,15 @@
-```{include} README.md
----
-end-before: <!-- toc-start -->
-```
-
-```{include} README.md
----
-start-after: <!-- toc-end -->
-```
-
-
 ```{toctree}
-:hidden: true
+:maxdepth: 2
+:glob:
 
-self
+sections/*
+FAQ
+reference/index
+
 ```
 
 ```{toctree}
 :hidden: true
 :maxdepth: 2
 
-FAQ
-reference/index
 ```

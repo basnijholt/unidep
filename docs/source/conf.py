@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -96,13 +97,13 @@ def edit_text(input_text):
                 marker for marker in mapping if f"> [!{marker}]" in line
             )
             # Start of a new block
-            edited_text.append(":::{" + mapping[current_block_type] + "}")
+            edited_text.append("```{" + mapping[current_block_type] + "}")
         elif current_block_type and line.strip() == ">":
             # Empty line within the block, skip it
             continue
         elif current_block_type and not line.strip().startswith(">"):
             # End of the current block
-            edited_text.append(":::")
+            edited_text.append("```")
             edited_text.append(line)  # Add the current line as it is
             current_block_type = None  # Reset the block type
         elif current_block_type:
@@ -135,11 +136,46 @@ def replace_links(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
+def split_markdown_by_headers(
+    readme_path: Path, out_folder: Path, to_skip=("Table of Contents",)
+):
+    with open(readme_path, "r", encoding="utf-8") as file:
+        content = file.read()
+
+    # Regex to find second-level headers
+    headers = re.finditer(r"\n(## .+?)(?=\n## |\Z)", content, re.DOTALL)
+
+    # Split content based on headers
+    split_contents = []
+    start = 0
+    for header in headers:
+        end = header.start()
+        split_contents.append(content[start:end].strip())
+        start = end
+
+    # Add the last section
+    split_contents.append(content[start:].strip())
+
+    # Create individual files for each section
+    for i, section in enumerate(split_contents):
+        fname = out_folder / f"section_{i}.md"
+        with open(fname, "w", encoding="utf-8") as file:
+            file.write(section)
+
+    # Generate toctree entries
+    toctree_entries = [f"section_{i}" for i in range(len(split_contents))]
+
+    return toctree_entries
+
+
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
-# replace_named_emojis(input_file, output_file)
-# replace_blocks(output_file, output_file)
-# replace_links(output_file, output_file)
+replace_named_emojis(input_file, output_file)
+replace_blocks(output_file, output_file)
+replace_links(output_file, output_file)
+out_folder = docs_path / "source" / "sections"
+out_folder.mkdir(exist_ok=True)
+split_markdown_by_headers(output_file, out_folder)
 
 
 def setup(app):

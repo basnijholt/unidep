@@ -19,11 +19,47 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!
 
-:::{tip}
+```{tip}
 Check out the [example `requirements.yaml` and `pyproject.toml` below](#example).
-:::
+```
 
 <!-- toc-start -->
+
+## 📚 Table of Contents
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [📦 Installation](#package-installation)
+- [📝 `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
+  - [Example](#example)
+    - [Example `requirements.yaml`](#example-requirementsyaml)
+    - [Example `pyproject.toml`](#example-pyprojecttoml)
+  - [Key Points](#key-points)
+  - [Supported Version Pinnings](#supported-version-pinnings)
+  - [Conflict Resolution](#conflict-resolution)
+    - [How It Works](#how-it-works)
+  - [Platform Selectors](#platform-selectors)
+    - [Supported Selectors](#supported-selectors)
+    - [Usage](#usage)
+    - [Implementation](#implementation)
+- [🧩 Build System Integration](#jigsaw-build-system-integration)
+  - [Example packages](#example-packages)
+  - [Setuptools Integration](#setuptools-integration)
+  - [Hatchling Integration](#hatchling-integration)
+- [🖥️ As a CLI](#desktop_computer-as-a-cli)
+  - [`unidep merge`](#unidep-merge)
+  - [`unidep install`](#unidep-install)
+  - [`unidep install-all`](#unidep-install-all)
+  - [`unidep conda-lock`](#unidep-conda-lock)
+  - [`unidep pip-compile`](#unidep-pip-compile)
+  - [`unidep pip`](#unidep-pip)
+  - [`unidep conda`](#unidep-conda)
+- [🛠️ Troubleshooting](#hammer_and_wrench-troubleshooting)
+  - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
+- [⚠️ Limitations](#warning-limitations)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 <!-- toc-end -->
 
@@ -81,13 +117,13 @@ includes:
   - ../common-requirements.yaml  # include other requirements.yaml files
 ```
 
-:::{important}
+```{important}
 `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
-:::
+```
 
-:::{note}
+```{note}
 For a more in-depth example containing multiple installable projects, see the [`example`](https://github.com/basnijholt/unidep/tree/main/example/) directory.
-:::
+```
 
 #### Example `pyproject.toml`
 
@@ -118,10 +154,10 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 
 See [Build System Integration](#jigsaw-build-system-integration) for more information on how to set up `unidep` with different build systems (Setuptools or Hatchling).
 
-:::{important}
+```{important}
 In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
 Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`!
-:::
+```
 
 ### Key Points
 
@@ -161,11 +197,11 @@ UniDep supports a range of version pinning operators (the same as Conda):
 - **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
   - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
 
-:::{caution}
+```{caution}
 **Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package.
 This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification.
 However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
-:::
+```
 
 ### Conflict Resolution
 
@@ -240,9 +276,9 @@ It is also used for creating environment and lock files that are portable across
 
 ## 🧩 Build System Integration
 
-:::{tip}
+```{tip}
 See [`example/`](https://github.com/basnijholt/unidep/tree/main/example/) for working examples of using `unidep` with different build systems.
-:::
+```
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
