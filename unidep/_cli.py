@@ -76,9 +76,9 @@ def _add_common_args(  # noqa: PLR0912
             "-f",
             "--file",
             type=Path,
-            default="requirements.yaml",
-            help="The `requirements.yaml` file to parse or folder that contains"
-            " that file, by default `requirements.yaml`",
+            default=".",
+            help="The `requirements.yaml` or `pyproject.toml` file to parse, or folder"
+            " that contains that file, by default `.`",
         )
     if "verbose" in options:
         sub_parser.add_argument(
