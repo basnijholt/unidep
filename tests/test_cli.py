@@ -1,6 +1,7 @@
 """unidep CLI tests."""
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -247,3 +248,29 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
         f"Locking dependencies with `pip-compile --output-file {requirements_txt} --allow-unsafe {requirements_in}`"
         in capsys.readouterr().out
     )
+
+
+def test_install_non_existing_file() -> None:
+    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+        _install_command(
+            Path("does_not_exist"),
+            conda_executable="",
+            dry_run=True,
+            editable=True,
+            verbose=True,
+        )
+
+
+def test_install_non_existing_folder(tmp_path: Path) -> None:
+    match = re.escape(
+        f"File `{tmp_path}/requirements.yaml` or `{tmp_path}/pyproject.toml`"
+        f" (with unidep configuration) not found in `{tmp_path}`",
+    )
+    with pytest.raises(FileNotFoundError, match=match):
+        _install_command(
+            tmp_path,
+            conda_executable="",
+            dry_run=True,
+            editable=True,
+            verbose=True,
+        )
