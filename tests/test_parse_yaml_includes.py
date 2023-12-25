@@ -74,7 +74,8 @@ def test_circular_local_dependencies(
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
     # Only convert r1 to toml, not r2, because we want to test that
-    requirements = parse_requirements(r1, r2, verbose=False)
+    with pytest.warns(UserWarning, match="`includes` is deprecated"):
+        requirements = parse_requirements(r1, r2, verbose=False)
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4

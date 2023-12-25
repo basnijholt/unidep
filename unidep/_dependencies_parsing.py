@@ -21,6 +21,7 @@ from unidep.utils import (
     parse_package_str,
     selector_from_comment,
     unidep_configured_in_toml,
+    warn,
 )
 
 if TYPE_CHECKING:
@@ -173,6 +174,20 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
         return yaml.load(f)
 
 
+def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
+    """Get `local_dependencies` from a `requirements.yaml` or `pyproject.toml` file."""
+    if "local_dependencies" in data:
+        return data["local_dependencies"]
+    if "includes" in data:
+        warn(
+            "⚠️ `includes` is deprecated since 0.41.0, use `local_dependencies` instead.",  # noqa: E501
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return data["includes"]
+    return []
+
+
 def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
@@ -198,7 +213,7 @@ def parse_requirements(  # noqa: PLR0912
         seen.add(p.resolve())
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.41.0)
-        for include in data.get("local_dependencies", []) or data.get("includes", []):
+        for include in _get_local_dependencies(data):
             include_path = dependencies_filename(p.parent / include).resolve()
             if include_path in seen:
                 continue  # Avoids circular local_dependencies
@@ -270,7 +285,7 @@ def _extract_local_dependencies(
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.41.0)
-    for include in data.get("local_dependencies", []) or data.get("includes", []):
+    for include in _get_local_dependencies(data):
         include_path = dependencies_filename(path.parent / include).resolve()
         include_base_path = str(include_path.parent)
         if include_base_path == str(base_path):
