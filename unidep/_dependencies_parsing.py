@@ -180,9 +180,9 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
         return data["local_dependencies"]
     if "includes" in data:
         warn(
-            "⚠️ Using the `includes` in `requirements.yaml` or `pyproject.toml`"
-            " `[unidep.tool]` is deprecated since 0.42.0, use"
-            " `local_dependencies` instead.",
+            "⚠️ You are using `includes` in `requirements.yaml` or `pyproject.toml`"
+            " `[unidep.tool]` which is deprecated since 0.42.0 and has been renamed to"
+            " `local_dependencies`.",
             category=DeprecationWarning,
             stacklevel=2,
         )
