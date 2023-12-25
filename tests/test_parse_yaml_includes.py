@@ -67,14 +67,14 @@ def test_circular_local_dependencies(
             """\
             dependencies:
                 - adaptive
-            includes:  # `local_dependencies` was called `includes` in ≤0.40.0
+            includes:  # `local_dependencies` was called `includes` in ≤0.41.0
                 - ../project1
             """,
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
     # Only convert r1 to toml, not r2, because we want to test that
-    with pytest.warns(UserWarning, match="`includes` is deprecated"):
+    with pytest.warns(DeprecationWarning, match="is deprecated since 0.42.0"):
         requirements = parse_requirements(r1, r2, verbose=False)
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
