@@ -46,18 +46,7 @@ htmlhelp_basename = "adaptivedoc"
 default_role = "autolink"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "adaptive": ("https://adaptive.readthedocs.io/en/stable/", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
-    "mpi4py": ("https://mpi4py.readthedocs.io/en/stable/", None),
-    "ipyparallel": ("https://ipywidgets.readthedocs.io/en/stable/", None),
-    "dask-mpi": ("http://mpi.dask.org/en/latest/", None),
-    "distributed": ("https://distributed.dask.org/en/latest/", None),
-    "dask": ("https://docs.dask.org/en/latest/", None),
 }
-
-nb_execution_mode = "cache"
-nb_execution_timeout = 180
-nb_execution_raise_on_error = True
 
 
 def replace_named_emojis(input_file: Path, output_file: Path) -> None:
@@ -72,7 +61,7 @@ def replace_named_emojis(input_file: Path, output_file: Path) -> None:
         outfile.write(content_with_emojis)
 
 
-def edit_text(input_text):
+def _change_alerts_to_admonitions(input_text):
     # Splitting the text into lines
     lines = input_text.split("\n")
 
@@ -118,10 +107,10 @@ def edit_text(input_text):
     return "\n".join(edited_text)
 
 
-def replace_blocks(input_file: Path, output_file: Path) -> None:
+def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
     with input_file.open("r") as infile:
         content = infile.read()
-    new_content = edit_text(content)
+    new_content = _change_alerts_to_admonitions(content)
 
     with output_file.open("w") as outfile:
         outfile.write(new_content)
@@ -207,7 +196,7 @@ def replace_header(file_path, new_header):
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
-replace_blocks(output_file, output_file)
+change_alerts_to_admonitions(output_file, output_file)
 replace_links(output_file, output_file)
 fix_anchors_with_named_emojis(output_file, output_file)
 sections_folder = docs_path / "source" / "sections"
