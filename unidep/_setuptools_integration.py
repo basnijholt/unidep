@@ -57,10 +57,10 @@ def filter_python_dependencies(
             continue
 
         # Check if all Spec objects are identical
-        first_meta = next(iter(to_process.values()))
-        if all(spec == first_meta for spec in to_process.values()):
+        first_spec = next(iter(to_process.values()))
+        if all(spec == first_spec for spec in to_process.values()):
             # Build a single combined environment marker
-            dep_str = first_meta.name_with_pin(is_pip=True)
+            dep_str = first_spec.name_with_pin(is_pip=True)
             if _platform is not None:
                 selector = build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
