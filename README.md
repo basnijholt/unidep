@@ -219,7 +219,7 @@ Selectors are used in `requirements.yaml` files to conditionally include depende
 
 ```yaml
 dependencies:
-  - some-package  # [unix]
+  - some-package >=1  # [unix]
   - another-package  # [win]
   - special-package  # [osx64]
   - pip: cirq  # [macos win]
@@ -231,7 +231,7 @@ Or when using `pyproject.toml` instead of `requirements.yaml`:
 ```toml
 [tool.unidep]
 dependencies = [
-    "some-package:unix",
+    "some-package >=1:unix",
     "another-package:win",
     "special-package:osx64",
     { pip = "cirq:macos win", conda = "cirq:linux" },
