@@ -139,7 +139,7 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 ### Key Points
 
 - Standard names (e.g., `- numpy`) are assumed to be the same for Conda and Pip.
-- Use `conda: <package>` and `pip: <package>` to specify different names across platforms.
+- Use a dictionary with `conda: <package>` *and* `pip: <package>` to specify different names across platforms.
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` to specify platform-specific dependencies.
