@@ -222,16 +222,31 @@ dependencies:
   - some-package  # [unix]
   - another-package  # [win]
   - special-package  # [osx64]
-  - pip: cirq  # [macos]
+  - pip: cirq  # [macos win]
     conda: cirq  # [linux]
 ```
+
+<details><summary>Click for equivalent <code>pyproject.toml</code> configuration!</summary>
+
+```toml
+[tool.unidep]
+dependencies = [
+    "some-package:unix",
+    "another-package:win",
+    "special-package:osx64",
+    { pip = "cirq:macos win", conda = "cirq:linux" },
+]
+```
+
+</details>
+
 
 In this example:
 
 - `some-package` is included only in UNIX-like environments (Linux and macOS).
 - `another-package` is specific to Windows.
 - `special-package` is included only for 64-bit macOS systems.
-- `cirq` is managed by `pip` on macOS and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
+- `cirq` is managed by `pip` on macOS and Windows, and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
 
 #### Implementation
 
