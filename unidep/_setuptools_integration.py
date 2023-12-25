@@ -17,6 +17,8 @@ from unidep.utils import (
 )
 
 if TYPE_CHECKING:
+    import sys
+
     from setuptools import Distribution
 
     from unidep.platform_definitions import (
@@ -24,6 +26,11 @@ if TYPE_CHECKING:
         Platform,
         Spec,
     )
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal
+    else:
+        from typing_extensions import Literal
 
 
 def filter_python_dependencies(
@@ -50,10 +57,10 @@ def filter_python_dependencies(
             continue
 
         # Check if all Spec objects are identical
-        first_meta = next(iter(to_process.values()))
-        if all(spec == first_meta for spec in to_process.values()):
+        first_spec = next(iter(to_process.values()))
+        if all(spec == first_spec for spec in to_process.values()):
             # Build a single combined environment marker
-            dep_str = first_meta.name_with_pin(is_pip=True)
+            dep_str = first_spec.name_with_pin(is_pip=True)
             if _platform is not None:
                 selector = build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
                 dep_str = f"{dep_str}; {selector}"
@@ -70,7 +77,9 @@ def filter_python_dependencies(
 
 
 def get_python_dependencies(
-    filename: str | Path = "requirements.yaml",
+    filename: str
+    | Path
+    | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
     *,
     verbose: bool = False,
     ignore_pins: list[str] | None = None,
