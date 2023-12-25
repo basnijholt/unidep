@@ -33,6 +33,9 @@ extensions = [
     "sphinx_autodoc_typehints",
 ]
 
+
+autosectionlabel_maxdepth = 5
+myst_heading_anchors = 0
 source_parsers = {}  # type: ignore[var-annotated]
 templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
@@ -42,7 +45,7 @@ exclude_patterns = []  # type: ignore[var-annotated]
 pygments_style = "sphinx"
 html_theme = "furo"
 html_static_path = ["_static"]
-htmlhelp_basename = "adaptivedoc"
+htmlhelp_basename = "unidepdoc"
 default_role = "autolink"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
