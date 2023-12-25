@@ -342,32 +342,35 @@ Unified Conda and Pip requirements management.
 positional arguments:
   {merge,install,install-all,conda-lock,pip-compile,pip,conda,version}
                         Subcommands
-    merge               Combine multiple (or a single) `requirements.yaml`
-                        files into a single Conda installable
+    merge               Combine multiple (or a single) `requirements.yaml` or
+                        `pyproject.toml` files into a single Conda installable
                         `environment.yaml` file.
     install             Automatically install all dependencies from one or
-                        more `requirements.yaml` files. This command first
-                        installs dependencies with Conda, then with Pip.
-                        Finally, it installs local packages (those containing
-                        the `requirements.yaml` files) using `pip install [-e]
+                        more `requirements.yaml` or `pyproject.toml` files.
+                        This command first installs dependencies with Conda,
+                        then with Pip. Finally, it installs local packages
+                        (those containing the `requirements.yaml` or
+                        `pyproject.toml` files) using `pip install [-e]
                         ./project`.
-    install-all         Install dependencies from all `requirements.yaml`
-                        files found in the current directory or specified
-                        directory. This command first installs dependencies
-                        using Conda, then Pip, and finally the local packages.
+    install-all         Install dependencies from all `requirements.yaml` or
+                        `pyproject.toml` files found in the current directory
+                        or specified directory. This command first installs
+                        dependencies using Conda, then Pip, and finally the
+                        local packages.
     conda-lock          Generate a global `conda-lock.yml` file for a
-                        collection of `requirements.yaml` files. Additionally,
-                        create individual `conda-lock.yml` files for each
-                        `requirements.yaml` file consistent with the global
-                        lock file.
+                        collection of `requirements.yaml` or `pyproject.toml`
+                        files. Additionally, create individual `conda-
+                        lock.yml` files for each `requirements.yaml` or
+                        `pyproject.toml` file consistent with the global lock
+                        file.
     pip-compile         Generate a fully pinned `requirements.txt` file from
-                        one or more `requirements.yaml` files using `pip-
-                        compile` from `pip-tools`. This command consolidates
-                        all pip dependencies defined in the
-                        `requirements.yaml` files and compiles them into a
-                        single `requirements.txt` file, taking into account
-                        the specific versions and dependencies of each
-                        package.
+                        one or more `requirements.yaml` or `pyproject.toml`
+                        files using `pip-compile` from `pip-tools`. This
+                        command consolidates all pip dependencies defined in
+                        the `requirements.yaml` or `pyproject.toml` files and
+                        compiles them into a single `requirements.txt` file,
+                        taking into account the specific versions and
+                        dependencies of each package.
     pip                 Get the pip requirements for the current platform
                         only.
     conda               Get the conda requirements for the current platform
@@ -399,11 +402,12 @@ usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--depth DEPTH] [--skip-dependency SKIP_DEPENDENCY]
                     [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
 
-Combine multiple (or a single) `requirements.yaml` files into a single Conda
-installable `environment.yaml` file. Example usage: `unidep merge --directory
-. --depth 1 --output environment.yaml` to search for `requirements.yaml` files
-in the current directory and its subdirectories and create `environment.yaml`.
-These are the defaults, so you can also just run `unidep merge`.
+Combine multiple (or a single) `requirements.yaml` or `pyproject.toml` files
+into a single Conda installable `environment.yaml` file. Example usage:
+`unidep merge --directory . --depth 1 --output environment.yaml` to search for
+`requirements.yaml` or `pyproject.toml` files in the current directory and its
+subdirectories and create `environment.yaml`. These are the defaults, so you
+can also just run `unidep merge`.
 
 options:
   -h, --help            show this help message and exit
@@ -418,21 +422,22 @@ options:
                         numpy`, if `comment` then it remains `- numpy #
                         [linux]`, by default `sel`
   -d DIRECTORY, --directory DIRECTORY
-                        Base directory to scan for `requirements.yaml`
-                        file(s), by default `.`
+                        Base directory to scan for `requirements.yaml` or
+                        `pyproject.toml` file(s), by default `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
-  --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
-                        by default 1
+  --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
+                        `pyproject.toml` files, by default 1
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -467,19 +472,22 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
 
-Automatically install all dependencies from one or more `requirements.yaml`
-files. This command first installs dependencies with Conda, then with Pip.
-Finally, it installs local packages (those containing the `requirements.yaml`
-files) using `pip install [-e] ./project`. Example usage: `unidep install
-requirements.yaml` for a single file. For multiple files or folders: `unidep
-install ./project1 ./project2`. The command accepts both file paths and
-directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
+Automatically install all dependencies from one or more `requirements.yaml` or
+`pyproject.toml` files. This command first installs dependencies with Conda,
+then with Pip. Finally, it installs local packages (those containing the
+`requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
+./project`. Example usage: `unidep install requirements.yaml` for a single
+file. For multiple files or folders: `unidep install ./project1 ./project2`.
+The command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
 install the local packages in editable mode. See `unidep install-all` to
-install all `requirements.yaml` in the current folder.
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder.
 
 positional arguments:
-  files                 The `requirements.yaml` file(s) to parse or folder(s)
-                        that contain those file(s), by default `.`
+  files                 The `requirements.yaml` or `pyproject.toml` file(s) to
+                        parse or folder(s) that contain those file(s), by
+                        default `.`
 
 options:
   -h, --help            show this help message and exit
@@ -487,19 +495,21 @@ options:
   -e, --editable        Install the project in editable mode
   --skip-local          Skip installing local dependencies
   --skip-pip            Skip installing pip dependencies from
-                        `requirements.yaml`
+                        `requirements.yaml` or `pyproject.toml`
   --skip-conda          Skip installing conda dependencies from
-                        `requirements.yaml`
+                        `requirements.yaml` or `pyproject.toml`
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
-                        file(s) and only install local package(s). Useful
-                        after installing a `conda-lock.yml` file because then
-                        all dependencies have already been installed.
+                        or `pyproject.toml` file(s) and only install local
+                        package(s). Useful after installing a `conda-lock.yml`
+                        file because then all dependencies have already been
+                        installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
@@ -537,19 +547,22 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
 
-Automatically install all dependencies from one or more `requirements.yaml`
-files. This command first installs dependencies with Conda, then with Pip.
-Finally, it installs local packages (those containing the `requirements.yaml`
-files) using `pip install [-e] ./project`. Example usage: `unidep install
-requirements.yaml` for a single file. For multiple files or folders: `unidep
-install ./project1 ./project2`. The command accepts both file paths and
-directories containing a `requirements.yaml` file. Use `--editable` or `-e` to
+Automatically install all dependencies from one or more `requirements.yaml` or
+`pyproject.toml` files. This command first installs dependencies with Conda,
+then with Pip. Finally, it installs local packages (those containing the
+`requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
+./project`. Example usage: `unidep install requirements.yaml` for a single
+file. For multiple files or folders: `unidep install ./project1 ./project2`.
+The command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
 install the local packages in editable mode. See `unidep install-all` to
-install all `requirements.yaml` in the current folder.
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder.
 
 positional arguments:
-  files                 The `requirements.yaml` file(s) to parse or folder(s)
-                        that contain those file(s), by default `.`
+  files                 The `requirements.yaml` or `pyproject.toml` file(s) to
+                        parse or folder(s) that contain those file(s), by
+                        default `.`
 
 options:
   -h, --help            show this help message and exit
@@ -557,19 +570,21 @@ options:
   -e, --editable        Install the project in editable mode
   --skip-local          Skip installing local dependencies
   --skip-pip            Skip installing pip dependencies from
-                        `requirements.yaml`
+                        `requirements.yaml` or `pyproject.toml`
   --skip-conda          Skip installing conda dependencies from
-                        `requirements.yaml`
+                        `requirements.yaml` or `pyproject.toml`
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --no-dependencies     Skip installing dependencies from `requirements.yaml`
-                        file(s) and only install local package(s). Useful
-                        after installing a `conda-lock.yml` file because then
-                        all dependencies have already been installed.
+                        or `pyproject.toml` file(s) and only install local
+                        package(s). Useful after installing a `conda-lock.yml`
+                        file because then all dependencies have already been
+                        installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
   --dry-run, --dry      Only print the commands that would be run
@@ -608,10 +623,11 @@ usage: unidep conda-lock [-h] [--only-global] [--lockfile LOCKFILE]
                          [--overwrite-pin OVERWRITE_PIN]
 
 Generate a global `conda-lock.yml` file for a collection of
-`requirements.yaml` files. Additionally, create individual `conda-lock.yml`
-files for each `requirements.yaml` file consistent with the global lock file.
-Example usage: `unidep conda-lock --directory ./projects` to generate conda-
-lock files for all `requirements.yaml` files in the `./projects` directory.
+`requirements.yaml` or `pyproject.toml` files. Additionally, create individual
+`conda-lock.yml` files for each `requirements.yaml` or `pyproject.toml` file
+consistent with the global lock file. Example usage: `unidep conda-lock
+--directory ./projects` to generate conda-lock files for all
+`requirements.yaml` or `pyproject.toml` files in the `./projects` directory.
 Use `--only-global` to generate only the global lock file. The `--check-input-
 hash` option can be used to avoid regenerating lock files if the input hasn't
 changed.
@@ -627,21 +643,22 @@ options:
                         regenerating lock files. This flag is directly passed
                         to `conda-lock`.
   -d DIRECTORY, --directory DIRECTORY
-                        Base directory to scan for `requirements.yaml`
-                        file(s), by default `.`
+                        Base directory to scan for `requirements.yaml` or
+                        `pyproject.toml` file(s), by default `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
-  --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
-                        by default 1
+  --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
+                        `pyproject.toml` files, by default 1
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -676,13 +693,14 @@ usage: unidep pip-compile [-h] [-o OUTPUT_FILE] [-d DIRECTORY] [-v]
                           ...
 
 Generate a fully pinned `requirements.txt` file from one or more
-`requirements.yaml` files using `pip-compile` from `pip-tools`. This command
-consolidates all pip dependencies defined in the `requirements.yaml` files and
-compiles them into a single `requirements.txt` file, taking into account the
-specific versions and dependencies of each package. Example usage: `unidep
-pip-compile --directory ./projects` to generate a `requirements.txt` file for
-all `requirements.yaml` files in the `./projects` directory. Use `--output-
-file requirements.txt` to specify a different output file.
+`requirements.yaml` or `pyproject.toml` files using `pip-compile` from `pip-
+tools`. This command consolidates all pip dependencies defined in the
+`requirements.yaml` or `pyproject.toml` files and compiles them into a single
+`requirements.txt` file, taking into account the specific versions and
+dependencies of each package. Example usage: `unidep pip-compile --directory
+./projects` to generate a `requirements.txt` file for all `requirements.yaml`
+or `pyproject.toml` files in the `./projects` directory. Use `--output-file
+requirements.txt` to specify a different output file.
 
 positional arguments:
   extra_flags           Extra flags to pass to `pip-compile`. These flags are
@@ -698,21 +716,22 @@ options:
                         Output file for the pip requirements, by default
                         `requirements.txt`
   -d DIRECTORY, --directory DIRECTORY
-                        Base directory to scan for `requirements.yaml`
-                        file(s), by default `.`
+                        Base directory to scan for `requirements.yaml` or
+                        `pyproject.toml` file(s), by default `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
-  --depth DEPTH         Maximum depth to scan for `requirements.yaml` files,
-                        by default 1
+  --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
+                        `pyproject.toml` files, by default 1
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -749,8 +768,9 @@ Get the pip requirements for the current platform only. Example usage: `unidep
 pip --file folder1 --file folder2/requirements.yaml --seperator ' ' --platform
 linux-64` to extract all the pip dependencies specific to the linux-64
 platform. Note that the `--file` argument can be used multiple times to
-specify multiple `requirements.yaml` files and that --file can also be a
-folder that contains a `requirements.yaml` file.
+specify multiple `requirements.yaml` or `pyproject.toml` files and that --file
+can also be a folder that contains a `requirements.yaml` or `pyproject.toml`
+file.
 
 options:
   -h, --help            show this help message and exit
@@ -764,10 +784,11 @@ options:
                         platform (`linux-64`) is used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
@@ -806,8 +827,9 @@ Get the conda requirements for the current platform only. Example usage:
 `unidep conda --file folder1 --file folder2/requirements.yaml --seperator ' '
 --platform linux-64` to extract all the conda dependencies specific to the
 linux-64 platform. Note that the `--file` argument can be used multiple times
-to specify multiple `requirements.yaml` files and that --file can also be a
-folder that contains a `requirements.yaml` file.
+to specify multiple `requirements.yaml` or `pyproject.toml` files and that
+--file can also be a folder that contains a `requirements.yaml` or
+`pyproject.toml` file.
 
 options:
   -h, --help            show this help message and exit
@@ -821,10 +843,11 @@ options:
                         platform (`linux-64`) is used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
-                        of the `requirements.yaml` files. This option can be
-                        used multiple times, each time specifying a different
-                        package to skip. For example, use `--skip-dependency
-                        pandas` to skip installing pandas.
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
                         `--ignore-pin numpy`. This option can be repeated to
