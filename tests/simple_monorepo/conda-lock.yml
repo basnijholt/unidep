@@ -1,4 +1,4 @@
-# This file is created and managed by `unidep` 0.33.0.
+# This file is created and managed by `unidep` 0.41.0.
 # For details see https://github.com/basnijholt/unidep
 # File generated with: `unidep conda-lock -d tests/simple_monorepo`
 #
@@ -10,15 +10,28 @@
 version: 1
 metadata:
   content_hash:
-    osx-arm64: 6c79ca2c4afacef876acdef1f4805c4ee99c9165f71261f237a2086a0000847a
+    osx-64: ee56565c906fa861ded63721f99e398fd1734b57368e6f701e25dddf03e7960a
+    osx-arm64: 08362c60bc03c882ae95fa83c4d29e9fb0b7795d63d74ada081ac0fa8a7c69f8
   channels:
   - url: conda-forge
     used_env_vars: []
   platforms:
+  - osx-64
   - osx-arm64
   sources:
   - tmp.environment.yaml
 package:
+- name: bzip2
+  version: 1.0.8
+  manager: conda
+  platform: osx-64
+  dependencies: {}
+  url: https://conda.anaconda.org/conda-forge/osx-64/bzip2-1.0.8-h10d778d_5.conda
+  hash:
+    md5: 6097a6ca9ada32699b5fc4312dd6ef18
+    sha256: 61fb2b488928a54d9472113e1280b468a309561caa54f33825a3593da390b242
+  category: main
+  optional: false
 - name: bzip2
   version: 1.0.8
   manager: conda
@@ -33,6 +46,17 @@ package:
 - name: python_abi
   version: '3.12'
   manager: conda
+  platform: osx-64
+  dependencies: {}
+  url: https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.12-4_cp312.conda
+  hash:
+    md5: 87201ac4314b911b74197e588cca3639
+    sha256: 82c154d95c1637604671a02a89e72f1382e89a4269265a03506496bd928f6f14
+  category: main
+  optional: false
+- name: python_abi
+  version: '3.12'
+  manager: conda
   platform: osx-arm64
   dependencies: {}
   url: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.12-4_cp312.conda
@@ -42,13 +66,13 @@ package:
   category: main
   optional: false
 - name: tzdata
-  version: 2023c
+  version: 2023d
   manager: conda
   platform: osx-arm64
   dependencies: {}
-  url: https://conda.anaconda.org/conda-forge/noarch/tzdata-2023c-h71feb2d_0.conda
+  url: https://conda.anaconda.org/conda-forge/noarch/tzdata-2023d-h0c530f3_0.conda
   hash:
-    md5: 939e3e74d8be4dac89ce83b20de2492a
-    sha256: 0449138224adfa125b220154408419ec37c06b0b49f63c5954724325903ecf55
+    md5: 8dee24b8be2d9ff81e7bd4d7d97ff1b0
+    sha256: 04f2ab3e36f2015841551415bf16bf62933bd94b7085d4be5493b388e95a9c3d
   category: main
   optional: false
