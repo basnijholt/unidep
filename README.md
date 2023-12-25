@@ -86,7 +86,8 @@ Both files contain the following keys:
 Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
 Choose the format that works best for your project.
 
-### Example `requirements.yaml`
+### Example
+#### Example `requirements.yaml`
 
 Example of a `requirements.yaml` file:
 
@@ -116,7 +117,7 @@ includes:
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
-### Example `pyproject.toml`
+#### Example `pyproject.toml`
 
 ***Alternatively***, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section:
 
