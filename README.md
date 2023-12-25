@@ -117,7 +117,7 @@ includes:
 ```
 
 > [!IMPORTANT]
-> `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
+> `unidep` can process this during `pip install` and create a Conda installable `environment.yaml` or `conda-lock.yml` file, and more!
 
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
