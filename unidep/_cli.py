@@ -57,6 +57,8 @@ try:  # pragma: no cover
 except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
+_DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
+
 
 def _add_common_args(  # noqa: PLR0912
     sub_parser: argparse.ArgumentParser,
@@ -68,17 +70,16 @@ def _add_common_args(  # noqa: PLR0912
             "--directory",
             type=Path,
             default=".",
-            help="Base directory to scan for `requirements.yaml` file(s),"
-            " by default `.`",
+            help=f"Base directory to scan for {_DEP_FILES} file(s), by default `.`",
         )
     if "file" in options:
         sub_parser.add_argument(
             "-f",
             "--file",
             type=Path,
-            default="requirements.yaml",
-            help="The `requirements.yaml` file to parse or folder that contains"
-            " that file, by default `requirements.yaml`",
+            default=".",
+            help=f"The {_DEP_FILES} file to parse, or folder"
+            " that contains that file, by default `.`",
         )
     if "verbose" in options:
         sub_parser.add_argument(
@@ -112,14 +113,15 @@ def _add_common_args(  # noqa: PLR0912
             "--depth",
             type=int,
             default=1,
-            help="Maximum depth to scan for `requirements.yaml` files, by default 1",
+            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
         )
     if "*files" in options:
         sub_parser.add_argument(
             "files",
             type=Path,
             nargs="+",
-            help="The `requirements.yaml` file(s) to parse or folder(s) that contain"
+            help=f"The {_DEP_FILES} file(s) to parse"
+            " or folder(s) that contain"
             " those file(s), by default `.`",
             default=None,  # default is "." set in `main`
         )
@@ -133,13 +135,13 @@ def _add_common_args(  # noqa: PLR0912
         sub_parser.add_argument(
             "--skip-pip",
             action="store_true",
-            help="Skip installing pip dependencies from `requirements.yaml`",
+            help=f"Skip installing pip dependencies from {_DEP_FILES}",
         )
     if "skip-conda" in options:
         sub_parser.add_argument(
             "--skip-conda",
             action="store_true",
-            help="Skip installing conda dependencies from `requirements.yaml`",
+            help=f"Skip installing conda dependencies from {_DEP_FILES}",
         )
     if "skip-dependency" in options:
         sub_parser.add_argument(
@@ -148,7 +150,8 @@ def _add_common_args(  # noqa: PLR0912
             action="append",
             default=[],
             help="Skip installing a specific dependency that is in one of the"
-            " `requirements.yaml` files. This option can be used multiple times, each"
+            f" {_DEP_FILES}"
+            " files. This option can be used multiple times, each"
             " time specifying a different package to skip."
             " For example, use `--skip-dependency pandas` to skip installing pandas.",
         )
@@ -156,7 +159,7 @@ def _add_common_args(  # noqa: PLR0912
         sub_parser.add_argument(
             "--no-dependencies",
             action="store_true",
-            help="Skip installing dependencies from `requirements.yaml`"
+            help=f"Skip installing dependencies from {_DEP_FILES}"
             " file(s) and only install local package(s). Useful after"
             " installing a `conda-lock.yml` file because then all"
             " dependencies have already been installed.",
@@ -207,12 +210,14 @@ def _parse_args() -> argparse.Namespace:
 
     # Subparser for the 'merge' command
     merge_help = (
-        "Combine multiple (or a single) `requirements.yaml` files into a"
+        f"Combine multiple (or a single) {_DEP_FILES}"
+        " files into a"
         " single Conda installable `environment.yaml` file."
     )
     merge_example = (
         " Example usage: `unidep merge --directory . --depth 1 --output environment.yaml`"  # noqa: E501
-        " to search for `requirements.yaml` files in the current directory and its"
+        f" to search for {_DEP_FILES}"
+        " files in the current directory and its"
         " subdirectories and create `environment.yaml`. These are the defaults, so you"
         " can also just run `unidep merge`."
     )
@@ -265,18 +270,20 @@ def _parse_args() -> argparse.Namespace:
 
     # Subparser for the 'install' command
     install_help = (
-        "Automatically install all dependencies from one or more `requirements.yaml`"
-        " files. This command first installs dependencies with Conda, then with Pip."
-        " Finally, it installs local packages (those containing the `requirements.yaml`"
-        " files) using `pip install [-e] ./project`."
+        f"Automatically install all dependencies from one or more {_DEP_FILES} files."
+        " This command first installs dependencies"
+        " with Conda, then with Pip. Finally, it installs local packages"
+        f" (those containing the {_DEP_FILES} files)"
+        " using `pip install [-e] ./project`."
     )
     install_example = (
         " Example usage: `unidep install requirements.yaml` for a single file."
         " For multiple files or folders: `unidep install ./project1 ./project2`."
         " The command accepts both file paths and directories containing"
-        " a `requirements.yaml` file. Use `--editable` or `-e` to install the"
-        " local packages in editable mode. See `unidep install-all` to install"
-        " all `requirements.yaml` in the current folder."
+        f" a {_DEP_FILES} file. Use `--editable` or"
+        " `-e` to install the local packages in editable mode. See"
+        f" `unidep install-all` to install all {_DEP_FILES} files in and below the"
+        " current folder."
     )
 
     parser_install = subparsers.add_parser(
@@ -305,13 +312,15 @@ def _parse_args() -> argparse.Namespace:
         },
     )
     install_all_help = (
-        "Install dependencies from all `requirements.yaml` files found in the current"
+        f"Install dependencies from all {_DEP_FILES}"
+        " files found in the current"
         " directory or specified directory. This command first installs dependencies"
         " using Conda, then Pip, and finally the local packages."
     )
     install_all_example = (
         " Example usage: `unidep install-all` to install dependencies from all"
-        " `requirements.yaml` files in the current directory. Use"
+        f" {_DEP_FILES}"
+        " files in the current directory. Use"
         " `--directory ./path/to/dir` to specify a different directory. Use"
         " `--depth` to control the depth of directory search. Add `--editable`"
         " or `-e` for installing local packages in editable mode."
@@ -348,13 +357,15 @@ def _parse_args() -> argparse.Namespace:
 
     conda_lock_help = (
         "Generate a global `conda-lock.yml` file for a collection of"
-        " `requirements.yaml` files. Additionally, create individual"
-        " `conda-lock.yml` files for each `requirements.yaml` file"
+        f" {_DEP_FILES}"
+        " files. Additionally, create individual"
+        f" `conda-lock.yml` files for each {_DEP_FILES} file"
         " consistent with the global lock file."
     )
     conda_lock_example = (
         " Example usage: `unidep conda-lock --directory ./projects` to generate"
-        " conda-lock files for all `requirements.yaml` files in the `./projects`"
+        f" conda-lock files for all {_DEP_FILES}"
+        " files in the `./projects`"
         " directory. Use `--only-global` to generate only the global lock file."
         " The `--check-input-hash` option can be used to avoid regenerating lock"
         " files if the input hasn't changed."
@@ -402,14 +413,16 @@ def _parse_args() -> argparse.Namespace:
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
         "Generate a fully pinned `requirements.txt` file from one or more"
-        " `requirements.yaml` files using `pip-compile` from `pip-tools`. This"
-        " command consolidates all pip dependencies defined in the `requirements.yaml`"
+        f" {_DEP_FILES}"
+        " files using `pip-compile` from `pip-tools`. This"
+        f" command consolidates all pip dependencies defined in the {_DEP_FILES}"
         " files and compiles them into a single `requirements.txt` file, taking"
         " into account the specific versions and dependencies of each package."
     )
     pip_compile_example = (
         " Example usage: `unidep pip-compile --directory ./projects` to generate"
-        " a `requirements.txt` file for all `requirements.yaml` files in the"
+        f" a `requirements.txt` file for all {_DEP_FILES}"
+        " files in the"
         " `./projects` directory. Use `--output-file requirements.txt` to specify a"
         " different output file."
     )
@@ -456,8 +469,9 @@ def _parse_args() -> argparse.Namespace:
         " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
         " extract all the {which} dependencies specific to the linux-64 platform. Note"
         " that the `--file` argument can be used multiple times to specify multiple"
-        " `requirements.yaml` files and that --file can also be a folder that contains"
-        " a `requirements.yaml` file."
+        f" {_DEP_FILES}"
+        " files and that --file can also be a folder that contains"
+        f" a {_DEP_FILES} file."
     )
     parser_pip = subparsers.add_parser(
         "pip",
@@ -569,7 +583,7 @@ def _install_command(  # noqa: PLR0912
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
 ) -> None:
-    """Install the dependencies of a single `requirements.yaml` file."""
+    """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     if no_dependencies:
         skip_pip = True
         skip_conda = True
@@ -680,7 +694,7 @@ def _install_all_command(
         verbose=verbose,
     )
     if not found_files:
-        print(f"❌ No `requirements.yaml` files found in {directory}")
+        print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
     _install_command(
         *found_files,
@@ -721,7 +735,7 @@ def _merge_command(
         verbose=verbose,
     )
     if not found_files:
-        print(f"❌ No `requirements.yaml` files found in {directory}")
+        print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
     requirements = parse_requirements(
         *found_files,
