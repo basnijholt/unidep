@@ -41,6 +41,7 @@ Try it now and streamline your development process!
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
+  - [Example packages](#example-packages)
 - [:desktop_computer: As a CLI](#desktop_computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
