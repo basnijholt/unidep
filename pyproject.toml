@@ -23,6 +23,29 @@ Homepage = "https://github.com/basnijholt/unidep"
 
 [project.optional-dependencies]
 toml = ["tomli; python_version < '3.11'"]
+conda-lock = ["conda-lock", "conda-package-handling"]
+pip-compile = ["pip-tools"]
+pytest = ["pytest", "GitPython"] # The pytest plugin
+rich = ["rich-argparse"]
+# Everything except testing and docs
+all = [
+    "tomli; python_version < '3.11'",
+    "conda-lock",
+    "conda-package-handling",
+    "pytest",
+    "GitPython",
+    "rich-argparse",
+    "pip-tools",
+]
+docs = [
+    "myst-nb",
+    "sphinx_fontawesome",
+    "sphinx",
+    "furo",
+    "myst-parser",
+    "emoji",
+    "sphinx-autodoc-typehints",
+]
 test = [
     "tomli; python_version < '3.11'",
     "tomli_w",
@@ -32,20 +55,6 @@ test = [
     "pytest-cov",
     "pytest-mock",
     "conda-package-handling",
-]
-conda-lock = ["conda-lock", "conda-package-handling"]
-pip-compile = ["pip-tools"]
-pytest = ["pytest", "GitPython"] # The pytest plugin
-rich = ["rich-argparse"]
-# Everything except testing
-all = [
-    "tomli; python_version < '3.11'",
-    "conda-lock",
-    "conda-package-handling",
-    "pytest",
-    "GitPython",
-    "rich-argparse",
-    "pip-tools",
 ]
 
 [project.scripts]
@@ -116,6 +125,7 @@ ignore = [
 "tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
 "example/*" = ["INP001", "D100"]
+"docs/*" = ["ALL"]
 
 [tool.ruff.mccabe]
 max-complexity = 18

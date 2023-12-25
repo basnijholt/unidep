@@ -19,18 +19,19 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!
 
-> [!TIP]
-> Check out the [example `requirements.yaml` and `pyproject.toml` below](#example).
+:::{tip}
+Check out the [example `requirements.yaml` and `pyproject.toml` below](#example).
+:::
 
 <!-- toc-start -->
 
-## :books: Table of Contents
+## 📚 Table of Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [:package: Installation](#package-installation)
-- [:memo: `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
+- [📦 Installation](#package-installation)
+- [📝 `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
   - [Example `requirements.yaml`](#example-requirementsyaml)
   - [Example `pyproject.toml`](#example-pyprojecttoml)
   - [Key Points](#key-points)
@@ -41,11 +42,11 @@ Try it now and streamline your development process!
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
-- [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
+- [🧩 Build System Integration](#jigsaw-build-system-integration)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-- [:desktop_computer: As a CLI](#desktop_computer-as-a-cli)
+- [🖥️ As a CLI](#desktop_computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
   - [`unidep install-all`](#unidep-install-all)
@@ -53,15 +54,15 @@ Try it now and streamline your development process!
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
-- [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
+- [🛠️ Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
-- [:warning: Limitations](#warning-limitations)
+- [⚠️ Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 <!-- toc-end -->
 
-## :package: Installation
+## 📦 Installation
 
 To install `unidep`, run the following command:
 
@@ -75,7 +76,7 @@ or
 conda install -c conda-forge unidep
 ```
 
-## :memo: `requirements.yaml` and `pyproject.toml` structure
+## 📝 `requirements.yaml` and `pyproject.toml` structure
 
 `unidep` allows either using a
 1. `requirements.yaml` file with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file) or
@@ -115,11 +116,13 @@ includes:
   - ../common-requirements.yaml  # include other requirements.yaml files
 ```
 
-> [!IMPORTANT]
-> `unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
+:::{important}
+`unidep` can process this file in `pyproject.toml` or `setup.py` and create a Conda installable `environment.yaml` or `conda-lock.yml` file.
+:::
 
-> [!NOTE]
-> For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
+:::{note}
+For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
+:::
 
 #### Example `pyproject.toml`
 
@@ -150,9 +153,10 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 
 See [Build System Integration](#jigsaw-build-system-integration) for more information on how to set up `unidep` with different build systems (Setuptools or Hatchling).
 
-> [!IMPORTANT]
-> In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
-> Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`!
+:::{important}
+In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
+Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`!
+:::
 
 ### Key Points
 
@@ -192,10 +196,11 @@ UniDep supports a range of version pinning operators (the same as Conda):
 - **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
   - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
 
-> [!WARNING]
-> **Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package.
-> This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification.
-> However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
+:::{caution}
+**Pinning Validation and Combination**: UniDep actively validates and/or combines pinnings only when **multiple different pinnings** are specified for the same package.
+This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification.
+However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
+:::
 
 ### Conflict Resolution
 
@@ -268,10 +273,11 @@ Note that the `package-name:unix` syntax can also be used in the `requirements.y
 `unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
 It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
-## :jigsaw: Build System Integration
+## 🧩 Build System Integration
 
-> [!TIP]
-> See [`example/`](example/) for working examples of using `unidep` with different build systems.
+:::{tip}
+See [`example/`](example/) for working examples of using `unidep` with different build systems.
+:::
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
@@ -326,7 +332,7 @@ dynamic = ["dependencies"]
 [tool.hatch.metadata.hooks.unidep]
 ```
 
-## :desktop_computer: As a CLI
+## 🖥️ As a CLI
 
 See [example](example/) for more information or check the output of `unidep -h` for the available sub commands:
 
@@ -866,7 +872,7 @@ options:
 
 <!-- OUTPUT:END -->
 
-## :hammer_and_wrench: Troubleshooting
+## 🛠️ Troubleshooting
 
 ### `pip install` fails with `FileNotFoundError`
 
@@ -896,7 +902,7 @@ The solution is to upgrade `pip` to version `22.0` or newer:
 pip install --upgrade pip
 ```
 
-## :warning: Limitations
+## ⚠️ Limitations
 
 - **Conda-Focused**: Best suited for Conda environments. However, note that having `conda` is not a requirement to install packages that use UniDep.
 - **Setuptools and Hatchling only**: Currently only works with setuptools and Hatchling, not flit, poetry, or other build systems. Open an issue if you'd like to see support for other build systems.
