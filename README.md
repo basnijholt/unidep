@@ -142,7 +142,7 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 - Use a dictionary with `conda: <package>` *and* `pip: <package>` to specify different names across platforms.
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
-- Use `# [selector]` to specify platform-specific dependencies.
+- Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `platforms:` to specify the platforms that are supported.
 - Use `includes:` to include other `requirements.yaml` files and merge them into one.
 
@@ -275,11 +275,6 @@ requires = ["setuptools", "unidep"]
 dynamic = ["dependencies"]
 ```
 
-For practical examples:
-
-- [`setup.py` integration example](example/setup_py_project/)
-- [`pyproject.toml` with Setuptools (PEP 621) example](example/pyproject_toml_project/)
-
 ### Hatchling Integration
 
 For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process `requirements.yaml`.
@@ -301,7 +296,18 @@ dynamic = ["dependencies"]
 [tool.hatch.metadata.hooks.unidep]
 ```
 
-See the [Hatch project example](example/hatch_project/pyproject.toml) for detailed setup.
+### Example packages
+
+Explore these installable example packages to understand how `unidep` integrates with different build tools and configurations:
+
+| Project                                            | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` | Description                                                                        |
+| -------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| [`setup_py_project`](example/setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          | Traditional `setuptools` project with `requirements.yaml`.                         |
+| [`setuptools_project`](example/setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
+| [`pyproject_toml_project`](example/pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
+| [`hatch_project`](example/hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
+| [`hatch2_project`](example/hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          | Pure `pyproject.toml` Hatchling project.                                           |
+
 
 ## :desktop_computer: As a CLI
 
