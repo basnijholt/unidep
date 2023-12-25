@@ -203,9 +203,10 @@ sections_folder = docs_path / "source" / "sections"
 shutil.rmtree(sections_folder, ignore_errors=True)
 sections_folder.mkdir(exist_ok=True)
 split_markdown_by_headers(output_file, sections_folder)
+output_file.unlink()
 shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
 replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
-output_file.unlink()
+
 
 def setup(app):
     pass
