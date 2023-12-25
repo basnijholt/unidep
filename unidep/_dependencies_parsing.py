@@ -21,6 +21,7 @@ from unidep.utils import (
     parse_package_str,
     selector_from_comment,
     unidep_configured_in_toml,
+    warn,
 )
 
 if TYPE_CHECKING:
@@ -173,6 +174,22 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
         return yaml.load(f)
 
 
+def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
+    """Get `local_dependencies` from a `requirements.yaml` or `pyproject.toml` file."""
+    if "local_dependencies" in data:
+        return data["local_dependencies"]
+    if "includes" in data:
+        warn(
+            "⚠️ You are using `includes` in `requirements.yaml` or `pyproject.toml`"
+            " `[unidep.tool]` which is deprecated since 0.42.0 and has been renamed to"
+            " `local_dependencies`.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return data["includes"]
+    return []
+
+
 def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
@@ -197,11 +214,11 @@ def parse_requirements(  # noqa: PLR0912
         datas.append(data)
         seen.add(p.resolve())
 
-        # Handle includes
-        for include in data.get("includes", []):
+        # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
+        for include in _get_local_dependencies(data):
             include_path = dependencies_filename(p.parent / include).resolve()
             if include_path in seen:
-                continue  # Avoids circular includes
+                continue  # Avoids circular local_dependencies
             if verbose:
                 print(f"📄 Parsing include `{include}`")
             datas.append(_load(include_path, yaml))
@@ -255,7 +272,7 @@ def parse_requirements(  # noqa: PLR0912
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_project_dependencies(
+def _extract_local_dependencies(
     path: Path,
     base_path: Path,
     processed: set,
@@ -269,7 +286,8 @@ def _extract_project_dependencies(
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
-    for include in data.get("includes", []):
+    # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
+    for include in _get_local_dependencies(data):
         include_path = dependencies_filename(path.parent / include).resolve()
         include_base_path = str(include_path.parent)
         if include_base_path == str(base_path):
@@ -280,7 +298,7 @@ def _extract_project_dependencies(
             dependencies[str(base_path)].add(include_base_path)
         if verbose:
             print(f"🔗 Adding include `{include_path}`")
-        _extract_project_dependencies(
+        _extract_local_dependencies(
             include_path,
             base_path,
             processed,
@@ -289,14 +307,14 @@ def _extract_project_dependencies(
         )
 
 
-def parse_project_dependencies(
+def parse_local_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
-    Works by loading the specified `includes` list.
+    Works by loading the specified `local_dependencies` list.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
 
@@ -304,7 +322,7 @@ def parse_project_dependencies(
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
         base_path = p.resolve().parent
-        _extract_project_dependencies(
+        _extract_local_dependencies(
             path=p,
             base_path=base_path,
             processed=set(),

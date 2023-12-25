@@ -7,7 +7,7 @@ from unidep._conda_env import (
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     find_requirements_files,
-    parse_project_dependencies,
+    parse_local_dependencies,
     parse_requirements,
 )
 from unidep._setuptools_integration import (
@@ -21,7 +21,7 @@ __all__ = [
     "filter_python_dependencies",
     "find_requirements_files",
     "get_python_dependencies",
-    "parse_project_dependencies",
+    "parse_local_dependencies",
     "parse_requirements",
     "resolve_conflicts",
     "write_conda_environment_file",

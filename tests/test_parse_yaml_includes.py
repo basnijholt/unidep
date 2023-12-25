@@ -1,4 +1,4 @@
-"""unidep's YAML parsing of the `includes` list."""
+"""unidep's YAML parsing of the `local_dependencies` list."""
 from __future__ import annotations
 
 import shutil
@@ -11,7 +11,7 @@ from ruamel.yaml import YAML
 
 from unidep import (
     find_requirements_files,
-    parse_project_dependencies,
+    parse_local_dependencies,
     parse_requirements,
     resolve_conflicts,
 )
@@ -39,7 +39,7 @@ def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_circular_includes(
+def test_circular_local_dependencies(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
@@ -55,25 +55,27 @@ def test_circular_includes(
             """\
             dependencies:
                 - adaptive-scheduler
-            includes:
+            local_dependencies:
                 - ../project2
                 - ../project2  # duplicate include (shouldn't affect the result)
             """,
         ),
     )
+    # Test with old `includes` name
     r2.write_text(
         textwrap.dedent(
             """\
             dependencies:
                 - adaptive
-            includes:
+            includes:  # `local_dependencies` was called `includes` in ≤0.41.0
                 - ../project1
             """,
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
     # Only convert r1 to toml, not r2, because we want to test that
-    requirements = parse_requirements(r1, r2, verbose=False)
+    with pytest.warns(DeprecationWarning, match="is deprecated since 0.42.0"):
+        requirements = parse_requirements(r1, r2, verbose=False)
     # Both will be duplicated because of the circular dependency
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
@@ -86,7 +88,7 @@ def test_circular_includes(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_parse_project_dependencies(
+def test_parse_local_dependencies(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
@@ -99,7 +101,7 @@ def test_parse_project_dependencies(
     r1.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../project2
                 - ../project2  # duplicate include (shouldn't affect the result)
             """,
@@ -108,14 +110,14 @@ def test_parse_project_dependencies(
     r2.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../project1
             """,
         ),
     )
     r2 = maybe_as_toml(toml_or_yaml, r2)
     # Only convert r2 to toml, not r1, because we want to test that
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         r1,
         r2,
         verbose=False,
@@ -129,7 +131,10 @@ def test_parse_project_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
+def test_nested_local_dependencies(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project2 = tmp_path / "project2"
     project3 = tmp_path / "project3"
@@ -144,7 +149,7 @@ def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     p1.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../project2
             """,
         ),
@@ -152,7 +157,7 @@ def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     p2.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../project3
             """,
         ),
@@ -160,7 +165,7 @@ def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     p3.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../project4
             """,
         ),
@@ -177,7 +182,7 @@ def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     p2 = maybe_as_toml(toml_or_yaml, p2)
     p3 = maybe_as_toml(toml_or_yaml, p3)
     p4 = maybe_as_toml(toml_or_yaml, p4)
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         p1,
         p2,
         p3,
@@ -197,7 +202,7 @@ def test_nested_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_nonexistent_includes(
+def test_nonexistent_local_dependencies(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
@@ -207,18 +212,21 @@ def test_nonexistent_includes(
     r1.write_text(
         textwrap.dedent(
             """\
-            includes:
+            local_dependencies:
                 - ../nonexistent_project
             """,
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
     with pytest.raises(FileNotFoundError, match="not found."):
-        parse_project_dependencies(r1, verbose=False, check_pip_installable=False)
+        parse_local_dependencies(r1, verbose=False, check_pip_installable=False)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_no_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None:
+def test_no_local_dependencies(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
     r1 = project1 / "requirements.yaml"
@@ -231,7 +239,7 @@ def test_no_includes(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> N
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         r1,
         verbose=False,
         check_pip_installable=False,
@@ -252,13 +260,13 @@ def test_mixed_real_and_placeholder_dependencies(
             """\
             dependencies:
                 - scipy
-            includes:
+            local_dependencies:
                 - ../project1  # Self include (circular dependency)
             """,
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         r1,
         verbose=False,
         check_pip_installable=False,
@@ -267,7 +275,7 @@ def test_mixed_real_and_placeholder_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_parse_project_dependencies_pip_installable(
+def test_parse_local_dependencies_pip_installable(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
@@ -277,14 +285,16 @@ def test_parse_project_dependencies_pip_installable(
     # Add an extra project
     extra_project = example_folder / "project69"
     extra_project.mkdir(exist_ok=True, parents=True)
-    (extra_project / "requirements.yaml").write_text("includes: [../setup_py_project]")
+    (extra_project / "requirements.yaml").write_text(
+        "local_dependencies: [../setup_py_project]",
+    )
 
-    # Add a line to project1 includes
+    # Add a line to project1 local_dependencies
     setup_py_project_req = example_folder / "setup_py_project" / "requirements.yaml"
     yaml = YAML(typ="safe")
     with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
-    requirements["includes"].append("../project69")
+    requirements["local_dependencies"].append("../project69")
     with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
@@ -294,11 +304,11 @@ def test_parse_project_dependencies_pip_installable(
 
     # Add a common requirements file
     common_requirements = example_folder / "common-requirements.yaml"
-    common_requirements.write_text("includes: [./setup_py_project]")
+    common_requirements.write_text("local_dependencies: [./setup_py_project]")
     common_requirements = maybe_as_toml(toml_or_yaml, common_requirements)
     found_files.append(common_requirements)
 
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         *found_files,
         check_pip_installable=True,
         verbose=True,
@@ -319,7 +329,7 @@ def test_parse_project_dependencies_pip_installable(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_parse_project_dependencies_pip_installable_with_non_installable_project(
+def test_parse_local_dependencies_pip_installable_with_non_installable_project(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
@@ -330,24 +340,24 @@ def test_parse_project_dependencies_pip_installable_with_non_installable_project
     extra_project = example_folder / "project4"
     extra_project.mkdir(exist_ok=True, parents=True)
     r_extra = extra_project / "requirements.yaml"
-    r_extra.write_text("includes: [../setup_py_project]")
+    r_extra.write_text("local_dependencies: [../setup_py_project]")
     r_extra = maybe_as_toml(toml_or_yaml, r_extra)
 
-    # Add a line to hatch_project includes which should
+    # Add a line to hatch_project local_dependencies which should
     # make hatch_project depend on setup_py_project, via project4! However, project4 is
     # not `pip installable` so we're testing that path.
     setup_py_project_req = example_folder / "hatch_project" / "requirements.yaml"
     yaml = YAML(typ="safe")
     with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
-    requirements["includes"] = ["../project4"]
+    requirements["local_dependencies"] = ["../project4"]
     with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
     found_files = find_requirements_files(example_folder)
     assert len(found_files) == 6
 
-    local_dependencies = parse_project_dependencies(
+    local_dependencies = parse_local_dependencies(
         *found_files,
         check_pip_installable=True,
         verbose=True,

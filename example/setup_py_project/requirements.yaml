@@ -10,7 +10,7 @@ dependencies:
   - pip: fileup  # [macos]
   - pip: codestructure
   - pip: aiokef
-includes:
+local_dependencies:
   - ../setuptools_project  # depends on setuptools_project
 platforms:
   - linux-64

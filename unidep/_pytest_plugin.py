@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from unidep._dependencies_parsing import (
     find_requirements_files,
-    parse_project_dependencies,
+    parse_local_dependencies,
 )
 
 if TYPE_CHECKING:
@@ -63,7 +63,7 @@ def pytest_collection_modifyitems(
     repo_root = Path(config.getoption("--repo-root")).absolute()
     repo = Repo(repo_root)
     found_files = find_requirements_files(repo_root)
-    local_dependencies = parse_project_dependencies(*found_files)
+    local_dependencies = parse_local_dependencies(*found_files)
     diffs = repo.head.commit.diff(compare_branch)
     changed_files = [Path(diff.a_path) for diff in diffs]
     affected_packages = _affected_packages(repo_root, changed_files, local_dependencies)

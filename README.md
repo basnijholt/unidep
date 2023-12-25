@@ -87,6 +87,8 @@ Both files contain the following keys:
 - **name** (Optional): For documentation, not used in the output.
 - **channels**: List of conda channels for packages, such as `conda-forge`.
 - **dependencies**: Mix of Conda and Pip packages.
+- **local_dependencies** (Optional): List of paths to other `requirements.yaml` or `pyproject.toml` files to include.
+- **platforms** (Optional): List of platforms that are supported (used in `conda-lock`).
 
 Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
 Choose the format that works best for your project.
@@ -108,12 +110,12 @@ dependencies:
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
   - conda: cuda-toolkit =11.8 # [linux64]
+local_dependencies:
+  - ../other-project-using-unidep  # include other projects that use unidep
+  - ../common-requirements.yaml  # include other requirements.yaml files
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
-includes:
-  - ../other-project-using-unidep  # include other projects that use unidep
-  - ../common-requirements.yaml  # include other requirements.yaml files
 ```
 
 > [!IMPORTANT]
@@ -136,13 +138,13 @@ dependencies = [
     { conda = "mumps" },                             # conda-only
     { conda = "cuda-toolkit =11.8:linux64" }         # Use platform selectors by appending `:linux64`
 ]
+local_dependencies = [
+    "../other-project-using-unidep", # include other projects that use unidep
+    "../common-requirements.yaml"    # include other requirements.yaml files
+]
 platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
     "linux-64",
     "osx-arm64"
-]
-includes = [
-    "../other-project-using-unidep", # include other projects that use unidep
-    "../common-requirements.yaml"    # include other requirements.yaml files
 ]
 ```
 
@@ -163,7 +165,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `platforms:` to specify the platforms that are supported.
-- Use `includes:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
+- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
@@ -871,10 +873,10 @@ options:
 
 ### `pip install` fails with `FileNotFoundError`
 
-When using a project that uses `includes: [../not/current/dir]` in the `requirements.yaml` file:
+When using a project that uses `local_dependencies: [../not/current/dir]` in the `requirements.yaml` file:
 
 ```yaml
-includes:
+local_dependencies:
   # File in a different directory than the pyproject.toml file
   - ../common-requirements.yaml
 ```
