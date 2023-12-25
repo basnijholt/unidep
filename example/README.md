@@ -18,7 +18,6 @@ Explore these example projects to understand how `unidep` integrates with differ
 | [`hatch_project`](hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
 | [`hatch2_project`](hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          | Pure `pyproject.toml` Hatchling project.                                           |
 
-✅
 
 ## Exploring `unidep` Through Practical Examples
 
