@@ -11,7 +11,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 
 - **📝 Use a Single File (`requirements.yaml` or `pyproject.toml`)**: Manage both Conda and Pip dependencies, reducing complexity.
 - **⚙️ Integrates with `pyproject.toml` and `setup.py`**: Specified dependencies are automatically included during `pip install`.
-- **🏢 Monorepo Support**: Render (multiple) `requirements.yaml` (or `pyproject.toml`) into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
+- **🏢 Monorepo Support**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
 - **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Enables generation of fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
