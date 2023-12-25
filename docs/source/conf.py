@@ -216,7 +216,7 @@ sections_folder.mkdir(exist_ok=True)
 split_markdown_by_headers(output_file, sections_folder)
 shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
 replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
-
+output_file.unlink()
 
 def setup(app):
     pass
