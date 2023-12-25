@@ -49,13 +49,15 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 ```bash
 🔍 Scanning in `.` at depth 0
 🔍 Scanning in `pyproject_toml_project` at depth 1
+🔍 Found `"pyproject.toml"` with dependencies at `pyproject_toml_project/pyproject.toml`
 🔍 Scanning in `hatch2_project` at depth 1
+🔍 Found `"pyproject.toml"` with dependencies at `hatch2_project/pyproject.toml`
 🔍 Scanning in `setup_py_project` at depth 1
-🔍 Found `requirements.yaml` at `setup_py_project/requirements.yaml`
+🔍 Found `"requirements.yaml"` at `setup_py_project/requirements.yaml`
 🔍 Scanning in `setuptools_project` at depth 1
-🔍 Found `requirements.yaml` at `setuptools_project/requirements.yaml`
+🔍 Found `"requirements.yaml"` at `setuptools_project/requirements.yaml`
 🔍 Scanning in `hatch_project` at depth 1
-🔍 Found `requirements.yaml` at `hatch_project/requirements.yaml`
+🔍 Found `"requirements.yaml"` at `hatch_project/requirements.yaml`
 📄 Parsing `hatch2_project/pyproject.toml`
 📄 Parsing `hatch_project/requirements.yaml`
 📄 Parsing `pyproject_toml_project/pyproject.toml`

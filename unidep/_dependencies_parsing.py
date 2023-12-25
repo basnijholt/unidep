@@ -47,7 +47,6 @@ def find_requirements_files(
     verbose: bool = False,
 ) -> list[Path]:
     """Scan a directory for requirements.yaml files."""
-    filename_yaml = "requirements.yaml"
     base_path = Path(base_dir)
     found_files = []
 
@@ -60,11 +59,13 @@ def find_requirements_files(
         for child in path.iterdir():
             if child.is_dir():
                 _scan_dir(child, current_depth + 1)
-            elif child.name == filename_yaml:
+            elif child.name == "requirements.yaml":
                 found_files.append(child)
                 if verbose:
-                    print(f"🔍 Found `{filename_yaml}` at `{child}`")
+                    print(f'🔍 Found `"requirements.yaml"` at `{child}`')
             elif child.name == "pyproject.toml" and unidep_configured_in_toml(child):
+                if verbose:
+                    print(f'🔍 Found `"pyproject.toml"` with dependencies at `{child}`')
                 found_files.append(child)
 
     _scan_dir(base_path, 0)
