@@ -33,6 +33,9 @@ extensions = [
     "sphinx_autodoc_typehints",
 ]
 
+
+autosectionlabel_maxdepth = 5
+myst_heading_anchors = 0
 source_parsers = {}  # type: ignore[var-annotated]
 templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
@@ -42,22 +45,11 @@ exclude_patterns = []  # type: ignore[var-annotated]
 pygments_style = "sphinx"
 html_theme = "furo"
 html_static_path = ["_static"]
-htmlhelp_basename = "adaptivedoc"
+htmlhelp_basename = "unidepdoc"
 default_role = "autolink"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "adaptive": ("https://adaptive.readthedocs.io/en/stable/", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
-    "mpi4py": ("https://mpi4py.readthedocs.io/en/stable/", None),
-    "ipyparallel": ("https://ipywidgets.readthedocs.io/en/stable/", None),
-    "dask-mpi": ("http://mpi.dask.org/en/latest/", None),
-    "distributed": ("https://distributed.dask.org/en/latest/", None),
-    "dask": ("https://docs.dask.org/en/latest/", None),
 }
-
-nb_execution_mode = "cache"
-nb_execution_timeout = 180
-nb_execution_raise_on_error = True
 
 
 def replace_named_emojis(input_file: Path, output_file: Path) -> None:
@@ -72,7 +64,7 @@ def replace_named_emojis(input_file: Path, output_file: Path) -> None:
         outfile.write(content_with_emojis)
 
 
-def edit_text(input_text):
+def _change_alerts_to_admonitions(input_text):
     # Splitting the text into lines
     lines = input_text.split("\n")
 
@@ -118,10 +110,10 @@ def edit_text(input_text):
     return "\n".join(edited_text)
 
 
-def replace_blocks(input_file: Path, output_file: Path) -> None:
+def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
     with input_file.open("r") as infile:
         content = infile.read()
-    new_content = edit_text(content)
+    new_content = _change_alerts_to_admonitions(content)
 
     with output_file.open("w") as outfile:
         outfile.write(new_content)
@@ -133,6 +125,24 @@ def replace_links(input_file: Path, output_file: Path) -> None:
     new_content = content.replace(
         "(example/", "(https://github.com/basnijholt/unidep/tree/main/example/"
     )
+    with output_file.open("w") as outfile:
+        outfile.write(new_content)
+
+
+def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
+    to_remove = [
+        "package",
+        "memo",
+        "jigsaw",
+        "desktop_computer",
+        "hammer_and_wrench",
+        "warning",
+    ]
+    with input_file.open("r") as infile:
+        content = infile.read()
+    new_content = content
+    for emoji_name in to_remove:
+        new_content = new_content.replace(f"#{emoji_name}-", "#")
     with output_file.open("w") as outfile:
         outfile.write(new_content)
 
@@ -189,12 +199,14 @@ def replace_header(file_path, new_header):
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
-replace_blocks(output_file, output_file)
+change_alerts_to_admonitions(output_file, output_file)
 replace_links(output_file, output_file)
+fix_anchors_with_named_emojis(output_file, output_file)
 sections_folder = docs_path / "source" / "sections"
 shutil.rmtree(sections_folder, ignore_errors=True)
 sections_folder.mkdir(exist_ok=True)
 split_markdown_by_headers(output_file, sections_folder)
+output_file.unlink()
 shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
 replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
 
