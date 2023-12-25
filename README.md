@@ -754,8 +754,9 @@ folder that contains a `requirements.yaml` file.
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The `requirements.yaml` file to parse or folder that
-                        contains that file, by default `requirements.yaml`
+  -f FILE, --file FILE  The `requirements.yaml` or `pyproject.toml` file to
+                        parse, or folder that contains that file, by default
+                        `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
@@ -810,8 +811,9 @@ folder that contains a `requirements.yaml` file.
 
 options:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  The `requirements.yaml` file to parse or folder that
-                        contains that file, by default `requirements.yaml`
+  -f FILE, --file FILE  The `requirements.yaml` or `pyproject.toml` file to
+                        parse, or folder that contains that file, by default
+                        `.`
   -v, --verbose         Print verbose output
   --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
