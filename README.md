@@ -107,7 +107,7 @@ includes:
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
-Alternatively, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section:
+***Alternatively***, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section:
 
 ```toml
 [tool.unidep]
@@ -134,7 +134,7 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 
 > [!IMPORTANT]
 > In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
-> Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`.
+> Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`!
 
 ### Key Points
 
