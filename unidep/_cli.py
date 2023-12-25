@@ -277,8 +277,8 @@ def _parse_args() -> argparse.Namespace:
         " using `pip install [-e] ./project`."
     )
     install_example = (
-        " Example usage: `unidep install requirements.yaml` for a single file."
-        " For multiple files or folders: `unidep install ./project1 ./project2`."
+        " Example usage: `unidep install .` for a single project."
+        " For multiple projects: `unidep install ./project1 ./project2`."
         " The command accepts both file paths and directories containing"
         f" a {_DEP_FILES} file. Use `--editable` or"
         " `-e` to install the local packages in editable mode. See"
