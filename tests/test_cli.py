@@ -12,10 +12,22 @@ from unidep._cli import _install_all_command, _install_command, _pip_compile_com
 
 REPO_ROOT = Path(__file__).parent.parent
 
+EXAMPLE_PROJECTS = [
+    "setup_py_project",
+    "setuptools_project",
+    "hatch_project",
+    "pyproject_toml_project",
+    "hatch2_project",
+]
 
-def test_install_command(capsys: pytest.CaptureFixture) -> None:
+
+@pytest.mark.parametrize(
+    "project",
+    EXAMPLE_PROJECTS,
+)
+def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     _install_command(
-        REPO_ROOT / "example" / "setup_py_project" / "requirements.yaml",
+        REPO_ROOT / "example" / project,
         conda_executable="",
         dry_run=True,
         editable=False,
@@ -24,11 +36,12 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
+    assert "Installing project with" in captured.out
 
 
 @pytest.mark.parametrize(
     "project",
-    ["setup_py_project", "setuptools_project", "hatch_project"],
+    EXAMPLE_PROJECTS,
 )
 def test_unidep_install_dry_run(project: str) -> None:
     # Path to the requirements file
@@ -70,12 +83,8 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
-    p1 = f"{REPO_ROOT}/example/hatch_project"
-    p2 = f"{REPO_ROOT}/example/setup_py_project"
-    p3 = f"{REPO_ROOT}/example/setuptools_project"
-    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    p5 = f"{REPO_ROOT}/example/hatch2_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    projects = [f"{REPO_ROOT}/example/{p}" for p in EXAMPLE_PROJECTS]
+    pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-dependencies {pkgs}`" in captured.out
 
 
@@ -110,12 +119,8 @@ def test_unidep_install_all_dry_run() -> None:
         "📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
         in result.stdout
     )
-    p1 = f"{REPO_ROOT}/example/hatch_project"
-    p2 = f"{REPO_ROOT}/example/setup_py_project"
-    p3 = f"{REPO_ROOT}/example/setuptools_project"
-    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    p5 = f"{REPO_ROOT}/example/hatch2_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    projects = [f"{REPO_ROOT}/example/{p}" for p in EXAMPLE_PROJECTS]
+    pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "📦 Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 

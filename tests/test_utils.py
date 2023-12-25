@@ -6,14 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from unidep._setuptools_integration import (
-    identify_current_platform,
-)
 from unidep.platform_definitions import Selector
 from unidep.utils import (
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
+    identify_current_platform,
     parse_package_str,
 )
 
