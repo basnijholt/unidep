@@ -1,6 +1,6 @@
 """unidep - Unified Conda and Pip requirements management.
 
-This module provides YAML parsing for `requirements.yaml` files.
+This module provides parsing of `requirements.yaml` and `pyproject.toml` files.
 """
 
 from __future__ import annotations
@@ -46,8 +46,7 @@ def find_requirements_files(
     *,
     verbose: bool = False,
 ) -> list[Path]:
-    """Scan a directory for requirements.yaml files."""
-    filename_yaml = "requirements.yaml"
+    """Scan a directory for `requirements.yaml` and `pyproject.toml` files."""
     base_path = Path(base_dir)
     found_files = []
 
@@ -60,11 +59,13 @@ def find_requirements_files(
         for child in path.iterdir():
             if child.is_dir():
                 _scan_dir(child, current_depth + 1)
-            elif child.name == filename_yaml:
+            elif child.name == "requirements.yaml":
                 found_files.append(child)
                 if verbose:
-                    print(f"🔍 Found `{filename_yaml}` at `{child}`")
+                    print(f'🔍 Found `"requirements.yaml"` at `{child}`')
             elif child.name == "pyproject.toml" and unidep_configured_in_toml(child):
+                if verbose:
+                    print(f'🔍 Found `"pyproject.toml"` with dependencies at `{child}`')
                 found_files.append(child)
 
     _scan_dir(base_path, 0)
@@ -293,10 +294,10 @@ def parse_project_dependencies(
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> dict[Path, list[Path]]:
-    """Extract local project dependencies from a list of `requirements.yaml` files.
+    """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
-    Works by scanning for `includes` in the `requirements.yaml` files.
-    """
+    Works by loading the specified `includes` list.
+    """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
 
     for p in paths:

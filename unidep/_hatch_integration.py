@@ -16,7 +16,7 @@ __all__ = ["UnidepRequirementsMetadataHook"]
 
 
 class UnidepRequirementsMetadataHook(MetadataHookInterface):
-    """Hatch hook to populate ``'project.depencencies'`` from ``requirements.yaml``."""
+    """Hatch hook to populate ``'project.depencencies'`` from ``requirements.yaml`` or ``pyproject.toml``."""  # noqa: E501
 
     PLUGIN_NAME = "unidep"
 
@@ -31,11 +31,10 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
             return
         if "dependencies" in metadata:
             error_msg = (
-                "You have a requirements.yaml file in your project root or"
-                " configured unidep in `pyproject.toml` with [tool.unidep],"
-                " but you are also using [project.dependencies]."
-                " Please choose either requirements.yaml or"
-                " [project.dependencies], but not both."
+                "You have a `requirements.yaml` file in your project root or"
+                " configured unidep in `pyproject.toml` with `[tool.unidep]`,"
+                " but you are also using `[project.dependencies]`."
+                " Please remove `[project.dependencies]`, you cannot use both."
             )
             raise RuntimeError(error_msg)
         metadata["dependencies"] = get_python_dependencies(

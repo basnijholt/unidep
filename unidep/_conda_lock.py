@@ -448,7 +448,7 @@ def conda_lock_command(
     overwrite_pins: list[str],
     lockfile: str = "conda-lock.yml",
 ) -> None:
-    """Generate a conda-lock file a collection of requirements.yaml files."""
+    """Generate a conda-lock file a collection of `requirements.yaml` and/or `pyproject.toml` files."""  # noqa: E501
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
@@ -591,7 +591,7 @@ def _mismatch_report(
         "Version mismatches found between global and subpackage lock files:\n"
         + table
         + "\n\n‼️ You might want to pin some versions stricter"
-        " in your `requirements.yaml` files."
+        " in your `requirements.yaml` and/or `pyproject.toml` files."
     )
 
     if raises:
