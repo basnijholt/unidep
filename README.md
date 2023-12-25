@@ -226,7 +226,7 @@ dependencies:
     conda: cirq  # [linux]
 ```
 
-<details><summary>Click for equivalent <code>pyproject.toml</code> configuration!</summary>
+Or when using `pyproject.toml` instead of `requirements.yaml`:
 
 ```toml
 [tool.unidep]
@@ -237,9 +237,6 @@ dependencies = [
     { pip = "cirq:macos win", conda = "cirq:linux" },
 ]
 ```
-
-</details>
-
 
 In this example:
 
