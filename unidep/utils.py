@@ -259,11 +259,11 @@ def dependencies_filename(folder_or_path: str | Path) -> Path:
         if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
             return fname_toml
         msg = (
-            f"File {fname_yaml} or {fname_toml} (with unidep configuration)"
-            f" not found in {folder_or_path}."
+            f"File `{fname_yaml}` or `{fname_toml}` (with unidep configuration)"
+            f" not found in `{folder_or_path}`."
         )
         raise FileNotFoundError(msg)
     if not path.exists():
-        msg = f"File {path} not found."
+        msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
     return path

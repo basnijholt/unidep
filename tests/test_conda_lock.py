@@ -3,13 +3,21 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
 from ruamel.yaml import YAML
 
-from unidep._conda_lock import conda_lock_command
+from unidep._conda_lock import (
+    LockSpec,
+    _handle_missing_keys,
+    conda_lock_command,
+)
 from unidep.utils import remove_top_comments
+
+if TYPE_CHECKING:
+    from unidep.platform_definitions import CondaPip, Platform
 
 
 def test_conda_lock_command(tmp_path: Path) -> None:
@@ -32,8 +40,16 @@ def test_conda_lock_command(tmp_path: Path) -> None:
             lock1 = yaml.load(f)
         with (folder / "project2" / "conda-lock.yml").open() as f:
             lock2 = yaml.load(f)
-    assert [p["name"] for p in lock1["package"]] == ["bzip2", "python_abi", "tzdata"]
-    assert [p["name"] for p in lock2["package"]] == ["python_abi", "tzdata"]
+
+    assert [p["name"] for p in lock1["package"] if p["platform"] == "osx-arm64"] == [
+        "bzip2",
+        "python_abi",
+        "tzdata",
+    ]
+    assert [p["name"] for p in lock2["package"] if p["platform"] == "osx-arm64"] == [
+        "python_abi",
+        "tzdata",
+    ]
 
 
 def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) -> None:
@@ -152,3 +168,40 @@ def test_remove_top_comments(tmp_path: Path) -> None:
         content = file.read()
 
     assert content == "Actual content line 1\nActual content line 2"
+
+
+def test_handle_missing_keys(capsys: pytest.CaptureFixture) -> None:
+    lock_spec = LockSpec(
+        packages={
+            ("conda", "linux-64", "python-nonexistent"): {
+                "name": "python-nonexistent",
+                "manager": "conda",
+                "platform": "linux-64",
+                "dependencies": [],
+                "url": "https://example.com/nonexistent",
+            },
+        },
+        dependencies={("conda", "linux-64", "nonexistent"): set()},
+    )
+    # Here the package name on pip contains the conda package name, so we will download
+    # the conda package to verify that this is our package.
+
+    locked: list[dict[str, Any]] = []
+    locked_keys: set[tuple[CondaPip, Platform, str]] = {}  # type: ignore[assignment]
+    missing_keys: set[tuple[CondaPip, Platform, str]] = {
+        ("pip", "linux-64", "nonexistent"),
+    }
+    with patch(
+        "unidep._conda_lock._download_and_get_package_names",
+        return_value=None,
+    ) as mock:
+        _handle_missing_keys(
+            lock_spec=lock_spec,
+            locked_keys=locked_keys,
+            missing_keys=missing_keys,
+            locked=locked,
+        )
+        mock.assert_called_once()
+
+    assert f"❌ Missing keys {missing_keys}" in capsys.readouterr().out
+    assert ("pip", "linux-64", "nonexistent") in missing_keys

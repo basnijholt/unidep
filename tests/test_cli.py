@@ -1,6 +1,7 @@
 """unidep CLI tests."""
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,10 +13,22 @@ from unidep._cli import _install_all_command, _install_command, _pip_compile_com
 
 REPO_ROOT = Path(__file__).parent.parent
 
+EXAMPLE_PROJECTS = [
+    "setup_py_project",
+    "setuptools_project",
+    "hatch_project",
+    "pyproject_toml_project",
+    "hatch2_project",
+]
 
-def test_install_command(capsys: pytest.CaptureFixture) -> None:
+
+@pytest.mark.parametrize(
+    "project",
+    EXAMPLE_PROJECTS,
+)
+def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     _install_command(
-        REPO_ROOT / "example" / "setup_py_project" / "requirements.yaml",
+        REPO_ROOT / "example" / project,
         conda_executable="",
         dry_run=True,
         editable=False,
@@ -24,11 +37,12 @@ def test_install_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
+    assert "Installing project with" in captured.out
 
 
 @pytest.mark.parametrize(
     "project",
-    ["setup_py_project", "setuptools_project", "hatch_project"],
+    EXAMPLE_PROJECTS,
 )
 def test_unidep_install_dry_run(project: str) -> None:
     # Path to the requirements file
@@ -70,12 +84,8 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
-    p1 = f"{REPO_ROOT}/example/hatch_project"
-    p2 = f"{REPO_ROOT}/example/setup_py_project"
-    p3 = f"{REPO_ROOT}/example/setuptools_project"
-    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    p5 = f"{REPO_ROOT}/example/hatch2_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    projects = [f"{REPO_ROOT}/example/{p}" for p in EXAMPLE_PROJECTS]
+    pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-dependencies {pkgs}`" in captured.out
 
 
@@ -110,12 +120,8 @@ def test_unidep_install_all_dry_run() -> None:
         "📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
         in result.stdout
     )
-    p1 = f"{REPO_ROOT}/example/hatch_project"
-    p2 = f"{REPO_ROOT}/example/setup_py_project"
-    p3 = f"{REPO_ROOT}/example/setuptools_project"
-    p4 = f"{REPO_ROOT}/example/pyproject_toml_project"
-    p5 = f"{REPO_ROOT}/example/hatch2_project"
-    pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5))])
+    projects = [f"{REPO_ROOT}/example/{p}" for p in EXAMPLE_PROJECTS]
+    pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "📦 Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 
@@ -215,7 +221,7 @@ def test_doubly_nested_project_folder_installable(
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
 
-def test_pip_compile_command(tmp_path: Path) -> None:
+def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     folder = tmp_path / "example"
     shutil.copytree(REPO_ROOT / "example", folder)
     with patch("subprocess.run", return_value=None), patch(
@@ -232,6 +238,39 @@ def test_pip_compile_command(tmp_path: Path) -> None:
             verbose=True,
             extra_flags=["--", "--allow-unsafe"],
         )
-    assert (folder / "requirements.in").exists()
-    with (folder / "requirements.in").open() as f:
+    requirements_in = folder / "requirements.in"
+    assert requirements_in.exists()
+    with requirements_in.open() as f:
         assert "adaptive" in f.read()
+    requirements_txt = folder / "requirements.txt"
+
+    assert (
+        f"Locking dependencies with `pip-compile --output-file {requirements_txt} --allow-unsafe {requirements_in}`"
+        in capsys.readouterr().out
+    )
+
+
+def test_install_non_existing_file() -> None:
+    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+        _install_command(
+            Path("does_not_exist"),
+            conda_executable="",
+            dry_run=True,
+            editable=True,
+            verbose=True,
+        )
+
+
+def test_install_non_existing_folder(tmp_path: Path) -> None:
+    match = re.escape(
+        f"File `{tmp_path}/requirements.yaml` or `{tmp_path}/pyproject.toml`"
+        f" (with unidep configuration) not found in `{tmp_path}`",
+    )
+    with pytest.raises(FileNotFoundError, match=match):
+        _install_command(
+            tmp_path,
+            conda_executable="",
+            dry_run=True,
+            editable=True,
+            verbose=True,
+        )

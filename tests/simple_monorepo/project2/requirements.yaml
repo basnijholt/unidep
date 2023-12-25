@@ -2,6 +2,9 @@ name: project2
 channels:
   - conda-forge
 dependencies:
-  - conda: tzdata
+  - conda: tzdata  # [arm64]
 includes:
   - ../common-requirements.yaml
+platforms:
+  - osx-arm64
+  - osx-64
