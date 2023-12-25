@@ -23,4 +23,7 @@ dependencies = [
     { pip = "unidep" },
     "numpy >=1.22",
     "hpc05:linux64",
+    "pandas >=2,<3",
+    "pexpect:unix",
+    "wexpect:win64",
 ]

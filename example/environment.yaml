@@ -9,10 +9,12 @@ dependencies:
   - sel(linux): adaptive-scheduler
   - numpy >=1.22
   - sel(linux): hpc05
+  - pandas >=2,<3
+  - sel(linux): pexpect
+  - sel(osx): pexpect
   - adaptive
   - sel(linux): pfapack
   - pipefunc
-  - pandas
   - pip:
     - unidep
     - markdown-code-runner

@@ -89,11 +89,11 @@ dependencies:
   - numpy  # same name on conda and pip
   - conda: python-graphviz  # When names differ between Conda and Pip
     pip: graphviz
-  - pip: slurm-usage  # pip-only
+  - pip: slurm-usage >=1.1.0,<2  # pip-only
   - conda: mumps  # conda-only
   # Use platform selectors; below only on linux64
-  - conda: cuda-toolkit  # [linux64]
-platforms:  # (Optional) specify platforms that are supported (like conda-lock)
+  - conda: cuda-toolkit =11.8 # [linux64]
+platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
 includes:
@@ -107,10 +107,39 @@ includes:
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
+***Alternatively***, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section:
+
+```toml
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "numpy", # same name on conda and pip
+    { conda = "python-graphviz", pip = "graphviz" }, # When names differ between Conda and Pip
+    { pip = "slurm-usage >=1.1.0,<2" }, # pip-only
+    { conda = "mumps" }, # conda-only
+    { conda = "cuda-toolkit =11.8:linux64" }, # Use platform selectors by appending `:linux64`
+]
+platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
+    "linux-64",
+    "osx-arm64",
+]
+includes = [
+    "../other-project-using-unidep", # include other projects that use unidep
+    "../common-requirements.yaml", # include other requirements.yaml files
+]
+```
+
+This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
+In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `pyproject.toml` file is `:linux64` at the end of the package name.
+
+> [!IMPORTANT]
+> In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
+> Everything that is possible in `requirements.yaml` is also possible in `pyproject.toml`!
+
 ### Key Points
 
 - Standard names (e.g., `- numpy`) are assumed to be the same for Conda and Pip.
-- Use `conda: <package>` and `pip: <package>` to specify different names across platforms.
+- Use a dictionary with `conda: <package>` *and* `pip: <package>` to specify different names across platforms.
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` to specify platform-specific dependencies.
@@ -190,11 +219,23 @@ Selectors are used in `requirements.yaml` files to conditionally include depende
 
 ```yaml
 dependencies:
-  - some-package  # [unix]
+  - some-package >=1  # [unix]
   - another-package  # [win]
   - special-package  # [osx64]
-  - pip: cirq  # [macos]
+  - pip: cirq  # [macos win]
     conda: cirq  # [linux]
+```
+
+Or when using `pyproject.toml` instead of `requirements.yaml`:
+
+```toml
+[tool.unidep]
+dependencies = [
+    "some-package >=1:unix",
+    "another-package:win",
+    "special-package:osx64",
+    { pip = "cirq:macos win", conda = "cirq:linux" },
+]
 ```
 
 In this example:
@@ -202,7 +243,7 @@ In this example:
 - `some-package` is included only in UNIX-like environments (Linux and macOS).
 - `another-package` is specific to Windows.
 - `special-package` is included only for 64-bit macOS systems.
-- `cirq` is managed by `pip` on macOS and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
+- `cirq` is managed by `pip` on macOS and Windows, and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
 
 #### Implementation
 
