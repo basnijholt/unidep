@@ -28,8 +28,9 @@ Try it now and streamline your development process!
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [:package: Installation](#package-installation)
-- [:memo: `requirements.yaml` structure](#memo-requirementsyaml-structure)
-  - [Example](#example)
+- [:memo: `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
+  - [Example `requirements.yaml`](#example-requirementsyaml)
+  - [Example `pyproject.toml`](#example-pyprojecttoml)
   - [Key Points](#key-points)
   - [Supported Version Pinnings](#supported-version-pinnings)
   - [Conflict Resolution](#conflict-resolution)
@@ -39,9 +40,9 @@ Try it now and streamline your development process!
     - [Usage](#usage)
     - [Implementation](#implementation)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
+  - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
-  - [Example packages](#example-packages)
 - [:desktop_computer: As a CLI](#desktop_computer-as-a-cli)
   - [`unidep merge`](#unidep-merge)
   - [`unidep install`](#unidep-install)
@@ -70,15 +71,22 @@ or
 conda install -c conda-forge unidep
 ```
 
-## :memo: `requirements.yaml` structure
+## :memo: `requirements.yaml` and `pyproject.toml` structure
 
-`unidep` processes `requirements.yaml` files with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file):
+`unidep` allows either using a
+1. `requirements.yaml` file with a specific format (similar but _**not**_ the same as a Conda `environment.yaml` file) or
+2. `pyproject.toml` file with a `[tool.unidep]` section.
+
+Both files contain the following keys:
 
 - **name** (Optional): For documentation, not used in the output.
-- **channels**: List of sources for packages, such as `conda-forge`.
+- **channels**: List of conda channels for packages, such as `conda-forge`.
 - **dependencies**: Mix of Conda and Pip packages.
 
-### Example
+Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
+Choose the format that works best for your project.
+
+### Example `requirements.yaml`
 
 Example of a `requirements.yaml` file:
 
@@ -108,30 +116,34 @@ includes:
 > [!NOTE]
 > For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
 
+### Example `pyproject.toml`
+
 ***Alternatively***, one can fully configure the dependencies in the `pyproject.toml` file in the `[tool.unidep]` section:
 
 ```toml
 [tool.unidep]
 channels = ["conda-forge"]
 dependencies = [
-    "numpy", # same name on conda and pip
+    "numpy",                                         # same name on conda and pip
     { conda = "python-graphviz", pip = "graphviz" }, # When names differ between Conda and Pip
-    { pip = "slurm-usage >=1.1.0,<2" }, # pip-only
-    { conda = "mumps" }, # conda-only
-    { conda = "cuda-toolkit =11.8:linux64" }, # Use platform selectors by appending `:linux64`
+    { pip = "slurm-usage >=1.1.0,<2" },              # pip-only
+    { conda = "mumps" },                             # conda-only
+    { conda = "cuda-toolkit =11.8:linux64" }         # Use platform selectors by appending `:linux64`
 ]
 platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
     "linux-64",
-    "osx-arm64",
+    "osx-arm64"
 ]
 includes = [
     "../other-project-using-unidep", # include other projects that use unidep
-    "../common-requirements.yaml", # include other requirements.yaml files
+    "../common-requirements.yaml"    # include other requirements.yaml files
 ]
 ```
 
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
 In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `pyproject.toml` file is `:linux64` at the end of the package name.
+
+See [Build System Integration](#jigsaw-build-system-integration) for more information on how to set up `unidep` with different build systems (Setuptools or Hatchling).
 
 > [!IMPORTANT]
 > In these docs, we often mention the `requirements.yaml` format for simplicity, but the same information can be specified in `pyproject.toml` as well.
@@ -145,13 +157,13 @@ In the `requirements.yaml` file, one can use e.g., `# [linux64]`, which in the `
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `platforms:` to specify the platforms that are supported.
-- Use `includes:` to include other `requirements.yaml` files and merge them into one.
+- Use `includes:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
 
-Using the CLI `unidep` will combine these dependencies into a single conda installable `environment.yaml` file.
+> *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
 ### Supported Version Pinnings
 
-UniDep supports a range of version pinning formats to ensure flexibility in dependency management. Here are the types of version specifications UniDep can handle:
+UniDep supports a range of version pinning operators (the same as Conda):
 
 - **Standard Version Constraints**: Specify exact versions or ranges with standard operators like `=`, `>`, `<`, `>=`, `<=`.
   - Example: `=1.0.0`, `>1.0.0, <2.0.0`.
@@ -169,7 +181,7 @@ UniDep supports a range of version pinning formats to ensure flexibility in depe
 
 - **Conda Build Pinning**: UniDep also supports Conda's build pinning, allowing you to specify builds in your pinning patterns.
   - Example: Conda supports pinning builds like `qsimcirq * cuda*` or `vtk * *egl*`.
-  - **UniDep Limitation**: While UniDep allows such build pinning, it requires that there be a single pin per package. UniDep cannot resolve conflicts where multiple build pinnings are specified for the same package.
+  - **Limitation**: While UniDep allows such build pinning, it requires that there be a single pin per package. UniDep cannot resolve conflicts where multiple build pinnings are specified for the same package.
     - Example: UniDep can handle `qsimcirq * cuda*`, but it cannot resolve a scenario with both `qsimcirq * cuda*` and `qsimcirq * cpu*`.
 
 - **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
@@ -180,17 +192,15 @@ UniDep supports a range of version pinning formats to ensure flexibility in depe
 > This means if your `requirements.yaml` files include multiple pinnings for a single package, UniDep will attempt to resolve them into a single, coherent specification.
 > However, if the pinnings are contradictory or incompatible, UniDep will raise an error to alert you of the conflict.
 
-This diverse support for version pinning ensures that UniDep can cater to a wide range of dependency management needs, from simple projects to more complex ones with specific version or build requirements.
-
 ### Conflict Resolution
 
-`unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` files. This functionality ensures optimal package version selection based on specified requirements.
+`unidep` features a conflict resolution mechanism to manage version conflicts and platform-specific dependencies in `requirements.yaml` or `pyproject.toml` files.
 
 #### How It Works
 
-- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when multiple versions of the same package are specified. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when the same package is specified multiple times. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
 
-- **Minimal Scope Selection**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the most limited platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
+- **Platform-Specific Version Pinning**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the narrowest platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
 
 - **Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
 
@@ -246,10 +256,12 @@ In this example:
 - `special-package` is included only for 64-bit macOS systems.
 - `cirq` is managed by `pip` on macOS and Windows, and by `conda` on Linux. This demonstrates how you can specify different package managers for the same package based on the platform.
 
+Note that the `package-name:unix` syntax can also be used in the `requirements.yaml` file, but the `package-name # [unix]` syntax is not supported in `pyproject.toml`.
+
 #### Implementation
 
-The tool parses these selectors and filters dependencies according to the platform where it's being run.
-This is particularly useful for creating environment files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
+`unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
+It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
 ## :jigsaw: Build System Integration
 
@@ -258,12 +270,24 @@ This is particularly useful for creating environment files that are portable acr
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
+### Example packages
+
+Explore these installable example packages to understand how `unidep` integrates with different build tools and configurations:
+
+| Project                                                    | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` |
+| ---------------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- |
+| [`setup_py_project`](example/setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          |
+| [`setuptools_project`](example/setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          |
+| [`pyproject_toml_project`](example/pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          |
+| [`hatch_project`](example/hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          |
+| [`hatch2_project`](example/hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          |
+
 ### Setuptools Integration
 
-For projects using `setuptools`, configure `unidep` in `pyproject.toml` alongside a `requirements.yaml` file. `unidep` automates dependency management based on your setup:
+For projects using `setuptools`, configure `unidep` in `pyproject.toml` and either specify dependencies in a `requirements.yaml` file or include them in `pyproject.toml` too.
 
-- **Using `pyproject.toml` only**: The `dependencies` field in `pyproject.toml` gets automatically populated from `requirements.yaml`.
-- **Using `setup.py`**: The `install_requires` field in `setup.py` reflects dependencies specified in `requirements.yaml`.
+- **Using `pyproject.toml` only**: The `[project.dependencies]` field in `pyproject.toml` gets automatically populated from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
+- **Using `setup.py`**: The `install_requires` field in `setup.py` automatically reflects dependencies specified in `requirements.yaml` or `pyproject.toml`.
 
 **Example `pyproject.toml` Configuration**:
 
@@ -278,7 +302,7 @@ dynamic = ["dependencies"]
 
 ### Hatchling Integration
 
-For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process `requirements.yaml`.
+For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process the dependencies from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
 
 **Example Configuration for Hatch**:
 
@@ -296,19 +320,6 @@ dynamic = ["dependencies"]
 
 [tool.hatch.metadata.hooks.unidep]
 ```
-
-### Example packages
-
-Explore these installable example packages to understand how `unidep` integrates with different build tools and configurations:
-
-| Project                                            | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` | Description                                                                        |
-| -------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- | ---------------------------------------------------------------------------------- |
-| [`setup_py_project`](example/setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          | Traditional `setuptools` project with `requirements.yaml`.                         |
-| [`setuptools_project`](example/setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          | Modern `setuptools` usage with both `pyproject.toml` and `requirements.yaml`.      |
-| [`pyproject_toml_project`](example/pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          | Pure `pyproject.toml` setup, showcasing comprehensive dependency management.       |
-| [`hatch_project`](example/hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          | Demonstrates `unidep` integration in a Hatchling project with `requirements.yaml`. |
-| [`hatch2_project`](example/hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          | Pure `pyproject.toml` Hatchling project.                                           |
-
 
 ## :desktop_computer: As a CLI
 
