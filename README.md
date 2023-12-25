@@ -31,8 +31,9 @@ Try it now and streamline your development process!
 
 - [:package: Installation](#package-installation)
 - [:memo: `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
-  - [Example `requirements.yaml`](#example-requirementsyaml)
-  - [Example `pyproject.toml`](#example-pyprojecttoml)
+  - [Example](#example)
+    - [Example `requirements.yaml`](#example-requirementsyaml)
+    - [Example `pyproject.toml`](#example-pyprojecttoml)
   - [Key Points](#key-points)
   - [Supported Version Pinnings](#supported-version-pinnings)
   - [Conflict Resolution](#conflict-resolution)
