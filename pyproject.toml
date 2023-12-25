@@ -38,11 +38,9 @@ all = [
     "pip-tools",
 ]
 docs = [
-    "myst-nb",
-    "sphinx_fontawesome",
+    "myst-parser",
     "sphinx",
     "furo",
-    "myst-parser",
     "emoji",
     "sphinx-autodoc-typehints",
 ]

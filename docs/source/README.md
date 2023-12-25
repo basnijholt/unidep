@@ -25,41 +25,6 @@ Check out the [example `requirements.yaml` and `pyproject.toml` below](#example)
 
 <!-- toc-start -->
 
-## 📚 Table of Contents
-
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-- [📦 Installation](#package-installation)
-- [📝 `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
-  - [Example `requirements.yaml`](#example-requirementsyaml)
-  - [Example `pyproject.toml`](#example-pyprojecttoml)
-  - [Key Points](#key-points)
-  - [Supported Version Pinnings](#supported-version-pinnings)
-  - [Conflict Resolution](#conflict-resolution)
-    - [How It Works](#how-it-works)
-  - [Platform Selectors](#platform-selectors)
-    - [Supported Selectors](#supported-selectors)
-    - [Usage](#usage)
-    - [Implementation](#implementation)
-- [🧩 Build System Integration](#jigsaw-build-system-integration)
-  - [Example packages](#example-packages)
-  - [Setuptools Integration](#setuptools-integration)
-  - [Hatchling Integration](#hatchling-integration)
-- [🖥️ As a CLI](#desktop_computer-as-a-cli)
-  - [`unidep merge`](#unidep-merge)
-  - [`unidep install`](#unidep-install)
-  - [`unidep install-all`](#unidep-install-all)
-  - [`unidep conda-lock`](#unidep-conda-lock)
-  - [`unidep pip-compile`](#unidep-pip-compile)
-  - [`unidep pip`](#unidep-pip)
-  - [`unidep conda`](#unidep-conda)
-- [🛠️ Troubleshooting](#hammer_and_wrench-troubleshooting)
-  - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
-- [⚠️ Limitations](#warning-limitations)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
 <!-- toc-end -->
 
 ## 📦 Installation
@@ -121,7 +86,7 @@ includes:
 :::
 
 :::{note}
-For a more in-depth example containing multiple installable projects, see the [`example`](example/) directory.
+For a more in-depth example containing multiple installable projects, see the [`example`](https://github.com/basnijholt/unidep/tree/main/example/) directory.
 :::
 
 #### Example `pyproject.toml`
@@ -276,7 +241,7 @@ It is also used for creating environment and lock files that are portable across
 ## 🧩 Build System Integration
 
 :::{tip}
-See [`example/`](example/) for working examples of using `unidep` with different build systems.
+See [`example/`](https://github.com/basnijholt/unidep/tree/main/example/) for working examples of using `unidep` with different build systems.
 :::
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
@@ -287,11 +252,11 @@ Explore these installable [example](example) packages to understand how `unidep`
 
 | Project                                                    | Build Tool   | `pyproject.toml` | `requirements.yaml` | `setup.py` |
 | ---------------------------------------------------------- | ------------ | ---------------- | ------------------- | ---------- |
-| [`setup_py_project`](example/setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          |
-| [`setuptools_project`](example/setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          |
-| [`pyproject_toml_project`](example/pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          |
-| [`hatch_project`](example/hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          |
-| [`hatch2_project`](example/hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          |
+| [`setup_py_project`](https://github.com/basnijholt/unidep/tree/main/example/setup_py_project)             | `setuptools` | ✅                | ✅                   | ✅          |
+| [`setuptools_project`](https://github.com/basnijholt/unidep/tree/main/example/setuptools_project)         | `setuptools` | ✅                | ✅                   | ❌          |
+| [`pyproject_toml_project`](https://github.com/basnijholt/unidep/tree/main/example/pyproject_toml_project) | `setuptools` | ✅                | ❌                   | ❌          |
+| [`hatch_project`](https://github.com/basnijholt/unidep/tree/main/example/hatch_project)                   | `hatch`      | ✅                | ✅                   | ❌          |
+| [`hatch2_project`](https://github.com/basnijholt/unidep/tree/main/example/hatch2_project)                 | `hatch`      | ✅                | ❌                   | ❌          |
 
 ### Setuptools Integration
 
@@ -334,7 +299,7 @@ dynamic = ["dependencies"]
 
 ## 🖥️ As a CLI
 
-See [example](example/) for more information or check the output of `unidep -h` for the available sub commands:
+See [example](https://github.com/basnijholt/unidep/tree/main/example/) for more information or check the output of `unidep -h` for the available sub commands:
 
 <!-- CODE:BASH:START -->
 <!-- echo '```bash' -->

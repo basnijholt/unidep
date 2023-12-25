@@ -28,7 +28,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "myst_parser",
-    "sphinx_fontawesome",
     "sphinx_autodoc_typehints",
 ]
 
@@ -65,10 +64,10 @@ def replace_named_emojis(input_file: Path, output_file: Path) -> None:
 
     with input_file.open("r") as infile:
         content = infile.read()
-        content_with_emojis = emoji.emojize(content, language="alias")
+    content_with_emojis = emoji.emojize(content, language="alias")
 
-        with output_file.open("w") as outfile:
-            outfile.write(content_with_emojis)
+    with output_file.open("w") as outfile:
+        outfile.write(content_with_emojis)
 
 
 def edit_text(input_text):
@@ -120,16 +119,27 @@ def edit_text(input_text):
 def replace_blocks(input_file: Path, output_file: Path) -> None:
     with input_file.open("r") as infile:
         content = infile.read()
-        new_content = edit_text(content)
+    new_content = edit_text(content)
 
-        with output_file.open("w") as outfile:
-            outfile.write(new_content)
+    with output_file.open("w") as outfile:
+        outfile.write(new_content)
+
+
+def replace_links(input_file: Path, output_file: Path) -> None:
+    with input_file.open("r") as infile:
+        content = infile.read()
+    new_content = content.replace(
+        "(example/", "(https://github.com/basnijholt/unidep/tree/main/example/"
+    )
+    with output_file.open("w") as outfile:
+        outfile.write(new_content)
 
 
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
-replace_named_emojis(input_file, output_file)
-replace_blocks(output_file, output_file)
+# replace_named_emojis(input_file, output_file)
+# replace_blocks(output_file, output_file)
+# replace_links(output_file, output_file)
 
 
 def setup(app):

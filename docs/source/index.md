@@ -20,5 +20,5 @@ self
 :maxdepth: 2
 
 FAQ
-reference/unidep
+reference/index
 ```
