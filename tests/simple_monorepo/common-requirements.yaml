@@ -1,4 +1,4 @@
-# This file is uses in the `includes:` section in `project1/requirements.yml`
+# This file is uses in the `local_dependencies:` section in `project1/requirements.yml`
 # and `project2/requirements.yml`.
 name: common-requirements
 channels:

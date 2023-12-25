@@ -137,7 +137,9 @@ def test_doubly_nested_project_folder_installable(
     extra_projects.mkdir(exist_ok=True, parents=True)
     project4 = extra_projects / "project4"
     project4.mkdir(exist_ok=True, parents=True)
-    (project4 / "requirements.yaml").write_text("includes: [../../setup_py_project]")
+    (project4 / "requirements.yaml").write_text(
+        "local_dependencies: [../../setup_py_project]",
+    )
     pyproject_toml = "\n".join(  # noqa: FLY002
         (
             "[build-system]",

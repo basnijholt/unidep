@@ -21,7 +21,7 @@ from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     find_requirements_files,
-    parse_project_dependencies,
+    parse_local_dependencies,
     parse_requirements,
 )
 from unidep._setuptools_integration import (
@@ -642,7 +642,7 @@ def _install_command(  # noqa: PLR0912
                 )
 
         # Install local dependencies (if any) included via `local_dependencies:`
-        local_dependencies = parse_project_dependencies(
+        local_dependencies = parse_local_dependencies(
             *files,
             check_pip_installable=True,
             verbose=verbose,

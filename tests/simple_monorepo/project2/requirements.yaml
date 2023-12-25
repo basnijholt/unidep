@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - conda: tzdata  # [arm64]
-includes:
+local_dependencies:
   - ../common-requirements.yaml
 platforms:
   - osx-arm64

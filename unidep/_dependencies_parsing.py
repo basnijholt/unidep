@@ -197,7 +197,7 @@ def parse_requirements(  # noqa: PLR0912
         datas.append(data)
         seen.add(p.resolve())
 
-        # Handle "local_dependencies" (or old name "includes")
+        # Handle "local_dependencies" (or old name "includes", changed in 0.41.0)
         for include in data.get("local_dependencies", []) or data.get("includes", []):
             include_path = dependencies_filename(p.parent / include).resolve()
             if include_path in seen:
@@ -255,7 +255,7 @@ def parse_requirements(  # noqa: PLR0912
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_project_dependencies(
+def _extract_local_dependencies(
     path: Path,
     base_path: Path,
     processed: set,
@@ -269,6 +269,7 @@ def _extract_project_dependencies(
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
+    # Handle "local_dependencies" (or old name "includes", changed in 0.41.0)
     for include in data.get("local_dependencies", []) or data.get("includes", []):
         include_path = dependencies_filename(path.parent / include).resolve()
         include_base_path = str(include_path.parent)
@@ -280,7 +281,7 @@ def _extract_project_dependencies(
             dependencies[str(base_path)].add(include_base_path)
         if verbose:
             print(f"🔗 Adding include `{include_path}`")
-        _extract_project_dependencies(
+        _extract_local_dependencies(
             include_path,
             base_path,
             processed,
@@ -289,7 +290,7 @@ def _extract_project_dependencies(
         )
 
 
-def parse_project_dependencies(
+def parse_local_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
@@ -304,7 +305,7 @@ def parse_project_dependencies(
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
         base_path = p.resolve().parent
-        _extract_project_dependencies(
+        _extract_local_dependencies(
             path=p,
             base_path=base_path,
             processed=set(),
