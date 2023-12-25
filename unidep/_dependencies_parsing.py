@@ -197,11 +197,11 @@ def parse_requirements(  # noqa: PLR0912
         datas.append(data)
         seen.add(p.resolve())
 
-        # Handle includes
-        for include in data.get("includes", []):
+        # Handle "local_dependencies" (or old name "includes")
+        for include in data.get("local_dependencies", []) or data.get("includes", []):
             include_path = dependencies_filename(p.parent / include).resolve()
             if include_path in seen:
-                continue  # Avoids circular includes
+                continue  # Avoids circular local_dependencies
             if verbose:
                 print(f"📄 Parsing include `{include}`")
             datas.append(_load(include_path, yaml))
@@ -269,7 +269,7 @@ def _extract_project_dependencies(
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
-    for include in data.get("includes", []):
+    for include in data.get("local_dependencies", []) or data.get("includes", []):
         include_path = dependencies_filename(path.parent / include).resolve()
         include_base_path = str(include_path.parent)
         if include_base_path == str(base_path):
@@ -296,7 +296,7 @@ def parse_project_dependencies(
 ) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
-    Works by loading the specified `includes` list.
+    Works by loading the specified `local_dependencies` list.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
 

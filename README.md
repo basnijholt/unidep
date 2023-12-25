@@ -111,7 +111,7 @@ dependencies:
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
-includes:
+local_dependencies:
   - ../other-project-using-unidep  # include other projects that use unidep
   - ../common-requirements.yaml  # include other requirements.yaml files
 ```
@@ -140,7 +140,7 @@ platforms = [ # (Optional) specify platforms that are supported (used in conda-l
     "linux-64",
     "osx-arm64"
 ]
-includes = [
+local_dependencies = [
     "../other-project-using-unidep", # include other projects that use unidep
     "../common-requirements.yaml"    # include other requirements.yaml files
 ]
@@ -163,7 +163,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `platforms:` to specify the platforms that are supported.
-- Use `includes:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
+- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
@@ -190,7 +190,7 @@ UniDep supports a range of version pinning operators (the same as Conda):
   - **Limitation**: While UniDep allows such build pinning, it requires that there be a single pin per package. UniDep cannot resolve conflicts where multiple build pinnings are specified for the same package.
     - Example: UniDep can handle `qsimcirq * cuda*`, but it cannot resolve a scenario with both `qsimcirq * cuda*` and `qsimcirq * cpu*`.
 
-- **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This includes formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
+- **Other Special Cases**: In addition to Conda build pins, UniDep supports all special pinning formats, such as VCS (Version Control System) URLs or local file paths. This local_dependencies formats like `package @ git+https://git/repo/here` or `package @ file:///path/to/package`. However, UniDep has a limitation: it can handle only one special pin per package. These special pins can be combined with an unpinned version specification, but not with multiple special pin formats for the same package.
   - Example: UniDep can manage dependencies specified as `package @ git+https://git/repo/here` and `package` in the same `requirements.yaml`. However, it cannot resolve scenarios where both `package @ git+https://git/repo/here` and `package @ file:///path/to/package` are specified for the same package.
 
 > [!WARNING]
@@ -226,7 +226,7 @@ The following selectors are supported:
 - `osx64`: Specifically for 64-bit macOS systems.
 - `arm64`: For macOS systems on ARM64 architectures (Apple Silicon).
 - `macos`: An alternative to `osx` for macOS systems.
-- `unix`: A general selector for all UNIX-like systems (includes Linux and macOS).
+- `unix`: A general selector for all UNIX-like systems (local_dependencies Linux and macOS).
 - `win`: For all Windows systems.
 - `win64`: Specifically for 64-bit Windows systems.
 
@@ -871,10 +871,10 @@ options:
 
 ### `pip install` fails with `FileNotFoundError`
 
-When using a project that uses `includes: [../not/current/dir]` in the `requirements.yaml` file:
+When using a project that uses `local_dependencies: [../not/current/dir]` in the `requirements.yaml` file:
 
 ```yaml
-includes:
+local_dependencies:
   # File in a different directory than the pyproject.toml file
   - ../common-requirements.yaml
 ```

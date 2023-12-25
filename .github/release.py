@@ -68,7 +68,7 @@ def get_commit_messages_since_last_release(repo: git.Repo) -> str:
 def format_release_notes(commit_messages: str, new_version: str) -> str:
     """Format the release notes."""
     header = f"🚀 Release {new_version}\n\n"
-    intro = "📝 This release includes the following changes:\n\n"
+    intro = "📝 This release local_dependencies the following changes:\n\n"
 
     commit_list = commit_messages.split("\n")
     formatted_commit_list = [f"- {commit}" for commit in commit_list]

@@ -641,7 +641,7 @@ def _install_command(  # noqa: PLR0912
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
 
-        # Install local dependencies (if any) included via `includes:`
+        # Install local dependencies (if any) included via `local_dependencies:`
         local_dependencies = parse_project_dependencies(
             *files,
             check_pip_installable=True,

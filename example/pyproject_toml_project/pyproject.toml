@@ -24,6 +24,6 @@ dependencies = [
     { pip = "markdown-code-runner" },
     { pip = "home-assistant-streamdeck-yaml" },
 ]
-includes = [
+local_dependencies = [
     "../hatch_project",
 ]
