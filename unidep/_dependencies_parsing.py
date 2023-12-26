@@ -6,6 +6,7 @@ This module provides parsing of `requirements.yaml` and `pyproject.toml` files.
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -216,13 +217,18 @@ def parse_requirements(  # noqa: PLR0912
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
         for include in _get_local_dependencies(data):
-            include_path = dependencies_filename(p.parent / include).resolve()
-            if include_path in seen:
+            try:
+                requirements_path = dependencies_filename(p.parent / include).resolve()
+            except FileNotFoundError:
+                # Means that this is a local package that is not managed by unidep.
+                # We do not need to do anything here, just in `unidep install`.
+                continue
+            if requirements_path in seen:
                 continue  # Avoids circular local_dependencies
             if verbose:
-                print(f"📄 Parsing include `{include}`")
-            datas.append(_load(include_path, yaml))
-            seen.add(include_path)
+                print(f"📄 Parsing `{include}` from `local_dependencies`")
+            datas.append(_load(requirements_path, yaml))
+            seen.add(requirements_path)
 
     identifier = -1
     for data in datas:
@@ -275,7 +281,7 @@ parse_yaml_requirements = parse_requirements
 def _extract_local_dependencies(
     path: Path,
     base_path: Path,
-    processed: set,
+    processed: set[Path],
     dependencies: dict[str, set[str]],
     *,
     check_pip_installable: bool = True,
@@ -288,18 +294,38 @@ def _extract_local_dependencies(
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for include in _get_local_dependencies(data):
-        include_path = dependencies_filename(path.parent / include).resolve()
-        include_base_path = str(include_path.parent)
-        if include_base_path == str(base_path):
+        assert not os.path.isabs(include)  # noqa: PTH117
+        full_include = (path.parent / include).resolve()
+        if not full_include.exists():
+            msg = f"File `{include}` not found."
+            raise FileNotFoundError(msg)
+
+        try:
+            requirements_path = dependencies_filename(full_include)
+        except FileNotFoundError:
+            # Means that this is a local package that is not managed by unidep.
+            if is_pip_installable(full_include):
+                dependencies[str(base_path)].add(str(full_include))
+            else:
+                msg = (
+                    f"`{include}` in `local_dependencies` is not pip installable nor is"
+                    " it managed by unidep. Remove it from `local_dependencies`."
+                )
+                raise RuntimeError(msg) from None
+            continue
+
+        project_path = str(requirements_path.parent)
+        if project_path == str(base_path):
             continue
         if not check_pip_installable or (
-            is_pip_installable(base_path) and is_pip_installable(include_path.parent)
+            is_pip_installable(base_path)
+            and is_pip_installable(requirements_path.parent)
         ):
-            dependencies[str(base_path)].add(include_base_path)
+            dependencies[str(base_path)].add(project_path)
         if verbose:
-            print(f"🔗 Adding include `{include_path}`")
+            print(f"🔗 Adding `{requirements_path}` from `local_dependencies`")
         _extract_local_dependencies(
-            include_path,
+            requirements_path,
             base_path,
             processed,
             dependencies,
