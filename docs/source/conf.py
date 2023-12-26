@@ -50,7 +50,7 @@ default_role = "autolink"
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
-html_logo = "https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/unidep-logo.png"
+html_logo = "https://raw.githubusercontent.com/basnijholt/nijho.lt/basnijholt-patch-1/content/project/unidep/IMG_4542.webp"
 
 
 def replace_named_emojis(input_file: Path, output_file: Path) -> None:
