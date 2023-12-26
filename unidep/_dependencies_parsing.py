@@ -217,12 +217,7 @@ def parse_requirements(  # noqa: PLR0912
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
         for include in _get_local_dependencies(data):
-            try:
-                requirements_path = dependencies_filename(p.parent / include).resolve()
-            except FileNotFoundError:
-                # Means that this is a local package that is not managed by unidep.
-                # We do not need to do anything here, just in `unidep install`.
-                continue
+            requirements_path = dependencies_filename(p.parent / include).resolve()
             if requirements_path in seen:
                 continue  # Avoids circular local_dependencies
             if verbose:
@@ -295,25 +290,8 @@ def _extract_local_dependencies(
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for include in _get_local_dependencies(data):
         assert not os.path.isabs(include)  # noqa: PTH117
-        full_include = (path.parent / include).resolve()
-        if not full_include.exists():
-            msg = f"File `{include}` not found."
-            raise FileNotFoundError(msg)
-
-        try:
-            requirements_path = dependencies_filename(full_include)
-        except FileNotFoundError:
-            # Means that this is a local package that is not managed by unidep.
-            if is_pip_installable(full_include):
-                dependencies[str(base_path)].add(str(full_include))
-            else:
-                msg = (
-                    f"`{include}` in `local_dependencies` is not pip installable nor is"
-                    " it managed by unidep. Remove it from `local_dependencies`."
-                )
-                raise RuntimeError(msg) from None
-            continue
-
+        abs_include = (path.parent / include).resolve()
+        requirements_path = dependencies_filename(abs_include)
         project_path = str(requirements_path.parent)
         if project_path == str(base_path):
             continue
