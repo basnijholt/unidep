@@ -62,7 +62,7 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 📄 Parsing `hatch_project/requirements.yaml`
 📄 Parsing `pyproject_toml_project/pyproject.toml`
 📄 Parsing `setup_py_project/requirements.yaml`
-📄 Parsing include `../setuptools_project`
+📄 Parsing `../setuptools_project` from `local_dependencies`
 📄 Parsing `setuptools_project/requirements.yaml`
 📝 Generating environment file at `environment.yaml`
 📝 Environment file generated successfully.
