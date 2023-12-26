@@ -306,6 +306,10 @@ def _extract_local_dependencies(
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_include):
                 dependencies[str(base_path)].add(str(abs_include))
+                # TODO[Bas]: right now this will install the local dependency
+                # however, it will use `--no-dependencies` which is wrong!
+                # Maybe we need to deal with these local dependencies in a
+                # different way?
             else:
                 msg = (
                     f"`{include}` in `local_dependencies` is not pip installable nor is"
