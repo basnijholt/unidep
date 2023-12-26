@@ -5,6 +5,8 @@
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
 [![CodeCov](https://codecov.io/gh/basnijholt/unidep/branch/main/graph/badge.svg)](https://codecov.io/gh/basnijholt/unidep)
+[![GitHub Repo stars](https://img.shields.io/github/stars/basnijholt/unidep)](https://github.com/basnijholt/unidep)
+[![Documentation](https://readthedocs.org/projects/unidep/badge/?version=latest)](https://unidep.readthedocs.io/)
 
 Managing dependencies in Python projects can be a complex task, especially when dealing with both Pip and Conda (non Python) packages.
 This often leads to confusion and inefficiency, as developers juggle between multiple dependency files.
