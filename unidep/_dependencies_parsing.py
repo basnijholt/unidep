@@ -217,7 +217,12 @@ def parse_requirements(  # noqa: PLR0912
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
         for include in _get_local_dependencies(data):
-            requirements_path = dependencies_filename(p.parent / include).resolve()
+            try:
+                requirements_path = dependencies_filename(p.parent / include).resolve()
+            except FileNotFoundError:
+                # Means that this is a local package that is not managed by unidep.
+                # We do not need to do anything here, just in `unidep install`.
+                continue
             if requirements_path in seen:
                 continue  # Avoids circular local_dependencies
             if verbose:
@@ -291,7 +296,31 @@ def _extract_local_dependencies(
     for include in _get_local_dependencies(data):
         assert not os.path.isabs(include)  # noqa: PTH117
         abs_include = (path.parent / include).resolve()
-        requirements_path = dependencies_filename(abs_include)
+        if not abs_include.exists():
+            msg = f"File `{include}` not found."
+            raise FileNotFoundError(msg)
+
+        try:
+            requirements_path = dependencies_filename(abs_include)
+        except FileNotFoundError:
+            # Means that this is a local package that is not managed by unidep.
+            if is_pip_installable(abs_include):
+                dependencies[str(base_path)].add(str(abs_include))
+                warn(
+                    f"⚠️ Installing a local dependency (`{abs_include.name}`) which is"
+                    " not managed by unidep, this will skip all of its dependencies,"
+                    " i.e., it will call `pip install` with `--no-dependencies`."
+                    " To properly manage this dependency, add a `requirements.yaml`"
+                    " or `pyproject.toml` file with `[tool.unidep]` in its directory.",
+                )
+            else:
+                msg = (
+                    f"`{include}` in `local_dependencies` is not pip installable nor is"
+                    " it managed by unidep. Remove it from `local_dependencies`."
+                )
+                raise RuntimeError(msg) from None
+            continue
+
         project_path = str(requirements_path.parent)
         if project_path == str(base_path):
             continue

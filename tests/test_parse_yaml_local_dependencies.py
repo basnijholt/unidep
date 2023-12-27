@@ -382,3 +382,48 @@ def test_parse_local_dependencies_pip_installable_with_non_installable_project(
             example_folder / "setup_py_project",
         ],
     }
+
+
+def test_local_non_unidep_managed_dependency(tmp_path: Path) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - ../project2  # is not managed by unidep
+            """,
+        ),
+    )
+    r2 = project2 / "setup.py"  # not managed by unidep
+    r2.touch()
+
+    requirements = parse_requirements(r1, verbose=True)  # This should not raise
+    assert requirements.requirements == {}
+
+    with pytest.warns(UserWarning, match="not managed by unidep"):
+        data = parse_local_dependencies(r1, verbose=True)
+    assert data == {project1.resolve(): [project2.resolve()]}
+
+
+def test_local_non_unidep_and_non_installable_managed_dependency(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - ../project2  # is not managed by unidep and not installable
+            """,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="is not pip installable"):
+        parse_local_dependencies(r1, verbose=True)
