@@ -306,10 +306,13 @@ def _extract_local_dependencies(
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_include):
                 dependencies[str(base_path)].add(str(abs_include))
-                # TODO[Bas]: right now this will install the local dependency
-                # however, it will use `--no-dependencies` which is wrong!
-                # Maybe we need to deal with these local dependencies in a
-                # different way?
+                warn(
+                    f"⚠️ Installing a local dependency (`{abs_include.name}`) which is"
+                    " not managed by unidep, this will skip all of its dependencies,"
+                    " i.e., it will call `pip install` with `--no-dependencies`."
+                    " To properly manage this dependency, add a `requirements.yaml`"
+                    " or `pyproject.toml` file with `[tool.unidep]` in its directory.",
+                )
             else:
                 msg = (
                     f"`{include}` in `local_dependencies` is not pip installable nor is"
