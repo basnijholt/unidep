@@ -115,6 +115,7 @@ dependencies:
 local_dependencies:
   - ../other-project-using-unidep  # include other projects that use unidep
   - ../common-requirements.yaml  # include other requirements.yaml files
+  - ../project-not-managed-by-unidep  # 🚨 Skips its dependencies!
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
@@ -141,8 +142,9 @@ dependencies = [
     { conda = "cuda-toolkit =11.8:linux64" }         # Use platform selectors by appending `:linux64`
 ]
 local_dependencies = [
-    "../other-project-using-unidep", # include other projects that use unidep
-    "../common-requirements.yaml"    # include other requirements.yaml files
+    "../other-project-using-unidep",   # include other projects that use unidep
+    "../common-requirements.yaml"      # include other requirements.yaml files
+    "../project-not-managed-by-unidep" # 🚨 Skips its dependencies!
 ]
 platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
     "linux-64",
@@ -167,7 +169,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `platforms:` to specify the platforms that are supported.
-- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one.
+- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies!
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
