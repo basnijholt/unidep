@@ -1,9 +1,10 @@
+"""Spinx configuration file for the unidep documentation."""
 from __future__ import annotations
 
 import os
 import re
-import sys
 import shutil
+import sys
 from pathlib import Path
 
 package_path = Path("../..").resolve()
@@ -14,10 +15,10 @@ os.environ["PYTHONPATH"] = f"{package_path}:{PYTHON_PATH}"
 docs_path = Path("..").resolve()
 sys.path.insert(1, str(docs_path))
 
-import unidep
+import unidep  # noqa: E402
 
 project = "unidep"
-copyright = "2023, Bas Nijholt"
+copyright = "2023, Bas Nijholt"  # noqa: A001
 author = "Bas Nijholt"
 
 version = unidep.__version__
@@ -113,6 +114,16 @@ def _change_alerts_to_admonitions(input_text: str) -> str:
 
 
 def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
+    """Change markdown alerts to admonitions.
+
+    For example, changes
+    > [!NOTE]
+    > This is a note.
+    to
+    ```{note}
+    This is a note.
+    ```
+    """
     with input_file.open("r") as infile:
         content = infile.read()
     new_content = _change_alerts_to_admonitions(content)
@@ -122,16 +133,22 @@ def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
 
 
 def replace_example_links(input_file: Path, output_file: Path) -> None:
+    """Replace relative links to `example/` files with absolute links to GitHub."""
     with input_file.open("r") as infile:
         content = infile.read()
     new_content = content.replace(
-        "(example/", "(https://github.com/basnijholt/unidep/tree/main/example/"
+        "(example/",
+        "(https://github.com/basnijholt/unidep/tree/main/example/",
     )
     with output_file.open("w") as outfile:
         outfile.write(new_content)
 
 
 def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
+    """Fix anchors with named emojis.
+
+    WARNING: this currently hardcodes the emojis to remove.
+    """
     to_remove = [
         "package",
         "memo",
@@ -150,9 +167,12 @@ def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
 
 
 def split_markdown_by_headers(
-    readme_path: Path, out_folder: Path, to_skip=("Table of Contents",)
-):
-    with open(readme_path, "r", encoding="utf-8") as file:
+    readme_path: Path,
+    out_folder: Path,
+    to_skip: tuple[str, ...] = ("Table of Contents",),
+) -> list[str]:
+    """Split a markdown file into individual files based on headers."""
+    with readme_path.open(encoding="utf-8") as file:
         content = file.read()
 
     # Regex to find second-level headers
@@ -177,21 +197,27 @@ def split_markdown_by_headers(
     toctree_entries = []
     for i, section in enumerate(split_contents):
         fname = out_folder / f"section_{i}.md"
-        toctree_entries.append(f"sections/section_{i}")
-        with open(fname, "w", encoding="utf-8") as file:
+        toctree_entries.append(f"section_{i}")
+        with fname.open("w", encoding="utf-8") as file:
             file.write(section)
 
     return toctree_entries
 
 
 def replace_header(file_path: Path, new_header: str) -> None:
+    """Replace the first-level header in a markdown file."""
     with file_path.open("r", encoding="utf-8") as file:
         content = file.read()
 
     # Find the first-level header (indicated by '# ')
-    # We use a regular expression to match the first occurrence of '# ' and any following characters until a newline
+    # We use a regular expression to match the first occurrence of '# '
+    # and any following characters until a newline
     content = re.sub(
-        r"^# .+?\n", f"# {new_header}\n", content, count=1, flags=re.MULTILINE
+        r"^# .+?\n",
+        f"# {new_header}\n",
+        content,
+        count=1,
+        flags=re.MULTILINE,
     )
 
     with file_path.open("w", encoding="utf-8") as file:
@@ -199,11 +225,16 @@ def replace_header(file_path: Path, new_header: str) -> None:
 
 
 def extract_toc_links(md_file_path: Path) -> dict[str, str]:
-    """
-    Extracts the table of contents with title to link mapping from the given README content.
+    """Extracts the table of contents with title to link mapping from the given README content.
 
-    :param readme_content: A string containing the README file content.
-    :return: A dictionary where keys are section titles and values are the corresponding links.
+    Parameters
+    ----------
+    md_file_path
+        Markdown file path.
+
+    Returns
+    -------
+    A dictionary where keys are section titles and values are the corresponding links.
     """
     with md_file_path.open("r") as infile:
         readme_content = infile.read()
@@ -222,20 +253,23 @@ def extract_toc_links(md_file_path: Path) -> dict[str, str]:
     link_regex = re.compile(r"- \[([^]]+)\]\(([^)]+)\)")
 
     # Extracting links
-    links = {
+    return {
         match.group(1).strip(): match.group(2)
         for match in link_regex.finditer(toc_content)
     }
 
-    return links
-
 
 def extract_headers_from_markdown(md_file_path: Path) -> list[tuple[int, str]]:
-    """
-    Extracts all headers from a markdown file.
+    """Extracts all headers from a markdown file.
 
-    :param md_file_path: Path to the markdown file.
-    :return: A list of tuples containing the level of the header and the header text.
+    Parameters
+    ----------
+    md_file_path
+        Path to the markdown file.
+
+    Returns
+    -------
+    A list of tuples containing the level of the header and the header text.
     """
     with md_file_path.open("r") as infile:
         content = infile.read()
@@ -244,12 +278,10 @@ def extract_headers_from_markdown(md_file_path: Path) -> list[tuple[int, str]]:
     header_regex = re.compile(r"^(#+)\s+(.+)$", re.MULTILINE)
 
     # Extract headers
-    headers = [
+    return [
         (len(match.group(1)), match.group(2).strip())
         for match in header_regex.finditer(content)
     ]
-
-    return headers
 
 
 def replace_links_in_markdown(
@@ -257,26 +289,31 @@ def replace_links_in_markdown(
     headers_mapping: dict[str, list[tuple[int, str]]],
     links: dict[str, str],
 ) -> None:
-    """
-    Replaces markdown links with updated links that point to the correct file and header anchor.
+    """Replaces markdown links with updated links that point to the correct file and header anchor.
 
-    :param md_file_path: Path to the markdown file to process.
-    :param headers_mapping: A dictionary where keys are markdown file names and values are lists of headers.
-    :param links: A dictionary of original header texts mapped to their slug (anchor) in the original README.
+    Parameters
+    ----------
+    md_file_path
+        Path to the markdown file to process.
+    headers_mapping
+        A dictionary where keys are markdown file names and values are lists of headers.
+    links
+        A dictionary of original header texts mapped to their slug (anchor) in the original README.
     """
     with md_file_path.open("r") as infile:
         content = infile.read()
 
     # Replace links based on headers_mapping and links dictionary
     for file_name, headers in headers_mapping.items():
-        for header_level, header_text in headers:
+        for _header_level, header_text in headers:
             # Find the original slug for this header text from the links dictionary
             original_slug = links.get(header_text, "")
             if original_slug:
                 # Remove the '#' from the slug and update the link in the content
                 original_slug = original_slug.lstrip("#")
                 content = content.replace(
-                    f"(#{original_slug})", f"({file_name}#{original_slug})"
+                    f"(#{original_slug})",
+                    f"({file_name}#{original_slug})",
                 )
 
     # Write updated content back to file
@@ -285,11 +322,14 @@ def replace_links_in_markdown(
 
 
 def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
-    """
-    Process the README.md file for Sphinx documentation generation.
+    """Process the README.md file for Sphinx documentation generation.
 
-    :param readme_path: Path to the original README.md file.
-    :param docs_path: Path to the Sphinx documentation source directory.
+    Parameters
+    ----------
+    readme_path
+        Path to the original README.md file.
+    docs_path
+        Path to the Sphinx documentation source directory.
     """
     # Step 1: Copy README.md to the Sphinx source directory and apply transformations
     output_file = docs_path / "source" / "README.md"
@@ -327,7 +367,3 @@ package_path = Path("../..").resolve()
 docs_path = Path("..").resolve()
 input_file = package_path / "README.md"
 process_readme_for_sphinx_docs(input_file, docs_path)
-
-
-def setup(app):
-    pass
