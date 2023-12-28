@@ -924,8 +924,8 @@ This installs all dependencies in editable mode in the current Conda environment
 
 ### **Q: How to handle local dependencies that do not use UniDep?**
 
-**A:** You can use the `local_dependencies` field in the `requirements.yaml` file to specify local dependencies.
-However, note that if a dependency is not managed by UniDep, it will skip installing its dependencies.
+**A:** You can use the `local_dependencies` field in the `requirements.yaml` or `pyproject.toml` file to specify local dependencies.
+However, *if* a local dependency is *not* managed by UniDep, it will skip installing its dependencies!
 
 Either convert the package to use UniDep, or maintain a separate `requirements.yaml` file, e.g., for a package called `foo` create, `foo-requirements.yaml`:
 
