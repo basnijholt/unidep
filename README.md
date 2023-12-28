@@ -940,7 +940,7 @@ local_dependencies:
   - ./path/to/foo  # This is the path to the package
 ```
 
-Then, in your main `requirements.yaml` file, list `foo-requirements.yaml` as a local dependency:
+Then, in the `requirements.yaml` or `pyproject.toml` file of the package that uses `foo`, list `foo-requirements.yaml` as a local dependency:
 
 ```yaml
 local_dependencies:
