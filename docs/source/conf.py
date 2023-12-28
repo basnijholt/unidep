@@ -302,24 +302,24 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
     links = extract_toc_links(output_file)
 
     # Step 3: Split the README into individual sections for Sphinx
-    sections_folder = docs_path / "source" / "sections"
-    shutil.rmtree(sections_folder, ignore_errors=True)
-    sections_folder.mkdir(exist_ok=True)
-    split_markdown_by_headers(output_file, sections_folder)
+    src_folder = docs_path / "source"
+    for md_file in src_folder.glob("sections_*.md"):
+        md_file.unlink()
+    split_markdown_by_headers(output_file, src_folder)
     output_file.unlink()  # Remove the original README file from Sphinx source
 
     # Step 4: Extract headers from each section for link replacement
     headers_in_files = {}
-    for md_file in sections_folder.glob("*.md"):
+    for md_file in src_folder.glob("*.md"):
         headers = extract_headers_from_markdown(md_file)
         headers_in_files[md_file.name] = headers
 
     # Rename the first section to 'intro.md' and update its header
-    shutil.move(sections_folder / "section_0.md", sections_folder / "intro.md")  # type: ignore[arg-type]
-    replace_header(sections_folder / "intro.md", new_header="🌟 Introduction")
+    shutil.move(src_folder / "section_0.md", src_folder / "intro.md")  # type: ignore[arg-type]
+    replace_header(src_folder / "intro.md", new_header="🌟 Introduction")
 
     # Step 5: Replace links in each markdown file to point to the correct section
-    for md_file in (*sections_folder.glob("*.md"), sections_folder / "intro.md"):
+    for md_file in (*src_folder.glob("*.md"), src_folder / "intro.md"):
         replace_links_in_markdown(md_file, headers_in_files, links)
 
 

@@ -7,6 +7,7 @@
 :maxdepth: 2
 :glob:
 
-sections/*
+intro
+section_*
 reference/index
 ```
