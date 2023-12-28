@@ -896,7 +896,7 @@ Setting up a full development environment can be a pain, especially if you need 
 Typically, instructions are different for each OS and their corresponding package managers (`apt`, `brew`, `yum`, `winget`, etc.).
 
 With UniDep, you can specify all your Pip and Conda dependencies in a single file.
-To get set up on a new machine, you just need to install Conda (we recommend [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)) and run `pip install unidep; unidep install-all -e` in your project directory, to install all dependencies in editable mode in a new Conda environment.
+To get set up on a new machine, you just need to install Conda (we recommend [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)) and run `pip install unidep; unidep install-all -e` in your project directory, to install all dependencies and local packages in editable mode in the current Conda environment.
 
 For fully reproducible environments, you can run `unidep conda-lock` to generate a `conda-lock.yml` file.
 Then, run `conda env create -f conda-lock.yml -n myenv` to create a new Conda environment with all the third-party dependencies.
