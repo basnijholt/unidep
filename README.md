@@ -61,6 +61,7 @@ Try it now and streamline your development process!
   - [**Q: Just show me a full example!**](#q-just-show-me-a-full-example)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
+  - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
