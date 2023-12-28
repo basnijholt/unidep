@@ -56,6 +56,11 @@ Try it now and streamline your development process!
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
+- [❓ FAQ](#-faq)
+  - [**Q: When to use UniDep?**](#q-when-to-use-unidep)
+  - [**Q: Just show me a full example!**](#q-just-show-me-a-full-example)
+  - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
+  - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
@@ -872,6 +877,49 @@ options:
 ```
 
 <!-- OUTPUT:END -->
+
+## ❓ FAQ
+
+Here is a list of questions we have either been asked by users or potential pitfalls we hope to help users avoid:
+
+### **Q: When to use UniDep?**
+
+**A:** UniDep is particularly useful for setting up a full development environments that require both Python *and* non-Python dependencies (e.g., CUDA, compilers, etc.) with a single command.
+
+In fields like research, data science, robotics, AI, and ML projects, it is common to work from a locally cloned Git repository.
+
+Setting up a full development environment can be a pain, especially if you need to install non Python dependencies like compilers, low-level numerical libraries, or CUDA (luckily Conda has all of them).
+Typically, instructions are different for each OS and their corresponding package managers (`apt`, `brew`, `yum`, `winget`, etc.).
+
+With UniDep, you can specify all your Pip and Conda dependencies in a single file.
+To get set up on a new machine, you just need to install Conda (we recommend [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)) and run `pip install unidep; unidep install-all -e` in your project directory, to install all dependencies in editable mode in a new Conda environment.
+
+For fully reproducible environments, you can run `unidep conda-lock` to generate a `conda-lock.yml` file.
+Then, run `conda env create -f conda-lock.yml -n myenv` to create a new Conda environment with all the third-party dependencies.
+Finally, run `unidep install-all -e --no-dependencies` to install all your local packages in editable mode.
+
+For those who prefer not to use Conda, you can simply run `pip install -e .` on a project using UniDep.
+You'll need to install the non-Python dependencies yourself, but you'll have a list of them in the `requirements.yaml` file.
+
+In summary, use UniDep if you:
+
+- Prefer installing packages with conda but still want your package to be pip installable.
+- Are tired of synchronizing your Pip requirements (`requirements.txt`) and Conda requirements (`environment.yaml`).
+- Want a low-effort, comprehensive development environment setup.
+
+### **Q: Just show me a full example!**
+
+**A:** Check out the [`example` folder](https://github.com/basnijholt/unidep/tree/main/example).
+
+### **Q: How is this different from conda/mamba/pip?**
+
+**A:** UniDep uses pip and conda under the hood to install dependencies, but it is not a replacement for them. UniDep will print the commands it runs, so you can see exactly what it is doing.
+
+### **Q: I found a project using unidep, now what?**
+
+**A:** You can install it like *any other Python package* using `pip install`.
+However, to take full advantage of UniDep's functionality, clone the repository and run `unidep install-all -e` in the project directory.
+This installs all dependencies in editable mode in the current Conda environment.
 
 ## :hammer_and_wrench: Troubleshooting
 

@@ -9,6 +9,5 @@
 
 intro
 sections/*
-FAQ
 reference/index
 ```
