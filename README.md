@@ -252,10 +252,10 @@ Selectors are used in `requirements.yaml` files to conditionally include depende
 ```yaml
 dependencies:
   - some-package >=1  # [unix]
-  - another-package  # [win]
-  - special-package  # [osx64]
-  - pip: cirq  # [macos win]
-    conda: cirq  # [linux]
+  - another-package   # [win]
+  - special-package   # [osx64]
+  - pip: cirq         # [macos win]
+    conda: cirq       # [linux]
 ```
 
 Or when using `pyproject.toml` instead of `requirements.yaml`:
