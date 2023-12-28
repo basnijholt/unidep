@@ -114,16 +114,16 @@ name: example_environment
 channels:
   - conda-forge
 dependencies:
-  - numpy  # same name on conda and pip
+  - numpy                   # same name on conda and pip
   - conda: python-graphviz  # When names differ between Conda and Pip
     pip: graphviz
   - pip: slurm-usage >=1.1.0,<2  # pip-only
-  - conda: mumps  # conda-only
-  # Use platform selectors; below only on linux64
-  - conda: cuda-toolkit =11.8 # [linux64]
+  - conda: mumps                 # conda-only
+  # Use platform selectors
+  - conda: cuda-toolkit =11.8    # [linux64]
 local_dependencies:
-  - ../other-project-using-unidep  # include other projects that use unidep
-  - ../common-requirements.yaml  # include other requirements.yaml files
+  - ../other-project-using-unidep     # include other projects that use unidep
+  - ../common-requirements.yaml       # include other requirements.yaml files
   - ../project-not-managed-by-unidep  # 🚨 Skips its dependencies!
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
