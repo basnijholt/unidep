@@ -1,5 +1,8 @@
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 
+Simplify your Python project's dependency management with UniDep, seamlessly integrating Conda and Pip into one streamlined process.
+[Learn when to use UniDep](#q-when-to-use-unidep) in our [FAQ](#-faq).
+
 ![](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)

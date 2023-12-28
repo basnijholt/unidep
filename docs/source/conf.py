@@ -26,7 +26,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "myst_parser",
@@ -120,7 +119,7 @@ def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
-def replace_links(input_file: Path, output_file: Path) -> None:
+def replace_example_links(input_file: Path, output_file: Path) -> None:
     with input_file.open("r") as infile:
         content = infile.read()
     new_content = content.replace(
@@ -197,12 +196,45 @@ def replace_header(file_path, new_header):
         file.write(content)
 
 
+def extract_toc_links(md_file_path: Path):
+    """
+    Extracts the table of contents with title to link mapping from the given README content.
+
+    :param readme_content: A string containing the README file content.
+    :return: A dictionary where keys are section titles and values are the corresponding links.
+    """
+    with md_file_path.open("r") as infile:
+        readme_content = infile.read()
+    toc_start = "<!-- START doctoc generated TOC please keep comment here to allow auto update -->"
+    toc_end = "<!-- END doctoc generated TOC please keep comment here to allow auto update -->"
+
+    # Extract the TOC section
+    toc_section = re.search(f"{toc_start}(.*?){toc_end}", readme_content, re.DOTALL)
+    if not toc_section:
+        return "Table of Contents section not found."
+
+    toc_content = toc_section.group(1)
+
+    # Regular expression to match the markdown link syntax
+    link_regex = re.compile(r"- \[([^]]+)\]\(([^)]+)\)")
+
+    # Extracting links
+    links = {
+        match.group(1).strip(): match.group(2)
+        for match in link_regex.finditer(toc_content)
+    }
+
+    return links
+
+
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
 change_alerts_to_admonitions(output_file, output_file)
-replace_links(output_file, output_file)
+replace_example_links(output_file, output_file)
 fix_anchors_with_named_emojis(output_file, output_file)
+links = extract_toc_links(output_file)
+
 sections_folder = docs_path / "source" / "sections"
 shutil.rmtree(sections_folder, ignore_errors=True)
 sections_folder.mkdir(exist_ok=True)
