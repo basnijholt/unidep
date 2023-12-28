@@ -227,6 +227,56 @@ def extract_toc_links(md_file_path: Path):
     return links
 
 
+def extract_headers_from_markdown(md_file_path: Path):
+    """
+    Extracts all headers from a markdown file.
+
+    :param md_file_path: Path to the markdown file.
+    :return: A list of tuples containing the level of the header and the header text.
+    """
+    with md_file_path.open("r") as infile:
+        content = infile.read()
+
+    # Regex to match markdown headers (e.g., ## Header)
+    header_regex = re.compile(r"^(#+)\s+(.+)$", re.MULTILINE)
+
+    # Extract headers
+    headers = [
+        (len(match.group(1)), match.group(2).strip())
+        for match in header_regex.finditer(content)
+    ]
+
+    return headers
+
+
+def replace_links_in_markdown(md_file_path: Path, headers_mapping, links):
+    """
+    Replaces markdown links with updated links that point to the correct file and header anchor.
+
+    :param md_file_path: Path to the markdown file to process.
+    :param headers_mapping: A dictionary where keys are markdown file names and values are lists of headers.
+    :param links: A dictionary of original header texts mapped to their slug (anchor) in the original README.
+    """
+    with md_file_path.open("r") as infile:
+        content = infile.read()
+
+    # Replace links based on headers_mapping and links dictionary
+    for file_name, headers in headers_mapping.items():
+        for header_level, header_text in headers:
+            # Find the original slug for this header text from the links dictionary
+            original_slug = links.get(header_text, "")
+            if original_slug:
+                # Remove the '#' from the slug and update the link in the content
+                original_slug = original_slug.lstrip("#")
+                content = content.replace(
+                    f"(#{original_slug})", f"({file_name}#{original_slug})"
+                )
+
+    # Write updated content back to file
+    with md_file_path.open("w") as outfile:
+        outfile.write(content)
+
+
 input_file = package_path / "README.md"
 output_file = docs_path / "source" / "README.md"
 replace_named_emojis(input_file, output_file)
@@ -235,13 +285,24 @@ replace_example_links(output_file, output_file)
 fix_anchors_with_named_emojis(output_file, output_file)
 links = extract_toc_links(output_file)
 
+# Split the README into sections
 sections_folder = docs_path / "source" / "sections"
 shutil.rmtree(sections_folder, ignore_errors=True)
 sections_folder.mkdir(exist_ok=True)
 split_markdown_by_headers(output_file, sections_folder)
 output_file.unlink()
-shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
-replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
+
+# Fix the links
+headers_in_files = {}
+for md_file in sections_folder.glob("*.md"):
+    headers = extract_headers_from_markdown(md_file)
+    headers_in_files[md_file.name] = headers
+
+shutil.move(sections_folder / "section_0.md", sections_folder / "intro.md")  # type: ignore[arg-type]
+replace_header(sections_folder / "intro.md", new_header="🌟 Introduction")
+
+for md_file in (*sections_folder.glob("*.md"), sections_folder / "intro.md"):
+    replace_links_in_markdown(md_file, headers_in_files, links)
 
 
 def setup(app):
