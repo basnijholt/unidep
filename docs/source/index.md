@@ -1,4 +1,3 @@
-
 ```{include} intro.md
 ```
 
@@ -8,6 +7,13 @@
 :glob:
 
 intro
-section_*
+section_0
+installation
+requirementsyaml-and-pyprojecttoml-structure
+build-system-integration
+as-a-cli
+-faq
+troubleshooting
+limitations
 reference/index
 ```

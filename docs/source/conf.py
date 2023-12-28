@@ -169,6 +169,7 @@ def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
 def split_markdown_by_headers(
     readme_path: Path,
     out_folder: Path,
+    links: dict[str, str],
     to_skip: tuple[str, ...] = ("Table of Contents",),
 ) -> list[str]:
     """Split a markdown file into individual files based on headers."""
@@ -180,10 +181,12 @@ def split_markdown_by_headers(
 
     # Split content based on headers
     split_contents = []
+    header_contents: list[str] = []
     start = 0
     previous_header = ""
     for header in headers:
         header_title = header.group(1).strip("# ").strip()
+        header_contents.append(header_title.split("\n", 1)[0])
         end = header.start()
         if not any(s in previous_header for s in to_skip):
             split_contents.append(content[start:end].strip())
@@ -195,9 +198,12 @@ def split_markdown_by_headers(
 
     # Create individual files for each section
     toctree_entries = []
-    for i, section in enumerate(split_contents):
-        fname = out_folder / f"section_{i}.md"
-        toctree_entries.append(f"section_{i}")
+    for i, (section, header) in enumerate(
+        zip(split_contents, header_contents),
+    ):
+        name = links[header].lstrip("#") if header in links else f"section_{i}"
+        fname = out_folder / f"{name}.md"
+        toctree_entries.append(name)
         with fname.open("w", encoding="utf-8") as file:
             file.write(section)
 
@@ -321,6 +327,19 @@ def replace_links_in_markdown(
         outfile.write(content)
 
 
+def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
+    """Write an index file for the documentation."""
+    index_path = docs_path / "source" / "index.md"
+    with index_path.open("w", encoding="utf-8") as index_file:
+        index_file.write("```{include} intro.md\n```\n\n")
+        index_file.write("```{toctree}\n:hidden: true\n:maxdepth: 2\n:glob:\n\n")
+        index_file.write("intro\n")
+        for entry in toctree_entries:
+            index_file.write(f"{entry}\n")
+        index_file.write("reference/index\n")
+        index_file.write("```\n")
+
+
 def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
     """Process the README.md file for Sphinx documentation generation.
 
@@ -345,8 +364,9 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
     src_folder = docs_path / "source"
     for md_file in src_folder.glob("sections_*.md"):
         md_file.unlink()
-    split_markdown_by_headers(output_file, src_folder)
+    toctree_entries = split_markdown_by_headers(output_file, src_folder, links)
     output_file.unlink()  # Remove the original README file from Sphinx source
+    write_index_file(docs_path, toctree_entries)
 
     # Step 4: Extract headers from each section for link replacement
     headers_in_files = {}
