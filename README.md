@@ -8,6 +8,9 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/basnijholt/unidep)](https://github.com/basnijholt/unidep)
 [![Documentation](https://readthedocs.org/projects/unidep/badge/?version=latest)](https://unidep.readthedocs.io/)
 
+> Simplify your Python project's dependency management with UniDep, seamlessly integrating Conda and Pip into one streamlined process.
+> [Learn when to use UniDep](#q-when-to-use-unidep) in our [FAQ](#-faq).
+
 Managing dependencies in Python projects can be a complex task, especially when dealing with both Pip and Conda (non Python) packages.
 This often leads to confusion and inefficiency, as developers juggle between multiple dependency files.
 

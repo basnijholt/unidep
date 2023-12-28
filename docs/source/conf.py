@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -26,7 +28,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "myst_parser",
@@ -65,7 +66,7 @@ def replace_named_emojis(input_file: Path, output_file: Path) -> None:
         outfile.write(content_with_emojis)
 
 
-def _change_alerts_to_admonitions(input_text):
+def _change_alerts_to_admonitions(input_text: str) -> str:
     # Splitting the text into lines
     lines = input_text.split("\n")
 
@@ -120,7 +121,7 @@ def change_alerts_to_admonitions(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
-def replace_links(input_file: Path, output_file: Path) -> None:
+def replace_example_links(input_file: Path, output_file: Path) -> None:
     with input_file.open("r") as infile:
         content = infile.read()
     new_content = content.replace(
@@ -183,8 +184,8 @@ def split_markdown_by_headers(
     return toctree_entries
 
 
-def replace_header(file_path, new_header):
-    with open(file_path, "r", encoding="utf-8") as file:
+def replace_header(file_path: Path, new_header: str) -> None:
+    with file_path.open("r", encoding="utf-8") as file:
         content = file.read()
 
     # Find the first-level header (indicated by '# ')
@@ -193,23 +194,139 @@ def replace_header(file_path, new_header):
         r"^# .+?\n", f"# {new_header}\n", content, count=1, flags=re.MULTILINE
     )
 
-    with open(file_path, "w", encoding="utf-8") as file:
+    with file_path.open("w", encoding="utf-8") as file:
         file.write(content)
 
 
+def extract_toc_links(md_file_path: Path) -> dict[str, str]:
+    """
+    Extracts the table of contents with title to link mapping from the given README content.
+
+    :param readme_content: A string containing the README file content.
+    :return: A dictionary where keys are section titles and values are the corresponding links.
+    """
+    with md_file_path.open("r") as infile:
+        readme_content = infile.read()
+    toc_start = "<!-- START doctoc generated TOC please keep comment here to allow auto update -->"
+    toc_end = "<!-- END doctoc generated TOC please keep comment here to allow auto update -->"
+
+    # Extract the TOC section
+    toc_section = re.search(f"{toc_start}(.*?){toc_end}", readme_content, re.DOTALL)
+    if not toc_section:
+        msg = "Table of Contents section not found."
+        raise RuntimeError(msg)
+
+    toc_content = toc_section.group(1)
+
+    # Regular expression to match the markdown link syntax
+    link_regex = re.compile(r"- \[([^]]+)\]\(([^)]+)\)")
+
+    # Extracting links
+    links = {
+        match.group(1).strip(): match.group(2)
+        for match in link_regex.finditer(toc_content)
+    }
+
+    return links
+
+
+def extract_headers_from_markdown(md_file_path: Path) -> list[tuple[int, str]]:
+    """
+    Extracts all headers from a markdown file.
+
+    :param md_file_path: Path to the markdown file.
+    :return: A list of tuples containing the level of the header and the header text.
+    """
+    with md_file_path.open("r") as infile:
+        content = infile.read()
+
+    # Regex to match markdown headers (e.g., ## Header)
+    header_regex = re.compile(r"^(#+)\s+(.+)$", re.MULTILINE)
+
+    # Extract headers
+    headers = [
+        (len(match.group(1)), match.group(2).strip())
+        for match in header_regex.finditer(content)
+    ]
+
+    return headers
+
+
+def replace_links_in_markdown(
+    md_file_path: Path,
+    headers_mapping: dict[str, list[tuple[int, str]]],
+    links: dict[str, str],
+) -> None:
+    """
+    Replaces markdown links with updated links that point to the correct file and header anchor.
+
+    :param md_file_path: Path to the markdown file to process.
+    :param headers_mapping: A dictionary where keys are markdown file names and values are lists of headers.
+    :param links: A dictionary of original header texts mapped to their slug (anchor) in the original README.
+    """
+    with md_file_path.open("r") as infile:
+        content = infile.read()
+
+    # Replace links based on headers_mapping and links dictionary
+    for file_name, headers in headers_mapping.items():
+        for header_level, header_text in headers:
+            # Find the original slug for this header text from the links dictionary
+            original_slug = links.get(header_text, "")
+            if original_slug:
+                # Remove the '#' from the slug and update the link in the content
+                original_slug = original_slug.lstrip("#")
+                content = content.replace(
+                    f"(#{original_slug})", f"({file_name}#{original_slug})"
+                )
+
+    # Write updated content back to file
+    with md_file_path.open("w") as outfile:
+        outfile.write(content)
+
+
+def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
+    """
+    Process the README.md file for Sphinx documentation generation.
+
+    :param readme_path: Path to the original README.md file.
+    :param docs_path: Path to the Sphinx documentation source directory.
+    """
+    # Step 1: Copy README.md to the Sphinx source directory and apply transformations
+    output_file = docs_path / "source" / "README.md"
+    replace_named_emojis(readme_path, output_file)
+    change_alerts_to_admonitions(output_file, output_file)
+    replace_example_links(output_file, output_file)
+    fix_anchors_with_named_emojis(output_file, output_file)
+
+    # Step 2: Extract the table of contents links from the processed README
+    links = extract_toc_links(output_file)
+
+    # Step 3: Split the README into individual sections for Sphinx
+    src_folder = docs_path / "source"
+    for md_file in src_folder.glob("sections_*.md"):
+        md_file.unlink()
+    split_markdown_by_headers(output_file, src_folder)
+    output_file.unlink()  # Remove the original README file from Sphinx source
+
+    # Step 4: Extract headers from each section for link replacement
+    headers_in_files = {}
+    for md_file in src_folder.glob("*.md"):
+        headers = extract_headers_from_markdown(md_file)
+        headers_in_files[md_file.name] = headers
+
+    # Rename the first section to 'intro.md' and update its header
+    shutil.move(src_folder / "section_0.md", src_folder / "intro.md")  # type: ignore[arg-type]
+    replace_header(src_folder / "intro.md", new_header="🌟 Introduction")
+
+    # Step 5: Replace links in each markdown file to point to the correct section
+    for md_file in (*src_folder.glob("*.md"), src_folder / "intro.md"):
+        replace_links_in_markdown(md_file, headers_in_files, links)
+
+
+package_path = Path("../..").resolve()
+docs_path = Path("..").resolve()
 input_file = package_path / "README.md"
-output_file = docs_path / "source" / "README.md"
-replace_named_emojis(input_file, output_file)
-change_alerts_to_admonitions(output_file, output_file)
-replace_links(output_file, output_file)
-fix_anchors_with_named_emojis(output_file, output_file)
-sections_folder = docs_path / "source" / "sections"
-shutil.rmtree(sections_folder, ignore_errors=True)
-sections_folder.mkdir(exist_ok=True)
-split_markdown_by_headers(output_file, sections_folder)
-output_file.unlink()
-shutil.move(sections_folder / "section_0.md", sections_folder.parent / "intro.md")  # type: ignore[arg-type]
-replace_header(sections_folder.parent / "intro.md", new_header="🌟 Introduction")
+process_readme_for_sphinx_docs(input_file, docs_path)
 
 
 def setup(app):

@@ -8,6 +8,6 @@
 :glob:
 
 intro
-sections/*
+section_*
 reference/index
 ```
