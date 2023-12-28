@@ -61,6 +61,7 @@ Try it now and streamline your development process!
   - [**Q: Just show me a full example!**](#q-just-show-me-a-full-example)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
+  - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
@@ -920,6 +921,31 @@ In summary, use UniDep if you:
 **A:** You can install it like *any other Python package* using `pip install`.
 However, to take full advantage of UniDep's functionality, clone the repository and run `unidep install-all -e` in the project directory.
 This installs all dependencies in editable mode in the current Conda environment.
+
+### **Q: How to handle local dependencies that do not use UniDep?**
+
+**A:** You can use the `local_dependencies` field in the `requirements.yaml` or `pyproject.toml` file to specify local dependencies.
+However, *if* a local dependency is *not* managed by UniDep, it will skip installing its dependencies!
+
+Either convert the package to use UniDep (🏆), or maintain a separate `requirements.yaml` file, e.g., for a package called `foo` create, `foo-requirements.yaml`:
+
+```yaml
+dependencies:
+  # List the dependencies of foo here
+  - numpy
+  - scipy
+  - matplotlib
+  - bar
+local_dependencies:
+  - ./path/to/foo  # This is the path to the package
+```
+
+Then, in the `requirements.yaml` or `pyproject.toml` file of the package that uses `foo`, list `foo-requirements.yaml` as a local dependency:
+
+```yaml
+local_dependencies:
+  - ./path/to/foo-requirements.yaml
+```
 
 ## :hammer_and_wrench: Troubleshooting
 
