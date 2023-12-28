@@ -56,13 +56,13 @@ Try it now and streamline your development process!
   - [`unidep pip-compile`](#unidep-pip-compile)
   - [`unidep pip`](#unidep-pip)
   - [`unidep conda`](#unidep-conda)
-- [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
-  - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [❓ FAQ](#-faq)
   - [**Q: When to use UniDep?**](#q-when-to-use-unidep)
   - [**Q: Just show me a full example!**](#q-just-show-me-a-full-example)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
+- [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
+  - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -878,36 +878,6 @@ options:
 
 <!-- OUTPUT:END -->
 
-## :hammer_and_wrench: Troubleshooting
-
-### `pip install` fails with `FileNotFoundError`
-
-When using a project that uses `local_dependencies: [../not/current/dir]` in the `requirements.yaml` file:
-
-```yaml
-local_dependencies:
-  # File in a different directory than the pyproject.toml file
-  - ../common-requirements.yaml
-```
-
-You might get an error like this when using a `pip` version older than `22.0`:
-
-```bash
-$ pip install /path/to/your/project/using/unidep
-  ...
-  File "/usr/lib/python3.8/pathlib.py", line 1222, in open
-    return io.open(self, mode, buffering, encoding, errors, newline,
-  File "/usr/lib/python3.8/pathlib.py", line 1078, in _opener
-    return self._accessor.open(self, flags, mode)
-FileNotFoundError: [Errno 2] No such file or directory: '/tmp/common-requirements.yaml'
-```
-
-The solution is to upgrade `pip` to version `22.0` or newer:
-
-```bash
-pip install --upgrade pip
-```
-
 ## ❓ FAQ
 
 Here is a list of questions we have either been asked by users or potential pitfalls we hope to help users avoid:
@@ -950,6 +920,36 @@ In summary, use UniDep if you:
 **A:** You can install it like *any other Python package* using `pip install`.
 However, to take full advantage of UniDep's functionality, clone the repository and run `unidep install-all -e` in the project directory.
 This installs all dependencies in editable mode in the current Conda environment.
+
+## :hammer_and_wrench: Troubleshooting
+
+### `pip install` fails with `FileNotFoundError`
+
+When using a project that uses `local_dependencies: [../not/current/dir]` in the `requirements.yaml` file:
+
+```yaml
+local_dependencies:
+  # File in a different directory than the pyproject.toml file
+  - ../common-requirements.yaml
+```
+
+You might get an error like this when using a `pip` version older than `22.0`:
+
+```bash
+$ pip install /path/to/your/project/using/unidep
+  ...
+  File "/usr/lib/python3.8/pathlib.py", line 1222, in open
+    return io.open(self, mode, buffering, encoding, errors, newline,
+  File "/usr/lib/python3.8/pathlib.py", line 1078, in _opener
+    return self._accessor.open(self, flags, mode)
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/common-requirements.yaml'
+```
+
+The solution is to upgrade `pip` to version `22.0` or newer:
+
+```bash
+pip install --upgrade pip
+```
 
 ## :warning: Limitations
 
