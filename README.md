@@ -921,6 +921,31 @@ In summary, use UniDep if you:
 However, to take full advantage of UniDep's functionality, clone the repository and run `unidep install-all -e` in the project directory.
 This installs all dependencies in editable mode in the current Conda environment.
 
+### **Q: How to handle local dependencies that do not use UniDep?**
+
+**A:** You can use the `local_dependencies` field in the `requirements.yaml` file to specify local dependencies.
+However, note that if a dependency is not managed by UniDep, it will skip installing its dependencies.
+
+Either convert the package to use UniDep, or maintain a separate `requirements.yaml` file, e.g., for a package called `foo` create, `foo-requirements.yaml`:
+
+```yaml
+dependencies:
+  # List the dependencies of foo here
+  - numpy
+  - scipy
+  - matplotlib
+  - bar
+local_dependencies:
+  - ./path/to/foo  # This is the path to the package
+```
+
+Then, in your main `requirements.yaml` file, list `foo-requirements.yaml` as a local dependency:
+
+```yaml
+local_dependencies:
+  - ./path/to/foo-requirements.yaml
+```
+
 ## :hammer_and_wrench: Troubleshooting
 
 ### `pip install` fails with `FileNotFoundError`
