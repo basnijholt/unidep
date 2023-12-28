@@ -888,7 +888,7 @@ Here is a list of questions we have either been asked by users or potential pitf
 
 ### **Q: When to use UniDep?**
 
-**A:** UniDep is particularly useful for setting up a full development environments that require both Python *and* non-Python dependencies (e.g., CUDA, compilers, etc.) with a single command.
+**A:** UniDep is particularly useful for setting up full development environments that require both Python *and* non-Python dependencies (e.g., CUDA, compilers, etc.) with a single command.
 
 In fields like research, data science, robotics, AI, and ML projects, it is common to work from a locally cloned Git repository.
 
