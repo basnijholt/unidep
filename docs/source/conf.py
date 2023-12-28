@@ -363,7 +363,5 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
         replace_links_in_markdown(md_file, headers_in_files, links)
 
 
-package_path = Path("../..").resolve()
-docs_path = Path("..").resolve()
-input_file = package_path / "README.md"
-process_readme_for_sphinx_docs(input_file, docs_path)
+readme_path = package_path / "README.md"
+process_readme_for_sphinx_docs(readme_path, docs_path)
