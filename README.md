@@ -66,7 +66,7 @@ Try it now and streamline your development process!
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
-  - [**Q: Can't conda already do this?**](#q-cant-conda-already-do-this)
+  - [**Q: Can't Conda already do this?**](#q-cant-conda-already-do-this)
   - [**Q: What is the difference between `conda-lock` and `unidep conda-lock`?**](#q-what-is-the-difference-between-conda-lock-and-unidep-conda-lock)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
