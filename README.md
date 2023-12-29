@@ -66,6 +66,8 @@ Try it now and streamline your development process!
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
+  - [**Q: Can't conda already do this?**](#q-cant-conda-already-do-this)
+  - [**Q: What is the difference between `conda-lock` and `unidep conda-lock`?**](#q-what-is-the-difference-between-conda-lock-and-unidep-conda-lock)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
@@ -950,6 +952,19 @@ Then, in the `requirements.yaml` or `pyproject.toml` file of the package that us
 local_dependencies:
   - ./path/to/foo-requirements.yaml
 ```
+
+### **Q: Can't Conda already do this?**
+
+**A:** Not quite. Conda can indeed install both Conda and Pip dependencies via an `environment.yaml` file, however, it does not work the other way around.
+Pip cannot install the `pip` dependencies from an `environment.yaml` file.
+This means, that if you want your package to be installable with `pip install -e .` *and* support Conda, you need to maintain two separate files: `environment.yaml` and `requirements.txt` (or specify these dependencies in `pyproject.toml` or `setup.py`).
+
+### **Q: What is the difference between `conda-lock` and `unidep conda-lock`?**
+
+**A:** [`conda-lock`](https://github.com/conda/conda-lock) is a standalone tool that creates a `conda-lock.yml` file from a `environment.yaml` file.
+On the other hand, `unidep conda-lock` is a command within the UniDep tool that also generates a `conda-lock.yml` file (leveraging `conda-lock`), but it does so from one or more `requirements.yaml` or `pyproject.toml` files.
+When managing multiple dependent projects (e.g., in a monorepo), a unique feature of `unidep conda-lock` is its ability to create **_consistent_** individual `conda-lock.yml` files for each `requirements.yaml` or `pyproject.toml` file, ensuring consistency with a global `conda-lock.yml` file.
+This feature is not available in the standalone `conda-lock` tool.
 
 ## :hammer_and_wrench: Troubleshooting
 
