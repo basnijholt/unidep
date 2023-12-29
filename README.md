@@ -1,6 +1,6 @@
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 
-![](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
+![UniDep logo](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
@@ -8,18 +8,19 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/basnijholt/unidep)](https://github.com/basnijholt/unidep)
 [![Documentation](https://readthedocs.org/projects/unidep/badge/?version=latest)](https://unidep.readthedocs.io/)
 
-> Simplify your Python project's dependency management with UniDep, seamlessly integrating Conda and Pip into one streamlined process.
+> UniDep streamlines Python project dependency management by unifying Conda and Pip packages in a single system.
 > [Learn when to use UniDep](#q-when-to-use-unidep) in our [FAQ](#-faq).
 
-Managing dependencies in Python projects can be a complex task, especially when dealing with both Pip and Conda (non Python) packages.
+Handling dependencies in Python projects can be challenging, especially when juggling Python and non-Python packages.
 This often leads to confusion and inefficiency, as developers juggle between multiple dependency files.
 
-- **📝 Use a Single File (`requirements.yaml` or `pyproject.toml`)**: Manage both Conda and Pip dependencies, reducing complexity.
-- **⚙️ Integrates with `pyproject.toml` and `setup.py`**: Specified dependencies are automatically included during `pip install`.
-- **🏢 Monorepo Support**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
+- **📝 Unified Dependency File**: Use either `requirements.yaml` or `pyproject.toml` to manage both Conda and Pip dependencies in one place.
+- **⚙️ Build System Integration**: Integrates with Setuptools and Hatchling for automatic dependency handling during `pip install ./your-package`.
+- **🏢 Monorepo-Friendly**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
 - **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
-- **🔧 `pip-compile` Integration**: Enables generation of fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
+- **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
+- **🔒 Integration with `conda-lock`**: Generate fully pinned `conda-lock.yml` files from (multiple) `requirements.yaml` or `pyproject.toml` file(s), leveraging `conda-lock`.
 
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!
