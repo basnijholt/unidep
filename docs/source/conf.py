@@ -369,10 +369,10 @@ def decrease_header_levels(md_file_path: Path) -> None:
 def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
     """Write an index file for the documentation."""
     index_path = docs_path / "source" / "index.md"
-
+    pages = "\n".join(f"{entry}" for entry in toctree_entries)
     # Constructing the content using textwrap.dedent for better readability
     content = textwrap.dedent(
-        f"""
+        """
         ```{{include}} introduction.md
         ```
 
@@ -382,11 +382,11 @@ def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
         :glob:
 
         introduction
-        {''.join(f"{entry}\n" for entry in toctree_entries)}
+        {pages}
         reference/index
         ```
     """,
-    )
+    ).format(pages=pages)
 
     # Write the content to the file
     with index_path.open("w", encoding="utf-8") as index_file:
