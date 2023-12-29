@@ -38,12 +38,10 @@ extensions = [
 
 autosectionlabel_maxdepth = 5
 myst_heading_anchors = 0
-source_parsers = {}  # type: ignore[var-annotated]
 templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
 master_doc = "index"
 language = "en"
-exclude_patterns = []  # type: ignore[var-annotated]
 pygments_style = "sphinx"
 html_theme = "furo"
 html_static_path = ["_static"]
@@ -180,7 +178,7 @@ def split_markdown_by_headers(
     headers = re.finditer(r"\n(## .+?)(?=\n## |\Z)", content, re.DOTALL)
 
     # Split content based on headers
-    split_contents = []
+    split_contents: list[str] = []
     header_contents: list[str] = []
     start = 0
     previous_header = ""
@@ -198,10 +196,14 @@ def split_markdown_by_headers(
 
     # Create individual files for each section
     toctree_entries = []
-    for i, (section, header) in enumerate(
+    for i, (section, header_content) in enumerate(
         zip(split_contents, header_contents),
     ):
-        name = links[header].lstrip("#") if header in links else f"section_{i}"
+        name = (
+            links[header_content].lstrip("#")
+            if header_content in links
+            else f"section_{i}"
+        )
         fname = out_folder / f"{name}.md"
         toctree_entries.append(name)
         with fname.open("w", encoding="utf-8") as file:
