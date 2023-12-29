@@ -38,12 +38,10 @@ extensions = [
 
 autosectionlabel_maxdepth = 5
 myst_heading_anchors = 0
-source_parsers = {}  # type: ignore[var-annotated]
 templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
 master_doc = "index"
 language = "en"
-exclude_patterns = []  # type: ignore[var-annotated]
 pygments_style = "sphinx"
 html_theme = "furo"
 html_static_path = ["_static"]
@@ -166,9 +164,16 @@ def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
+def normalize_slug(slug: str) -> str:
+    """Normalize a slug."""
+    return "#" + slug[1:].lstrip("-").rstrip("-")
+
+
 def split_markdown_by_headers(
     readme_path: Path,
     out_folder: Path,
+    links: dict[str, str],
+    level: int = 2,
     to_skip: tuple[str, ...] = ("Table of Contents",),
 ) -> list[str]:
     """Split a markdown file into individual files based on headers."""
@@ -176,14 +181,17 @@ def split_markdown_by_headers(
         content = file.read()
 
     # Regex to find second-level headers
-    headers = re.finditer(r"\n(## .+?)(?=\n## |\Z)", content, re.DOTALL)
+    n = "#" * level
+    headers = re.finditer(rf"\n({n} .+?)(?=\n{n} |\Z)", content, re.DOTALL)
 
     # Split content based on headers
-    split_contents = []
+    split_contents: list[str] = []
+    header_contents: list[str] = []
     start = 0
     previous_header = ""
     for header in headers:
         header_title = header.group(1).strip("# ").strip()
+        header_contents.append(header_title.split("\n", 1)[0])
         end = header.start()
         if not any(s in previous_header for s in to_skip):
             split_contents.append(content[start:end].strip())
@@ -195,9 +203,16 @@ def split_markdown_by_headers(
 
     # Create individual files for each section
     toctree_entries = []
-    for i, section in enumerate(split_contents):
-        fname = out_folder / f"section_{i}.md"
-        toctree_entries.append(f"section_{i}")
+    for i, (section, header_content) in enumerate(
+        zip(split_contents, header_contents),
+    ):
+        name = (
+            normalize_slug(links[header_content]).lstrip("#")
+            if header_content in links
+            else f"section_{i}"
+        )
+        fname = out_folder / f"{name}.md"
+        toctree_entries.append(name)
         with fname.open("w", encoding="utf-8") as file:
             file.write(section)
 
@@ -310,15 +325,57 @@ def replace_links_in_markdown(
             original_slug = links.get(header_text, "")
             if original_slug:
                 # Remove the '#' from the slug and update the link in the content
+                new_slug = normalize_slug(original_slug)
                 original_slug = original_slug.lstrip("#")
                 content = content.replace(
                     f"(#{original_slug})",
-                    f"({file_name}#{original_slug})",
+                    f"({file_name}{new_slug})",
                 )
 
     # Write updated content back to file
     with md_file_path.open("w") as outfile:
         outfile.write(content)
+
+
+def decrease_header_levels(md_file_path: Path) -> None:
+    """Decreases the header levels by one in a Markdown file, without going below level 1.
+
+    Parameters
+    ----------
+    md_file_path
+        Path to the Markdown file.
+    """
+    with md_file_path.open("r", encoding="utf-8") as file:
+        content = file.read()
+
+    # Function to decrease the header level
+    def lower_header_level(match: re.Match) -> str:
+        header_level = len(match.group(1))
+        new_header_level = "#" * max(1, header_level - 1)  # Ensure at least one '#'
+        return f"{new_header_level} {match.group(2)}"
+
+    # Regular expression for Markdown headers
+    header_regex = re.compile(r"^(#+)\s+(.+)$", re.MULTILINE)
+
+    # Replace headers with decreased levels
+    new_content = header_regex.sub(lower_header_level, content)
+
+    # Write the updated content back to the file
+    with md_file_path.open("w", encoding="utf-8") as file:
+        file.write(new_content)
+
+
+def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
+    """Write an index file for the documentation."""
+    index_path = docs_path / "source" / "index.md"
+    with index_path.open("w", encoding="utf-8") as index_file:
+        index_file.write("```{include} introduction.md\n```\n\n")
+        index_file.write("```{toctree}\n:hidden: true\n:maxdepth: 2\n:glob:\n\n")
+        index_file.write("introduction\n")
+        for entry in toctree_entries:
+            index_file.write(f"{entry}\n")
+        index_file.write("reference/index\n")
+        index_file.write("```\n")
 
 
 def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
@@ -345,25 +402,25 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
     src_folder = docs_path / "source"
     for md_file in src_folder.glob("sections_*.md"):
         md_file.unlink()
-    split_markdown_by_headers(output_file, src_folder)
+    toctree_entries = split_markdown_by_headers(output_file, src_folder, links)
     output_file.unlink()  # Remove the original README file from Sphinx source
+    write_index_file(docs_path, toctree_entries)
 
     # Step 4: Extract headers from each section for link replacement
     headers_in_files = {}
     for md_file in src_folder.glob("*.md"):
         headers = extract_headers_from_markdown(md_file)
+        decrease_header_levels(md_file)
         headers_in_files[md_file.name] = headers
 
-    # Rename the first section to 'intro.md' and update its header
-    shutil.move(src_folder / "section_0.md", src_folder / "intro.md")  # type: ignore[arg-type]
-    replace_header(src_folder / "intro.md", new_header="🌟 Introduction")
+    # Rename the first section to 'introduction.md' and update its header
+    shutil.move(src_folder / "section_0.md", src_folder / "introduction.md")  # type: ignore[arg-type]
+    replace_header(src_folder / "introduction.md", new_header="🌟 Introduction")
 
     # Step 5: Replace links in each markdown file to point to the correct section
-    for md_file in (*src_folder.glob("*.md"), src_folder / "intro.md"):
+    for md_file in (*src_folder.glob("*.md"), src_folder / "introduction.md"):
         replace_links_in_markdown(md_file, headers_in_files, links)
 
 
-package_path = Path("../..").resolve()
-docs_path = Path("..").resolve()
-input_file = package_path / "README.md"
-process_readme_for_sphinx_docs(input_file, docs_path)
+readme_path = package_path / "README.md"
+process_readme_for_sphinx_docs(readme_path, docs_path)
