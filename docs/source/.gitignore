@@ -1,9 +1,1 @@
-as-a-cli.md
-build-system-integration.md
-index.md
-installation.md
-intro.md
-limitations.md
-requirementsyaml-and-pyprojecttoml-structure.md
-troubleshooting.md
-README.md
+*.md

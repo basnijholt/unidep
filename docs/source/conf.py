@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import sys
+import textwrap
 from pathlib import Path
 
 package_path = Path("../..").resolve()
@@ -368,14 +369,29 @@ def decrease_header_levels(md_file_path: Path) -> None:
 def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
     """Write an index file for the documentation."""
     index_path = docs_path / "source" / "index.md"
+    # Skip section_0.md as it is renamed to introduction.md
+    pages = "\n".join(f"{entry}" for entry in toctree_entries[1:])
+    # Constructing the content using textwrap.dedent for better readability
+    content = textwrap.dedent(
+        """
+        ```{{include}} introduction.md
+        ```
+
+        ```{{toctree}}
+        :hidden: true
+        :maxdepth: 2
+        :glob:
+
+        introduction
+        {pages}
+        reference/index
+        ```
+    """,
+    ).format(pages=pages)
+
+    # Write the content to the file
     with index_path.open("w", encoding="utf-8") as index_file:
-        index_file.write("```{include} introduction.md\n```\n\n")
-        index_file.write("```{toctree}\n:hidden: true\n:maxdepth: 2\n:glob:\n\n")
-        index_file.write("introduction\n")
-        for entry in toctree_entries:
-            index_file.write(f"{entry}\n")
-        index_file.write("reference/index\n")
-        index_file.write("```\n")
+        index_file.write(content)
 
 
 def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
