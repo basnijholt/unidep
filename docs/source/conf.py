@@ -164,10 +164,16 @@ def fix_anchors_with_named_emojis(input_file: Path, output_file: Path) -> None:
         outfile.write(new_content)
 
 
+def normalize_slug(slug: str) -> str:
+    """Normalize a slug."""
+    return "#" + slug[1:].lstrip("-").rstrip("-")
+
+
 def split_markdown_by_headers(
     readme_path: Path,
     out_folder: Path,
     links: dict[str, str],
+    level: int = 2,
     to_skip: tuple[str, ...] = ("Table of Contents",),
 ) -> list[str]:
     """Split a markdown file into individual files based on headers."""
@@ -175,7 +181,8 @@ def split_markdown_by_headers(
         content = file.read()
 
     # Regex to find second-level headers
-    headers = re.finditer(r"\n(## .+?)(?=\n## |\Z)", content, re.DOTALL)
+    n = "#" * level
+    headers = re.finditer(rf"\n({n} .+?)(?=\n{n} |\Z)", content, re.DOTALL)
 
     # Split content based on headers
     split_contents: list[str] = []
@@ -200,7 +207,7 @@ def split_markdown_by_headers(
         zip(split_contents, header_contents),
     ):
         name = (
-            links[header_content].lstrip("#")
+            normalize_slug(links[header_content]).lstrip("#")
             if header_content in links
             else f"section_{i}"
         )
@@ -318,15 +325,44 @@ def replace_links_in_markdown(
             original_slug = links.get(header_text, "")
             if original_slug:
                 # Remove the '#' from the slug and update the link in the content
+                new_slug = normalize_slug(original_slug)
                 original_slug = original_slug.lstrip("#")
                 content = content.replace(
                     f"(#{original_slug})",
-                    f"({file_name}#{original_slug})",
+                    f"({file_name}{new_slug})",
                 )
 
     # Write updated content back to file
     with md_file_path.open("w") as outfile:
         outfile.write(content)
+
+
+def decrease_header_levels(md_file_path: Path) -> None:
+    """Decreases the header levels by one in a Markdown file, without going below level 1.
+
+    Parameters
+    ----------
+    md_file_path
+        Path to the Markdown file.
+    """
+    with md_file_path.open("r", encoding="utf-8") as file:
+        content = file.read()
+
+    # Function to decrease the header level
+    def lower_header_level(match: re.Match) -> str:
+        header_level = len(match.group(1))
+        new_header_level = "#" * max(1, header_level - 1)  # Ensure at least one '#'
+        return f"{new_header_level} {match.group(2)}"
+
+    # Regular expression for Markdown headers
+    header_regex = re.compile(r"^(#+)\s+(.+)$", re.MULTILINE)
+
+    # Replace headers with decreased levels
+    new_content = header_regex.sub(lower_header_level, content)
+
+    # Write the updated content back to the file
+    with md_file_path.open("w", encoding="utf-8") as file:
+        file.write(new_content)
 
 
 def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
@@ -374,6 +410,7 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
     headers_in_files = {}
     for md_file in src_folder.glob("*.md"):
         headers = extract_headers_from_markdown(md_file)
+        decrease_header_levels(md_file)
         headers_in_files[md_file.name] = headers
 
     # Rename the first section to 'intro.md' and update its header

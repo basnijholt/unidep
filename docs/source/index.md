@@ -12,7 +12,7 @@ installation
 requirementsyaml-and-pyprojecttoml-structure
 build-system-integration
 as-a-cli
--faq
+faq
 troubleshooting
 limitations
 reference/index
