@@ -369,6 +369,7 @@ def decrease_header_levels(md_file_path: Path) -> None:
 def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
     """Write an index file for the documentation."""
     index_path = docs_path / "source" / "index.md"
+    # Skip section_0.md as it is renamed to introduction.md
     pages = "\n".join(f"{entry}" for entry in toctree_entries[1:])
     # Constructing the content using textwrap.dedent for better readability
     content = textwrap.dedent(
