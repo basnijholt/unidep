@@ -369,9 +369,9 @@ def write_index_file(docs_path: Path, toctree_entries: list[str]) -> None:
     """Write an index file for the documentation."""
     index_path = docs_path / "source" / "index.md"
     with index_path.open("w", encoding="utf-8") as index_file:
-        index_file.write("```{include} intro.md\n```\n\n")
+        index_file.write("```{include} introduction.md\n```\n\n")
         index_file.write("```{toctree}\n:hidden: true\n:maxdepth: 2\n:glob:\n\n")
-        index_file.write("intro\n")
+        index_file.write("introduction\n")
         for entry in toctree_entries:
             index_file.write(f"{entry}\n")
         index_file.write("reference/index\n")
@@ -413,12 +413,12 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
         decrease_header_levels(md_file)
         headers_in_files[md_file.name] = headers
 
-    # Rename the first section to 'intro.md' and update its header
-    shutil.move(src_folder / "section_0.md", src_folder / "intro.md")  # type: ignore[arg-type]
-    replace_header(src_folder / "intro.md", new_header="🌟 Introduction")
+    # Rename the first section to 'introduction.md' and update its header
+    shutil.move(src_folder / "section_0.md", src_folder / "introduction.md")  # type: ignore[arg-type]
+    replace_header(src_folder / "introduction.md", new_header="🌟 Introduction")
 
     # Step 5: Replace links in each markdown file to point to the correct section
-    for md_file in (*src_folder.glob("*.md"), src_folder / "intro.md"):
+    for md_file in (*src_folder.glob("*.md"), src_folder / "introduction.md"):
         replace_links_in_markdown(md_file, headers_in_files, links)
 
 
