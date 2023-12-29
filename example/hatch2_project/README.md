@@ -24,7 +24,20 @@ dynamic = ["dependencies"]  # add "dependencies" here
 # Additional Hatch configurations
 
 [tool.hatch.metadata.hooks.unidep]  # add this to enable the hook
+
+# Specify pip and conda dependencies here
+[tool.unidep]
+channels = ["conda-forge"]
+dependencies = [
+    "adaptive-scheduler:linux64",
+    { pip = "unidep" },
+    "numpy >=1.22",
+    "hpc05:linux64",
+    "pandas >=2,<3",
+    "pexpect:unix",
+    "wexpect:win64",
+]
 ```
 
 > [!NOTE]
-> See the [`pyproject.toml`](pyproject.toml) a working example.
+> See the [`pyproject.toml`](pyproject.toml) for a working example.
