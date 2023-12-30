@@ -969,7 +969,7 @@ On the other hand, `unidep conda-lock` is a command within the UniDep tool that 
 When managing multiple dependent projects (e.g., in a monorepo), a unique feature of `unidep conda-lock` is its ability to create **_consistent_** individual `conda-lock.yml` files for each `requirements.yaml` or `pyproject.toml` file, ensuring consistency with a global `conda-lock.yml` file.
 This feature is not available in the standalone `conda-lock` tool.
 
-### **Q: What is the difference between [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) and `unidep`?**
+### **Q: What is the difference between [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) / [`pdm-conda`](https://github.com/macro128/pdm-conda) and `unidep`?**
 
 **A:** [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) is a plugin for [`hatch`](https://hatch.pypa.io/latest/) that integrates Conda environments into `hatch`.
 A key difference is that `hatch-conda` keeps Conda and Pip dependencies separate, choosing to install packages with either Conda *or* Pip.
@@ -982,29 +982,20 @@ These Conda-specific dependencies can often be installed through alternative pac
 
 Similar to `hatch-conda`, `unidep` also integrates with Hatchling, in addition to offering compatibility with Setuptools.
 
-In addition, UniDep provides some extra functionality that makes it work nicely in monorepos or different OSes, e.g.,
-
-1. Create `conda-lock.yml` files for all packages with consistent sub-lock files per package.
-2. Have QoL improvement tools like, `unidep install-all -e` which will install all dependencies first with Conda, then remaining ones with Pip, and finally the local dependencies in editable mode with Pip too.
-3. Can create standard Conda `environment.yaml` files by combining the dependencies from many `requirements.yaml` or `pyproject.toml` files.
-4. Can specify whether certain dependencies only need to be installed on certain platforms (linux64, osx-arm64, etc.)
-
-### **Q: What is the difference between [`pdm-conda`](https://github.com/macro128/pdm-conda) and `unidep`?**
-
 **A:** [`pdm-conda`](https://github.com/macro128/pdm-conda) is a plugin for [`pdm`](https://pdm-project.org/) designed to facilitate the use of Conda environments in conjunction with `pdm`.
 Like `hatch-conda`, `pdm-conda` opts to install packages either with Conda or Pip.
 It is closely integrated with `pdm`, primarily enabling the inclusion of Conda packages in `pdm`'s lock file (`pdm.lock`).
 However, `pdm-conda` lacks extensive cross-platform support.
 For instance, when adding a package like Numba using `pdm-conda`, it gets locked to the current platform (e.g., osx-arm64) without the flexibility to specify compatibility for other platforms such as linux64.
+In contrast, UniDep allows for cross-platform compatibility, enabling the user to specify dependencies for multiple platforms.
+UniDep currently does not support `pdm`, but it does support Hatchling and Setuptools.
 
-On the other hand, [UniDep](https://github.com/basnijholt/unidep/) offers a broader range of functionality, particularly useful in monorepos or for cross-platform projects:
+UniDep stands out from both `pdm-conda` and `hatch-conda` with its additional functionalities, particularly beneficial for monorepos and projects spanning multiple operating systems. For instance:
 
-1. **Conda Lock Files**: Creates `conda-lock.yml` files for entire projects, ensuring consistent sub-lock files for each package.
-2. **Streamlined Installation**: Provides tools like `unidep install-all -e` for installing all dependencies first with Conda, then with Pip, and finally local dependencies in editable mode with Pip.
-3. **Unified Environment Files**: Capable of generating standard Conda `environment.yaml` files by merging dependencies from various `requirements.yaml` or `pyproject.toml` files.
+1. **Conda Lock Files**: Create `conda-lock.yml` files for all packages with consistent sub-lock files per package.
+2. **CLI tools**: Provides tools like `unidep install-all -e` which will install multiple local projects (e.g., in monorepo) and all its dependencies first with Conda, then remaining ones with Pip, and finally the local dependencies in editable mode with Pip.
+3. **Conda Environment Files**: Can create standard Conda `environment.yaml` files by combining the dependencies from many `requirements.yaml` or `pyproject.toml` files.
 4. **Platform-Specific Dependencies**: Allows specifying dependencies for certain platforms (e.g., linux64, osx-arm64), enhancing cross-platform compatibility.
-
-In summary, while `pdm-conda` is a valuable tool for integrating Conda with `pdm`, `unidep` provides more extensive features for dependency management, cross-platform support, and seamless integration in complex project environments.
 
 ## :hammer_and_wrench: Troubleshooting
 
