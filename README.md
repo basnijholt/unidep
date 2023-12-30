@@ -69,7 +69,7 @@ Try it now and streamline your development process!
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
   - [**Q: Can't Conda already do this?**](#q-cant-conda-already-do-this)
   - [**Q: What is the difference between `conda-lock` and `unidep conda-lock`?**](#q-what-is-the-difference-between-conda-lock-and-unidep-conda-lock)
-  - [**Q: What is the difference between [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) / [`pdm-conda`](https://github.com/macro128/pdm-conda) and `unidep`?**](#q-what-is-the-difference-between-hatch-condahttpsgithubcomoldgrumpyvikinghatch-conda--pdm-condahttpsgithubcommacro128pdm-conda-and-unidep)
+  - [**Q: What is the difference between `hatch-conda` / `pdm-conda` and `unidep`?**](#q-what-is-the-difference-between-hatch-conda--pdm-conda-and-unidep)
 - [:hammer_and_wrench: Troubleshooting](#hammer_and_wrench-troubleshooting)
   - [`pip install` fails with `FileNotFoundError`](#pip-install-fails-with-filenotfounderror)
 - [:warning: Limitations](#warning-limitations)
