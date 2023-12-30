@@ -21,6 +21,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
 - **🔒 Integration with `conda-lock`**: Generate fully pinned `conda-lock.yml` files from (multiple) `requirements.yaml` or `pyproject.toml` file(s), leveraging `conda-lock`.
+- **🤓 Nerd stats**: written in Python, >99% test coverage, fully-typed, all Ruff's rules enabled, easily extensible, and minimal dependencies
 
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!
