@@ -968,7 +968,7 @@ On the other hand, `unidep conda-lock` is a command within the UniDep tool that 
 When managing multiple dependent projects (e.g., in a monorepo), a unique feature of `unidep conda-lock` is its ability to create **_consistent_** individual `conda-lock.yml` files for each `requirements.yaml` or `pyproject.toml` file, ensuring consistency with a global `conda-lock.yml` file.
 This feature is not available in the standalone `conda-lock` tool.
 
-### **Q: What is the difference between [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) / [`pdm-conda`](https://github.com/macro128/pdm-conda) and `unidep`?**
+### **Q: What is the difference between `hatch-conda` / `pdm-conda` and `unidep`?**
 
 **A:** [`hatch-conda`](https://github.com/OldGrumpyViking/hatch-conda) is a plugin for [`hatch`](https://hatch.pypa.io/latest/) that integrates Conda environments into `hatch`.
 A key difference is that `hatch-conda` keeps Conda and Pip dependencies separate, choosing to install packages with either Conda *or* Pip.
