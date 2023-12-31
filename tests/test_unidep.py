@@ -2106,3 +2106,48 @@ def test_optional_dependencies(
             ],
         },
     }
+    requirements = parse_requirements(p, verbose=False)
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+        extras=["test"],
+    )
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "conda": Spec(
+                    name="adaptive",
+                    which="conda",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+                "pip": Spec(
+                    name="adaptive",
+                    which="pip",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+            },
+        },
+        "pytest": {
+            None: {
+                "conda": Spec(
+                    name="pytest",
+                    which="conda",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+                "pip": Spec(
+                    name="pytest",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+            },
+        },
+    }

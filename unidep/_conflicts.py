@@ -137,19 +137,61 @@ class VersionConflictError(ValueError):
     """Raised when a version conflict is detected."""
 
 
+def _add_optional_dependencies(
+    requirements: dict[str, list[Spec]],
+    optional_dependencies: dict[str, dict[str, list[Spec]]] | None,
+    extras: list[str] | None,
+) -> None:
+    """Add optional dependencies to the requirements dictionary."""
+    if extras is None:
+        return
+    if optional_dependencies is None:
+        msg = "Extras were specified, but optional dependencies were not provided."
+        raise ValueError(msg)
+    for extra in extras:
+        if extra not in optional_dependencies:
+            msg = f"Invalid extra: {extra}, must be one of {optional_dependencies}"
+            raise VersionConflictError(msg)
+        for pkg, specs in optional_dependencies[extra].items():
+            requirements.setdefault(pkg, []).extend(specs)
+
+
 def resolve_conflicts(
     requirements: dict[str, list[Spec]],
     platforms: list[Platform] | None = None,
+    optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
+    extras: list[str] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, Spec]]]:
     """Resolve conflicts in a dictionary of requirements.
 
-    Uses the ``ParsedRequirements.requirements`` dict returned by
-    `parse_requirements`.
+    Parameters
+    ----------
+    requirements
+        Dictionary mapping package names to a list of Spec objects.
+        Typically ``ParsedRequirements.requirements`` is passed here, which is
+        returned by `parse_requirements`.
+    platforms
+        List of platforms to resolve conflicts for.
+        Typically ``ParsedRequirements.platforms`` is passed here, which is
+        returned by `parse_requirements`.
+    optional_dependencies
+        Dictionary mapping package names to a dictionary of optional dependencies.
+        Typically ``ParsedRequirements.optional_dependencies`` is passed here, which is
+        returned by `parse_requirements`.
+    extras
+        List of extras to resolve conflicts for.
+
+    Returns
+    -------
+    Dictionary mapping package names to a dictionary of resolved metadata.
+    The resolved metadata is a dictionary mapping platforms to a dictionary
+    mapping sources to a single `Spec` object.
     """
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise VersionConflictError(msg)
 
+    _add_optional_dependencies(requirements, optional_dependencies, extras)
     prepared = _prepare_specs_for_conflict_resolution(requirements)
     for data in prepared.values():
         _pop_unused_platforms_and_maybe_expand_none(data, platforms)
