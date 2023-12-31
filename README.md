@@ -979,7 +979,9 @@ Without Conda, it can still install any dependency that is available on PyPI (e.
 However, without Conda, UniDep will not install dependencies exclusive to Conda.
 These Conda-specific dependencies can often be installed through alternative package managers like `apt`, `brew`, `yum`, or by building them from source.
 
-Similar to `hatch-conda`, `unidep` also integrates with Hatchling, in addition to offering compatibility with Setuptools.
+Another key difference is that `hatch-conda` is managing [Hatch environments](https://hatch.pypa.io/latest/environment/) whereas `unidep` can install Pip dependencies in the current Python environment (venv, Conda, Hatch, etc.), however, to optimally use UniDep, we recommend using Conda environments to additionally install non-Python dependencies.
+
+Similar to `hatch-conda`, `unidep` also integrates with Hatchling, but it works in a slightly different way.
 
 **A:** [`pdm-conda`](https://github.com/macro128/pdm-conda) is a plugin for [`pdm`](https://pdm-project.org/) designed to facilitate the use of Conda environments in conjunction with `pdm`.
 Like `hatch-conda`, `pdm-conda` opts to install packages either with Conda or Pip.
