@@ -114,7 +114,7 @@ def test_detect_platform() -> None:
     with patch("platform.system", return_value="Unknown"), patch(
         "platform.machine",
         return_value="x86_64",
-    ), pytest.raises(ValueError, match="Unsupported operating system"):
+    ), pytest.raises(UnsupportedPlatformError, match="Unsupported operating system"):
         identify_current_platform()
 
 
