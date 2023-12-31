@@ -599,6 +599,7 @@ def _install_command(  # noqa: PLR0912
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
+        requirements.optional_dependencies,
     )
     env_spec = create_conda_env_specification(
         resolved,

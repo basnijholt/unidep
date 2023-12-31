@@ -180,7 +180,7 @@ def resolve_conflicts(
         Typically ``ParsedRequirements.optional_dependencies`` is passed here, which is
         returned by `parse_requirements`.
     extras
-        List of extras to resolve conflicts for.
+        List of selected extras (keys in `optional_dependencies`).
 
     Returns
     -------
