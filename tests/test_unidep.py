@@ -2107,6 +2107,21 @@ def test_optional_dependencies(
         },
     }
     requirements = parse_requirements(p, verbose=False)
+
+    with pytest.raises(ValueError, match="`extras` were specified"):
+        resolved = resolve_conflicts(
+            requirements.requirements,
+            requirements.platforms,
+            optional_dependencies=None,
+            extras=["test"],
+        )
+    with pytest.raises(ValueError, match="Invalid extra"):
+        resolved = resolve_conflicts(
+            requirements.requirements,
+            requirements.platforms,
+            optional_dependencies=requirements.optional_dependencies,
+            extras=["yolo"],
+        )
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,

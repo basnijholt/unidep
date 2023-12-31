@@ -146,11 +146,12 @@ def _add_optional_dependencies(
     if extras is None:
         return
     if optional_dependencies is None:
-        msg = "Extras were specified, but optional dependencies were not provided."
+        msg = "`extras` were specified, but `optional_dependencies` were not provided."
         raise ValueError(msg)
     for extra in extras:
         if extra not in optional_dependencies:
-            msg = f"Invalid extra: {extra}, must be one of {optional_dependencies}"
+            options = ", ".join(optional_dependencies.keys())
+            msg = f"Invalid extra: `{extra}`, must be one of {options}"
             raise VersionConflictError(msg)
         for pkg, specs in optional_dependencies[extra].items():
             requirements.setdefault(pkg, []).extend(specs)
