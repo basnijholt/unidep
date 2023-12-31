@@ -9,8 +9,9 @@ import platform
 import re
 import sys
 import warnings
+from collections import defaultdict
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -271,3 +272,10 @@ def dependencies_filename(folder_or_path: str | Path) -> Path:
         msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
     return path
+
+
+def defaultdict_to_dict(d: defaultdict | Any) -> dict:
+    """Convert (nested) defaultdict to (nested) dict."""
+    if isinstance(d, defaultdict):
+        d = {key: defaultdict_to_dict(value) for key, value in d.items()}
+    return d

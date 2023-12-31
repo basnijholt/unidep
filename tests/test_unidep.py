@@ -2062,3 +2062,47 @@ def test_not_equal(
             },
         },
     }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive != 1.0.0
+                - adaptive <2
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    assert requirements.optional_dependencies == {
+        "test": {
+            "pytest": [
+                Spec(
+                    name="pytest",
+                    which="conda",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+                Spec(
+                    name="pytest",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+            ],
+        },
+    }

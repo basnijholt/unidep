@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from packaging import version
 
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import warn
+from unidep.utils import defaultdict_to_dict, warn
 
 if sys.version_info >= (3, 8):
     from typing import get_args
@@ -49,9 +49,8 @@ def _prepare_specs_for_conflict_resolution(
             for _platform in _platforms:
                 grouped_specs[_platform][spec.which].append(spec)
 
-        # Convert defaultdicts to dicts
-        prepared_data[package] = {k: dict(v) for k, v in grouped_specs.items()}
-    return prepared_data
+        prepared_data[package] = grouped_specs
+    return defaultdict_to_dict(prepared_data)
 
 
 def _pop_unused_platforms_and_maybe_expand_none(

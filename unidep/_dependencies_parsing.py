@@ -17,6 +17,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
+    defaultdict_to_dict,
     dependencies_filename,
     is_pip_installable,
     parse_package_str,
@@ -204,7 +205,9 @@ def parse_requirements(  # noqa: PLR0912
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
     requirements: dict[str, list[Spec]] = defaultdict(list)
-    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(dict)
+    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
@@ -261,7 +264,7 @@ def parse_requirements(  # noqa: PLR0912
         sorted(channels),
         sorted(platforms),
         dict(requirements),
-        {},
+        defaultdict_to_dict(optional_dependencies),
     )
 
 
