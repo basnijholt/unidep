@@ -8,6 +8,7 @@ import pytest
 
 from unidep.platform_definitions import Selector
 from unidep.utils import (
+    UnsupportedPlatformError,
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
@@ -86,19 +87,22 @@ def test_detect_platform() -> None:
     with patch("platform.system", return_value="Linux"), patch(
         "platform.machine",
         return_value="unknown",
-    ), pytest.raises(ValueError, match="Unsupported Linux architecture"):
+    ), pytest.raises(UnsupportedPlatformError, match="Unsupported Linux architecture"):
         identify_current_platform()
 
     with patch("platform.system", return_value="Darwin"), patch(
         "platform.machine",
         return_value="unknown",
-    ), pytest.raises(ValueError, match="Unsupported macOS architecture"):
+    ), pytest.raises(UnsupportedPlatformError, match="Unsupported macOS architecture"):
         identify_current_platform()
 
     with patch("platform.system", return_value="Windows"), patch(
         "platform.machine",
         return_value="unknown",
-    ), pytest.raises(ValueError, match="Unsupported Windows architecture"):
+    ), pytest.raises(
+        UnsupportedPlatformError,
+        match="Unsupported Windows architecture",
+    ):
         identify_current_platform()
 
     with patch("platform.system", return_value="Linux"), patch(

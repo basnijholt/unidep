@@ -127,8 +127,13 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
             " Remove the `install_requires` line from `setup.py`."
         )
         raise RuntimeError(msg)
+    try:
+        platforms = [identify_current_platform()]
+    except ValueError:
+        platforms = None
+
     dist.install_requires = get_python_dependencies(
         requirements_file,
-        platforms=[identify_current_platform()],
+        platforms=platforms,
         raises_if_missing=False,
     )

@@ -5,6 +5,7 @@ This module provides utility functions used throughout the package.
 from __future__ import annotations
 
 import codecs
+import functools
 import platform
 import re
 import sys
@@ -92,10 +93,18 @@ def is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     return False
 
 
+@functools.lru_cache()
+def _system_and_architecture() -> tuple[str, str]:
+    return platform.system().lower(), platform.machine().lower()
+
+
+class UnsupportedPlatformError(Exception):
+    """Raised when the current platform is not supported."""
+
+
 def identify_current_platform() -> Platform:
     """Detect the current platform."""
-    system = platform.system().lower()
-    architecture = platform.machine().lower()
+    system, architecture = _system_and_architecture()
 
     if system == "linux":
         if architecture == "x86_64":
@@ -104,22 +113,22 @@ def identify_current_platform() -> Platform:
             return "linux-aarch64"
         if architecture == "ppc64le":
             return "linux-ppc64le"
-        msg = "Unsupported Linux architecture"
-        raise ValueError(msg)
+        msg = f"Unsupported Linux architecture `{architecture}`"
+        raise UnsupportedPlatformError(msg)
     if system == "darwin":
         if architecture == "x86_64":
             return "osx-64"
         if architecture == "arm64":
             return "osx-arm64"
-        msg = "Unsupported macOS architecture"
-        raise ValueError(msg)
+        msg = f"Unsupported macOS architecture `{architecture}`"
+        raise UnsupportedPlatformError(msg)
     if system == "windows":
         if "64" in architecture:
             return "win-64"
-        msg = "Unsupported Windows architecture"
-        raise ValueError(msg)
-    msg = "Unsupported operating system"
-    raise ValueError(msg)
+        msg = f"Unsupported Windows architecture `{architecture}`"
+        raise UnsupportedPlatformError(msg)
+    msg = f"Unsupported operating system `{system}` with architecture `{architecture}`"
+    raise UnsupportedPlatformError(msg)
 
 
 def build_pep508_environment_marker(
