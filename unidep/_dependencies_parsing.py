@@ -138,6 +138,7 @@ class ParsedRequirements(NamedTuple):
     channels: list[str]
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
+    optional_dependencies: dict[str, dict[str, list[Spec]]]
 
 
 class Requirements(NamedTuple):
@@ -191,7 +192,7 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
     return []
 
 
-def parse_requirements(  # noqa: PLR0912
+def parse_requirements(
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
@@ -238,15 +239,54 @@ def parse_requirements(  # noqa: PLR0912
             platforms.add(_platform)
         if "dependencies" not in data:
             continue
-        dependencies = data["dependencies"]
-        for i, dep in enumerate(data["dependencies"]):
-            identifier += 1
-            if isinstance(dep, str):
+        identifier = _add_dependencies(
+            data["dependencies"],
+            requirements,
+            identifier,
+            ignore_pins,
+            overwrite_pins_map,
+            skip_dependencies,
+        )
+    return ParsedRequirements(
+        sorted(channels),
+        sorted(platforms),
+        dict(requirements),
+        {},
+    )
+
+
+def _add_dependencies(
+    dependencies: list[str],
+    requirements: dict[str, list[Spec]],
+    identifier: int,
+    ignore_pins: list[str],
+    overwrite_pins_map: dict[str, str | None],
+    skip_dependencies: list[str],
+) -> int:
+    for i, dep in enumerate(dependencies):
+        identifier += 1
+        if isinstance(dep, str):
+            specs = _parse_dependency(
+                dep,
+                dependencies,
+                i,
+                "both",
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+            for spec in specs:
+                requirements[spec.name].append(spec)
+            continue
+        assert isinstance(dep, dict)
+        for which in ["conda", "pip"]:
+            if which in dep:
                 specs = _parse_dependency(
+                    dep[which],
                     dep,
-                    dependencies,
-                    i,
-                    "both",
+                    which,
+                    which,  # type: ignore[arg-type]
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
@@ -254,24 +294,7 @@ def parse_requirements(  # noqa: PLR0912
                 )
                 for spec in specs:
                     requirements[spec.name].append(spec)
-                continue
-            assert isinstance(dep, dict)
-            for which in ["conda", "pip"]:
-                if which in dep:
-                    specs = _parse_dependency(
-                        dep[which],
-                        dep,
-                        which,
-                        which,  # type: ignore[arg-type]
-                        identifier,
-                        ignore_pins,
-                        overwrite_pins_map,
-                        skip_dependencies,
-                    )
-                    for spec in specs:
-                        requirements[spec.name].append(spec)
-
-    return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
+    return identifier
 
 
 # Alias for backwards compatibility
