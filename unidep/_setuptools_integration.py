@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
+    UnsupportedPlatformError,
     build_pep508_environment_marker,
     dependencies_filename,
     identify_current_platform,
@@ -127,8 +128,16 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
             " Remove the `install_requires` line from `setup.py`."
         )
         raise RuntimeError(msg)
+    try:
+        platforms = [identify_current_platform()]
+    except UnsupportedPlatformError:
+        # We don't know the current platform, so we can't filter out.
+        # This will result in selecting all platforms. But this is better
+        # than failing.
+        platforms = None
+
     dist.install_requires = get_python_dependencies(
         requirements_file,
-        platforms=[identify_current_platform()],
+        platforms=platforms,
         raises_if_missing=False,
     )

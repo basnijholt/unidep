@@ -12,6 +12,7 @@ if sys.version_info >= (3, 8):
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
 
+
 CondaPlatform = Literal["unix", "linux", "osx", "win"]
 Platform = Literal[
     "linux-64",
@@ -34,6 +35,16 @@ Selector = Literal[
     "osx",
     "macos",
 ]
+# The following are also supported in conda-build but not in UniDep:
+# "linux-32" (32-bit x86 on Linux)
+# "linux-64" (64-bit x86 on Linux)
+# "linux-ppc64" (64-bit PowerPC on Linux)
+# "linux-ppc64le" (64-bit Little Endian PowerPC on Linux)
+# "linux-s390x" (64-bit IBM z Systems on Linux)
+# "linux-armv6l" (32-bit ARMv6 on Linux)
+# "linux-armv7l" (32-bit ARMv7 on Linux)
+# "win-32" (32-bit x86 Windows)
+# "win-arm64" (64-bit ARM on Windows)
 CondaPip = Literal["conda", "pip"]
 
 VALID_SELECTORS = get_args(Selector)
