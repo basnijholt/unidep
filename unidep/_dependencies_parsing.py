@@ -192,7 +192,7 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
     return []
 
 
-def parse_requirements(
+def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
@@ -204,6 +204,7 @@ def parse_requirements(
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
     requirements: dict[str, list[Spec]] = defaultdict(list)
+    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(dict)
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
@@ -237,16 +238,25 @@ def parse_requirements(
             channels.add(channel)
         for _platform in data.get("platforms", []):
             platforms.add(_platform)
-        if "dependencies" not in data:
-            continue
-        identifier = _add_dependencies(
-            data["dependencies"],
-            requirements,
-            identifier,
-            ignore_pins,
-            overwrite_pins_map,
-            skip_dependencies,
-        )
+        if "dependencies" in data:
+            identifier = _add_dependencies(
+                data["dependencies"],
+                requirements,
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+        if "optional_dependencies" in data:
+            for optional_name, optional_deps in data["optional_dependencies"].items():
+                identifier = _add_dependencies(
+                    optional_deps,
+                    optional_dependencies[optional_name],
+                    identifier,
+                    ignore_pins,
+                    overwrite_pins_map,
+                    skip_dependencies,
+                )
     return ParsedRequirements(
         sorted(channels),
         sorted(platforms),
