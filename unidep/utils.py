@@ -5,7 +5,6 @@ This module provides utility functions used throughout the package.
 from __future__ import annotations
 
 import codecs
-import functools
 import platform
 import re
 import sys
@@ -93,18 +92,14 @@ def is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     return False
 
 
-@functools.lru_cache()
-def _system_and_architecture() -> tuple[str, str]:
-    return platform.system().lower(), platform.machine().lower()
-
-
 class UnsupportedPlatformError(Exception):
     """Raised when the current platform is not supported."""
 
 
 def identify_current_platform() -> Platform:
     """Detect the current platform."""
-    system, architecture = _system_and_architecture()
+    system = platform.system().lower()
+    architecture = platform.machine().lower()
 
     if system == "linux":
         if architecture == "x86_64":
