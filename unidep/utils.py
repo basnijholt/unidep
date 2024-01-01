@@ -253,6 +253,26 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
+def parse_path_and_extras(input_str: str) -> tuple[str, list[str] | None]:
+    """Parse a string of the form `path/to/file[extra1,extra2]`."""
+    if not input_str:  # Check for empty string
+        return "", None
+
+    pattern = r"^(.+?)(?:\[([^\[\]]+)\])?$"
+    match = re.search(pattern, input_str)
+
+    if match is None:
+        msg = f"Invalid path and extras string: '{input_str}'"
+        raise ValueError(msg)
+
+    path = match.group(1)
+    extras = match.group(2)
+    if not extras:
+        return path, []
+    extras = [extra.strip() for extra in extras.split(",")]
+    return path, extras
+
+
 def dependencies_filename(folder_or_path: str | Path) -> Path:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
     path = Path(folder_or_path)

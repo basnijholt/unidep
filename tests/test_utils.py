@@ -14,6 +14,7 @@ from unidep.utils import (
     extract_matching_platforms,
     identify_current_platform,
     parse_package_str,
+    parse_path_and_extras,
 )
 
 if sys.version_info >= (3, 8):
@@ -237,3 +238,26 @@ def test_extract_matching_platforms() -> None:
     incorrect_platform = "dependency8  # [unknown-platform]"
     with pytest.raises(ValueError, match="Invalid platform selector"):
         extract_matching_platforms(incorrect_platform)
+
+
+def test_parse_path_and_extras() -> None:
+    # parse_with_extras
+    path, extras = parse_path_and_extras("any/path[something, another]")
+    assert path == "any/path"
+    assert extras == ["something", "another"]
+
+    # parse_without_extras
+    path, extras = parse_path_and_extras("any/path")
+    assert path == "any/path"
+    assert extras == []
+
+    # parse_incorrect_format
+    # Technically this path is not correct, but we don't check for multiple []
+    path, extras = parse_path_and_extras("any/path[something][another]")
+    assert path == "any/path[something]"
+    assert extras == ["another"]
+
+    # parse_empty_string
+    path, extras = parse_path_and_extras("")
+    assert path == ""
+    assert extras is None
