@@ -253,18 +253,21 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
-def parse_path_and_extras(input_str: str) -> tuple[str, list[str]]:
+def parse_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
     """Parse a string of the form `path/to/file[extra1,extra2]`."""
     if not input_str:  # Check for empty string
-        return "", []
+        return Path(), []
+
+    if isinstance(input_str, Path):
+        input_str = str(input_str)
 
     pattern = r"^(.+?)(?:\[([^\[\]]+)\])?$"
     match = re.search(pattern, input_str)
 
     if match is None:
-        return input_str, []
+        return Path(), []
 
-    path = match.group(1)
+    path = Path(match.group(1))
     extras = match.group(2)
     if not extras:
         return path, []

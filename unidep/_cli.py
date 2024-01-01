@@ -37,6 +37,7 @@ from unidep.utils import (
     identify_current_platform,
     is_pip_installable,
     parse_package_str,
+    parse_path_and_extras,
     warn,
 )
 
@@ -849,7 +850,7 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
@@ -859,8 +860,13 @@ def main() -> None:
     if "platform" in args and args.platform is None:  # pragma: no cover
         args.platform = [identify_current_platform()]
 
-    if "files" in args and args.files is None:  # pragma: no cover
-        args.platform = ["."]
+    if "files" in args:
+        if args.files is None:  # pragma: no cover
+            args.files = ["."]
+        else:
+            args.files, args.extras = zip(
+                *(parse_path_and_extras(f) for f in args.files),
+            )
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
