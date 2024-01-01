@@ -253,17 +253,16 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
-def parse_path_and_extras(input_str: str) -> tuple[str, list[str] | None]:
+def parse_path_and_extras(input_str: str) -> tuple[str, list[str]]:
     """Parse a string of the form `path/to/file[extra1,extra2]`."""
     if not input_str:  # Check for empty string
-        return "", None
+        return "", []
 
     pattern = r"^(.+?)(?:\[([^\[\]]+)\])?$"
     match = re.search(pattern, input_str)
 
     if match is None:
-        msg = f"Invalid path and extras string: '{input_str}'"
-        raise ValueError(msg)
+        return input_str, []
 
     path = match.group(1)
     extras = match.group(2)

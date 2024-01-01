@@ -260,4 +260,20 @@ def test_parse_path_and_extras() -> None:
     # parse_empty_string
     path, extras = parse_path_and_extras("")
     assert path == ""
-    assert extras is None
+    assert extras == []
+
+    path, extras = parse_path_and_extras("any/path[something]/other")
+    assert path == "any/path[something]/other"
+    assert extras == []
+
+    path, extras = parse_path_and_extras("any/path]something[")
+    assert path == "any/path]something["
+    assert extras == []
+
+    path, extras = parse_path_and_extras("any/path[something")
+    assert path == "any/path[something"
+    assert extras == []
+
+    path, extras = parse_path_and_extras("any/path]something]")
+    assert path == "any/path]something]"
+    assert extras == []
