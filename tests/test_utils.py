@@ -266,6 +266,10 @@ def test_parse_path_and_extras() -> None:
     assert path == "any/path[something]/other"
     assert extras == []
 
+    path, extras = parse_path_and_extras("any/path[something]/other[foo]")
+    assert path == "any/path[something]/other"
+    assert extras == ["foo"]
+
     path, extras = parse_path_and_extras("any/path]something[")
     assert path == "any/path]something["
     assert extras == []
