@@ -64,6 +64,7 @@ Try it now and streamline your development process!
 - [❓ FAQ](#-faq)
   - [**Q: When to use UniDep?**](#q-when-to-use-unidep)
   - [**Q: Just show me a full example!**](#q-just-show-me-a-full-example)
+  - [**Q: Uses of UniDep in the wild?**](#q-uses-of-unidep-in-the-wild)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
