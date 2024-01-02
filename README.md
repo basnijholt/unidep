@@ -929,10 +929,11 @@ However, an example of a single package that is public is [`home-assistant-strea
 This is a Python package that allows to interact with [Home Assistant](https://www.home-assistant.io/) from an Elgato Stream Deck connected via USB to e.g., a Raspberry Pi.
 It requires a couple of system dependencies (e.g., `libusb` and `hidapi`), which are typically installed with `apt` or `brew`.
 The [`README.md`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/main/README.md) shows different installation instructions on Linux, MacOS, and Windows for non-Conda installs, however, with UniDep, we can just use `unidep install .` on all platforms.
+It is fully configured via [`pyproject.toml`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/main/pyproject.toml).
 The 2 `Dockerfile`s show 2 different ways of using UniDep:
 
-1. Installing `conda-lock.yml` (generated with `unidep conda-lock`) and then `pip install .` the local package in [`Dockerfile.locked`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.locked).
-2. Using `unidep install .` to install all dependencies, first with conda, then pip, then the local package [`Dockerfile.latest`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.latest).
+1. [`Dockerfile.locked`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.locked): Installing `conda-lock.yml` (generated with `unidep conda-lock`) and then `pip install .` the local package.
+2. [`Dockerfile.latest`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.latest): Using `unidep install .` to install all dependencies, first with conda, then pip, then the local package.
 
 ### **Q: How is this different from conda/mamba/pip?**
 
