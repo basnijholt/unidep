@@ -588,6 +588,9 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
+    files, extras = zip(
+        *(parse_path_and_extras(f) for f in files),
+    )
     files = tuple(dependencies_filename(f) for f in files)
     requirements = parse_requirements(
         *files,
@@ -850,7 +853,7 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
-def main() -> None:  # noqa: PLR0912
+def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
@@ -860,13 +863,8 @@ def main() -> None:  # noqa: PLR0912
     if "platform" in args and args.platform is None:  # pragma: no cover
         args.platform = [identify_current_platform()]
 
-    if "files" in args:
-        if args.files is None:  # pragma: no cover
-            args.files = ["."]
-        else:
-            args.files, args.extras = zip(
-                *(parse_path_and_extras(f) for f in args.files),
-            )
+    if "files" in args and args.files is None:  # pragma: no cover
+        args.files = ["."]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
