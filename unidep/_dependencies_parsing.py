@@ -17,6 +17,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
+    defaultdict_to_dict,
     dependencies_filename,
     is_pip_installable,
     parse_package_str,
@@ -138,6 +139,7 @@ class ParsedRequirements(NamedTuple):
     channels: list[str]
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
+    optional_dependencies: dict[str, dict[str, list[Spec]]]
 
 
 class Requirements(NamedTuple):
@@ -197,17 +199,47 @@ def parse_requirements(  # noqa: PLR0912
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
+    extras: list[list[str]] | Literal["*"] | None = None,
 ) -> ParsedRequirements:
-    """Parse a list of `requirements.yaml` or `pyproject.toml` files."""
+    """Parse a list of `requirements.yaml` or `pyproject.toml` files.
+
+    Parameters
+    ----------
+    paths
+        Paths to `requirements.yaml` or `pyproject.toml` files.
+    ignore_pins
+        List of package names to ignore pins for.
+    overwrite_pins
+        List of package names with pins to overwrite.
+    skip_dependencies
+        List of package names to skip.
+    verbose
+        Whether to print verbose output.
+    extras
+        List of lists of extras to include. The outer list corresponds to the
+        `requirements.yaml` or `pyproject.toml` files, the inner list to the
+        extras to include for that file. If "*", all extras are included,
+        if None, no extras are included.
+    """
+    if extras is not None and len(extras) != len(paths):
+        msg = (
+            f"Length of `extras` ({len(extras)}) does not match length of `paths`"
+            f" ({len(paths)})."
+        )
+        raise ValueError(msg)
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
     requirements: dict[str, list[Spec]] = defaultdict(list)
+    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
+
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
@@ -231,22 +263,71 @@ def parse_requirements(  # noqa: PLR0912
             seen.add(requirements_path)
 
     identifier = -1
-    for data in datas:
+    for i, data in enumerate(datas):
         for channel in data.get("channels", []):
             channels.add(channel)
         for _platform in data.get("platforms", []):
             platforms.add(_platform)
-        if "dependencies" not in data:
+        if "dependencies" in data:
+            identifier = _add_dependencies(
+                data["dependencies"],
+                requirements,
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+        if "optional_dependencies" in data and extras is not None:
+            for optional_name, optional_deps in data["optional_dependencies"].items():
+                if extras == "*" or optional_name in extras[i]:
+                    identifier = _add_dependencies(
+                        optional_deps,
+                        optional_dependencies[optional_name],
+                        identifier,
+                        ignore_pins,
+                        overwrite_pins_map,
+                        skip_dependencies,
+                    )
+    return ParsedRequirements(
+        sorted(channels),
+        sorted(platforms),
+        dict(requirements),
+        defaultdict_to_dict(optional_dependencies),
+    )
+
+
+def _add_dependencies(
+    dependencies: list[str],
+    requirements: dict[str, list[Spec]],
+    identifier: int,
+    ignore_pins: list[str],
+    overwrite_pins_map: dict[str, str | None],
+    skip_dependencies: list[str],
+) -> int:
+    for i, dep in enumerate(dependencies):
+        identifier += 1
+        if isinstance(dep, str):
+            specs = _parse_dependency(
+                dep,
+                dependencies,
+                i,
+                "both",
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+            for spec in specs:
+                requirements[spec.name].append(spec)
             continue
-        dependencies = data["dependencies"]
-        for i, dep in enumerate(data["dependencies"]):
-            identifier += 1
-            if isinstance(dep, str):
+        assert isinstance(dep, dict)
+        for which in ["conda", "pip"]:
+            if which in dep:
                 specs = _parse_dependency(
+                    dep[which],
                     dep,
-                    dependencies,
-                    i,
-                    "both",
+                    which,
+                    which,  # type: ignore[arg-type]
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
@@ -254,24 +335,7 @@ def parse_requirements(  # noqa: PLR0912
                 )
                 for spec in specs:
                     requirements[spec.name].append(spec)
-                continue
-            assert isinstance(dep, dict)
-            for which in ["conda", "pip"]:
-                if which in dep:
-                    specs = _parse_dependency(
-                        dep[which],
-                        dep,
-                        which,
-                        which,  # type: ignore[arg-type]
-                        identifier,
-                        ignore_pins,
-                        overwrite_pins_map,
-                        skip_dependencies,
-                    )
-                    for spec in specs:
-                        requirements[spec.name].append(spec)
-
-    return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
+    return identifier
 
 
 # Alias for backwards compatibility

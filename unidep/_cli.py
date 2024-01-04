@@ -37,6 +37,7 @@ from unidep.utils import (
     identify_current_platform,
     is_pip_installable,
     parse_package_str,
+    parse_path_and_extras,
     warn,
 )
 
@@ -587,6 +588,9 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
+    files, extras = zip(
+        *(parse_path_and_extras(f) for f in files),
+    )
     files = tuple(dependencies_filename(f) for f in files)
     requirements = parse_requirements(
         *files,
@@ -594,11 +598,13 @@ def _install_command(  # noqa: PLR0912
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras=list(extras),
     )
     platforms = [identify_current_platform()]
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
+        optional_dependencies=requirements.optional_dependencies,
     )
     env_spec = create_conda_env_specification(
         resolved,
@@ -749,6 +755,7 @@ def _merge_command(
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
+        optional_dependencies=requirements.optional_dependencies,
     )
     env_spec = create_conda_env_specification(
         resolved,
@@ -800,6 +807,7 @@ def _pip_compile_command(
     resolved = resolve_conflicts(
         requirements.requirements,
         [platform],
+        optional_dependencies=requirements.optional_dependencies,
     )
     python_deps = filter_python_dependencies(resolved)
     requirements_in = directory / "requirements.in"
@@ -859,7 +867,7 @@ def main() -> None:
         args.platform = [identify_current_platform()]
 
     if "files" in args and args.files is None:  # pragma: no cover
-        args.platform = ["."]
+        args.files = ["."]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
@@ -897,6 +905,7 @@ def main() -> None:
         resolved = resolve_conflicts(
             requirements.requirements,
             platforms,
+            optional_dependencies=requirements.optional_dependencies,
         )
         env_spec = create_conda_env_specification(
             resolved,

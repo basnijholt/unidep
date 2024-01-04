@@ -1884,7 +1884,11 @@ def test_with_unused_platform(
     assert env_spec.pip == []
 
 
-def test_pip_with_pinning(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1896,6 +1900,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
     with pytest.raises(
@@ -1915,6 +1920,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """,
         ),
     )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
@@ -1927,7 +1933,11 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
     assert env_spec.pip == ["qiskit-terra ==0.25.2.1"]
 
 
-def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning_special_case_wildcard(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1939,7 +1949,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
             """,
         ),
     )
-
+    p1 = maybe_as_toml(toml_or_yaml, p1)
     requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
@@ -1967,6 +1977,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
             """,
         ),
     )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False)
 
@@ -1977,7 +1988,11 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         resolve_conflicts(requirements.requirements, requirements.platforms)
 
 
-def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning_special_case_git_repo(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1989,6 +2004,7 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
 
@@ -2007,7 +2023,11 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
     }
 
 
-def test_not_equal(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_not_equal(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -2019,6 +2039,7 @@ def test_not_equal(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
 
@@ -2037,6 +2058,95 @@ def test_not_equal(tmp_path: Path) -> None:
                     which="pip",
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
+                ),
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive != 1.0.0
+                - adaptive <2
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras="*")
+    assert requirements.optional_dependencies == {
+        "test": {
+            "pytest": [
+                Spec(
+                    name="pytest",
+                    which="conda",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+                Spec(
+                    name="pytest",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+            ],
+        },
+    }
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "conda": Spec(
+                    name="adaptive",
+                    which="conda",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+                "pip": Spec(
+                    name="adaptive",
+                    which="pip",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+            },
+        },
+        "pytest": {
+            None: {
+                "conda": Spec(
+                    name="pytest",
+                    which="conda",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                ),
+                "pip": Spec(
+                    name="pytest",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
                 ),
             },
         },

@@ -9,3 +9,9 @@ dependencies:
   - pip: home-assistant-streamdeck-yaml
 local_dependencies:
   - ../hatch_project  # depends on hatch_project
+optional_dependencies:
+  dev:
+    - mypy
+    - ruff
+  test:
+    - pytest
