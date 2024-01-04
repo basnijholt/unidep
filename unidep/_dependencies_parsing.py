@@ -199,8 +199,34 @@ def parse_requirements(  # noqa: PLR0912
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
+    extras: list[list[str]] | Literal["*"] | None = None,
 ) -> ParsedRequirements:
-    """Parse a list of `requirements.yaml` or `pyproject.toml` files."""
+    """Parse a list of `requirements.yaml` or `pyproject.toml` files.
+
+    Parameters
+    ----------
+    paths
+        Paths to `requirements.yaml` or `pyproject.toml` files.
+    ignore_pins
+        List of package names to ignore pins for.
+    overwrite_pins
+        List of package names with pins to overwrite.
+    skip_dependencies
+        List of package names to skip.
+    verbose
+        Whether to print verbose output.
+    extras
+        List of lists of extras to include. The outer list corresponds to the
+        `requirements.yaml` or `pyproject.toml` files, the inner list to the
+        extras to include for that file. If "*", all extras are included,
+        if None, no extras are included.
+    """
+    if extras is not None and len(extras) != len(paths):
+        msg = (
+            f"Length of `extras` ({len(extras)}) does not match length of `paths`"
+            f" ({len(paths)})."
+        )
+        raise ValueError(msg)
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
@@ -213,6 +239,7 @@ def parse_requirements(  # noqa: PLR0912
     datas = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
+
     for p in paths:
         if verbose:
             print(f"📄 Parsing `{p}`")
@@ -236,7 +263,7 @@ def parse_requirements(  # noqa: PLR0912
             seen.add(requirements_path)
 
     identifier = -1
-    for data in datas:
+    for i, data in enumerate(datas):
         for channel in data.get("channels", []):
             channels.add(channel)
         for _platform in data.get("platforms", []):
@@ -250,16 +277,17 @@ def parse_requirements(  # noqa: PLR0912
                 overwrite_pins_map,
                 skip_dependencies,
             )
-        if "optional_dependencies" in data:
+        if "optional_dependencies" in data and extras is not None:
             for optional_name, optional_deps in data["optional_dependencies"].items():
-                identifier = _add_dependencies(
-                    optional_deps,
-                    optional_dependencies[optional_name],
-                    identifier,
-                    ignore_pins,
-                    overwrite_pins_map,
-                    skip_dependencies,
-                )
+                if extras == "*" or optional_name in extras[i]:
+                    identifier = _add_dependencies(
+                        optional_deps,
+                        optional_dependencies[optional_name],
+                        identifier,
+                        ignore_pins,
+                        overwrite_pins_map,
+                        skip_dependencies,
+                    )
     return ParsedRequirements(
         sorted(channels),
         sorted(platforms),

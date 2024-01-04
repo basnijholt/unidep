@@ -140,20 +140,12 @@ class VersionConflictError(ValueError):
 def _add_optional_dependencies(
     requirements: dict[str, list[Spec]],
     optional_dependencies: dict[str, dict[str, list[Spec]]] | None,
-    extras: list[str] | None,
 ) -> None:
     """Add optional dependencies to the requirements dictionary."""
-    if extras is None:
-        return
     if optional_dependencies is None:
-        msg = "`extras` were specified, but `optional_dependencies` were not provided."
-        raise ValueError(msg)
-    for extra in extras:
-        if extra not in optional_dependencies:
-            options = ", ".join(optional_dependencies.keys())
-            msg = f"Invalid extra: `{extra}`, must be one of {options}"
-            raise VersionConflictError(msg)
-        for pkg, specs in optional_dependencies[extra].items():
+        return
+    for dependencies in optional_dependencies.values():
+        for pkg, specs in dependencies.items():
             requirements.setdefault(pkg, []).extend(specs)
 
 
@@ -161,7 +153,6 @@ def resolve_conflicts(
     requirements: dict[str, list[Spec]],
     platforms: list[Platform] | None = None,
     optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
-    extras: list[str] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, Spec]]]:
     """Resolve conflicts in a dictionary of requirements.
 
@@ -178,9 +169,9 @@ def resolve_conflicts(
     optional_dependencies
         Dictionary mapping package names to a dictionary of optional dependencies.
         Typically ``ParsedRequirements.optional_dependencies`` is passed here, which is
-        returned by `parse_requirements`.
-    extras
-        List of selected extras (keys in `optional_dependencies`).
+        returned by `parse_requirements`. If passing this argument, all optional
+        dependencies will be added to the requirements dictionary. Pass `None` to
+        ignore optional dependencies.
 
     Returns
     -------
@@ -192,7 +183,8 @@ def resolve_conflicts(
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
         raise VersionConflictError(msg)
 
-    _add_optional_dependencies(requirements, optional_dependencies, extras)
+    _add_optional_dependencies(requirements, optional_dependencies)
+
     prepared = _prepare_specs_for_conflict_resolution(requirements)
     for data in prepared.values():
         _pop_unused_platforms_and_maybe_expand_none(data, platforms)

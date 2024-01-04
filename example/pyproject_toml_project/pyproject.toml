@@ -27,3 +27,6 @@ dependencies = [
 local_dependencies = [
     "../hatch_project",
 ]
+[tool.unidep.optional_dependencies]
+dev = ["mypy", "ruff"]
+test = ["pytest"]

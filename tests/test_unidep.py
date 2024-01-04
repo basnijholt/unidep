@@ -2085,7 +2085,7 @@ def test_optional_dependencies(
     )
     p = maybe_as_toml(toml_or_yaml, p)
 
-    requirements = parse_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False, extras="*")
     assert requirements.optional_dependencies == {
         "test": {
             "pytest": [
@@ -2106,27 +2106,12 @@ def test_optional_dependencies(
             ],
         },
     }
-    requirements = parse_requirements(p, verbose=False)
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
 
-    with pytest.raises(ValueError, match="`extras` were specified"):
-        resolved = resolve_conflicts(
-            requirements.requirements,
-            requirements.platforms,
-            optional_dependencies=None,
-            extras=["test"],
-        )
-    with pytest.raises(ValueError, match="Invalid extra"):
-        resolved = resolve_conflicts(
-            requirements.requirements,
-            requirements.platforms,
-            optional_dependencies=requirements.optional_dependencies,
-            extras=["yolo"],
-        )
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
-        extras=["test"],
     )
     assert resolved == {
         "adaptive": {
