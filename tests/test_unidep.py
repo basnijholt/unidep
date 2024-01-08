@@ -2106,8 +2106,14 @@ def test_optional_dependencies(
             ],
         },
     }
-    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
 
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
+    with pytest.raises(ValueError, match="Cannot specify `extras` list"):
+        parse_requirements(Path(f"{p}[test]"), verbose=False, extras=[["test"]])
+    with pytest.raises(ValueError, match="Length of `extras`"):
+        parse_requirements(p, verbose=False, extras=[[], []])
+    requirements2 = parse_requirements(Path(f"{p}[test]"), verbose=False)
+    assert requirements2.optional_dependencies == requirements.optional_dependencies
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
