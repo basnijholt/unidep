@@ -253,7 +253,7 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
-def parse_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
+def _parse_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
     """Parse a string of the form `path/to/file[extra1,extra2]`."""
     if not input_str:  # Check for empty string
         return Path(), []
@@ -275,25 +275,40 @@ def parse_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
     return path, extras
 
 
-def dependencies_filename(folder_or_path: str | Path) -> Path:
+class PathWithExtras(NamedTuple):
+    """A dependency file and extras."""
+
+    path: Path
+    extras: list[str]
+
+    @property
+    def path_with_extras(self) -> Path:
+        """Path including extras, e.g., `path/to/file[test,docs]`."""
+        if not self.extras:
+            return self.path
+        return Path(f"{self.path}[{','.join(self.extras)}]")
+
+
+def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
-    path = Path(folder_or_path)
+    folder_or_file, extras = _parse_path_and_extras(folder_or_file)
+    path = Path(folder_or_file)
     if path.is_dir():
         fname_yaml = path / "requirements.yaml"
         if fname_yaml.exists():
-            return fname_yaml
+            return PathWithExtras(fname_yaml, extras)
         fname_toml = path / "pyproject.toml"
         if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
-            return fname_toml
+            return PathWithExtras(fname_toml, extras)
         msg = (
             f"File `{fname_yaml}` or `{fname_toml}` (with unidep configuration)"
-            f" not found in `{folder_or_path}`."
+            f" not found in `{folder_or_file}`."
         )
         raise FileNotFoundError(msg)
     if not path.exists():
         msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
-    return path
+    return PathWithExtras(path, extras)
 
 
 def defaultdict_to_dict(d: defaultdict | Any) -> dict:

@@ -32,12 +32,11 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
-    dependencies_filename,
     escape_unicode,
     identify_current_platform,
     is_pip_installable,
+    parse_folder_or_filename,
     parse_package_str,
-    parse_path_and_extras,
     warn,
 )
 
@@ -519,7 +518,7 @@ def _parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     if "file" in args and args.file.is_dir():  # pragma: no cover
-        args.file = dependencies_filename(args.file)
+        args.file = parse_folder_or_filename(args.file).path
     return args
 
 
@@ -588,17 +587,15 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
-    files, extras = zip(
-        *(parse_path_and_extras(f) for f in files),
-    )
-    files = tuple(dependencies_filename(f) for f in files)
+
+    paths_with_extras = [parse_folder_or_filename(f) for f in files]
     requirements = parse_requirements(
-        *files,
+        *[f.path for f in paths_with_extras],
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
-        extras=list(extras),
+        extras=[f.extras for f in paths_with_extras],
     )
     platforms = [identify_current_platform()]
     resolved = resolve_conflicts(
@@ -638,18 +635,18 @@ def _install_command(  # noqa: PLR0912
 
     installable = []
     if not skip_local:
-        for file in files:
-            if is_pip_installable(file.parent):
-                installable.append(file.parent)
+        for file in paths_with_extras:
+            if is_pip_installable(file.path.parent):
+                installable.append(file.path.parent)
             else:  # pragma: no cover
                 print(
-                    f"⚠️  Project {file.parent} is not pip installable. "
+                    f"⚠️  Project {file.path.parent} is not pip installable. "
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
 
         # Install local dependencies (if any) included via `local_dependencies:`
         local_dependencies = parse_local_dependencies(
-            *files,
+            *[p.path_with_extras for p in paths_with_extras],
             check_pip_installable=True,
             verbose=verbose,
         )

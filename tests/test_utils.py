@@ -10,12 +10,12 @@ import pytest
 from unidep.platform_definitions import Selector
 from unidep.utils import (
     UnsupportedPlatformError,
+    _parse_path_and_extras,
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
     identify_current_platform,
     parse_package_str,
-    parse_path_and_extras,
 )
 
 if sys.version_info >= (3, 8):
@@ -243,42 +243,42 @@ def test_extract_matching_platforms() -> None:
 
 def test_parse_path_and_extras() -> None:
     # parse_with_extras
-    path, extras = parse_path_and_extras("any/path[something, another]")
+    path, extras = _parse_path_and_extras("any/path[something, another]")
     assert path == Path("any/path")
     assert extras == ["something", "another"]
 
     # parse_without_extras
-    path, extras = parse_path_and_extras("any/path")
+    path, extras = _parse_path_and_extras("any/path")
     assert path == Path("any/path")
     assert extras == []
 
     # parse_incorrect_format
     # Technically this path is not correct, but we don't check for multiple []
-    path, extras = parse_path_and_extras("any/path[something][another]")
+    path, extras = _parse_path_and_extras("any/path[something][another]")
     assert path == Path("any/path[something]")
     assert extras == ["another"]
 
     # parse_empty_string
-    path, extras = parse_path_and_extras("")
+    path, extras = _parse_path_and_extras("")
     assert path == Path()
     assert extras == []
 
-    path, extras = parse_path_and_extras("any/path[something]/other")
+    path, extras = _parse_path_and_extras("any/path[something]/other")
     assert path == Path("any/path[something]/other")
     assert extras == []
 
-    path, extras = parse_path_and_extras("any/path[something]/other[foo]")
+    path, extras = _parse_path_and_extras("any/path[something]/other[foo]")
     assert path == Path("any/path[something]/other")
     assert extras == ["foo"]
 
-    path, extras = parse_path_and_extras("any/path]something[")
+    path, extras = _parse_path_and_extras("any/path]something[")
     assert path == Path("any/path]something[")
     assert extras == []
 
-    path, extras = parse_path_and_extras("any/path[something")
+    path, extras = _parse_path_and_extras("any/path[something")
     assert path == Path("any/path[something")
     assert extras == []
 
-    path, extras = parse_path_and_extras("any/path]something]")
+    path, extras = _parse_path_and_extras("any/path]something]")
     assert path == Path("any/path]something]")
     assert extras == []
