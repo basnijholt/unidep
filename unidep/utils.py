@@ -253,8 +253,11 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
-def _parse_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
-    """Parse a string of the form `path/to/file[extra1,extra2]`."""
+def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
+    """Parse a string of the form `path/to/file[extra1,extra2]` into parts.
+
+    Returns a tuple of the `pathlib.Path` and a list of extras
+    """
     if isinstance(input_str, Path):
         input_str = str(input_str)
 
@@ -291,7 +294,7 @@ class PathWithExtras(NamedTuple):
 
 def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
-    folder_or_file, extras = _parse_path_and_extras(folder_or_file)
+    folder_or_file, extras = split_path_and_extras(folder_or_file)
     path = Path(folder_or_file)
     if path.is_dir():
         fname_yaml = path / "requirements.yaml"
