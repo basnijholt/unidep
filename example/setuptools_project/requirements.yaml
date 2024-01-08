@@ -8,7 +8,7 @@ dependencies:
   - pip: markdown-code-runner
   - pip: home-assistant-streamdeck-yaml
 local_dependencies:
-  - ../hatch_project  # depends on hatch_project
+  - ../hatch_project[test]  # depends on hatch_project
 optional_dependencies:
   dev:
     - mypy
