@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from unidep.platform_definitions import Selector
 from unidep.utils import (
     UnsupportedPlatformError,
+    _parse_path_and_extras,
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
@@ -237,3 +239,46 @@ def test_extract_matching_platforms() -> None:
     incorrect_platform = "dependency8  # [unknown-platform]"
     with pytest.raises(ValueError, match="Invalid platform selector"):
         extract_matching_platforms(incorrect_platform)
+
+
+def test_parse_path_and_extras() -> None:
+    # parse_with_extras
+    path, extras = _parse_path_and_extras("any/path[something, another]")
+    assert path == Path("any/path")
+    assert extras == ["something", "another"]
+
+    # parse_without_extras
+    path, extras = _parse_path_and_extras("any/path")
+    assert path == Path("any/path")
+    assert extras == []
+
+    # parse_incorrect_format
+    # Technically this path is not correct, but we don't check for multiple []
+    path, extras = _parse_path_and_extras("any/path[something][another]")
+    assert path == Path("any/path[something]")
+    assert extras == ["another"]
+
+    # parse_empty_string
+    path, extras = _parse_path_and_extras("")
+    assert path == Path()
+    assert extras == []
+
+    path, extras = _parse_path_and_extras("any/path[something]/other")
+    assert path == Path("any/path[something]/other")
+    assert extras == []
+
+    path, extras = _parse_path_and_extras("any/path[something]/other[foo]")
+    assert path == Path("any/path[something]/other")
+    assert extras == ["foo"]
+
+    path, extras = _parse_path_and_extras("any/path]something[")
+    assert path == Path("any/path]something[")
+    assert extras == []
+
+    path, extras = _parse_path_and_extras("any/path[something")
+    assert path == Path("any/path[something")
+    assert extras == []
+
+    path, extras = _parse_path_and_extras("any/path]something]")
+    assert path == Path("any/path]something]")
+    assert extras == []

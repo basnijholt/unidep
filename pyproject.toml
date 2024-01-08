@@ -27,15 +27,9 @@ conda-lock = ["conda-lock", "conda-package-handling"]
 pip-compile = ["pip-tools"]
 pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
-# Everything except testing and docs
+# Everything except 'test' and 'docs'
 all = [
-    "tomli; python_version < '3.11'",
-    "conda-lock",
-    "conda-package-handling",
-    "pytest",
-    "GitPython",
-    "rich-argparse",
-    "pip-tools",
+    "unidep[toml,conda-lock,pip-compile,pytest,rich]",
 ]
 docs = [
     "myst-parser",
@@ -45,7 +39,7 @@ docs = [
     "sphinx-autodoc-typehints",
 ]
 test = [
-    "tomli; python_version < '3.11'",
+    "unidep[all]",
     "tomli_w",
     "pytest",
     "pre-commit",

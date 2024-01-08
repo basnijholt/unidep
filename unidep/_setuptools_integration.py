@@ -13,8 +13,8 @@ from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
-    dependencies_filename,
     identify_current_platform,
+    parse_folder_or_filename,
 )
 
 if TYPE_CHECKING:
@@ -117,7 +117,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     # root of the source tree".
     project_root = Path().resolve()
     try:
-        requirements_file = dependencies_filename(project_root)
+        requirements_file = parse_folder_or_filename(project_root).path
     except FileNotFoundError:
         return
     if requirements_file.exists() and dist.install_requires:
