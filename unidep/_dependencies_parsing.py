@@ -18,6 +18,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
     PathWithExtras,
+    _parse_path_and_extras,
     defaultdict_to_dict,
     is_pip_installable,
     parse_folder_or_filename,
@@ -382,6 +383,7 @@ def _extract_local_dependencies(
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
+    path, extras = parse_folder_or_filename(path)
     if path in processed:
         return
     processed.add(path)
@@ -390,9 +392,10 @@ def _extract_local_dependencies(
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        abs_local = (path.parent / local_dependency).resolve()
+        local_path, extras = _parse_path_and_extras(local_dependency)
+        abs_local = (path.parent / local_path).resolve()
         if not abs_local.exists():
-            msg = f"File `{local_dependency}` not found."
+            msg = f"File `{abs_local}` not found."
             raise FileNotFoundError(msg)
 
         try:
