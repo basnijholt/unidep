@@ -25,5 +25,8 @@ dependencies = [
     { pip = "home-assistant-streamdeck-yaml" },
 ]
 local_dependencies = [
-    "../hatch_project",
+    "../hatch_project[test]",  # Local dependency with optional dependencies
 ]
+[tool.unidep.optional_dependencies]
+dev = ["mypy", "ruff"]
+test = ["pytest"]

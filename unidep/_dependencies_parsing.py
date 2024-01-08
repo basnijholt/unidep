@@ -17,10 +17,13 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
-    dependencies_filename,
+    PathWithExtras,
+    defaultdict_to_dict,
     is_pip_installable,
+    parse_folder_or_filename,
     parse_package_str,
     selector_from_comment,
+    split_path_and_extras,
     unidep_configured_in_toml,
     warn,
 )
@@ -138,6 +141,7 @@ class ParsedRequirements(NamedTuple):
     channels: list[str]
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
+    optional_dependencies: dict[str, dict[str, list[Spec]]]
 
 
 class Requirements(NamedTuple):
@@ -191,34 +195,93 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
     return []
 
 
+def _to_path_with_extras(
+    paths: list[Path],
+    extras: list[list[str]] | Literal["*"] | None,
+) -> list[PathWithExtras]:
+    if isinstance(extras, (list, tuple)) and len(extras) != len(paths):
+        msg = (
+            f"Length of `extras` ({len(extras)}) does not match length of `paths`"
+            f" ({len(paths)})."
+        )
+        raise ValueError(msg)
+    paths_with_extras = [parse_folder_or_filename(p) for p in paths]
+    if extras is None:
+        return paths_with_extras
+    assert extras is not None
+    if any(p.extras for p in paths_with_extras):
+        msg = (
+            "Cannot specify `extras` list when paths are"
+            " specified like `path/to/project[extra1,extra2]`, `extras` must be `None`"
+            " or specify pure paths without extras like `path/to/project` and specify"
+            " extras in `extras`."
+        )
+        raise ValueError(msg)
+    if extras == "*":
+        extras = [extras] * len(paths)  # type: ignore[list-item]
+
+    return [PathWithExtras(p.path, e) for p, e in zip(paths_with_extras, extras)]
+
+
 def parse_requirements(  # noqa: PLR0912
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
     verbose: bool = False,
+    extras: list[list[str]] | Literal["*"] | None = None,
 ) -> ParsedRequirements:
-    """Parse a list of `requirements.yaml` or `pyproject.toml` files."""
+    """Parse a list of `requirements.yaml` or `pyproject.toml` files.
+
+    Parameters
+    ----------
+    paths
+        Paths to `requirements.yaml` or `pyproject.toml` files.
+    ignore_pins
+        List of package names to ignore pins for.
+    overwrite_pins
+        List of package names with pins to overwrite.
+    skip_dependencies
+        List of package names to skip.
+    verbose
+        Whether to print verbose output.
+    extras
+        List of lists of extras to include. The outer list corresponds to the
+        `requirements.yaml` or `pyproject.toml` files, the inner list to the
+        extras to include for that file. If "*", all extras are included,
+        if None, no extras are included.
+    """
+    paths_with_extras = _to_path_with_extras(paths, extras)  # type: ignore[arg-type]
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
     requirements: dict[str, list[Spec]] = defaultdict(list)
+    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
+    extras = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
-    for p in paths:
+
+    for path_with_extras in paths_with_extras:
         if verbose:
-            print(f"📄 Parsing `{p}`")
-        data = _load(p, yaml)
+            print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
+        data = _load(path_with_extras.path, yaml)
         datas.append(data)
-        seen.add(p.resolve())
+        extras.append(path_with_extras.extras)
+
+        seen.add(path_with_extras.path.resolve())
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-        for include in _get_local_dependencies(data):
+        for local_dependency in _get_local_dependencies(data):
             try:
-                requirements_path = dependencies_filename(p.parent / include).resolve()
+                requirements_dep_file = parse_folder_or_filename(
+                    path_with_extras.path.parent / local_dependency,
+                )
+                requirements_path = requirements_dep_file.path.resolve()
             except FileNotFoundError:
                 # Means that this is a local package that is not managed by unidep.
                 # We do not need to do anything here, just in `unidep install`.
@@ -226,27 +289,77 @@ def parse_requirements(  # noqa: PLR0912
             if requirements_path in seen:
                 continue  # Avoids circular local_dependencies
             if verbose:
-                print(f"📄 Parsing `{include}` from `local_dependencies`")
+                print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
             datas.append(_load(requirements_path, yaml))
+            extras.append(requirements_dep_file.extras)
             seen.add(requirements_path)
 
     identifier = -1
-    for data in datas:
+    for _extras, data in zip(extras, datas):
         for channel in data.get("channels", []):
             channels.add(channel)
         for _platform in data.get("platforms", []):
             platforms.add(_platform)
-        if "dependencies" not in data:
+        if "dependencies" in data:
+            identifier = _add_dependencies(
+                data["dependencies"],
+                requirements,
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+        if "optional_dependencies" in data and extras is not None:
+            for optional_name, optional_deps in data["optional_dependencies"].items():
+                if _extras:
+                    identifier = _add_dependencies(
+                        optional_deps,
+                        optional_dependencies[optional_name],
+                        identifier,
+                        ignore_pins,
+                        overwrite_pins_map,
+                        skip_dependencies,
+                    )
+    return ParsedRequirements(
+        sorted(channels),
+        sorted(platforms),
+        dict(requirements),
+        defaultdict_to_dict(optional_dependencies),
+    )
+
+
+def _add_dependencies(
+    dependencies: list[str],
+    requirements: dict[str, list[Spec]],
+    identifier: int,
+    ignore_pins: list[str],
+    overwrite_pins_map: dict[str, str | None],
+    skip_dependencies: list[str],
+) -> int:
+    for i, dep in enumerate(dependencies):
+        identifier += 1
+        if isinstance(dep, str):
+            specs = _parse_dependency(
+                dep,
+                dependencies,
+                i,
+                "both",
+                identifier,
+                ignore_pins,
+                overwrite_pins_map,
+                skip_dependencies,
+            )
+            for spec in specs:
+                requirements[spec.name].append(spec)
             continue
-        dependencies = data["dependencies"]
-        for i, dep in enumerate(data["dependencies"]):
-            identifier += 1
-            if isinstance(dep, str):
+        assert isinstance(dep, dict)
+        for which in ["conda", "pip"]:
+            if which in dep:
                 specs = _parse_dependency(
+                    dep[which],
                     dep,
-                    dependencies,
-                    i,
-                    "both",
+                    which,
+                    which,  # type: ignore[arg-type]
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
@@ -254,24 +367,7 @@ def parse_requirements(  # noqa: PLR0912
                 )
                 for spec in specs:
                     requirements[spec.name].append(spec)
-                continue
-            assert isinstance(dep, dict)
-            for which in ["conda", "pip"]:
-                if which in dep:
-                    specs = _parse_dependency(
-                        dep[which],
-                        dep,
-                        which,
-                        which,  # type: ignore[arg-type]
-                        identifier,
-                        ignore_pins,
-                        overwrite_pins_map,
-                        skip_dependencies,
-                    )
-                    for spec in specs:
-                        requirements[spec.name].append(spec)
-
-    return ParsedRequirements(sorted(channels), sorted(platforms), dict(requirements))
+    return identifier
 
 
 # Alias for backwards compatibility
@@ -287,27 +383,29 @@ def _extract_local_dependencies(
     check_pip_installable: bool = True,
     verbose: bool = False,
 ) -> None:
+    path, extras = parse_folder_or_filename(path)
     if path in processed:
         return
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for include in _get_local_dependencies(data):
-        assert not os.path.isabs(include)  # noqa: PTH117
-        abs_include = (path.parent / include).resolve()
-        if not abs_include.exists():
-            msg = f"File `{include}` not found."
+    for local_dependency in _get_local_dependencies(data):
+        assert not os.path.isabs(local_dependency)  # noqa: PTH117
+        local_path, extras = split_path_and_extras(local_dependency)
+        abs_local = (path.parent / local_path).resolve()
+        if not abs_local.exists():
+            msg = f"File `{abs_local}` not found."
             raise FileNotFoundError(msg)
 
         try:
-            requirements_path = dependencies_filename(abs_include)
+            requirements_path = parse_folder_or_filename(abs_local).path
         except FileNotFoundError:
             # Means that this is a local package that is not managed by unidep.
-            if is_pip_installable(abs_include):
-                dependencies[str(base_path)].add(str(abs_include))
+            if is_pip_installable(abs_local):
+                dependencies[str(base_path)].add(str(abs_local))
                 warn(
-                    f"⚠️ Installing a local dependency (`{abs_include.name}`) which is"
+                    f"⚠️ Installing a local dependency (`{abs_local.name}`) which is"
                     " not managed by unidep, this will skip all of its dependencies,"
                     " i.e., it will call `pip install` with `--no-dependencies`."
                     " To properly manage this dependency, add a `requirements.yaml`"
@@ -315,8 +413,9 @@ def _extract_local_dependencies(
                 )
             else:
                 msg = (
-                    f"`{include}` in `local_dependencies` is not pip installable nor is"
-                    " it managed by unidep. Remove it from `local_dependencies`."
+                    f"`{local_dependency}` in `local_dependencies` is not pip"
+                    " installable nor is it managed by unidep. Remove it"
+                    " from `local_dependencies`."
                 )
                 raise RuntimeError(msg) from None
             continue
