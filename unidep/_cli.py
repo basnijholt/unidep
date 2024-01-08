@@ -646,7 +646,7 @@ def _install_command(  # noqa: PLR0912
 
         # Install local dependencies (if any) included via `local_dependencies:`
         local_dependencies = parse_local_dependencies(
-            *[p.path_with_extras for p in paths_with_extras],
+            *[p.path for p in paths_with_extras],
             check_pip_installable=True,
             verbose=verbose,
         )

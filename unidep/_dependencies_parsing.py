@@ -250,7 +250,7 @@ def parse_requirements(  # noqa: PLR0912
         extras to include for that file. If "*", all extras are included,
         if None, no extras are included.
     """
-    dep_files = _to_path_with_extras(paths, extras)  # type: ignore[arg-type]
+    paths_with_extras = _to_path_with_extras(paths, extras)  # type: ignore[arg-type]
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
@@ -265,20 +265,20 @@ def parse_requirements(  # noqa: PLR0912
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
 
-    for dep_file in dep_files:
+    for path_with_extras in paths_with_extras:
         if verbose:
-            print(f"📄 Parsing `{dep_file.path}`")
-        data = _load(dep_file.path, yaml)
+            print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
+        data = _load(path_with_extras.path, yaml)
         datas.append(data)
-        extras.append(dep_file.extras)
+        extras.append(path_with_extras.extras)
 
-        seen.add(dep_file.path.resolve())
+        seen.add(path_with_extras.path.resolve())
 
         # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-        for include in _get_local_dependencies(data):
+        for local_dependency in _get_local_dependencies(data):
             try:
                 requirements_dep_file = parse_folder_or_filename(
-                    dep_file.path.parent / include,
+                    path_with_extras.path.parent / local_dependency,
                 )
                 requirements_path = requirements_dep_file.path.resolve()
             except FileNotFoundError:
@@ -288,7 +288,7 @@ def parse_requirements(  # noqa: PLR0912
             if requirements_path in seen:
                 continue  # Avoids circular local_dependencies
             if verbose:
-                print(f"📄 Parsing `{include}` from `local_dependencies`")
+                print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
             datas.append(_load(requirements_path, yaml))
             extras.append(requirements_dep_file.extras)
             seen.add(requirements_path)
@@ -388,21 +388,21 @@ def _extract_local_dependencies(
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for include in _get_local_dependencies(data):
-        assert not os.path.isabs(include)  # noqa: PTH117
-        abs_include = (path.parent / include).resolve()
-        if not abs_include.exists():
-            msg = f"File `{include}` not found."
+    for local_dependency in _get_local_dependencies(data):
+        assert not os.path.isabs(local_dependency)  # noqa: PTH117
+        abs_local = (path.parent / local_dependency).resolve()
+        if not abs_local.exists():
+            msg = f"File `{local_dependency}` not found."
             raise FileNotFoundError(msg)
 
         try:
-            requirements_path = parse_folder_or_filename(abs_include).path
+            requirements_path = parse_folder_or_filename(abs_local).path
         except FileNotFoundError:
             # Means that this is a local package that is not managed by unidep.
-            if is_pip_installable(abs_include):
-                dependencies[str(base_path)].add(str(abs_include))
+            if is_pip_installable(abs_local):
+                dependencies[str(base_path)].add(str(abs_local))
                 warn(
-                    f"⚠️ Installing a local dependency (`{abs_include.name}`) which is"
+                    f"⚠️ Installing a local dependency (`{abs_local.name}`) which is"
                     " not managed by unidep, this will skip all of its dependencies,"
                     " i.e., it will call `pip install` with `--no-dependencies`."
                     " To properly manage this dependency, add a `requirements.yaml`"
@@ -410,8 +410,9 @@ def _extract_local_dependencies(
                 )
             else:
                 msg = (
-                    f"`{include}` in `local_dependencies` is not pip installable nor is"
-                    " it managed by unidep. Remove it from `local_dependencies`."
+                    f"`{local_dependency}` in `local_dependencies` is not pip"
+                    " installable nor is it managed by unidep. Remove it"
+                    " from `local_dependencies`."
                 )
                 raise RuntimeError(msg) from None
             continue
