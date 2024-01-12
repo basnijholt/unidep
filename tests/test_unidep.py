@@ -2041,3 +2041,24 @@ def test_not_equal(tmp_path: Path) -> None:
             },
         },
     }
+
+
+def test_dot_in_package_name(tmp_path: Path) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - ruamel.yaml
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(p1, verbose=False)
+    assert requirements.requirements == {
+        "ruamel.yaml": [
+            Spec(name="ruamel.yaml", which="conda", identifier="17e5d607"),
+            Spec(name="ruamel.yaml", which="pip", identifier="17e5d607"),
+        ],
+    }
