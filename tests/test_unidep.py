@@ -2043,7 +2043,11 @@ def test_not_equal(tmp_path: Path) -> None:
     }
 
 
-def test_dot_in_package_name(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_dot_in_package_name(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -2054,6 +2058,7 @@ def test_dot_in_package_name(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
     assert requirements.requirements == {
