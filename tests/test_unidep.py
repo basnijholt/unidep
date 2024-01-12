@@ -2041,3 +2041,52 @@ def test_not_equal(tmp_path: Path) -> None:
             },
         },
     }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_specified_and_unspecified_conda_env(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: qiskit
+                - conda: qiskit
+            platforms:
+                - linux-64
+                - osx-arm64
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+    requirements = parse_requirements(p, verbose=True)
+    assert requirements.requirements == {
+        "qiskit": [
+            Spec(
+                name="qiskit",
+                which="pip",
+                pin=None,
+                identifier="17e5d607",
+                selector=None,
+            ),
+            Spec(
+                name="qiskit",
+                which="conda",
+                pin=None,
+                identifier="5eb93b8c",
+                selector=None,
+            ),
+        ],
+    }
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert 0, resolved
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["qiskit"]
