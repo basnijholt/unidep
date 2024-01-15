@@ -267,7 +267,8 @@ def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
     pattern = r"^(.+?)(?:\[([^\[\]]+)\])?$"
     match = re.search(pattern, input_str)
 
-    if match is None:
+    if match is None:  # pragma: no cover
+        # I don't think this is possible, but just in case
         return Path(), []
 
     path = Path(match.group(1))
