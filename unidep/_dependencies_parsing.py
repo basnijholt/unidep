@@ -262,7 +262,7 @@ def parse_requirements(  # noqa: PLR0912
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
-    extras = []
+    all_extras = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
 
@@ -271,7 +271,7 @@ def parse_requirements(  # noqa: PLR0912
             print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
         data = _load(path_with_extras.path, yaml)
         datas.append(data)
-        extras.append(path_with_extras.extras)
+        all_extras.append(path_with_extras.extras)
 
         seen.add(path_with_extras.path.resolve())
 
@@ -291,11 +291,11 @@ def parse_requirements(  # noqa: PLR0912
             if verbose:
                 print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
             datas.append(_load(requirements_path, yaml))
-            extras.append(requirements_dep_file.extras)
+            all_extras.append(requirements_dep_file.extras)
             seen.add(requirements_path)
 
     identifier = -1
-    for _extras, data in zip(extras, datas):
+    for _extras, data in zip(all_extras, datas):
         for channel in data.get("channels", []):
             channels.add(channel)
         for _platform in data.get("platforms", []):
@@ -309,7 +309,7 @@ def parse_requirements(  # noqa: PLR0912
                 overwrite_pins_map,
                 skip_dependencies,
             )
-        if "optional_dependencies" in data and extras is not None:
+        if "optional_dependencies" in data and all_extras is not None:
             for optional_name, optional_deps in data["optional_dependencies"].items():
                 if _extras:
                     identifier = _add_dependencies(
