@@ -9,6 +9,7 @@ import pytest
 
 from unidep.platform_definitions import Selector
 from unidep.utils import (
+    PathWithExtras,
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     escape_unicode,
@@ -243,42 +244,53 @@ def test_extract_matching_platforms() -> None:
 
 def testsplit_path_and_extras() -> None:
     # parse_with_extras
-    path, extras = split_path_and_extras("any/path[something, another]")
+    s = "any/path[something, another]"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path")
     assert extras == ["something", "another"]
+    pe = PathWithExtras(path, extras)
+    assert pe.path_with_extras == Path("any/path[something,another]")
 
     # parse_without_extras
-    path, extras = split_path_and_extras("any/path")
+    s = "any/path"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path")
     assert extras == []
 
     # parse_incorrect_format
     # Technically this path is not correct, but we don't check for multiple []
-    path, extras = split_path_and_extras("any/path[something][another]")
+    s = "any/path[something][another]"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]")
     assert extras == ["another"]
 
     # parse_empty_string
-    path, extras = split_path_and_extras("")
+    s = ""
+    path, extras = split_path_and_extras(s)
     assert path == Path()
     assert extras == []
 
-    path, extras = split_path_and_extras("any/path[something]/other")
+    s = "any/path[something]/other"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]/other")
     assert extras == []
 
-    path, extras = split_path_and_extras("any/path[something]/other[foo]")
+    s = "any/path[something]/other[foo]"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]/other")
     assert extras == ["foo"]
 
-    path, extras = split_path_and_extras("any/path]something[")
+    s = "any/path]something["
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path]something[")
     assert extras == []
 
-    path, extras = split_path_and_extras("any/path[something")
+    s = "any/path[something"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something")
     assert extras == []
 
-    path, extras = split_path_and_extras("any/path]something]")
+    s = "any/path]something]"
+    path, extras = split_path_and_extras(s)
     assert path == Path("any/path]something]")
     assert extras == []
