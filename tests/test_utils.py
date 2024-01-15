@@ -256,6 +256,7 @@ def testsplit_path_and_extras() -> None:
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path")
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     # parse_incorrect_format
     # Technically this path is not correct, but we don't check for multiple []
@@ -263,34 +264,41 @@ def testsplit_path_and_extras() -> None:
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]")
     assert extras == ["another"]
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     # parse_empty_string
     s = ""
     path, extras = split_path_and_extras(s)
     assert path == Path()
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     s = "any/path[something]/other"
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]/other")
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     s = "any/path[something]/other[foo]"
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something]/other")
     assert extras == ["foo"]
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     s = "any/path]something["
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path]something[")
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     s = "any/path[something"
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path[something")
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
 
     s = "any/path]something]"
     path, extras = split_path_and_extras(s)
     assert path == Path("any/path]something]")
     assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
