@@ -884,6 +884,7 @@ def main() -> None:
         )
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
+        platforms = args.platform or [identify_current_platform()]
         requirements = parse_requirements(
             args.file,
             ignore_pins=args.ignore_pin,
@@ -891,7 +892,6 @@ def main() -> None:
             overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
-        platforms = args.platform or [identify_current_platform()]
         resolved = resolve_conflicts(
             requirements.requirements,
             platforms,
@@ -949,6 +949,11 @@ def main() -> None:
             lockfile=args.lockfile,
         )
     elif args.command == "pip-compile":  # pragma: no cover
+        if args.platform and len(args.platform) > 1:
+            print(
+                "❌ The `pip-compile` command does not support multiple platforms.",
+            )
+            sys.exit(1)
         platform = args.platform[0] if args.platform else identify_current_platform()
         _pip_compile_command(
             depth=args.depth,
