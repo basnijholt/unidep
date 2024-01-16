@@ -19,7 +19,6 @@ from ruamel.yaml import YAML
 from unidep._dependencies_parsing import find_requirements_files, parse_requirements
 from unidep.utils import (
     add_comment_to_file,
-    identify_current_platform,
     remove_top_comments,
     warn,
 )
@@ -454,8 +453,6 @@ def conda_lock_command(
     lockfile: str = "conda-lock.yml",
 ) -> None:
     """Generate a conda-lock file a collection of `requirements.yaml` and/or `pyproject.toml` files."""  # noqa: E501
-    if not platforms:
-        platforms = [identify_current_platform()]
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
