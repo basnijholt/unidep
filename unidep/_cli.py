@@ -745,7 +745,7 @@ def _merge_command(
         verbose=verbose,
     )
 
-    platforms = requirements.platforms or platforms
+    platforms = platforms or requirements.platforms
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
