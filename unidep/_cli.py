@@ -95,7 +95,7 @@ def _add_common_args(  # noqa: PLR0912
             "-p",
             type=str,
             action="append",  # Allow multiple instances of -p
-            default=None,  # Default is a list with the current platform set in `main`
+            default=[],
             choices=get_args(Platform),
             help="The platform(s) to get the requirements for. "
             "Multiple platforms can be specified. "
@@ -744,8 +744,8 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-
-    platforms = platforms or requirements.platforms
+    if not platforms:
+        platforms = requirements.platforms or [identify_current_platform()]
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
@@ -855,11 +855,8 @@ def main() -> None:
         print(f"❌ File {args.file} not found.")
         sys.exit(1)
 
-    if "platform" in args and args.platform is None:  # pragma: no cover
-        args.platform = [identify_current_platform()]
-
     if "files" in args and args.files is None:  # pragma: no cover
-        args.platform = ["."]
+        args.files = ["."]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
@@ -876,9 +873,10 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
+        platforms = args.platform or [identify_current_platform()]
         pip_dependencies = get_python_dependencies(
             args.file,
-            platforms=[args.platform],
+            platforms=platforms,
             verbose=args.verbose,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
@@ -893,7 +891,7 @@ def main() -> None:
             overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
-        platforms = [args.platform]
+        platforms = args.platform or [identify_current_platform()]
         resolved = resolve_conflicts(
             requirements.requirements,
             platforms,
@@ -951,10 +949,11 @@ def main() -> None:
             lockfile=args.lockfile,
         )
     elif args.command == "pip-compile":  # pragma: no cover
+        platform = args.platform[0] if args.platform else identify_current_platform()
         _pip_compile_command(
             depth=args.depth,
             directory=args.directory,
-            platform=args.platform,
+            platform=platform,
             verbose=args.verbose,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
