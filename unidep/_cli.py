@@ -939,7 +939,7 @@ def main() -> None:
         conda_lock_command(
             depth=args.depth,
             directory=args.directory,
-            platform=args.platform,
+            platforms=args.platform,
             verbose=args.verbose,
             only_global=args.only_global,
             ignore_pins=args.ignore_pin,

@@ -86,7 +86,7 @@ def _conda_lock_global(
     *,
     depth: int,
     directory: str | Path,
-    platform: list[Platform],
+    platforms: list[Platform],
     verbose: bool,
     check_input_hash: bool,
     ignore_pins: list[str],
@@ -107,7 +107,7 @@ def _conda_lock_global(
         output=tmp_env,
         stdout=False,
         selector="comment",
-        platforms=platform,
+        platforms=platforms,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
@@ -444,7 +444,7 @@ def conda_lock_command(
     *,
     depth: int,
     directory: Path,
-    platform: list[Platform],
+    platforms: list[Platform],
     verbose: bool,
     only_global: bool,
     check_input_hash: bool,
@@ -454,12 +454,12 @@ def conda_lock_command(
     lockfile: str = "conda-lock.yml",
 ) -> None:
     """Generate a conda-lock file a collection of `requirements.yaml` and/or `pyproject.toml` files."""  # noqa: E501
-    if not platform:
-        platform = [identify_current_platform()]
+    if not platforms:
+        platforms = [identify_current_platform()]
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
-        platform=platform,
+        platforms=platforms,
         verbose=verbose,
         check_input_hash=check_input_hash,
         ignore_pins=ignore_pins,
