@@ -26,7 +26,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
         "--run-affected",
         action="store_true",
         default=False,
-        help="Run only tests from affected packages",
+        help="Run only tests from affected packages (via `unidep`)",
     )
     parser.addoption(
         "--branch",
@@ -64,13 +64,18 @@ def pytest_collection_modifyitems(
     repo = Repo(repo_root)
     found_files = find_requirements_files(repo_root)
     local_dependencies = parse_local_dependencies(*found_files)
-    diffs = repo.head.commit.diff(compare_branch)
+    staged_diffs = repo.head.commit.diff(compare_branch)
+    unstaged_diffs = repo.index.diff(None)
+    diffs = staged_diffs + unstaged_diffs
     changed_files = [Path(diff.a_path) for diff in diffs]
     affected_packages = _affected_packages(repo_root, changed_files, local_dependencies)
+    test_files = [config.cwd_relative_nodeid(i.nodeid).split("::", 1)[0] for i in items]
+    run_from_dir = config.invocation_params.dir
+    assert all((run_from_dir / item).exists() for item in test_files)
     affected_tests = {
         item
-        for item in items
-        if any(item.nodeid.startswith(str(pkg)) for pkg in affected_packages)
+        for item, f in zip(items, test_files)
+        if any(f.startswith(str(pkg)) for pkg in affected_packages)
     }
     items[:] = list(affected_tests)
 
