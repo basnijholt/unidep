@@ -6,6 +6,7 @@ WARNING: Still experimental and not documented.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -18,6 +19,8 @@ from unidep._dependencies_parsing import (
 
 if TYPE_CHECKING:
     import pytest
+
+LOGGER = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
@@ -77,6 +80,14 @@ def pytest_collection_modifyitems(
         for item, f in zip(items, test_files)
         if any(f.startswith(str(pkg)) for pkg in affected_packages)
     }
+    # Run `pytest -o log_cli=true -o log_cli_level=INFO --run-affected --collect-only`
+    # to see the logging output.
+    logging.info(
+        "Running affected_tests: %s, changed_files: %s, affected_packages: %s",
+        affected_tests,
+        changed_files,
+        affected_packages,
+    )
     items[:] = list(affected_tests)
 
 
