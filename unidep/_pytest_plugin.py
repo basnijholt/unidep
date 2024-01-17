@@ -64,7 +64,8 @@ def pytest_collection_modifyitems(
 
     compare_branch = config.getoption("--branch")
     repo_root = Path(config.getoption("--repo-root")).absolute()
-    repo = Repo(repo_root)
+    repo = Repo(repo_root, search_parent_directories=True)
+    repo_root = Path(repo.working_tree_dir)  # In case we searched parent directories
     found_files = find_requirements_files(repo_root)
     local_dependencies = parse_local_dependencies(*found_files)
     staged_diffs = repo.head.commit.diff(compare_branch)
