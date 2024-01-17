@@ -81,7 +81,7 @@ def pytest_collection_modifyitems(
         for item, f in zip(items, test_files)
         if any(f.startswith(str(pkg)) for pkg in affected_packages)
     }
-    # Run `pytest -o log_cli=true -o log_cli_level=INFO --run-affected --collect-only`
+    # Run `pytest -o log_cli=true -o log_cli_level=INFO --run-affected`
     # to see the logging output.
     logging.info(
         "Running affected_tests: %s, changed_files: %s, affected_packages: %s",
