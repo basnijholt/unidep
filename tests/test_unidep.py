@@ -2157,3 +2157,49 @@ def test_optional_dependencies(
             },
         },
     }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_with_local_dependencies(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    p2 = tmp_path / "p2" / "requirements.yaml"
+    p2.parent.mkdir()
+    p2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numthreads
+            optional_dependencies:
+                local:
+                    - ../p1[test]
+            """,
+        ),
+    )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
+
+    requirements = parse_requirements(p2, verbose=False, extras="*")
+    assert requirements.optional_dependencies == {}
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved == {}
