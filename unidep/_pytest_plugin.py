@@ -6,6 +6,7 @@ WARNING: Still experimental and not documented.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -19,6 +20,8 @@ from unidep._dependencies_parsing import (
 if TYPE_CHECKING:
     import pytest
 
+LOGGER = logging.getLogger(__name__)
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
     """Add options to the pytest command line."""
@@ -26,7 +29,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # pragma: no cover
         "--run-affected",
         action="store_true",
         default=False,
-        help="Run only tests from affected packages",
+        help="Run only tests from affected packages (via `unidep`)",
     )
     parser.addoption(
         "--branch",
@@ -61,17 +64,31 @@ def pytest_collection_modifyitems(
 
     compare_branch = config.getoption("--branch")
     repo_root = Path(config.getoption("--repo-root")).absolute()
-    repo = Repo(repo_root)
+    repo = Repo(repo_root, search_parent_directories=True)
+    repo_root = Path(repo.working_tree_dir)  # In case we searched parent directories
     found_files = find_requirements_files(repo_root)
     local_dependencies = parse_local_dependencies(*found_files)
-    diffs = repo.head.commit.diff(compare_branch)
+    staged_diffs = repo.head.commit.diff(compare_branch)
+    unstaged_diffs = repo.index.diff(None)
+    diffs = staged_diffs + unstaged_diffs
     changed_files = [Path(diff.a_path) for diff in diffs]
     affected_packages = _affected_packages(repo_root, changed_files, local_dependencies)
+    test_files = [config.cwd_relative_nodeid(i.nodeid).split("::", 1)[0] for i in items]
+    run_from_dir = config.invocation_params.dir
+    assert all((run_from_dir / item).exists() for item in test_files)
     affected_tests = {
         item
-        for item in items
-        if any(item.nodeid.startswith(str(pkg)) for pkg in affected_packages)
+        for item, f in zip(items, test_files)
+        if any(f.startswith(str(pkg)) for pkg in affected_packages)
     }
+    # Run `pytest -o log_cli=true -o log_cli_level=INFO --run-affected`
+    # to see the logging output.
+    logging.info(
+        "Running affected_tests: %s, changed_files: %s, affected_packages: %s",
+        affected_tests,
+        changed_files,
+        affected_packages,
+    )
     items[:] = list(affected_tests)
 
 

@@ -17,7 +17,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 
 from unidep._dependencies_parsing import find_requirements_files, parse_requirements
-from unidep.utils import add_comment_to_file, remove_top_comments, warn
+from unidep.utils import (
+    add_comment_to_file,
+    remove_top_comments,
+    warn,
+)
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import CondaPip, Platform
@@ -81,7 +85,7 @@ def _conda_lock_global(
     *,
     depth: int,
     directory: str | Path,
-    platform: list[Platform],
+    platforms: list[Platform],
     verbose: bool,
     check_input_hash: bool,
     ignore_pins: list[str],
@@ -102,7 +106,7 @@ def _conda_lock_global(
         output=tmp_env,
         stdout=False,
         selector="comment",
-        platforms=platform,
+        platforms=platforms,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
@@ -439,7 +443,7 @@ def conda_lock_command(
     *,
     depth: int,
     directory: Path,
-    platform: list[Platform],
+    platforms: list[Platform],
     verbose: bool,
     only_global: bool,
     check_input_hash: bool,
@@ -452,7 +456,7 @@ def conda_lock_command(
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
-        platform=platform,
+        platforms=platforms,
         verbose=verbose,
         check_input_hash=check_input_hash,
         ignore_pins=ignore_pins,
