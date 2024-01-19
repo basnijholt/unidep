@@ -2024,6 +2024,73 @@ def test_pip_with_pinning_special_case_git_repo(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_not_equal(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive != 1.0.0
+                - adaptive <2
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    requirements = parse_requirements(p1, verbose=False)
+
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "conda": Spec(
+                    name="adaptive",
+                    which="conda",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                ),
+                "pip": Spec(
+                    name="adaptive",
+                    which="pip",
+                    pin="!=1.0.0,<2",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_dot_in_package_name(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - ruamel.yaml
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    requirements = parse_requirements(p1, verbose=False)
+    assert requirements.requirements == {
+        "ruamel.yaml": [
+            Spec(name="ruamel.yaml", which="conda", identifier="17e5d607"),
+            Spec(name="ruamel.yaml", which="pip", identifier="17e5d607"),
+        ],
+    }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_optional_dependencies(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
@@ -2162,70 +2229,3 @@ def test_optional_dependencies_with_local_dependencies(
         optional_dependencies=requirements.optional_dependencies,
     )
     assert resolved == {}
-
-
-@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_not_equal(
-    tmp_path: Path,
-    toml_or_yaml: Literal["toml", "yaml"],
-) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
-        textwrap.dedent(
-            """\
-            dependencies:
-                - adaptive != 1.0.0
-                - adaptive <2
-            """,
-        ),
-    )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
-
-    requirements = parse_requirements(p1, verbose=False)
-
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
-    assert resolved == {
-        "adaptive": {
-            None: {
-                "conda": Spec(
-                    name="adaptive",
-                    which="conda",
-                    pin="!=1.0.0,<2",
-                    identifier="17e5d607",
-                ),
-                "pip": Spec(
-                    name="adaptive",
-                    which="pip",
-                    pin="!=1.0.0,<2",
-                    identifier="17e5d607",
-                ),
-            },
-        },
-    }
-
-
-@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_dot_in_package_name(
-    toml_or_yaml: Literal["toml", "yaml"],
-    tmp_path: Path,
-) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
-        textwrap.dedent(
-            """\
-            dependencies:
-                - ruamel.yaml
-            """,
-        ),
-    )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
-
-    requirements = parse_requirements(p1, verbose=False)
-    assert requirements.requirements == {
-        "ruamel.yaml": [
-            Spec(name="ruamel.yaml", which="conda", identifier="17e5d607"),
-            Spec(name="ruamel.yaml", which="pip", identifier="17e5d607"),
-        ],
-    }
