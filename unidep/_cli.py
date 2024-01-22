@@ -582,7 +582,11 @@ def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Pat
     for env in envs["envs"]:
         if prefix == env:
             return Path(prefix)
-    msg = f"Could not find conda environment `{conda_env_name}`."
+    envs_str = "\n👉 ".join(envs["envs"])
+    msg = (
+        f"Could not find conda prefix with name `{conda_env_name}`."
+        f" Available prefixes:\n👉 {envs_str}"
+    )
     raise ValueError(msg)
 
 
@@ -597,7 +601,9 @@ def _python_executable(
     if conda_env_name:
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
-    return str(conda_env_prefix / "bin" / "python")
+    python_executable = conda_env_prefix / "bin" / "python"
+    assert python_executable.exists()
+    return str(python_executable)
 
 
 def _pip_install_local(
