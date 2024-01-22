@@ -567,17 +567,48 @@ def _conda_root_prefix(conda_executable: str) -> Path:
     """Get the root prefix of the conda installation."""
     if os.environ.get("MAMBA_ROOT_PREFIX"):
         return Path(os.environ["MAMBA_ROOT_PREFIX"])
-    conda_prefix = subprocess.check_output(
-        [conda_executable, "info", "--base"],  # noqa: S603
+    if os.environ.get("CONDA_ROOT"):
+        return Path(os.environ["CONDA_ROOT"])
+    if conda_executable in ("conda", "mamba"):
+        conda_prefix = subprocess.check_output(
+            ["conda", "info", "--base"],  # noqa: S603, S607
+            text=True,
+        ).strip()
+        return Path(conda_prefix)
+    assert conda_executable == "micromamba"
+    info = subprocess.check_output(
+        ["micromamba", "info", "--json"],  # noqa: S603, S607
         text=True,
     ).strip()
-    return Path(conda_prefix)
+    info_dict = json.loads(info)
+    base_env = info_dict["base environment"]
+    return Path(base_env)
+
+
+def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+    """Get a list of conda environments."""
+    try:
+        result = subprocess.run(
+            [conda_executable, "env", "list", "--json"],  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON: {e}")
+        raise
 
 
 def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Path:
     """Get the prefix of a conda environment."""
     root_prefix = _conda_root_prefix(conda_executable)
     envs = conda_env_list(conda_executable)
+    if conda_env_name == "base":
+        return root_prefix
     prefix = str(root_prefix / "envs" / conda_env_name)
     for env in envs["envs"]:
         if prefix == env:
@@ -630,24 +661,6 @@ def _pip_install_local(
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
-
-
-def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
-    """Get a list of conda environments."""
-    try:
-        result = subprocess.run(
-            [conda_executable, "env", "list", "--json"],  # noqa: S603
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"Error occurred: {e}")
-        raise
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON: {e}")
-        raise
 
 
 def _install_command(  # noqa: PLR0912
