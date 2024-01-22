@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -172,6 +173,22 @@ def _add_common_args(  # noqa: PLR0912
             help="The conda executable to use",
             default=None,
         )
+    if "conda-env" in options:
+        grp = sub_parser.add_mutually_exclusive_group()
+        grp.add_argument(
+            "--conda-env-name",
+            type=str,
+            default=None,
+            help="Name of the conda environment, if not provided, the currently"
+            " active environment name is used.",
+        )
+        grp.add_argument(
+            "--conda-env-prefix",
+            type=Path,
+            default=None,
+            help="Path to the conda environment, if not provided, the currently"
+            " active environment path is used.",
+        )
     if "dry-run" in options:
         sub_parser.add_argument(
             "--dry-run",
@@ -299,6 +316,7 @@ def _parse_args() -> argparse.Namespace:
         {
             "*files",
             "conda-executable",
+            "conda-env",
             "dry-run",
             "editable",
             "skip-local",
@@ -338,6 +356,7 @@ def _parse_args() -> argparse.Namespace:
         parser_install_all,
         {
             "conda-executable",
+            "conda-env",
             "dry-run",
             "editable",
             "depth",
@@ -544,13 +563,51 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
+def _conda_root_prefix(conda_executable: str) -> Path:
+    """Get the root prefix of the conda installation."""
+    if os.environ.get("MAMBA_ROOT_PREFIX"):
+        return Path(os.environ["MAMBA_ROOT_PREFIX"])
+    conda_prefix = subprocess.check_output(
+        [conda_executable, "info", "--base"],  # noqa: S603
+        text=True,
+    ).strip()
+    return Path(conda_prefix)
+
+
+def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Path:
+    """Get the prefix of a conda environment."""
+    root_prefix = _conda_root_prefix(conda_executable)
+    envs = conda_env_list(conda_executable)
+    prefix = str(root_prefix / "envs" / conda_env_name)
+    for env in envs["envs"]:
+        if prefix == env:
+            return Path(prefix)
+    msg = f"Could not find conda environment `{conda_env_name}`."
+    raise ValueError(msg)
+
+
+def _python_executable(
+    conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> str:
+    """Get the Python executable to use for a conda environment."""
+    if conda_env_name is None and conda_env_prefix is None:
+        return sys.executable
+    if conda_env_name:
+        conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
+    assert conda_env_prefix is not None
+    return str(conda_env_prefix / "bin" / "python")
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
     dry_run: bool,
+    python_executable: str,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    pip_command = [sys.executable, "-m", "pip", "install"]
+    pip_command = [python_executable, "-m", "pip", "install"]
     if flags:
         pip_command.extend(flags)
 
@@ -569,9 +626,29 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)  # noqa: S603
 
 
+def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+    """Get a list of conda environments."""
+    try:
+        result = subprocess.run(
+            [conda_executable, "env", "list", "--json"],  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON: {e}")
+        raise
+
+
 def _install_command(  # noqa: PLR0912
     *files: Path,
     conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
     dry_run: bool,
     editable: bool,
     skip_local: bool = False,
@@ -610,12 +687,18 @@ def _install_command(  # noqa: PLR0912
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
-
+        conda_env_args = []
+        if conda_env_name:
+            conda_env_args = ["--name", conda_env_name]
+        elif conda_env_prefix:
+            conda_env_args = ["--prefix", str(conda_env_prefix)]
+            assert str(conda_env_prefix) in conda_env_list(conda_executable)["envs"]
         conda_command = [
             conda_executable,
             "install",
             "--yes",
             *channel_args,
+            *conda_env_args,
         ]
         # When running the command in terminal, we need to wrap the pin in quotes
         # so what we print is what the user would type (copy-paste).
@@ -624,8 +707,13 @@ def _install_command(  # noqa: PLR0912
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
+    python_executable = _python_executable(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
     if env_spec.pip and not skip_pip:
-        pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
+        pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
@@ -665,6 +753,7 @@ def _install_command(  # noqa: PLR0912
                 *sorted(installable),
                 editable=editable,
                 dry_run=dry_run,
+                python_executable=python_executable,
                 flags=pip_flags,
             )
 
@@ -675,6 +764,8 @@ def _install_command(  # noqa: PLR0912
 def _install_all_command(
     *,
     conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
     dry_run: bool,
     editable: bool,
     depth: int,
@@ -699,6 +790,8 @@ def _install_all_command(
     _install_command(
         *found_files,
         conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
         dry_run=dry_run,
         editable=editable,
         skip_local=skip_local,
@@ -842,13 +935,14 @@ def _check_conda_prefix() -> None:  # pragma: no cover
         " operation. However, it's currently running with the Python interpreter"
         f" at `{sys.executable}`, which is not in the active Conda environment"
         f" (`{conda_prefix}`). Please install and run UniDep in the current"
-        " Conda environment to avoid any issues."
+        " Conda environment to avoid any issues, or provide the `--conda-env-name`"
+        " or `--conda-env-prefix` option to specify the Conda environment to use."
     )
     warn(msg, stacklevel=2)
     sys.exit(1)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
@@ -903,10 +997,13 @@ def main() -> None:
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
-        _check_conda_prefix()
+        if args.conda_env_name is None and args.conda_env_prefix is None:
+            _check_conda_prefix()
         _install_command(
             *args.files,
             conda_executable=args.conda_executable,
+            conda_env_name=args.conda_env_name,
+            conda_env_prefix=args.conda_env_prefix,
             dry_run=args.dry_run,
             editable=args.editable,
             skip_local=args.skip_local,
@@ -919,9 +1016,12 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "install-all":
-        _check_conda_prefix()
+        if args.conda_env_name is None and args.conda_env_prefix is None:
+            _check_conda_prefix()
         _install_all_command(
             conda_executable=args.conda_executable,
+            conda_env_name=args.conda_env_name,
+            conda_env_prefix=args.conda_env_prefix,
             dry_run=args.dry_run,
             editable=args.editable,
             depth=args.depth,
