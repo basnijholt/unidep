@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -567,6 +568,24 @@ def _pip_install_local(
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
+
+
+def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+    """Get a list of conda environments."""
+    try:
+        result = subprocess.run(
+            [conda_executable, "env", "list", "--json"],  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred: {e}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON: {e}")
+        raise
 
 
 def _install_command(  # noqa: PLR0912
