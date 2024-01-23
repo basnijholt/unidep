@@ -582,7 +582,7 @@ def _conda_root_prefix(conda_executable: str) -> Path:
     return Path(prefix)
 
 
-def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
     """Get a list of conda environments."""
     try:
         result = subprocess.run(
@@ -603,7 +603,7 @@ def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
 def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Path:
     """Get the prefix of a conda environment."""
     root_prefix = _conda_root_prefix(conda_executable)
-    envs = conda_env_list(conda_executable)
+    envs = _conda_env_list(conda_executable)
     if conda_env_name == "base":
         return root_prefix
     prefix = str(root_prefix / "envs" / conda_env_name)
@@ -707,7 +707,7 @@ def _install_command(  # noqa: PLR0912
             conda_env_args = ["--name", conda_env_name]
         elif conda_env_prefix:
             conda_env_args = ["--prefix", str(conda_env_prefix)]
-            assert str(conda_env_prefix) in conda_env_list(conda_executable)["envs"]
+            assert str(conda_env_prefix) in _conda_env_list(conda_executable)["envs"]
         conda_command = [
             conda_executable,
             "install",
