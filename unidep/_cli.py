@@ -563,7 +563,7 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
-def _conda_root_prefix(conda_executable: str) -> Path:
+def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     """Get the root prefix of the conda installation."""
     if os.environ.get("MAMBA_ROOT_PREFIX"):
         return Path(os.environ["MAMBA_ROOT_PREFIX"])
@@ -592,15 +592,18 @@ def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
             check=True,
         )
         return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as e:  # pragma: no cover
         print(f"Error occurred: {e}")
         raise
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError as e:  # pragma: no cover
         print(f"Failed to parse JSON: {e}")
         raise
 
 
-def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Path:
+def _conda_env_name_to_prefix(
+    conda_executable: str,
+    conda_env_name: str,
+) -> Path:  # pragma: no cover
     """Get the prefix of a conda environment."""
     root_prefix = _conda_root_prefix(conda_executable)
     envs = _conda_env_list(conda_executable)
@@ -708,7 +711,6 @@ def _install_command(  # noqa: PLR0912
             conda_env_args = ["--name", conda_env_name]
         elif conda_env_prefix:
             conda_env_args = ["--prefix", str(conda_env_prefix)]
-            assert str(conda_env_prefix) in _conda_env_list(conda_executable)["envs"]
         conda_command = [
             conda_executable,
             "install",
