@@ -34,7 +34,7 @@ EXAMPLE_PROJECTS = [
 def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     try:
         prefix = _conda_root_prefix("conda")
-    except KeyError:
+    except (KeyError, FileNotFoundError):
         prefix = _conda_root_prefix("micromamba")
     for kw in [
         {"conda_env_name": "base", "conda_env_prefix": None},
