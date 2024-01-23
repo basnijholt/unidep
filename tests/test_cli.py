@@ -242,7 +242,7 @@ def test_doubly_nested_project_folder_installable(
             "--editable",
             "--no-dependencies",
             "--directory",
-            example_folder,
+            str(example_folder),
             "--depth",
             "1",
         ],
