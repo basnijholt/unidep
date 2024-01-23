@@ -1,6 +1,7 @@
 """unidep CLI tests."""
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -27,17 +28,26 @@ EXAMPLE_PROJECTS = [
 ]
 
 
+def current_env_and_prefix() -> tuple[str, Path]:
+    """Get the current conda environment name and prefix."""
+    try:
+        prefix = _conda_root_prefix("conda")
+    except (KeyError, FileNotFoundError):
+        prefix = _conda_root_prefix("micromamba")
+    folder, env_name = Path(os.environ["CONDA_PREFIX"]).parts[:-2]
+    if folder != "envs":
+        return "base", prefix
+    return env_name, prefix
+
+
 @pytest.mark.parametrize(
     "project",
     EXAMPLE_PROJECTS,
 )
 def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
-    try:
-        prefix = _conda_root_prefix("conda")
-    except (KeyError, FileNotFoundError):
-        prefix = _conda_root_prefix("micromamba")
+    current_env, prefix = current_env_and_prefix()
     for kw in [
-        {"conda_env_name": "base", "conda_env_prefix": None},
+        {"conda_env_name": current_env, "conda_env_prefix": None},
         {"conda_env_name": None, "conda_env_prefix": prefix},
     ]:
         _install_command(
