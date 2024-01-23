@@ -282,8 +282,10 @@ def test_install_non_existing_file() -> None:
 
 
 def test_install_non_existing_folder(tmp_path: Path) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    pyproject_file = tmp_path / "pyproject.toml"
     match = re.escape(
-        f"File `{tmp_path}/requirements.yaml` or `{tmp_path}/pyproject.toml`"
+        f"File `{requirements_file}` or `{pyproject_file}`"
         f" (with unidep configuration) not found in `{tmp_path}`",
     )
     with pytest.raises(FileNotFoundError, match=match):
