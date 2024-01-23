@@ -9,6 +9,7 @@ import argparse
 import importlib.util
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -540,6 +541,9 @@ def _parse_args() -> argparse.Namespace:
 
     if "file" in args and args.file.is_dir():  # pragma: no cover
         args.file = dependencies_filename(args.file)
+
+    if "conda_executable" in args and platform.system() == "Windows":
+        args.conda_executable = f"{args.conda_executable}.exe"
     return args
 
 
