@@ -46,6 +46,7 @@ def current_env_and_prefix() -> tuple[str, Path]:
 )
 def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     current_env, prefix = current_env_and_prefix()
+    print(f"current_env: {current_env}, prefix: {prefix}")
     for kw in [
         {"conda_env_name": current_env, "conda_env_prefix": None},
         {"conda_env_name": None, "conda_env_prefix": prefix},
