@@ -34,7 +34,7 @@ def current_env_and_prefix() -> tuple[str, Path]:
         prefix = _conda_root_prefix("conda")
     except (KeyError, FileNotFoundError):
         prefix = _conda_root_prefix("micromamba")
-    folder, env_name = Path(os.environ["CONDA_PREFIX"]).parts[:-2]
+    folder, env_name = Path(os.environ["CONDA_PREFIX"]).parts[-2:]
     if folder != "envs":
         return "base", prefix
     return env_name, prefix
