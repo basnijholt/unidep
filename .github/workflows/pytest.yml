@@ -21,14 +21,17 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: mamba-org/setup-micromamba@v1
         with:
+          environment-name: unidep
           create-args: >-
             python=${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
+        shell: bash -el {0}
       - name: Run pytest
         run: pytest
+        shell: bash -el {0}
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11' && matrix.platform == 'ubuntu-latest'
         uses: codecov/codecov-action@v3
