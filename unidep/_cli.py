@@ -569,20 +569,17 @@ def _conda_root_prefix(conda_executable: str) -> Path:
         return Path(os.environ["MAMBA_ROOT_PREFIX"])
     if os.environ.get("CONDA_ROOT"):
         return Path(os.environ["CONDA_ROOT"])
-    if conda_executable in ("conda", "mamba"):
-        conda_prefix = subprocess.check_output(
-            ["conda", "info", "--base"],  # noqa: S603, S607
-            text=True,
-        ).strip()
-        return Path(conda_prefix)
-    assert conda_executable == "micromamba"
     info = subprocess.check_output(
-        ["micromamba", "info", "--json"],  # noqa: S603, S607
+        [conda_executable, "info", "--json"],  # noqa: S603
         text=True,
     ).strip()
     info_dict = json.loads(info)
-    base_env = info_dict["base environment"]
-    return Path(base_env)
+    if conda_executable in ("conda", "mamba"):
+        prefix = info_dict.get("root_prefix") or info_dict["conda_prefix"]
+    else:
+        assert conda_executable == "micromamba"
+        prefix = info_dict["base environment"]
+    return Path(prefix)
 
 
 def conda_env_list(conda_executable: str) -> dict[str, list[str]]:
@@ -610,9 +607,8 @@ def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Pat
     if conda_env_name == "base":
         return root_prefix
     prefix = str(root_prefix / "envs" / conda_env_name)
-    for env in envs["envs"]:
-        if prefix == env:
-            return Path(prefix)
+    if prefix in envs["envs"]:
+        return Path(prefix)
     envs_str = "\n👉 ".join(envs["envs"])
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
