@@ -112,7 +112,7 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing conda dependencies" in captured.out
     assert "Installing pip dependencies" in captured.out
     example_projects_paths = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
-    projects = [f"{example_projects_paths}" for p in EXAMPLE_PROJECTS]
+    projects = [f"{example_projects_paths}" for p in example_projects_paths]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-dependencies {pkgs}`" in captured.out
 
@@ -148,7 +148,8 @@ def test_unidep_install_all_dry_run() -> None:
         "Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
         in result.stdout
     )
-    projects = [f"{REPO_ROOT}/example/{p}" for p in EXAMPLE_PROJECTS]
+    example_projects_paths = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
+    projects = [f"{example_projects_paths}" for p in example_projects_paths]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
