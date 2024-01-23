@@ -180,14 +180,16 @@ def _add_common_args(  # noqa: PLR0912
             type=str,
             default=None,
             help="Name of the conda environment, if not provided, the currently"
-            " active environment name is used.",
+            " active environment name is used, unless `--conda-env-prefix` is"
+            " provided",
         )
         grp.add_argument(
             "--conda-env-prefix",
             type=Path,
             default=None,
             help="Path to the conda environment, if not provided, the currently"
-            " active environment path is used.",
+            " active environment path is used, unless `--conda-env-name` is"
+            " provided",
         )
     if "dry-run" in options:
         sub_parser.add_argument(
