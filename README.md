@@ -495,6 +495,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
+                      [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
@@ -538,6 +539,14 @@ options:
                         installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
+  --conda-env-name CONDA_ENV_NAME
+                        Name of the conda environment, if not provided, the
+                        currently active environment name is used, unless
+                        `--conda-env-prefix` is provided
+  --conda-env-prefix CONDA_ENV_PREFIX
+                        Path to the conda environment, if not provided, the
+                        currently active environment path is used, unless
+                        `--conda-env-name` is provided
   --dry-run, --dry      Only print the commands that would be run
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
@@ -569,6 +578,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
+                      [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN]
                       files [files ...]
@@ -612,6 +622,14 @@ options:
                         installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
+  --conda-env-name CONDA_ENV_NAME
+                        Name of the conda environment, if not provided, the
+                        currently active environment name is used, unless
+                        `--conda-env-prefix` is provided
+  --conda-env-prefix CONDA_ENV_PREFIX
+                        Path to the conda environment, if not provided, the
+                        currently active environment path is used, unless
+                        `--conda-env-name` is provided
   --dry-run, --dry      Only print the commands that would be run
   --ignore-pin IGNORE_PIN
                         Ignore the version pin for a specific package, e.g.,
