@@ -86,8 +86,7 @@ def test_unidep_install_dry_run(project: str) -> None:
         ],
         check=True,
         capture_output=True,
-        text=True,
-        env=os.environ,
+        encoding="utf-8",
     )
 
     # Check the output
