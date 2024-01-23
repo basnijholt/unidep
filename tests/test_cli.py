@@ -78,7 +78,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install",
             "--dry-run",
@@ -86,7 +86,8 @@ def test_unidep_install_dry_run(project: str) -> None:
         ],
         check=True,
         capture_output=True,
-        encoding="utf-8",
+        text=True,
+        shell=True,  # noqa: S602
     )
 
     # Check the output
@@ -136,7 +137,6 @@ def test_unidep_install_all_dry_run() -> None:
         check=True,
         capture_output=True,
         text=True,
-        env=os.environ,
     )
 
     # Check the output
@@ -199,7 +199,6 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
-        env=os.environ,
     )
 
     p1 = f"{tmp_path}/example/hatch_project"
@@ -227,7 +226,6 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
-        env=os.environ,
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
@@ -248,7 +246,6 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
-        env=os.environ,
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
