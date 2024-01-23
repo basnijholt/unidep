@@ -137,6 +137,7 @@ def test_unidep_install_all_dry_run() -> None:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
     # Check the output
