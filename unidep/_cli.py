@@ -655,7 +655,7 @@ def print_utf8(text: str) -> None:
     """Print text as UTF-8."""
     # This is needed for Windows, otherwise we get an error like:
     # UnicodeEncodeError: 'charmap' codec can't encode character '\u2714'...
-    encoded_text = text.encode("utf-8", errors="replace")
+    encoded_text = str(text).encode("utf-8", errors="replace")
     print(encoded_text.decode("utf-8"))
 
 

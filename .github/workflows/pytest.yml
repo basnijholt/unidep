@@ -7,13 +7,14 @@ on:
 
 jobs:
   test:
-
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
         platform: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
+    env:
+      PYTHONIOENCODING: "utf8" # https://gist.github.com/NodeJSmith/e7e37f2d3f162456869f015f842bcf15
     steps:
       - uses: actions/checkout@v3
         with:
