@@ -78,7 +78,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607
+        [  # noqa: S607, S603
             "unidep",
             "install",
             "--dry-run",
@@ -87,7 +87,7 @@ def test_unidep_install_dry_run(project: str) -> None:
         check=True,
         capture_output=True,
         text=True,
-        shell=True,  # noqa: S602
+        encoding="utf-8",
     )
 
     # Check the output
