@@ -9,7 +9,12 @@ from unittest.mock import patch
 
 import pytest
 
-from unidep._cli import _install_all_command, _install_command, _pip_compile_command
+from unidep._cli import (
+    _conda_root_prefix,
+    _install_all_command,
+    _install_command,
+    _pip_compile_command,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -27,17 +32,26 @@ EXAMPLE_PROJECTS = [
     EXAMPLE_PROJECTS,
 )
 def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
-    _install_command(
-        REPO_ROOT / "example" / project,
-        conda_executable="",
-        dry_run=True,
-        editable=False,
-        verbose=True,
-    )
-    captured = capsys.readouterr()
-    assert "Installing conda dependencies" in captured.out
-    assert "Installing pip dependencies" in captured.out
-    assert "Installing project with" in captured.out
+    try:
+        prefix = _conda_root_prefix("conda")
+    except KeyError:
+        prefix = _conda_root_prefix("micromamba")
+    for kw in [
+        {"conda_env_name": "base", "conda_env_prefix": None},
+        {"conda_env_name": None, "conda_env_prefix": prefix},
+    ]:
+        _install_command(
+            REPO_ROOT / "example" / project,
+            conda_executable="",
+            dry_run=True,
+            editable=False,
+            verbose=True,
+            **kw,  # type: ignore[arg-type]
+        )
+        captured = capsys.readouterr()
+        assert "Installing conda dependencies" in captured.out
+        assert "Installing pip dependencies" in captured.out
+        assert "Installing project with" in captured.out
 
 
 @pytest.mark.parametrize(
@@ -75,6 +89,8 @@ def test_unidep_install_dry_run(project: str) -> None:
 def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     _install_all_command(
         conda_executable="",
+        conda_env_name=None,
+        conda_env_prefix=None,
         dry_run=True,
         editable=True,
         directory=REPO_ROOT / "example",
@@ -257,6 +273,8 @@ def test_install_non_existing_file() -> None:
         _install_command(
             Path("does_not_exist"),
             conda_executable="",
+            conda_env_name=None,
+            conda_env_prefix=None,
             dry_run=True,
             editable=True,
             verbose=True,
@@ -272,6 +290,8 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
         _install_command(
             tmp_path,
             conda_executable="",
+            conda_env_name=None,
+            conda_env_prefix=None,
             dry_run=True,
             editable=True,
             verbose=True,
