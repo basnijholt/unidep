@@ -67,7 +67,7 @@ def test_circular_local_dependencies(
             """\
             dependencies:
                 - adaptive
-            includes:  # `local_dependencies` was called `includes` in ≤0.41.0
+            includes:  # `local_dependencies` was called `includes` in <=0.41.0
                 - ../project1
             """,
         ),
