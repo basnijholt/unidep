@@ -203,15 +203,15 @@ def test_doubly_nested_project_folder_installable(
         encoding="utf-8",
     )
 
-    p1 = f"{tmp_path}/example/hatch_project"
-    p2 = f"{tmp_path}/example/setup_py_project"
-    p3 = f"{tmp_path}/example/setuptools_project"
-    p4 = f"{tmp_path}/example/extra_projects/project4"
+    p1 = str(tmp_path / "example" / "hatch_project")
+    p2 = str(tmp_path / "example" / "setup_py_project")
+    p3 = str(tmp_path / "example" / "setuptools_project")
+    p4 = str(tmp_path / "example" / "extra_projects" / "project4")
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
 
-    p5 = f"{tmp_path}/example/pyproject_toml_project"
-    p6 = f"{tmp_path}/example/hatch2_project"
+    p5 = str(tmp_path / "example" / "pyproject_toml_project")
+    p6 = str(tmp_path / "example" / "hatch2_project")
     # Test depth 2
     result = subprocess.run(
         [  # noqa: S607, S603
