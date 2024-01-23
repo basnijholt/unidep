@@ -30,7 +30,7 @@ def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     _install_command(
         REPO_ROOT / "example" / project,
         conda_executable="",
-        conda_env_name=None,
+        conda_env_name="base",
         conda_env_prefix=None,
         dry_run=True,
         editable=False,
