@@ -37,7 +37,7 @@ def current_env_and_prefix() -> tuple[str, Path]:
     folder, env_name = Path(os.environ["CONDA_PREFIX"]).parts[-2:]
     if folder != "envs":
         return "base", prefix
-    return env_name, prefix
+    return env_name, prefix / "envs" / env_name
 
 
 @pytest.mark.parametrize(
