@@ -141,16 +141,16 @@ def test_unidep_install_all_dry_run() -> None:
 
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
-    assert "Installing conda dependencies with `" in result.stdout
+    assert "📦 Installing conda dependencies with `" in result.stdout
 
-    assert r"Installing pip dependencies with `" in result.stdout
+    assert r"📦 Installing pip dependencies with `" in result.stdout
     assert (
-        "Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
+        "📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}"
         in result.stdout
     )
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
-    assert "Installing project with `" in result.stdout
+    assert "📦 Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 
 
