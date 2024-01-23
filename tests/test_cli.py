@@ -200,6 +200,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
 
     p1 = f"{tmp_path}/example/hatch_project"
@@ -227,6 +228,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
@@ -247,6 +249,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
