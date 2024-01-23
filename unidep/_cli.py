@@ -9,7 +9,6 @@ import argparse
 import importlib.util
 import json
 import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -542,8 +541,6 @@ def _parse_args() -> argparse.Namespace:
     if "file" in args and args.file.is_dir():  # pragma: no cover
         args.file = dependencies_filename(args.file)
 
-    if "conda_executable" in args and platform.system() == "Windows":
-        args.conda_executable = f"{args.conda_executable}.exe"
     return args
 
 
@@ -569,6 +566,13 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
+def _maybe_exe(conda_executable: str) -> str:
+    """Add .exe on Windows."""
+    if os.name == "nt":
+        return f"{conda_executable}.exe"
+    return conda_executable
+
+
 def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     """Get the root prefix of the conda installation."""
     if os.environ.get("MAMBA_ROOT_PREFIX"):
@@ -576,7 +580,7 @@ def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     if os.environ.get("CONDA_ROOT"):
         return Path(os.environ["CONDA_ROOT"])
     info = subprocess.check_output(
-        [conda_executable, "info", "--json"],  # noqa: S603
+        [_maybe_exe(conda_executable), "info", "--json"],  # noqa: S603
         text=True,
     ).strip()
     info_dict = json.loads(info)
@@ -592,7 +596,7 @@ def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
     """Get a list of conda environments."""
     try:
         result = subprocess.run(
-            [conda_executable, "env", "list", "--json"],  # noqa: S603
+            [_maybe_exe(conda_executable), "env", "list", "--json"],  # noqa: S603
             capture_output=True,
             text=True,
             check=True,
@@ -718,7 +722,7 @@ def _install_command(  # noqa: PLR0912
         elif conda_env_prefix:
             conda_env_args = ["--prefix", str(conda_env_prefix)]
         conda_command = [
-            conda_executable,
+            _maybe_exe(conda_executable),
             "install",
             "--yes",
             *channel_args,
