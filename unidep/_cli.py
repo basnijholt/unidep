@@ -643,7 +643,9 @@ def _python_executable(
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
     python_executable = conda_env_prefix / "bin" / "python"
-    assert python_executable.exists()
+    assert (
+        python_executable.exists()
+    ), f"Python executable not found: {python_executable}"
     return str(python_executable)
 
 
