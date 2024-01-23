@@ -29,6 +29,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[test]"
         shell: bash -el {0}
+      - name: Set console code page to UTF-8 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          chcp 65001
       - name: Run pytest
         run: pytest -vvvv
         shell: bash -el {0}
