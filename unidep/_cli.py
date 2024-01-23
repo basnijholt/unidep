@@ -605,10 +605,11 @@ def _conda_env_name_to_prefix(conda_executable: str, conda_env_name: str) -> Pat
     root_prefix = _conda_root_prefix(conda_executable)
     envs = _conda_env_list(conda_executable)
     if conda_env_name == "base":
-        return root_prefix
-    prefix = str(root_prefix / "envs" / conda_env_name)
-    if prefix in envs["envs"]:
-        return Path(prefix)
+        prefix = root_prefix
+    else:
+        prefix = root_prefix / "envs" / conda_env_name
+    if str(prefix) in envs["envs"]:
+        return prefix
     envs_str = "\n👉 ".join(envs["envs"])
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
