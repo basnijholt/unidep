@@ -651,14 +651,6 @@ def _python_executable(
     return str(python_executable)
 
 
-def print_utf8(text: str) -> None:
-    """Print text as UTF-8."""
-    # This is needed for Windows, otherwise we get an error like:
-    # UnicodeEncodeError: 'charmap' codec can't encode character '\u2714'...
-    encoded_text = str(text).encode("utf-8", errors="replace")
-    print(encoded_text.decode("utf-8"))
-
-
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
@@ -680,7 +672,7 @@ def _pip_install_local(
         else:
             pip_command.append(str(folder))
 
-    print_utf8(f"📦 Installing project with `{' '.join(pip_command)}`\n")
+    print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)  # noqa: S603
 
@@ -744,7 +736,7 @@ def _install_command(  # noqa: PLR0912
         # so what we print is what the user would type (copy-paste).
         to_print = [_format_inline_conda_package(pkg) for pkg in env_spec.conda]  # type: ignore[arg-type]
         conda_command_str = " ".join((*conda_command, *to_print))
-        print_utf8(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
+        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
     python_executable = _python_executable(
@@ -754,7 +746,7 @@ def _install_command(  # noqa: PLR0912
     )
     if env_spec.pip and not skip_pip:
         pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
-        print_utf8(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
+        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
 
@@ -764,7 +756,7 @@ def _install_command(  # noqa: PLR0912
             if is_pip_installable(file.parent):
                 installable.append(file.parent)
             else:  # pragma: no cover
-                print_utf8(
+                print(
                     f"⚠️  Project {file.parent} is not pip installable. "
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
@@ -776,7 +768,7 @@ def _install_command(  # noqa: PLR0912
             verbose=verbose,
         )
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
-        print_utf8(f"📝 Found local dependencies: {names}\n")
+        print(f"📝 Found local dependencies: {names}\n")
         installable_set = {p.resolve() for p in installable}
         installable += [
             dep
@@ -798,7 +790,7 @@ def _install_command(  # noqa: PLR0912
             )
 
     if not dry_run:  # pragma: no cover
-        print_utf8("✅ All dependencies installed successfully.")
+        print("✅ All dependencies installed successfully.")
 
 
 def _install_all_command(
@@ -825,7 +817,7 @@ def _install_all_command(
         verbose=verbose,
     )
     if not found_files:
-        print_utf8(f"❌ No {_DEP_FILES} files found in {directory}")
+        print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
     _install_command(
         *found_files,
@@ -868,7 +860,7 @@ def _merge_command(
         verbose=verbose,
     )
     if not found_files:
-        print_utf8(f"❌ No {_DEP_FILES} files found in {directory}")
+        print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
     requirements = parse_requirements(
         *found_files,
@@ -893,7 +885,7 @@ def _merge_command(
     write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
     if output_file:
         found_files_str = ", ".join(f"`{f}`" for f in found_files)
-        print_utf8(
+        print(
             f"✅ Generated environment file at `{output_file}` from {found_files_str}",
         )
 
@@ -911,7 +903,7 @@ def _pip_compile_command(
     output_file: Path | None = None,
 ) -> None:
     if importlib.util.find_spec("piptools") is None:  # pragma: no cover
-        print_utf8(
+        print(
             "❌ Could not import `pip-tools` module."
             " Please install it with `pip install pip-tools`.",
         )
@@ -938,12 +930,12 @@ def _pip_compile_command(
     requirements_in = directory / "requirements.in"
     with requirements_in.open("w") as f:
         f.write("\n".join(python_deps))
-    print_utf8("✅ Generated `requirements.in` file.")
+    print("✅ Generated `requirements.in` file.")
     if extra_flags:
         assert extra_flags[0] == "--"
         extra_flags = extra_flags[1:]
         if verbose:
-            print_utf8(f"📝 Extra flags: {extra_flags}")
+            print(f"📝 Extra flags: {extra_flags}")
 
     if output_file is None:
         output_file = directory / "requirements.txt"
@@ -955,12 +947,12 @@ def _pip_compile_command(
         *extra_flags,
         str(requirements_in),
     ]
-    print_utf8(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
+    print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     subprocess.run(cmd, check=True)  # noqa: S603
     if output_file.exists():  # pragma: no cover
         # might not exist in tests
         add_comment_to_file(output_file)
-    print_utf8(f"✅ Generated `{output_file}`.")
+    print(f"✅ Generated `{output_file}`.")
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
@@ -986,7 +978,7 @@ def main() -> None:  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and not args.file.exists():  # pragma: no cover
-        print_utf8(f"❌ File {args.file} not found.")
+        print(f"❌ File {args.file} not found.")
         sys.exit(1)
 
     if "files" in args and args.files is None:  # pragma: no cover
@@ -1090,7 +1082,7 @@ def main() -> None:  # noqa: PLR0912
         )
     elif args.command == "pip-compile":  # pragma: no cover
         if args.platform and len(args.platform) > 1:
-            print_utf8(
+            print(
                 "❌ The `pip-compile` command does not support multiple platforms.",
             )
             sys.exit(1)

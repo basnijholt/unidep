@@ -15,7 +15,6 @@ from unidep._cli import (
     _install_all_command,
     _install_command,
     _pip_compile_command,
-    print_utf8,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -310,7 +309,3 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             editable=True,
             verbose=True,
         )
-
-
-def test_print_utf8() -> None:
-    print_utf8("📦 Installing")
