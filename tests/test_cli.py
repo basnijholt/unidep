@@ -137,6 +137,7 @@ def test_unidep_install_all_dry_run() -> None:
         check=True,
         capture_output=True,
         text=True,
+        env=os.environ,
     )
 
     # Check the output
@@ -199,6 +200,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        env=os.environ,
     )
 
     p1 = f"{tmp_path}/example/hatch_project"
@@ -226,6 +228,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        env=os.environ,
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
@@ -246,6 +249,7 @@ def test_doubly_nested_project_folder_installable(
         check=True,
         capture_output=True,
         text=True,
+        env=os.environ,
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
     assert f"pip install --no-dependencies {pkgs}`" in result.stdout
