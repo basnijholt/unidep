@@ -9,6 +9,7 @@ import argparse
 import importlib.util
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -642,8 +643,11 @@ def _python_executable(
     if conda_env_name:
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
-    python_executable = conda_env_prefix / "bin" / "python"
-    assert python_executable.exists(), f"Python executable not found: {python_executable}, {sys.prefix}, {sys.executable}"
+    if platform.system() == "Windows":
+        python_executable = conda_env_prefix / "python.exe"
+    else:
+        python_executable = conda_env_prefix / "bin" / "python"
+    assert python_executable.exists()
     return str(python_executable)
 
 
