@@ -624,6 +624,10 @@ def _conda_env_name_to_prefix(
         prefix = root_prefix / "envs" / conda_env_name
     if str(prefix) in envs["envs"]:
         return prefix
+    # If the prefix is not found this way, try it via `conda env list --json`
+    for env in envs["envs"]:
+        if env.endswith(f"{os.sep}{conda_env_name}"):
+            return Path(env)
     envs_str = "\n👉 ".join(envs["envs"])
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
