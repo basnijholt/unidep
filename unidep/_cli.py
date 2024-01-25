@@ -594,9 +594,9 @@ def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list
 
 
 @functools.lru_cache(maxsize=None)
-def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+def _conda_env_list(conda_executable: str) -> list[str]:
     """Get a list of conda environments."""
-    return _conda_cli_command_json(conda_executable, "env", "list")
+    return _conda_cli_command_json(conda_executable, "env", "list")["envs"]
 
 
 @functools.lru_cache(maxsize=None)
@@ -647,7 +647,7 @@ def _conda_env_name_to_prefix(
             return prefix
 
     envs = _conda_env_list(conda_executable)
-    envs_str = "\n👉 ".join(envs["envs"])
+    envs_str = "\n👉 ".join(envs)
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
         f" Available prefixes:\n👉 {envs_str}"
