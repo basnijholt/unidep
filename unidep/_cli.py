@@ -575,13 +575,33 @@ def _maybe_exe(conda_executable: str) -> str:
     return conda_executable
 
 
+def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list[str]]:
+    """Run a conda command and return the JSON output."""
+    try:
+        result = subprocess.run(
+            [_maybe_exe(conda_executable), *args, "--json"],  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:  # pragma: no cover
+        print(f"Error occurred: {e}")
+        raise
+    except json.JSONDecodeError as e:  # pragma: no cover
+        print(f"Failed to parse JSON: {e}")
+        raise
+
+
+@functools.lru_cache(maxsize=None)
+def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
+    """Get a list of conda environments."""
+    return _conda_cli_command_json(conda_executable, "env", "list")
+
+
 @functools.lru_cache(maxsize=None)
 def _conda_info(conda_executable: str) -> dict:
-    info = subprocess.check_output(
-        [_maybe_exe(conda_executable), "info", "--json"],  # noqa: S603
-        text=True,
-    ).strip()
-    return json.loads(info)
+    return _conda_cli_command_json(conda_executable, "info")
 
 
 def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
@@ -608,25 +628,6 @@ def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
         assert conda_executable == "micromamba"
         envs_dirs = info_dict["envs directories"]
     return [Path(d) for d in envs_dirs]
-
-
-@functools.lru_cache(maxsize=None)
-def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
-    """Get a list of conda environments."""
-    try:
-        result = subprocess.run(
-            [_maybe_exe(conda_executable), "env", "list", "--json"],  # noqa: S603
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:  # pragma: no cover
-        print(f"Error occurred: {e}")
-        raise
-    except json.JSONDecodeError as e:  # pragma: no cover
-        print(f"Failed to parse JSON: {e}")
-        raise
 
 
 def _conda_env_name_to_prefix(
