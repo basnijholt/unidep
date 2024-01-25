@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
 import json
 import os
@@ -574,30 +575,11 @@ def _maybe_exe(conda_executable: str) -> str:
     return conda_executable
 
 
-def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
-    """Get the root prefix of the conda installation."""
-    if os.environ.get("MAMBA_ROOT_PREFIX"):
-        return Path(os.environ["MAMBA_ROOT_PREFIX"])
-    if os.environ.get("CONDA_ROOT"):
-        return Path(os.environ["CONDA_ROOT"])
-    info = subprocess.check_output(
-        [_maybe_exe(conda_executable), "info", "--json"],  # noqa: S603
-        text=True,
-    ).strip()
-    info_dict = json.loads(info)
-    if conda_executable in ("conda", "mamba"):
-        prefix = info_dict.get("root_prefix") or info_dict["conda_prefix"]
-    else:
-        assert conda_executable == "micromamba"
-        prefix = info_dict["base environment"]
-    return Path(prefix)
-
-
-def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
-    """Get a list of conda environments."""
+def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list[str]]:
+    """Run a conda command and return the JSON output."""
     try:
         result = subprocess.run(
-            [_maybe_exe(conda_executable), "env", "list", "--json"],  # noqa: S603
+            [_maybe_exe(conda_executable), *args, "--json"],  # noqa: S603
             capture_output=True,
             text=True,
             check=True,
@@ -611,20 +593,61 @@ def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
         raise
 
 
+@functools.lru_cache(maxsize=None)
+def _conda_env_list(conda_executable: str) -> list[str]:
+    """Get a list of conda environments."""
+    return _conda_cli_command_json(conda_executable, "env", "list")["envs"]
+
+
+@functools.lru_cache(maxsize=None)
+def _conda_info(conda_executable: str) -> dict:
+    return _conda_cli_command_json(conda_executable, "info")
+
+
+def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
+    """Get the root prefix of the conda installation."""
+    if os.environ.get("MAMBA_ROOT_PREFIX"):
+        return Path(os.environ["MAMBA_ROOT_PREFIX"])
+    if os.environ.get("CONDA_ROOT"):
+        return Path(os.environ["CONDA_ROOT"])
+    info_dict = _conda_info(conda_executable)
+    if conda_executable in ("conda", "mamba"):
+        prefix = info_dict.get("root_prefix") or info_dict["conda_prefix"]
+    else:
+        assert conda_executable == "micromamba"
+        prefix = info_dict["base environment"]
+    return Path(prefix)
+
+
+def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
+    """Get a list of conda environment directories."""
+    info_dict = _conda_info(conda_executable)
+    if conda_executable in ("conda", "mamba"):
+        envs_dirs = info_dict["envs_dirs"]
+    else:
+        assert conda_executable == "micromamba"
+        envs_dirs = info_dict["envs directories"]
+    return [Path(d) for d in envs_dirs]
+
+
 def _conda_env_name_to_prefix(
     conda_executable: str,
     conda_env_name: str,
 ) -> Path:  # pragma: no cover
     """Get the prefix of a conda environment."""
+    # Based on `conda.base.context.locate_prefix_by_name`
+    # https://github.com/conda/conda/blob/72fe69dac8b2fef351c511c813493fef17f295e1/conda/base/context.py#L1976-L1977
     root_prefix = _conda_root_prefix(conda_executable)
+    if conda_env_name in ("base", "root"):
+        return root_prefix
+
+    for envs_dir in _conda_env_dirs(conda_executable):
+        prefix = envs_dir / conda_env_name
+        if prefix.exists():
+            return prefix
+
     envs = _conda_env_list(conda_executable)
-    if conda_env_name == "base":
-        prefix = root_prefix
-    else:
-        prefix = root_prefix / "envs" / conda_env_name
-    if str(prefix) in envs["envs"]:
-        return prefix
-    envs_str = "\n👉 ".join(envs["envs"])
+    envs_str = "\n👉 ".join(envs)
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
         f" Available prefixes:\n👉 {envs_str}"
@@ -723,6 +746,8 @@ def _install_command(  # noqa: PLR0912
         conda_env_args = []
         if conda_env_name:
             conda_env_args = ["--name", conda_env_name]
+            # Check if the environment exists
+            _conda_env_name_to_prefix(conda_executable, conda_env_name)
         elif conda_env_prefix:
             conda_env_args = ["--prefix", str(conda_env_prefix)]
         conda_command = [
