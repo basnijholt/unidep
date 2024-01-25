@@ -746,6 +746,8 @@ def _install_command(  # noqa: PLR0912
         conda_env_args = []
         if conda_env_name:
             conda_env_args = ["--name", conda_env_name]
+            # Check if the environment exists
+            _conda_env_name_to_prefix(conda_executable, conda_env_name)
         elif conda_env_prefix:
             conda_env_args = ["--prefix", str(conda_env_prefix)]
         conda_command = [
