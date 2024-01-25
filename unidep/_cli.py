@@ -6,6 +6,7 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
 import json
 import os
@@ -574,17 +575,22 @@ def _maybe_exe(conda_executable: str) -> str:
     return conda_executable
 
 
+@functools.lru_cache(maxsize=None)
+def _conda_info(conda_executable: str) -> dict:
+    info = subprocess.check_output(
+        [_maybe_exe(conda_executable), "info", "--json"],  # noqa: S603
+        text=True,
+    ).strip()
+    return json.loads(info)
+
+
 def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     """Get the root prefix of the conda installation."""
     if os.environ.get("MAMBA_ROOT_PREFIX"):
         return Path(os.environ["MAMBA_ROOT_PREFIX"])
     if os.environ.get("CONDA_ROOT"):
         return Path(os.environ["CONDA_ROOT"])
-    info = subprocess.check_output(
-        [_maybe_exe(conda_executable), "info", "--json"],  # noqa: S603
-        text=True,
-    ).strip()
-    info_dict = json.loads(info)
+    info_dict = _conda_info(conda_executable)
     if conda_executable in ("conda", "mamba"):
         prefix = info_dict.get("root_prefix") or info_dict["conda_prefix"]
     else:
@@ -593,6 +599,18 @@ def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     return Path(prefix)
 
 
+def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
+    """Get a list of conda environment directories."""
+    info_dict = _conda_info(conda_executable)
+    if conda_executable in ("conda", "mamba"):
+        envs_dirs = info_dict["envs_dirs"]
+    else:
+        assert conda_executable == "micromamba"
+        envs_dirs = info_dict["envs directories"]
+    return [Path(d) for d in envs_dirs]
+
+
+@functools.lru_cache(maxsize=None)
 def _conda_env_list(conda_executable: str) -> dict[str, list[str]]:
     """Get a list of conda environments."""
     try:
@@ -616,14 +634,18 @@ def _conda_env_name_to_prefix(
     conda_env_name: str,
 ) -> Path:  # pragma: no cover
     """Get the prefix of a conda environment."""
+    # Based on `conda.base.context.locate_prefix_by_name`
+    # https://github.com/conda/conda/blob/72fe69dac8b2fef351c511c813493fef17f295e1/conda/base/context.py#L1976-L1977
     root_prefix = _conda_root_prefix(conda_executable)
+    if conda_env_name in ("base", "root"):
+        return root_prefix
+
+    for envs_dir in _conda_env_dirs(conda_executable):
+        prefix = envs_dir / conda_env_name
+        if prefix.exists():
+            return prefix
+
     envs = _conda_env_list(conda_executable)
-    if conda_env_name == "base":
-        prefix = root_prefix
-    else:
-        prefix = root_prefix / "envs" / conda_env_name
-    if str(prefix) in envs["envs"]:
-        return prefix
     envs_str = "\n👉 ".join(envs["envs"])
     msg = (
         f"Could not find conda prefix with name `{conda_env_name}`."
