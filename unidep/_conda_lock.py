@@ -135,13 +135,20 @@ def _parse_conda_lock_packages(
         package_name: str,
         resolved: dict[str, set[str]],
         dependencies: dict[str, set[str]],
+        seen: set[str],
     ) -> set[str]:
         if package_name in resolved:
             return resolved[package_name]
+        if package_name in seen:  # Circular dependency detected
+            return set()
+        seen.add(package_name)
+
         all_deps = set(dependencies[package_name])
         for dep in dependencies[package_name]:
-            all_deps.update(_recurse(dep, resolved, dependencies))
+            all_deps.update(_recurse(dep, resolved, dependencies, seen))
+
         resolved[package_name] = all_deps
+        seen.remove(package_name)
         return all_deps
 
     for p in conda_lock_packages:
@@ -153,7 +160,7 @@ def _parse_conda_lock_packages(
         for _platform, pkgs in platforms.items():
             _resolved: dict[str, set[str]] = {}
             for package in list(pkgs):
-                _recurse(package, _resolved, pkgs)
+                _recurse(package, _resolved, pkgs, set())
             resolved_manager[_platform] = _resolved
 
     packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]] = {}

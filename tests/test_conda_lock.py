@@ -12,6 +12,7 @@ from ruamel.yaml import YAML
 from unidep._conda_lock import (
     LockSpec,
     _handle_missing_keys,
+    _parse_conda_lock_packages,
     conda_lock_command,
 )
 from unidep.utils import remove_top_comments
@@ -205,3 +206,56 @@ def test_handle_missing_keys(capsys: pytest.CaptureFixture) -> None:
 
     assert f"❌ Missing keys {missing_keys}" in capsys.readouterr().out
     assert ("pip", "linux-64", "nonexistent") in missing_keys
+
+
+def test_circular_dependency() -> None:
+    """Test that circular dependencies are handled correctly.
+
+    This test is based on the following requirements.yml file:
+
+    ```yaml
+    channels:
+        - conda-forge
+    dependencies:
+        - sphinx
+    platforms:
+        - linux-64
+    ```
+
+    The sphinx package has a circular dependency to itself, e.g., `sphinx` depends
+    on `sphinxcontrib-applehelp` which depends on `sphinx`.
+
+    Then we called `unidep conda-lock` on the above requirements.yml file. The
+    bit to reproduce the error is in the `package` list below.
+    """
+    package = [
+        {
+            "name": "sphinx",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinxcontrib-applehelp": ""},
+        },
+        {
+            "name": "sphinxcontrib-applehelp",
+            "version": "1.0.8",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinx": ">=5"},
+        },
+    ]
+    lock_spec = _parse_conda_lock_packages(package)
+    assert lock_spec.packages == {
+        ("conda", "linux-64", "sphinx"): {
+            "name": "sphinx",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinxcontrib-applehelp": ""},
+        },
+        ("conda", "linux-64", "sphinxcontrib-applehelp"): {
+            "name": "sphinxcontrib-applehelp",
+            "version": "1.0.8",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinx": ">=5"},
+        },
+    }
