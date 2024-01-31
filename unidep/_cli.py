@@ -1022,7 +1022,7 @@ def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and any(not f.exists() for f in args.file):
-        print("❌ One or more files not found.")
+        print(f"❌ One or more files ({', '.join(args.files)}) not found.")
         sys.exit(1)
 
     if args.command == "merge":  # pragma: no cover
