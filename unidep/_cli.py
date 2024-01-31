@@ -63,7 +63,7 @@ except ImportError:  # pragma: no cover
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
 
 
-def _add_common_args(  # noqa: PLR0912
+def _add_common_args(  # noqa: PLR0912, C901
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
@@ -75,14 +75,42 @@ def _add_common_args(  # noqa: PLR0912
             default=".",
             help=f"Base directory to scan for {_DEP_FILES} file(s), by default `.`",
         )
-    if "file" in options:
+    if "depth" in options:
+        sub_parser.add_argument(
+            "--depth",
+            type=int,
+            default=1,
+            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
+        )
+    if "file" in options or "file-alt" in options:
+        if "file-alt" in options:
+            help_msg = (
+                f"A single {_DEP_FILES} file to use, or"
+                " folder that contains that file. This is an alternative to using"
+                f" `--directory` which searches for all {_DEP_FILES} files in the"
+                " directory and its subdirectories."
+            )
+        else:
+            help_msg = (
+                f"The {_DEP_FILES} file to parse, or folder"
+                " that contains that file, by default `.`"
+            )
         sub_parser.add_argument(
             "-f",
             "--file",
             type=Path,
-            default=".",
-            help=f"The {_DEP_FILES} file to parse, or folder"
-            " that contains that file, by default `.`",
+            default=[],
+            action="append",
+            help=help_msg,
+        )
+    if "*files" in options:
+        sub_parser.add_argument(
+            "files",
+            type=Path,
+            nargs="+",
+            help=f"The {_DEP_FILES} file(s) to parse"
+            " or folder(s) that contain those file(s), by default `.`",
+            default=None,
         )
     if "verbose" in options:
         sub_parser.add_argument(
@@ -110,23 +138,6 @@ def _add_common_args(  # noqa: PLR0912
             "--editable",
             action="store_true",
             help="Install the project in editable mode",
-        )
-    if "depth" in options:
-        sub_parser.add_argument(
-            "--depth",
-            type=int,
-            default=1,
-            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
-        )
-    if "*files" in options:
-        sub_parser.add_argument(
-            "files",
-            type=Path,
-            nargs="+",
-            help=f"The {_DEP_FILES} file(s) to parse"
-            " or folder(s) that contain"
-            " those file(s), by default `.`",
-            default=None,  # default is "." set in `main`
         )
     if "skip-local" in options:
         sub_parser.add_argument(
@@ -424,6 +435,7 @@ def _parse_args() -> argparse.Namespace:
         parser_lock,
         {
             "directory",
+            "file-alt",
             "verbose",
             "platform",
             "depth",
@@ -540,8 +552,10 @@ def _parse_args() -> argparse.Namespace:
         parser.print_help()
         sys.exit(1)
 
-    if "file" in args and args.file.is_dir():  # pragma: no cover
-        args.file = dependencies_filename(args.file)
+    if "file" in args:
+        args.file = [
+            f if not f.is_dir() else dependencies_filename(f) for f in args.file
+        ]
 
     return args
 
@@ -866,6 +880,7 @@ def _merge_command(
     *,
     depth: int,
     directory: Path,
+    files: list[Path] | None,
     name: str,
     output: Path,
     stdout: bool,
@@ -879,14 +894,18 @@ def _merge_command(
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
 
-    found_files = find_requirements_files(
-        directory,
-        depth,
-        verbose=verbose,
-    )
-    if not found_files:
-        print(f"❌ No {_DEP_FILES} files found in {directory}")
-        sys.exit(1)
+    if files:  # ignores depth and directory!
+        found_files = files
+    else:
+        found_files = find_requirements_files(
+            directory,
+            depth,
+            verbose=verbose,
+        )
+        if not found_files:
+            print(f"❌ No {_DEP_FILES} files found in {directory}")
+            sys.exit(1)
+
     requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
@@ -999,20 +1018,18 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
-def main() -> None:  # noqa: PLR0912
+def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if "file" in args and not args.file.exists():  # pragma: no cover
-        print(f"❌ File {args.file} not found.")
+    if "file" in args and any(not f.exists() for f in args.file):
+        print("❌ One or more files not found.")
         sys.exit(1)
-
-    if "files" in args and args.files is None:  # pragma: no cover
-        args.files = ["."]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
             directory=args.directory,
+            files=None,
             name=args.name,
             output=args.output,
             stdout=args.stdout,
@@ -1025,8 +1042,10 @@ def main() -> None:  # noqa: PLR0912
         )
     elif args.command == "pip":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
+        assert len(args.file) <= 1
+        file = args.file[0] if args.file else Path()
         pip_dependencies = get_python_dependencies(
-            args.file,
+            file,
             platforms=platforms,
             verbose=args.verbose,
             ignore_pins=args.ignore_pin,
@@ -1036,8 +1055,9 @@ def main() -> None:  # noqa: PLR0912
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
+        files = args.file or [Path()]
         requirements = parse_requirements(
-            args.file,
+            *files,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
@@ -1057,7 +1077,7 @@ def main() -> None:  # noqa: PLR0912
         if args.conda_env_name is None and args.conda_env_prefix is None:
             _check_conda_prefix()
         _install_command(
-            *args.files,
+            *(args.files if args.files is not None else [Path()]),
             conda_executable=args.conda_executable,
             conda_env_name=args.conda_env_name,
             conda_env_prefix=args.conda_env_prefix,
@@ -1096,6 +1116,7 @@ def main() -> None:  # noqa: PLR0912
         conda_lock_command(
             depth=args.depth,
             directory=args.directory,
+            files=args.file or None,
             platforms=args.platform,
             verbose=args.verbose,
             only_global=args.only_global,
