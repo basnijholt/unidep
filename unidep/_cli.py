@@ -75,6 +75,13 @@ def _add_common_args(  # noqa: PLR0912, C901
             default=".",
             help=f"Base directory to scan for {_DEP_FILES} file(s), by default `.`",
         )
+    if "depth" in options:
+        sub_parser.add_argument(
+            "--depth",
+            type=int,
+            default=1,
+            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
+        )
     if "file" in options or "file-alt" in options:
         if "file-alt" in options:
             help_msg = (
@@ -131,13 +138,6 @@ def _add_common_args(  # noqa: PLR0912, C901
             "--editable",
             action="store_true",
             help="Install the project in editable mode",
-        )
-    if "depth" in options:
-        sub_parser.add_argument(
-            "--depth",
-            type=int,
-            default=1,
-            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
         )
     if "skip-local" in options:
         sub_parser.add_argument(
