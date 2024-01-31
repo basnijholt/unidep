@@ -1077,7 +1077,7 @@ def main() -> None:
         if args.conda_env_name is None and args.conda_env_prefix is None:
             _check_conda_prefix()
         _install_command(
-            *(args.files if args.files else [Path()]),
+            *(args.files or [Path()]),
             conda_executable=args.conda_executable,
             conda_env_name=args.conda_env_name,
             conda_env_prefix=args.conda_env_prefix,
