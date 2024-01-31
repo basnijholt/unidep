@@ -84,7 +84,8 @@ def _run_conda_lock(
 def _conda_lock_global(
     *,
     depth: int,
-    directory: str | Path,
+    directory: str | Path | None,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     check_input_hash: bool,
@@ -96,12 +97,20 @@ def _conda_lock_global(
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
 
-    directory = Path(directory)
+    if directory is not None:
+        assert files is None
+        directory = Path(directory)
+    else:
+        assert files is not None
+        assert directory is None
+        directory = files[0].parent
+
     tmp_env = directory / "tmp.environment.yaml"
     conda_lock_output = directory / lockfile
     _merge_command(
         depth=depth,
         directory=directory,
+        files=files,
         name="myenv",
         output=tmp_env,
         stdout=False,
@@ -414,11 +423,14 @@ def _download_and_get_package_names(
 
 
 def _conda_lock_subpackages(
-    directory: str | Path,
+    directory: str | Path | None,
     depth: int,
+    files: list[Path] | None,
     conda_lock_file: str | Path,
 ) -> list[Path]:
-    directory = Path(directory)
+    if (directory is None and files is None) or (directory and files):
+        msg = "Either `directory` or `files` must be provided."
+        raise ValueError(msg)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
@@ -428,8 +440,11 @@ def _conda_lock_subpackages(
 
     lock_files: list[Path] = []
     # Assumes that different platforms have the same versions
-    found_files = find_requirements_files(directory, depth)
-    for file in found_files:
+    if directory is not None:
+        directory = Path(directory)
+        files = find_requirements_files(directory, depth)
+    assert isinstance(files, list)
+    for file in files:
         if file.parent == directory:
             # This is a `requirements.yaml` file in the root directory
             # for e.g., common packages, so skip it.
@@ -449,7 +464,8 @@ def _conda_lock_subpackages(
 def conda_lock_command(
     *,
     depth: int,
-    directory: Path,
+    directory: Path | None,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     only_global: bool,
@@ -463,6 +479,7 @@ def conda_lock_command(
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
+        files=files,
         platforms=platforms,
         verbose=verbose,
         check_input_hash=check_input_hash,
@@ -476,6 +493,7 @@ def conda_lock_command(
     sub_lock_files = _conda_lock_subpackages(
         directory=directory,
         depth=depth,
+        files=files,
         conda_lock_file=conda_lock_output,
     )
     mismatches = _check_consistent_lock_files(

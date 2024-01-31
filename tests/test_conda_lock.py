@@ -28,6 +28,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64", "osx-arm64"],
             verbose=True,
             only_global=False,
@@ -63,6 +64,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
@@ -146,6 +148,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
