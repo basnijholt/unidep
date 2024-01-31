@@ -31,8 +31,10 @@ jobs:
           pip install -e ".[test]"
         shell: bash -el {0}
       - name: Run pytest
-        run: pytest -vvvv
+        run: pytest
         shell: bash -el {0}
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11' && matrix.platform == 'ubuntu-latest'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

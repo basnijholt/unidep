@@ -84,7 +84,8 @@ def _run_conda_lock(
 def _conda_lock_global(
     *,
     depth: int,
-    directory: str | Path,
+    directory: Path,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     check_input_hash: bool,
@@ -96,12 +97,15 @@ def _conda_lock_global(
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
 
-    directory = Path(directory)
+    if files:
+        directory = files[0].parent
+
     tmp_env = directory / "tmp.environment.yaml"
     conda_lock_output = directory / lockfile
     _merge_command(
         depth=depth,
         directory=directory,
+        files=files,
         name="myenv",
         output=tmp_env,
         stdout=False,
@@ -414,11 +418,10 @@ def _download_and_get_package_names(
 
 
 def _conda_lock_subpackages(
-    directory: str | Path,
+    directory: Path,
     depth: int,
     conda_lock_file: str | Path,
 ) -> list[Path]:
-    directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
@@ -450,6 +453,7 @@ def conda_lock_command(
     *,
     depth: int,
     directory: Path,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     only_global: bool,
@@ -463,6 +467,7 @@ def conda_lock_command(
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
+        files=files,
         platforms=platforms,
         verbose=verbose,
         check_input_hash=check_input_hash,
@@ -471,7 +476,7 @@ def conda_lock_command(
         skip_dependencies=skip_dependencies,
         lockfile=lockfile,
     )
-    if only_global:
+    if only_global or files:
         return
     sub_lock_files = _conda_lock_subpackages(
         directory=directory,

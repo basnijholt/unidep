@@ -28,6 +28,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64", "osx-arm64"],
             verbose=True,
             only_global=False,
@@ -63,6 +64,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
@@ -141,11 +143,15 @@ def test_conda_lock_command_pip_and_conda_different_name(
 ) -> None:
     folder = tmp_path / "test-pip-and-conda-different-name"
     shutil.copytree(Path(__file__).parent / "test-pip-and-conda-different-name", folder)
-
+    files = [
+        folder / "project1" / "requirements.yaml",
+        folder / "project2" / "requirements.yaml",
+    ]
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         conda_lock_command(
             depth=1,
-            directory=folder,
+            directory=folder,  # ignored when using files
+            files=files,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
