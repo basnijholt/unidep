@@ -420,7 +420,6 @@ def _download_and_get_package_names(
 def _conda_lock_subpackages(
     directory: Path,
     depth: int,
-    files: list[Path] | None,
     conda_lock_file: str | Path,
 ) -> list[Path]:
     conda_lock_file = Path(conda_lock_file)
@@ -432,10 +431,8 @@ def _conda_lock_subpackages(
 
     lock_files: list[Path] = []
     # Assumes that different platforms have the same versions
-    if not files:
-        files = find_requirements_files(directory, depth)
-    assert isinstance(files, list)
-    for file in files:
+    found_files = find_requirements_files(directory, depth)
+    for file in found_files:
         if file.parent == directory:
             # This is a `requirements.yaml` file in the root directory
             # for e.g., common packages, so skip it.
@@ -484,7 +481,6 @@ def conda_lock_command(
     sub_lock_files = _conda_lock_subpackages(
         directory=directory,
         depth=depth,
-        files=files,
         conda_lock_file=conda_lock_output,
     )
     mismatches = _check_consistent_lock_files(
