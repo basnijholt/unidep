@@ -690,7 +690,7 @@ options:
                         `pyproject.toml` file(s), by default `.`
   -f FILE, --file FILE  A single `requirements.yaml` or `pyproject.toml` file
                         to use, or folder that contains that file. This is an
-                        alternative to using`--directory` which searches for
+                        alternative to using `--directory` which searches for
                         all `requirements.yaml` or `pyproject.toml` files in
                         the directory and its subdirectories.
   -v, --verbose         Print verbose output
