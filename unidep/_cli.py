@@ -80,7 +80,7 @@ def _add_common_args(  # noqa: PLR0912, C901
             help_msg = (
                 f"A single {_DEP_FILES} file to use, or"
                 " folder that contains that file. This is an alternative to using"
-                f"`--directory` which searches for all {_DEP_FILES} files in the"
+                f" `--directory` which searches for all {_DEP_FILES} files in the"
                 " directory and its subdirectories."
             )
         else:
@@ -102,8 +102,7 @@ def _add_common_args(  # noqa: PLR0912, C901
             type=Path,
             nargs="+",
             help=f"The {_DEP_FILES} file(s) to parse"
-            " or folder(s) that contain"
-            " those file(s), by default `.`",
+            " or folder(s) that contain those file(s), by default `.`",
             default=None,
         )
     if "verbose" in options:
@@ -895,7 +894,7 @@ def _merge_command(
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
 
-    if files:
+    if files:  # ignores depth and directory!
         found_files = files
     else:
         found_files = find_requirements_files(
@@ -1019,14 +1018,12 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
-def main() -> None:  # noqa: PLR0912
+def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if "file" in args:  # pragma: no cover
-        for f in args.file:
-            if not f.exists():
-                print(f"❌ File {f} not found.")
-                sys.exit(1)
+    if "file" in args and any(not f.exists() for f in args.file):
+        print("❌ One or more files not found.")
+        sys.exit(1)
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
