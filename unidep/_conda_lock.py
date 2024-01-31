@@ -84,7 +84,7 @@ def _run_conda_lock(
 def _conda_lock_global(
     *,
     depth: int,
-    directory: str | Path | None,
+    directory: Path,
     files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
@@ -97,12 +97,7 @@ def _conda_lock_global(
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
 
-    if directory is not None:
-        assert files is None
-        directory = Path(directory)
-    else:
-        assert files is not None
-        assert directory is None
+    if files:
         directory = files[0].parent
 
     tmp_env = directory / "tmp.environment.yaml"
@@ -423,14 +418,11 @@ def _download_and_get_package_names(
 
 
 def _conda_lock_subpackages(
-    directory: str | Path | None,
+    directory: Path,
     depth: int,
     files: list[Path] | None,
     conda_lock_file: str | Path,
 ) -> list[Path]:
-    if (directory is None and files is None) or (directory and files):
-        msg = "Either `directory` or `files` must be provided."
-        raise ValueError(msg)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
@@ -440,8 +432,7 @@ def _conda_lock_subpackages(
 
     lock_files: list[Path] = []
     # Assumes that different platforms have the same versions
-    if directory is not None:
-        directory = Path(directory)
+    if not files:
         files = find_requirements_files(directory, depth)
     assert isinstance(files, list)
     for file in files:
@@ -464,7 +455,7 @@ def _conda_lock_subpackages(
 def conda_lock_command(
     *,
     depth: int,
-    directory: Path | None,
+    directory: Path,
     files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
@@ -488,7 +479,7 @@ def conda_lock_command(
         skip_dependencies=skip_dependencies,
         lockfile=lockfile,
     )
-    if only_global:
+    if only_global or files:
         return
     sub_lock_files = _conda_lock_subpackages(
         directory=directory,

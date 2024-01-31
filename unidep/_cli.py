@@ -63,7 +63,7 @@ except ImportError:  # pragma: no cover
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
 
 
-def _add_common_args(  # noqa: PLR0912
+def _add_common_args(  # noqa: PLR0912, C901
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
@@ -75,15 +75,26 @@ def _add_common_args(  # noqa: PLR0912
             default=".",
             help=f"Base directory to scan for {_DEP_FILES} file(s), by default `.`",
         )
-    if "file" in options:
+    if "file" in options or "file-alt" in options:
+        if "file-alt" in options:
+            help_msg = (
+                f"A single {_DEP_FILES} file to use, or"
+                " folder that contains that file. This is an alternative to using"
+                f"`--directory` which searches for all {_DEP_FILES} files in the"
+                " directory and its subdirectories."
+            )
+        else:
+            help_msg = (
+                f"The {_DEP_FILES} file to parse, or folder"
+                " that contains that file, by default `.`"
+            )
         sub_parser.add_argument(
             "-f",
             "--file",
             type=Path,
             default=[],
             action="append",
-            help=f"The {_DEP_FILES} file to parse, or folder"
-            " that contains that file, by default `.`",
+            help=help_msg,
         )
     if "*files" in options:
         sub_parser.add_argument(
@@ -421,20 +432,11 @@ def _parse_args() -> argparse.Namespace:
         help="Check existing input hashes in lockfiles before regenerating lock files."
         " This flag is directly passed to `conda-lock`.",
     )
-    parser_lock.add_argument(
-        "-f",
-        "--file",
-        type=Path,
-        default=[],
-        help=f"A single {_DEP_FILES} file to use to generate the lock file, or"
-        " folder that contains that file. This is an alternative to using"
-        "`--directory` which searches for all {_DEP_FILES} files in the"
-        "directory and its subdirectories.",
-    )
     _add_common_args(
         parser_lock,
         {
             "directory",
+            "file-alt",
             "verbose",
             "platform",
             "depth",
@@ -878,7 +880,7 @@ def _install_all_command(
 def _merge_command(
     *,
     depth: int,
-    directory: Path | None,
+    directory: Path,
     files: list[Path] | None,
     name: str,
     output: Path,
@@ -892,11 +894,10 @@ def _merge_command(
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
-    if (directory is None and files is None) or (directory and files):
-        msg = "Either `directory` or `files` must be provided."
-        raise ValueError(msg)
 
-    if directory:
+    if files:
+        found_files = files
+    else:
         found_files = find_requirements_files(
             directory,
             depth,
@@ -905,9 +906,6 @@ def _merge_command(
         if not found_files:
             print(f"❌ No {_DEP_FILES} files found in {directory}")
             sys.exit(1)
-    else:
-        assert files is not None
-        found_files = files
 
     requirements = parse_requirements(
         *found_files,
