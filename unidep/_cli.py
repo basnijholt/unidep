@@ -234,6 +234,23 @@ def _add_common_args(  # noqa: PLR0912, C901
         )
 
 
+def _add_extra_flags(
+    subparser: argparse.ArgumentParser,
+    downstream_command: str,
+    unidep_subcommand: str,
+    example: str,
+) -> None:
+    subparser.add_argument(
+        "extra_flags",
+        nargs=argparse.REMAINDER,
+        help=f"Extra flags to pass to `{downstream_command}`. These flags are passed"
+        f" directly and should be provided in the format expected by"
+        f" `{downstream_command}`. For example, `{unidep_subcommand} -- {example}`."
+        f" Note that the `--` is required to separate the flags for `unidep`"
+        f" from the flags for file `{downstream_command}`.",
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
@@ -445,6 +462,7 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
+    _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
 
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
@@ -488,14 +506,11 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
-    parser_pip_compile.add_argument(
-        "extra_flags",
-        nargs=argparse.REMAINDER,
-        help="Extra flags to pass to `pip-compile`. These flags are passed directly"
-        " and should be provided in the format expected by `pip-compile`. For example,"
-        " `unidep pip-compile -- --generate-hashes --allow-unsafe`. Note that the"
-        " `--` is required to separate the flags for `unidep` from the flags for"
-        " `pip-compile`.",
+    _add_extra_flags(
+        parser_pip_compile,
+        "pip-compile",
+        "pip-compile",
+        "--generate-hashes",
     )
 
     # Subparser for the 'pip' and 'conda' command
