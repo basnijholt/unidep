@@ -246,8 +246,8 @@ def _add_extra_flags(
         help=f"Extra flags to pass to `{downstream_command}`. These flags are passed"
         f" directly and should be provided in the format expected by"
         f" `{downstream_command}`. For example, `unidep {unidep_subcommand} -- {example}`."  # noqa: E501
-        f" Note that the `--` is required to separate the flags for `unidep`"
-        f" from the flags for `{downstream_command}`.",
+        f" Note that the `--` is required to separate the flags for"
+        f" `unidep {unidep_subcommand}` from the flags for `{downstream_command}`.",
     )
 
 
