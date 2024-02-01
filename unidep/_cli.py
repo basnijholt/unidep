@@ -681,7 +681,7 @@ def _python_executable(
     if conda_env_name:
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
-    if platform.system() == "Windows":
+    if platform.system() == "Windows":  # pragma: no cover
         python_executable = conda_env_prefix / "python.exe"
     else:
         python_executable = conda_env_prefix / "bin" / "python"
