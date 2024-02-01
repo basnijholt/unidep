@@ -292,7 +292,7 @@ def get_package_version(package_name: str) -> str | None:
             return importlib.metadata.version(package_name)
         except importlib.metadata.PackageNotFoundError:
             return None
-    else:
+    else:  # pragma: no cover
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             import pkg_resources
