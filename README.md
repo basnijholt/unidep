@@ -683,8 +683,8 @@ positional arguments:
                         are passed directly and should be provided in the
                         format expected by `conda-lock lock`. For example,
                         `unidep conda-lock -- --micromamba`. Note that the
-                        `--` is required to separate the flags for `unidep`
-                        from the flags for `conda-lock lock`.
+                        `--` is required to separate the flags for `unidep
+                        conda-lock` from the flags for `conda-lock lock`.
 
 options:
   -h, --help            show this help message and exit
@@ -768,7 +768,7 @@ positional arguments:
                         expected by `pip-compile`. For example, `unidep pip-
                         compile -- --generate-hashes --allow-unsafe`. Note
                         that the `--` is required to separate the flags for
-                        `unidep` from the flags for `pip-compile`.
+                        `unidep pip-compile` from the flags for `pip-compile`.
 
 options:
   -h, --help            show this help message and exit
