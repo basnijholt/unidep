@@ -36,7 +36,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
-            extra_flags=["--micromamba"],
+            extra_flags=["--", "--micromamba"],
         )
     with YAML(typ="safe") as yaml:
         with (folder / "project1" / "conda-lock.yml").open() as f:
