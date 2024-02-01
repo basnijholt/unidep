@@ -285,9 +285,17 @@ def get_package_version(package_name: str) -> str | None:
     -------
     The version of the package, or None if the package is not found.
     """
-    import importlib.metadata as importlib_metadata
+    import importlib.metadata
 
     try:
-        return importlib_metadata.version(package_name)
-    except importlib_metadata.PackageNotFoundError:
+        return importlib.metadata.version(package_name)
+    except importlib.metadata.PackageNotFoundError:
         return None
+    else:
+        with warnings.catch_warnings(DeprecationWarning):
+            import pkg_resources
+
+        try:
+            return pkg_resources.get_distribution(package_name).version
+        except pkg_resources.DistributionNotFound:
+            return None
