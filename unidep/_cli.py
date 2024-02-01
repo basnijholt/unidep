@@ -1030,6 +1030,7 @@ def _print_versions() -> None:  # pragma: no cover
     ]
     extra_packages = [
         "rich_argparse",
+        "rich",
         "conda_lock",
         "pip_tools",
         "conda_package_handling",
@@ -1041,7 +1042,26 @@ def _print_versions() -> None:  # pragma: no cover
         version = get_package_version(package)
         if version is not None:
             txt.append(f"{package} version: {version}")
-    print("\n".join(txt))
+
+    try:
+        _print_with_rich(txt)
+    except ImportError:
+        print("\n".join(txt))
+
+
+def _print_with_rich(data: list) -> None:
+    """Print data as a table using rich, if it's installed."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    table = Table(show_header=False)
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="magenta")
+    for line in data:
+        prop, value = line.split(":", 1)
+        table.add_row(prop, value.strip())
+    console.print(table)
 
 
 def main() -> None:
