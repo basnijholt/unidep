@@ -36,6 +36,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=["--micromamba"],
         )
     with YAML(typ="safe") as yaml:
         with (folder / "project1" / "conda-lock.yml").open() as f:
@@ -72,6 +73,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=[],
         )
     with YAML(typ="safe") as yaml:
         with (folder / "project1" / "conda-lock.yml").open() as f:
@@ -159,6 +161,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=[],
         )
     assert "Missing keys" not in capsys.readouterr().out
 
