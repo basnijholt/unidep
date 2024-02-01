@@ -510,7 +510,7 @@ def _parse_args() -> argparse.Namespace:
         parser_pip_compile,
         "pip-compile",
         "pip-compile",
-        "--generate-hashes",
+        "--generate-hashes --allow-unsafe",
     )
 
     # Subparser for the 'pip' and 'conda' command
