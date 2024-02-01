@@ -477,7 +477,7 @@ def conda_lock_command(
         assert extra_flags[0] == "--"
         extra_flags = extra_flags[1:]
         if verbose:
-            print(f"📝 Extra flags: {extra_flags}")
+            print(f"📝 Extra flags for `conda-lock lock`: {extra_flags}")
 
     conda_lock_output = _conda_lock_global(
         depth=depth,

@@ -995,7 +995,7 @@ def _pip_compile_command(
         assert extra_flags[0] == "--"
         extra_flags = extra_flags[1:]
         if verbose:
-            print(f"📝 Extra flags: {extra_flags}")
+            print(f"📝 Extra flags for `pip-compile`: {extra_flags}")
 
     if output_file is None:
         output_file = directory / "requirements.txt"
