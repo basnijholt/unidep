@@ -11,7 +11,9 @@ from unittest.mock import patch
 import pytest
 
 from unidep._cli import (
+    _conda_env_list,
     _conda_root_prefix,
+    _identify_conda_executable,
     _install_all_command,
     _install_command,
     _pip_compile_command,
@@ -371,3 +373,8 @@ def test_version(capsys: pytest.CaptureFixture) -> None:
     assert "unidep location" in captured.out
     assert "unidep version" in captured.out
     assert "packaging" in captured.out
+
+
+def test_conda_env_list() -> None:
+    conda_executable = _identify_conda_executable()
+    _conda_env_list(conda_executable)
