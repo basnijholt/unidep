@@ -585,7 +585,7 @@ def _format_inline_conda_package(package: str) -> str:
 
 def _maybe_exe(conda_executable: str) -> str:
     """Add .exe on Windows."""
-    if os.name == "nt":
+    if os.name == "nt":  # pragma: no cover
         return f"{conda_executable}.exe"
     return conda_executable
 
