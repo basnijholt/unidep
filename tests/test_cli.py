@@ -15,6 +15,7 @@ from unidep._cli import (
     _install_all_command,
     _install_command,
     _pip_compile_command,
+    _print_versions,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -314,3 +315,11 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             editable=True,
             verbose=True,
         )
+
+
+def test_version(capsys: pytest.CaptureFixture) -> None:
+    _print_versions()
+    captured = capsys.readouterr()
+    assert "unidep location" in captured.out
+    assert "unidep version" in captured.out
+    assert "packaging" in captured.out
