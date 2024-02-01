@@ -37,6 +37,7 @@ def _run_conda_lock(
     conda_lock_output: Path,
     *,
     check_input_hash: bool = False,
+    extra_flags: list[str],
 ) -> None:  # pragma: no cover
     if shutil.which("conda-lock") is None:
         msg = (
@@ -56,6 +57,7 @@ def _run_conda_lock(
         str(tmp_env),
         "--lockfile",
         str(conda_lock_output),
+        *extra_flags,
     ]
     if check_input_hash:
         cmd.append("--check-input-hash")
@@ -92,6 +94,7 @@ def _conda_lock_global(
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    extra_flags: list[str],
     lockfile: str,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
@@ -116,7 +119,12 @@ def _conda_lock_global(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
+    _run_conda_lock(
+        tmp_env,
+        conda_lock_output,
+        check_input_hash=check_input_hash,
+        extra_flags=extra_flags,
+    )
     print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
     return conda_lock_output
 
@@ -461,9 +469,16 @@ def conda_lock_command(
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    extra_flags: list[str],
     lockfile: str = "conda-lock.yml",
 ) -> None:
     """Generate a conda-lock file a collection of `requirements.yaml` and/or `pyproject.toml` files."""  # noqa: E501
+    if extra_flags:
+        assert extra_flags[0] == "--"
+        extra_flags = extra_flags[1:]
+        if verbose:
+            print(f"📝 Extra flags for `conda-lock lock`: {extra_flags}")
+
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
@@ -474,6 +489,7 @@ def conda_lock_command(
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
+        extra_flags=extra_flags,
         lockfile=lockfile,
     )
     if only_global or files:
