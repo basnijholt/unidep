@@ -156,6 +156,31 @@ def test_unidep_install_all_dry_run() -> None:
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
 
 
+def test_unidep_conda() -> None:
+    # Path to the requirements file
+    requirements_path = REPO_ROOT / "example" / "setup_py_project"
+
+    assert requirements_path.exists(), "Requirements file does not exist"
+
+    # Run the unidep install command
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "conda",
+            "--file",
+            str(requirements_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    # Check the output
+    assert result.returncode == 0, "Command failed to execute successfully"
+    assert "pandas" in result.stdout
+
+
 def test_doubly_nested_project_folder_installable(
     tmp_path: Path,
 ) -> None:
