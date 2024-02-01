@@ -245,9 +245,9 @@ def _add_extra_flags(
         nargs=argparse.REMAINDER,
         help=f"Extra flags to pass to `{downstream_command}`. These flags are passed"
         f" directly and should be provided in the format expected by"
-        f" `{downstream_command}`. For example, `{unidep_subcommand} -- {example}`."
+        f" `{downstream_command}`. For example, `unidep {unidep_subcommand} -- {example}`."  # noqa: E501
         f" Note that the `--` is required to separate the flags for `unidep`"
-        f" from the flags for file `{downstream_command}`.",
+        f" from the flags for `{downstream_command}`.",
     )
 
 
