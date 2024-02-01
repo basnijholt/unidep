@@ -120,7 +120,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         requirements_file = dependencies_filename(project_root)
     except FileNotFoundError:
         return
-    if requirements_file.exists() and dist.install_requires:
+    if requirements_file.exists() and dist.install_requires:  # type: ignore[attr-defined]
         msg = (
             "You have a `requirements.yaml` file in your project root or"
             " configured unidep in `pyproject.toml` with `[tool.unidep]`,"
@@ -136,7 +136,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         # than failing.
         platforms = None
 
-    dist.install_requires = get_python_dependencies(
+    dist.install_requires = get_python_dependencies(  # type: ignore[attr-defined]
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,

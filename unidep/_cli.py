@@ -37,6 +37,7 @@ from unidep.utils import (
     add_comment_to_file,
     dependencies_filename,
     escape_unicode,
+    get_package_version,
     identify_current_platform,
     is_pip_installable,
     parse_package_str,
@@ -1018,6 +1019,31 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
+def _print_versions() -> None:  # pragma: no cover
+    """Print version information."""
+    path = Path(__file__).parent
+    txt = [
+        f"unidep version: {__version__}",
+        f"unidep location: {path}",
+        f"Python version: {sys.version}",
+        f"Python executable: {sys.executable}",
+    ]
+    extra_packages = [
+        "rich_argparse",
+        "conda_lock",
+        "pip_tools",
+        "conda_package_handling",
+        "ruamel.yaml",
+        "packaging",
+        "tomli",
+    ]
+    for package in extra_packages:
+        version = get_package_version(package)
+        if version is not None:
+            txt.append(f"{package} version: {version}")
+    print("\n".join(txt))
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
@@ -1145,11 +1171,4 @@ def main() -> None:
             output_file=args.output_file,
         )
     elif args.command == "version":  # pragma: no cover
-        path = Path(__file__).parent
-        txt = (
-            f"unidep version: {__version__}",
-            f"unidep location: {path}",
-            f"Python version: {sys.version}",
-            f"Python executable: {sys.executable}",
-        )
-        print("\n".join(txt))
+        _print_versions()
