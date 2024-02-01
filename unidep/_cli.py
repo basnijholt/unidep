@@ -517,7 +517,7 @@ def _parse_args() -> argparse.Namespace:
     help_str = "Get the {} requirements for the current platform only."
     help_example = (
         " Example usage: `unidep {which} --file folder1 --file"
-        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
+        " folder2/requirements.yaml --separator ' ' --platform linux-64` to"
         " extract all the {which} dependencies specific to the linux-64 platform. Note"
         " that the `--file` argument can be used multiple times to specify multiple"
         f" {_DEP_FILES}"
@@ -1187,6 +1187,7 @@ def main() -> None:
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
             check_input_hash=args.check_input_hash,
+            extra_flags=args.extra_flags,
             lockfile=args.lockfile,
         )
     elif args.command == "pip-compile":  # pragma: no cover
