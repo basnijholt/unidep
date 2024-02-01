@@ -766,9 +766,9 @@ positional arguments:
   extra_flags           Extra flags to pass to `pip-compile`. These flags are
                         passed directly and should be provided in the format
                         expected by `pip-compile`. For example, `unidep pip-
-                        compile -- --generate-hashes`. Note that the `--` is
-                        required to separate the flags for `unidep` from the
-                        flags for `pip-compile`.
+                        compile -- --generate-hashes --allow-unsafe`. Note
+                        that the `--` is required to separate the flags for
+                        `unidep` from the flags for `pip-compile`.
 
 options:
   -h, --help            show this help message and exit
