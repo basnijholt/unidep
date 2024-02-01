@@ -11,10 +11,13 @@ from unittest.mock import patch
 import pytest
 
 from unidep._cli import (
+    _conda_env_list,
     _conda_root_prefix,
+    _identify_conda_executable,
     _install_all_command,
     _install_command,
     _pip_compile_command,
+    _print_versions,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -153,6 +156,54 @@ def test_unidep_install_all_dry_run() -> None:
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "📦 Installing project with `" in result.stdout
     assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
+
+
+def test_unidep_conda() -> None:
+    # Path to the requirements file
+    requirements_path = REPO_ROOT / "example" / "setup_py_project"
+
+    assert requirements_path.exists(), "Requirements file does not exist"
+
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "conda",
+            "--file",
+            str(requirements_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    # Check the output
+    assert result.returncode == 0, "Command failed to execute successfully"
+    assert "pandas" in result.stdout
+
+
+def test_unidep_file_not_found_error() -> None:
+    # Path to the requirements file
+    requirements_path = REPO_ROOT / "yolo"
+
+    assert not requirements_path.exists()
+
+    # Run the unidep install command
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "conda",
+            "--file",
+            str(requirements_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 1, "Command unexpectedly succeeded"
+    assert "❌ One or more files" in result.stdout
 
 
 def test_doubly_nested_project_folder_installable(
@@ -314,3 +365,16 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             editable=True,
             verbose=True,
         )
+
+
+def test_version(capsys: pytest.CaptureFixture) -> None:
+    _print_versions()
+    captured = capsys.readouterr()
+    assert "unidep location" in captured.out
+    assert "unidep version" in captured.out
+    assert "packaging" in captured.out
+
+
+def test_conda_env_list() -> None:
+    conda_executable = _identify_conda_executable()
+    _conda_env_list(conda_executable)

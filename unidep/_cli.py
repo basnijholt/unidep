@@ -37,6 +37,7 @@ from unidep.utils import (
     add_comment_to_file,
     dependencies_filename,
     escape_unicode,
+    get_package_version,
     identify_current_platform,
     is_pip_installable,
     parse_package_str,
@@ -584,7 +585,7 @@ def _format_inline_conda_package(package: str) -> str:
 
 def _maybe_exe(conda_executable: str) -> str:
     """Add .exe on Windows."""
-    if os.name == "nt":
+    if os.name == "nt":  # pragma: no cover
         return f"{conda_executable}.exe"
     return conda_executable
 
@@ -680,7 +681,7 @@ def _python_executable(
     if conda_env_name:
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
-    if platform.system() == "Windows":
+    if platform.system() == "Windows":  # pragma: no cover
         python_executable = conda_env_prefix / "python.exe"
     else:
         python_executable = conda_env_prefix / "bin" / "python"
@@ -1018,11 +1019,58 @@ def _check_conda_prefix() -> None:  # pragma: no cover
     sys.exit(1)
 
 
+def _print_versions() -> None:  # pragma: no cover
+    """Print version information."""
+    path = Path(__file__).parent
+    txt = [
+        f"unidep version: {__version__}",
+        f"unidep location: {path}",
+        f"Python version: {sys.version}",
+        f"Python executable: {sys.executable}",
+    ]
+    extra_packages = [
+        "rich_argparse",
+        "rich",
+        "conda_lock",
+        "pydantic",
+        "pip_tools",
+        "conda_package_handling",
+        "ruamel.yaml",
+        "packaging",
+        "tomli",
+    ]
+    for package in extra_packages:
+        version = get_package_version(package)
+        if version is not None:
+            txt.append(f"{package} version: {version}")
+
+    if importlib.util.find_spec("rich") is not None:
+        _print_with_rich(txt)
+    else:
+        print("\n".join(txt))
+
+
+def _print_with_rich(data: list) -> None:
+    """Print data as a table using rich, if it's installed."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    table = Table(show_header=False)
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="magenta")
+    for line in data:
+        prop, value = line.split(":", 1)
+        table.add_row(prop, value.strip())
+    console.print(table)
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
     if "file" in args and any(not f.exists() for f in args.file):
-        print(f"❌ One or more files ({', '.join(args.files)}) not found.")
+        missing = [f"`{f}`" for f in args.file if not f.exists()]
+        print(f"❌ One or more files ({', '.join(missing)}) not found.")
         sys.exit(1)
 
     if args.command == "merge":  # pragma: no cover
@@ -1145,11 +1193,4 @@ def main() -> None:
             output_file=args.output_file,
         )
     elif args.command == "version":  # pragma: no cover
-        path = Path(__file__).parent
-        txt = (
-            f"unidep version: {__version__}",
-            f"unidep location: {path}",
-            f"Python version: {sys.version}",
-            f"Python executable: {sys.executable}",
-        )
-        print("\n".join(txt))
+        _print_versions()

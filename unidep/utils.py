@@ -271,3 +271,33 @@ def dependencies_filename(folder_or_path: str | Path) -> Path:
         msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
     return path
+
+
+def get_package_version(package_name: str) -> str | None:
+    """Returns the version of the given package.
+
+    Parameters
+    ----------
+    package_name
+        The name of the package to find the version of.
+
+    Returns
+    -------
+    The version of the package, or None if the package is not found.
+    """
+    if sys.version_info >= (3, 8):
+        import importlib.metadata
+
+        try:
+            return importlib.metadata.version(package_name)
+        except importlib.metadata.PackageNotFoundError:
+            return None
+    else:  # pragma: no cover
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            import pkg_resources
+
+        try:
+            return pkg_resources.get_distribution(package_name).version
+        except pkg_resources.DistributionNotFound:
+            return None

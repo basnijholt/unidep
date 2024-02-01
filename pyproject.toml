@@ -53,6 +53,7 @@ test = [
     "pytest-cov",
     "pytest-mock",
     "conda-package-handling",
+    "rich",
 ]
 
 [project.scripts]
