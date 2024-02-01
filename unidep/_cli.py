@@ -234,6 +234,23 @@ def _add_common_args(  # noqa: PLR0912, C901
         )
 
 
+def _add_extra_flags(
+    subparser: argparse.ArgumentParser,
+    downstream_command: str,
+    unidep_subcommand: str,
+    example: str,
+) -> None:
+    subparser.add_argument(
+        "extra_flags",
+        nargs=argparse.REMAINDER,
+        help=f"Extra flags to pass to `{downstream_command}`. These flags are passed"
+        f" directly and should be provided in the format expected by"
+        f" `{downstream_command}`. For example, `unidep {unidep_subcommand} -- {example}`."  # noqa: E501
+        f" Note that the `--` is required to separate the flags for `unidep`"
+        f" from the flags for `{downstream_command}`.",
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
@@ -445,6 +462,7 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
+    _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
 
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
@@ -488,21 +506,18 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
-    parser_pip_compile.add_argument(
-        "extra_flags",
-        nargs=argparse.REMAINDER,
-        help="Extra flags to pass to `pip-compile`. These flags are passed directly"
-        " and should be provided in the format expected by `pip-compile`. For example,"
-        " `unidep pip-compile -- --generate-hashes --allow-unsafe`. Note that the"
-        " `--` is required to separate the flags for `unidep` from the flags for"
-        " `pip-compile`.",
+    _add_extra_flags(
+        parser_pip_compile,
+        "pip-compile",
+        "pip-compile",
+        "--generate-hashes",
     )
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
     help_example = (
         " Example usage: `unidep {which} --file folder1 --file"
-        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
+        " folder2/requirements.yaml --separator ' ' --platform linux-64` to"
         " extract all the {which} dependencies specific to the linux-64 platform. Note"
         " that the `--file` argument can be used multiple times to specify multiple"
         f" {_DEP_FILES}"
@@ -1172,6 +1187,7 @@ def main() -> None:
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
             check_input_hash=args.check_input_hash,
+            extra_flags=args.extra_flags,
             lockfile=args.lockfile,
         )
     elif args.command == "pip-compile":  # pragma: no cover
