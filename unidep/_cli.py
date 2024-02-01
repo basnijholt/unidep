@@ -1032,6 +1032,7 @@ def _print_versions() -> None:  # pragma: no cover
         "rich_argparse",
         "rich",
         "conda_lock",
+        "pydantic",
         "pip_tools",
         "conda_package_handling",
         "ruamel.yaml",
