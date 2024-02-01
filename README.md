@@ -666,6 +666,7 @@ usage: unidep conda-lock [-h] [--only-global] [--lockfile LOCKFILE]
                          [--skip-dependency SKIP_DEPENDENCY]
                          [--ignore-pin IGNORE_PIN]
                          [--overwrite-pin OVERWRITE_PIN]
+                         ...
 
 Generate a global `conda-lock.yml` file for a collection of
 `requirements.yaml` or `pyproject.toml` files. Additionally, create individual
@@ -676,6 +677,14 @@ consistent with the global lock file. Example usage: `unidep conda-lock
 Use `--only-global` to generate only the global lock file. The `--check-input-
 hash` option can be used to avoid regenerating lock files if the input hasn't
 changed.
+
+positional arguments:
+  extra_flags           Extra flags to pass to `conda-lock lock`. These flags
+                        are passed directly and should be provided in the
+                        format expected by `conda-lock lock`. For example,
+                        `unidep conda-lock -- --micromamba`. Note that the
+                        `--` is required to separate the flags for `unidep`
+                        from the flags for `conda-lock lock`.
 
 options:
   -h, --help            show this help message and exit
@@ -816,7 +825,7 @@ usage: unidep pip [-h] [-f FILE] [-v]
                   [--separator SEPARATOR]
 
 Get the pip requirements for the current platform only. Example usage: `unidep
-pip --file folder1 --file folder2/requirements.yaml --seperator ' ' --platform
+pip --file folder1 --file folder2/requirements.yaml --separator ' ' --platform
 linux-64` to extract all the pip dependencies specific to the linux-64
 platform. Note that the `--file` argument can be used multiple times to
 specify multiple `requirements.yaml` or `pyproject.toml` files and that --file
@@ -875,7 +884,7 @@ usage: unidep conda [-h] [-f FILE] [-v]
                     [--separator SEPARATOR]
 
 Get the conda requirements for the current platform only. Example usage:
-`unidep conda --file folder1 --file folder2/requirements.yaml --seperator ' '
+`unidep conda --file folder1 --file folder2/requirements.yaml --separator ' '
 --platform linux-64` to extract all the conda dependencies specific to the
 linux-64 platform. Note that the `--file` argument can be used multiple times
 to specify multiple `requirements.yaml` or `pyproject.toml` files and that
