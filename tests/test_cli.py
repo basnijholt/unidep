@@ -162,7 +162,6 @@ def test_unidep_conda() -> None:
 
     assert requirements_path.exists(), "Requirements file does not exist"
 
-    # Run the unidep install command
     result = subprocess.run(
         [  # noqa: S607, S603
             "unidep",
@@ -179,6 +178,30 @@ def test_unidep_conda() -> None:
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
     assert "pandas" in result.stdout
+
+
+def test_unidep_file_not_found_error() -> None:
+    # Path to the requirements file
+    requirements_path = REPO_ROOT / "yolo"
+
+    assert not requirements_path.exists()
+
+    # Run the unidep install command
+    result = subprocess.run(
+        [  # noqa: S607, S603
+            "unidep",
+            "conda",
+            "--file",
+            str(requirements_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 1, "Command unexpectedly succeeded"
+    assert "❌ One or more files" in result.stdout
 
 
 def test_doubly_nested_project_folder_installable(

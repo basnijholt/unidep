@@ -1068,7 +1068,7 @@ def _print_with_rich(data: list) -> None:
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if "file" in args and any(not f.exists() for f in args.file):  # pragma: no cover
+    if "file" in args and any(not f.exists() for f in args.file):
         missing = [f"`{f}`" for f in args.file if not f.exists()]
         print(f"❌ One or more files ({', '.join(missing)}) not found.")
         sys.exit(1)
