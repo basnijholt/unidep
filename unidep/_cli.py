@@ -1044,9 +1044,9 @@ def _print_versions() -> None:  # pragma: no cover
         if version is not None:
             txt.append(f"{package} version: {version}")
 
-    try:
+    if importlib.util.find_spec("rich") is not None:
         _print_with_rich(txt)
-    except ImportError:
+    else:
         print("\n".join(txt))
 
 
