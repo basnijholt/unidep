@@ -237,7 +237,7 @@ def _update_data_structures(
     data = _load(path_with_extras.path, yaml)
     datas.append(data)
     all_extras.append(path_with_extras.extras)
-    # TODO[Bas]: to add support for local dependencies:  # noqa: TD004,FIX002, TD003
+    # TODO[Bas]: to add support for local dependencies:  # noqa: TD004, FIX002, TD003
     # Here we should inspect whether a local dependency is in the extras
     # and if so, move it from extras to the local_dependencies list.
 
@@ -316,18 +316,12 @@ def parse_requirements(
     ignore_pins = ignore_pins or []
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
-    requirements: dict[str, list[Spec]] = defaultdict(list)
-    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
-        lambda: defaultdict(list),
-    )
-    channels: set[str] = set()
-    platforms: set[Platform] = set()
+
     # `data` and `all_extras` are lists of the same length
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
-
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
@@ -339,6 +333,14 @@ def parse_requirements(
         )
 
     assert len(datas) == len(all_extras)
+
+    # Parse the requirements from loaded data
+    requirements: dict[str, list[Spec]] = defaultdict(list)
+    optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
+    channels: set[str] = set()
+    platforms: set[Platform] = set()
 
     identifier = -1
     for _extras, data in zip(all_extras, datas):
