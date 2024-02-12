@@ -262,7 +262,7 @@ def parse_requirements(  # noqa: PLR0912
     channels: set[str] = set()
     platforms: set[Platform] = set()
     datas = []
-    all_extras = []
+    all_extras: list[list[str]] = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
 
@@ -319,6 +319,7 @@ def parse_requirements(  # noqa: PLR0912
                         ignore_pins,
                         overwrite_pins_map,
                         skip_dependencies,
+                        is_optional=True,
                     )
     return ParsedRequirements(
         sorted(channels),
@@ -328,6 +329,15 @@ def parse_requirements(  # noqa: PLR0912
     )
 
 
+def _check_allowed_local_dependency(dep: str) -> None:
+    if os.path.sep in dep and os.path.exists(dep):  # noqa: PTH110
+        msg = (
+            f"Local dependencies (`{dep}`) are not allowed in `dependencies`."
+            " Use the `local_dependencies` section instead."
+        )
+        raise ValueError(msg)
+
+
 def _add_dependencies(
     dependencies: list[str],
     requirements: dict[str, list[Spec]],
@@ -335,10 +345,15 @@ def _add_dependencies(
     ignore_pins: list[str],
     overwrite_pins_map: dict[str, str | None],
     skip_dependencies: list[str],
+    *,
+    is_optional: bool = False,
 ) -> int:
     for i, dep in enumerate(dependencies):
         identifier += 1
         if isinstance(dep, str):
+            if not is_optional:
+                _check_allowed_local_dependency(dep)
+
             specs = _parse_dependency(
                 dep,
                 dependencies,
@@ -355,6 +370,9 @@ def _add_dependencies(
         assert isinstance(dep, dict)
         for which in ["conda", "pip"]:
             if which in dep:
+                if not is_optional:
+                    _check_allowed_local_dependency(dep[which])
+
                 specs = _parse_dependency(
                     dep[which],
                     dep,

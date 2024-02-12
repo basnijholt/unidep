@@ -126,6 +126,9 @@ def test_parse_package_str() -> None:
     assert parse_package_str("numpy >=1.20.0") == ("numpy", ">=1.20.0", None)
     assert parse_package_str("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3", None)
 
+    # Test a name that includes a dash
+    assert parse_package_str("python-yolo>=1.20.0") == ("python-yolo", ">=1.20.0", None)
+
     # Test with multiple version conditions
     assert parse_package_str("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3", None)
 
@@ -183,6 +186,38 @@ def test_parse_package_str_with_selector() -> None:
     assert parse_package_str("numpy:linux64 win64") == ("numpy", None, "linux64 win64")
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
+
+
+def test_parse_package_str_with_extras() -> None:
+    assert parse_package_str("numpy[full]") == ("numpy[full]", None, None)
+    assert parse_package_str("numpy[full]:win") == ("numpy[full]", None, "win")
+    assert parse_package_str("numpy[full]>1.20.0:win") == (
+        "numpy[full]",
+        ">1.20.0",
+        "win",
+    )
+
+    assert parse_package_str("../path/to/package[full]") == (
+        "../path/to/package[full]",
+        None,
+        None,
+    )
+    assert parse_package_str("../path/to/package[full]:win") == (
+        "../path/to/package[full]",
+        None,
+        "win",
+    )
+    assert parse_package_str("../path/to/package[full]>1.20.0:win") == (
+        "../path/to/package[full]",
+        ">1.20.0",
+        "win",
+    )
+
+    assert parse_package_str("python-yolo[full]>1.20.0:win") == (
+        "python-yolo[full]",
+        ">1.20.0",
+        "win",
+    )
 
 
 def test_extract_matching_platforms() -> None:
