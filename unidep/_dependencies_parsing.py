@@ -261,6 +261,7 @@ def parse_requirements(  # noqa: PLR0912
     )
     channels: set[str] = set()
     platforms: set[Platform] = set()
+    # `data` and `all_extras` are lists of the same length
     datas = []
     all_extras: list[list[str]] = []
     seen: set[Path] = set()
@@ -296,6 +297,8 @@ def parse_requirements(  # noqa: PLR0912
             datas.append(_load(requirements_path, yaml))
             all_extras.append(requirements_dep_file.extras)
             seen.add(requirements_path)
+
+    assert len(datas) == len(all_extras)
 
     identifier = -1
     for _extras, data in zip(all_extras, datas):
