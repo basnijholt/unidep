@@ -276,8 +276,8 @@ def _move_local_optional_dependencies_to_dependencies(
             if _str_is_path_like(dep):
                 if verbose:
                     print(
-                        f"📄 Moving `{dep}` from `optional_dependencies` to"
-                        " `local_dependencies`",
+                        f"📄 Moving `{dep}` from the `{extra}` section in"
+                        " `optional_dependencies` to `local_dependencies`",
                     )
                 data.setdefault("local_dependencies", []).append(dep)
                 moved.add(dep)

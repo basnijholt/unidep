@@ -15,3 +15,6 @@ optional_dependencies:
     - ruff
   test:
     - pytest-xdist
+  setup_py:
+    # Optional local dependency
+    - ../setup_py_project
