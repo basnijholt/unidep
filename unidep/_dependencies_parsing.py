@@ -272,6 +272,9 @@ def parse_requirements(  # noqa: PLR0912
         data = _load(path_with_extras.path, yaml)
         datas.append(data)
         all_extras.append(path_with_extras.extras)
+        # TODO[Bas]: to add support for local dependencies:  # noqa: TD004,FIX002, TD003
+        # Here we should inspect whether a local dependency is in the extras
+        # and if so, move it from extras to the local_dependencies list.
 
         seen.add(path_with_extras.path.resolve())
 
@@ -311,7 +314,7 @@ def parse_requirements(  # noqa: PLR0912
             )
         if "optional_dependencies" in data and all_extras is not None:
             for optional_name, optional_deps in data["optional_dependencies"].items():
-                if _extras:
+                if optional_name in _extras:
                     identifier = _add_dependencies(
                         optional_deps,
                         optional_dependencies[optional_name],

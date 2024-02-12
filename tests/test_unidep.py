@@ -2186,6 +2186,36 @@ def test_optional_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_multiple_sections(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+                test:
+                    - pytest
+                lint:
+                    - flake8
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
+    assert requirements.optional_dependencies.keys() == {"test"}
+
+    requirements = parse_requirements(p, verbose=False, extras=[["lint"]])
+    assert requirements.optional_dependencies.keys() == {"lint"}
+
+    requirements = parse_requirements(p, verbose=False, extras=[["test", "lint"]])
+    assert requirements.optional_dependencies.keys() == {"test", "lint"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_pip_dep_with_extras(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
