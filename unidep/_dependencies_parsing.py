@@ -223,7 +223,47 @@ def _to_path_with_extras(
     return [PathWithExtras(p.path, e) for p, e in zip(paths_with_extras, extras)]
 
 
-def parse_requirements(  # noqa: PLR0912
+def _update_data_structures(
+    *,
+    path_with_extras: PathWithExtras,
+    datas: list[dict[str, Any]],
+    all_extras: list[list[str]],
+    seen: set[Path],
+    yaml: YAML,
+    verbose: bool = False,
+) -> None:
+    if verbose:
+        print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
+    data = _load(path_with_extras.path, yaml)
+    datas.append(data)
+    all_extras.append(path_with_extras.extras)
+    # TODO[Bas]: to add support for local dependencies:  # noqa: TD004,FIX002, TD003
+    # Here we should inspect whether a local dependency is in the extras
+    # and if so, move it from extras to the local_dependencies list.
+
+    seen.add(path_with_extras.path.resolve())
+
+    # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
+    for local_dependency in _get_local_dependencies(data):
+        try:
+            requirements_dep_file = parse_folder_or_filename(
+                path_with_extras.path.parent / local_dependency,
+            )
+            requirements_path = requirements_dep_file.path.resolve()
+        except FileNotFoundError:
+            # Means that this is a local package that is not managed by unidep.
+            # We do not need to do anything here, just in `unidep install`.
+            continue
+        if requirements_path in seen:
+            continue  # Avoids circular local_dependencies
+        if verbose:
+            print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
+        datas.append(_load(requirements_path, yaml))
+        all_extras.append(requirements_dep_file.extras)
+        seen.add(requirements_path)
+
+
+def parse_requirements(
     *paths: Path,
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
@@ -262,41 +302,20 @@ def parse_requirements(  # noqa: PLR0912
     channels: set[str] = set()
     platforms: set[Platform] = set()
     # `data` and `all_extras` are lists of the same length
-    datas = []
+    datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
     seen: set[Path] = set()
     yaml = YAML(typ="rt")
 
     for path_with_extras in paths_with_extras:
-        if verbose:
-            print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
-        data = _load(path_with_extras.path, yaml)
-        datas.append(data)
-        all_extras.append(path_with_extras.extras)
-        # TODO[Bas]: to add support for local dependencies:  # noqa: TD004,FIX002, TD003
-        # Here we should inspect whether a local dependency is in the extras
-        # and if so, move it from extras to the local_dependencies list.
-
-        seen.add(path_with_extras.path.resolve())
-
-        # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-        for local_dependency in _get_local_dependencies(data):
-            try:
-                requirements_dep_file = parse_folder_or_filename(
-                    path_with_extras.path.parent / local_dependency,
-                )
-                requirements_path = requirements_dep_file.path.resolve()
-            except FileNotFoundError:
-                # Means that this is a local package that is not managed by unidep.
-                # We do not need to do anything here, just in `unidep install`.
-                continue
-            if requirements_path in seen:
-                continue  # Avoids circular local_dependencies
-            if verbose:
-                print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
-            datas.append(_load(requirements_path, yaml))
-            all_extras.append(requirements_dep_file.extras)
-            seen.add(requirements_path)
+        _update_data_structures(
+            path_with_extras=path_with_extras,
+            datas=datas,  # gets updated in place
+            all_extras=all_extras,  # gets updated in place
+            seen=seen,  # gets updated in place
+            yaml=yaml,
+            verbose=verbose,
+        )
 
     assert len(datas) == len(all_extras)
 
