@@ -9,8 +9,9 @@ import platform
 import re
 import sys
 import warnings
+from collections import defaultdict
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Any, NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -153,7 +154,9 @@ class ParsedPackageStr(NamedTuple):
 def parse_package_str(package_str: str) -> ParsedPackageStr:
     """Splits a string into package name, version pinning, and platform selector."""
     # Regex to match package name, version pinning, and optionally platform selector
-    name_pattern = r"[a-zA-Z0-9_.-]+"
+    # Note: the name_pattern currently allows for paths and extras, however,
+    # paths cannot contain spaces or contain brackets.
+    name_pattern = r"[a-zA-Z0-9_.\-/]+(\[[a-zA-Z0-9_.,\-]+\])?"
     version_pin_pattern = r".*?"
     selector_pattern = r"[a-z0-9\s]+"
     pattern = rf"({name_pattern})\s*({version_pin_pattern})?(:({selector_pattern}))?$"
@@ -161,8 +164,8 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
 
     if match:
         package_name = match.group(1).strip()
-        version_pin = match.group(2).strip() if match.group(2) else None
-        selector = match.group(4).strip() if match.group(4) else None
+        version_pin = match.group(3).strip() if match.group(3) else None
+        selector = match.group(5).strip() if match.group(5) else None
 
         if selector is not None:
             for s in selector.split():
@@ -252,25 +255,73 @@ def unidep_configured_in_toml(path: Path) -> bool:
     )
 
 
-def dependencies_filename(folder_or_path: str | Path) -> Path:
+def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
+    """Parse a string of the form `path/to/file[extra1,extra2]` into parts.
+
+    Returns a tuple of the `pathlib.Path` and a list of extras
+    """
+    if isinstance(input_str, Path):
+        input_str = str(input_str)
+
+    if not input_str:  # Check for empty string
+        return Path(), []
+
+    pattern = r"^(.+?)(?:\[([^\[\]]+)\])?$"
+    match = re.search(pattern, input_str)
+
+    if match is None:  # pragma: no cover
+        # I don't think this is possible, but just in case
+        return Path(), []
+
+    path = Path(match.group(1))
+    extras = match.group(2)
+    if not extras:
+        return path, []
+    extras = [extra.strip() for extra in extras.split(",")]
+    return path, extras
+
+
+class PathWithExtras(NamedTuple):
+    """A dependency file and extras."""
+
+    path: Path
+    extras: list[str]
+
+    @property
+    def path_with_extras(self) -> Path:
+        """Path including extras, e.g., `path/to/file[test,docs]`."""
+        if not self.extras:
+            return self.path
+        return Path(f"{self.path}[{','.join(self.extras)}]")
+
+
+def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
-    path = Path(folder_or_path)
+    folder_or_file, extras = split_path_and_extras(folder_or_file)
+    path = Path(folder_or_file)
     if path.is_dir():
         fname_yaml = path / "requirements.yaml"
         if fname_yaml.exists():
-            return fname_yaml
+            return PathWithExtras(fname_yaml, extras)
         fname_toml = path / "pyproject.toml"
         if fname_toml.exists() and unidep_configured_in_toml(fname_toml):
-            return fname_toml
+            return PathWithExtras(fname_toml, extras)
         msg = (
             f"File `{fname_yaml}` or `{fname_toml}` (with unidep configuration)"
-            f" not found in `{folder_or_path}`."
+            f" not found in `{folder_or_file}`."
         )
         raise FileNotFoundError(msg)
     if not path.exists():
         msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
-    return path
+    return PathWithExtras(path, extras)
+
+
+def defaultdict_to_dict(d: defaultdict | Any) -> dict:
+    """Convert (nested) defaultdict to (nested) dict."""
+    if isinstance(d, defaultdict):
+        d = {key: defaultdict_to_dict(value) for key, value in d.items()}
+    return d
 
 
 def get_package_version(package_name: str) -> str | None:

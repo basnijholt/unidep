@@ -1884,7 +1884,11 @@ def test_with_unused_platform(
     assert env_spec.pip == []
 
 
-def test_pip_with_pinning(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1896,6 +1900,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
     with pytest.raises(
@@ -1915,6 +1920,7 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
             """,
         ),
     )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
@@ -1927,7 +1933,11 @@ def test_pip_with_pinning(tmp_path: Path) -> None:
     assert env_spec.pip == ["qiskit-terra ==0.25.2.1"]
 
 
-def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning_special_case_wildcard(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1939,7 +1949,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
             """,
         ),
     )
-
+    p1 = maybe_as_toml(toml_or_yaml, p1)
     requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
@@ -1967,6 +1977,7 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
             """,
         ),
     )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False)
 
@@ -1977,7 +1988,11 @@ def test_pip_with_pinning_special_case_wildcard(tmp_path: Path) -> None:
         resolve_conflicts(requirements.requirements, requirements.platforms)
 
 
-def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_with_pinning_special_case_git_repo(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -1989,6 +2004,7 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
 
@@ -2007,7 +2023,11 @@ def test_pip_with_pinning_special_case_git_repo(tmp_path: Path) -> None:
     }
 
 
-def test_not_equal(tmp_path: Path) -> None:
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_not_equal(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
     p1.write_text(
@@ -2019,6 +2039,7 @@ def test_not_equal(tmp_path: Path) -> None:
             """,
         ),
     )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
 
     requirements = parse_requirements(p1, verbose=False)
 
@@ -2067,3 +2088,240 @@ def test_dot_in_package_name(
             Spec(name="ruamel.yaml", which="pip", identifier="17e5d607"),
         ],
     }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive != 1.0.0
+                - adaptive <2
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras="*")
+    assert requirements.optional_dependencies.keys() == {"test"}
+    assert requirements.optional_dependencies["test"].keys() == {"pytest"}
+
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
+    with pytest.raises(ValueError, match="Cannot specify `extras` list"):
+        parse_requirements(Path(f"{p}[test]"), verbose=False, extras=[["test"]])
+    with pytest.raises(ValueError, match="Length of `extras`"):
+        parse_requirements(p, verbose=False, extras=[[], []])
+    requirements2 = parse_requirements(Path(f"{p}[test]"), verbose=False)
+    assert requirements2.optional_dependencies == requirements.optional_dependencies
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved.keys() == {"adaptive", "pytest"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_multiple_sections(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+                test:
+                    - pytest
+                lint:
+                    - flake8
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras=[["test"]])
+    assert requirements.optional_dependencies.keys() == {"test"}
+
+    requirements = parse_requirements(p, verbose=False, extras=[["lint"]])
+    assert requirements.optional_dependencies.keys() == {"lint"}
+
+    requirements = parse_requirements(p, verbose=False, extras=[["test", "lint"]])
+    assert requirements.optional_dependencies.keys() == {"test", "lint"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_dep_with_extras(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: adaptive
+                  pip: adaptive[notebook]
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras="*")
+    assert requirements.optional_dependencies == {}
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved == {
+        "adaptive": {
+            None: {
+                "conda": Spec(
+                    name="adaptive",
+                    which="conda",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+            },
+        },
+        "adaptive[notebook]": {
+            None: {
+                "pip": Spec(
+                    name="adaptive[notebook]",
+                    which="pip",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                ),
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_local_dependency_in_dependencies_list(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - ../p  # self
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+    with pytest.raises(ValueError, match=r"Use the `local_dependencies` section"):
+        parse_requirements(p, verbose=False)
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_with_local_dependencies(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    p2 = tmp_path / "p2" / "requirements.yaml"
+    p2.parent.mkdir()
+    p2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numthreads
+            optional_dependencies:
+                local:
+                    - ../p1
+                    - black
+            """,
+        ),
+    )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
+
+    requirements = parse_requirements(p2, verbose=True, extras="*")
+    assert requirements.optional_dependencies.keys() == {"local"}
+    assert requirements.optional_dependencies["local"].keys() == {"black"}
+    assert requirements.requirements.keys() == {"adaptive", "numthreads"}
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved.keys() == {"adaptive", "numthreads", "black"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_with_local_dependencies_with_extras(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            optional_dependencies:
+                test:
+                    - pytest
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    p2 = tmp_path / "p2" / "requirements.yaml"
+    p2.parent.mkdir()
+    p2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numthreads
+            optional_dependencies:
+                local:
+                    - ../p1[test]
+            """,
+        ),
+    )
+    p2 = maybe_as_toml(toml_or_yaml, p2)
+
+    requirements = parse_requirements(p2, verbose=True, extras="*")
+    assert requirements.optional_dependencies.keys() == {"local", "test"}
+    assert requirements.optional_dependencies["local"] == {}
+    assert requirements.optional_dependencies["test"].keys() == {"pytest"}
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved.keys() == {"adaptive", "numthreads", "pytest"}
