@@ -2286,7 +2286,6 @@ def test_local_dependency_in_dependencies_list(
         parse_requirements(p, verbose=False)
 
 
-# @pytest.mark.xfail(reason="local_dependencies with extras not yet supported")
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_optional_dependencies_with_local_dependencies(
     tmp_path: Path,
@@ -2317,79 +2316,24 @@ def test_optional_dependencies_with_local_dependencies(
             optional_dependencies:
                 local:
                     - ../p1
+                    - black
             """,
         ),
     )
     p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False, extras="*")
-    assert requirements.optional_dependencies == {
-        "local": {
-            "../p1": [
-                Spec(
-                    name="../p1",
-                    which="conda",
-                    pin=None,
-                    identifier="5eb93b8c",
-                    selector=None,
-                ),
-                Spec(
-                    name="../p1",
-                    which="pip",
-                    pin=None,
-                    identifier="5eb93b8c",
-                    selector=None,
-                ),
-            ],
-        },
-    }
-
+    assert requirements.optional_dependencies.keys() == {"local"}
+    assert requirements.optional_dependencies["local"].keys() == {"black"}
+    assert requirements.requirements.keys() == {"adaptive", "numthreads"}
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
-    assert resolved == {
-        "numthreads": {
-            None: {
-                "conda": Spec(
-                    name="numthreads",
-                    which="conda",
-                    pin=None,
-                    identifier="17e5d607",
-                    selector=None,
-                ),
-                "pip": Spec(
-                    name="numthreads",
-                    which="pip",
-                    pin=None,
-                    identifier="17e5d607",
-                    selector=None,
-                ),
-            },
-        },
-        "../p1": {
-            None: {
-                "conda": Spec(
-                    name="../p1",
-                    which="conda",
-                    pin=None,
-                    identifier="5eb93b8c",
-                    selector=None,
-                ),
-                "pip": Spec(
-                    name="../p1",
-                    which="pip",
-                    pin=None,
-                    identifier="5eb93b8c",
-                    selector=None,
-                ),
-            },
-        },
-    }
+    assert resolved.keys() == {"adaptive", "numthreads", "black"}
 
 
-# @pytest.mark.xfail(reason="local_dependencies with extras not yet supported")
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_optional_dependencies_with_local_dependencies_with_extras(
     tmp_path: Path,
@@ -2426,11 +2370,13 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
     p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False, extras="*")
-    assert requirements.optional_dependencies == {}
+    assert requirements.optional_dependencies.keys() == {"local", "test"}
+    assert requirements.optional_dependencies["local"] == {}
+    assert requirements.optional_dependencies["test"].keys() == {"pytest"}
 
     resolved = resolve_conflicts(
         requirements.requirements,
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
-    assert resolved == {}
+    assert resolved.keys() == {"adaptive", "numthreads", "pytest"}

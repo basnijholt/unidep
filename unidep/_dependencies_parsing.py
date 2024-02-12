@@ -237,9 +237,11 @@ def _update_data_structures(
     data = _load(path_with_extras.path, yaml)
     datas.append(data)
     all_extras.append(path_with_extras.extras)
-    # TODO[Bas]: to add support for local dependencies:  # noqa: TD004, FIX002, TD003
-    # Here we should inspect whether a local dependency is in the extras
-    # and if so, move it from extras to the local_dependencies list.
+    _move_local_optional_dependencies_to_dependencies(
+        data=data,
+        path_with_extras=path_with_extras,
+        verbose=verbose,
+    )
 
     seen.add(path_with_extras.path.resolve())
 
@@ -254,6 +256,34 @@ def _update_data_structures(
             yaml=yaml,
             verbose=verbose,
         )
+
+
+def _move_local_optional_dependencies_to_dependencies(
+    *,
+    data: dict[str, Any],
+    path_with_extras: PathWithExtras,
+    verbose: bool = False,
+) -> None:
+    # Move local dependencies from `optional_dependencies` to `local_dependencies`
+    extras = path_with_extras.extras
+    if "*" in extras:
+        extras = list(data.get("optional_dependencies", {}).keys())
+
+    for extra in extras:
+        moved = set()
+        optional_dependencies = data.get("optional_dependencies", {})
+        for dep in optional_dependencies.get(extra, []):
+            if _str_is_path_like(dep):
+                if verbose:
+                    print(
+                        f"📄 Moving `{dep}` from `optional_dependencies` to"
+                        " `local_dependencies`",
+                    )
+                data.setdefault("local_dependencies", []).append(dep)
+                moved.add(dep)
+        for dep in moved:
+            extras = optional_dependencies[extra]  # key must exist if moved non-empty
+            extras.pop(extras.index(dep))
 
 
 def _add_local_dependencies(
@@ -355,14 +385,11 @@ def parse_requirements(
                 overwrite_pins_map,
                 skip_dependencies,
             )
-        for optional_name, optional_deps in data.get(
-            "optional_dependencies",
-            {},
-        ).items():
-            if optional_name in _extras or "*" in _extras:
+        for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
+            if opt_name in _extras or "*" in _extras:
                 identifier = _add_dependencies(
-                    optional_deps,
-                    optional_dependencies[optional_name],  # updated in place
+                    opt_deps,
+                    optional_dependencies[opt_name],  # updated in place
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
@@ -378,19 +405,19 @@ def parse_requirements(
     )
 
 
+def _str_is_path_like(s: str) -> bool:
+    """Check if a string is path-like."""
+    return os.path.sep in s or "/" in s or s.startswith(".")
+
+
 def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
-    if os.path.sep in name or "/" in name or name.startswith("."):
+    if _str_is_path_like(name):
+        # There should not be path-like dependencies in the optional_dependencies
+        # section after _move_local_optional_dependencies_to_dependencies.
+        assert not is_optional
         msg = (
-            (
-                f"Local dependencies (`{name}`) are not allowed in `dependencies`."
-                " Use the `local_dependencies` section instead."
-            )
-            if not is_optional
-            else (
-                f"Unfortunately, local dependencies (`{name}`) are not (yet!) allowed"
-                " in `optional_dependencies`. Please open an issue at"
-                " https://github.com/basnijholt/unidep/issues to discuss this."
-            )
+            f"Local dependencies (`{name}`) are not allowed in `dependencies`."
+            " Use the `local_dependencies` section instead."
         )
         raise ValueError(msg)
 
