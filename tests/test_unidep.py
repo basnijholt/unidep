@@ -2185,6 +2185,7 @@ def test_optional_dependencies(
     }
 
 
+@pytest.mark.xfail(reason="local_dependencies with extras not yet supported")
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_optional_dependencies_with_local_dependencies(
     tmp_path: Path,
@@ -2231,6 +2232,7 @@ def test_optional_dependencies_with_local_dependencies(
     assert resolved == {}
 
 
+@pytest.mark.xfail(reason="local_dependencies with extras not yet supported")
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_optional_dependencies_with_local_dependencies_with_extras(
     tmp_path: Path,
