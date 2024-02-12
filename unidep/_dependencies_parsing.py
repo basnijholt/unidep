@@ -245,22 +245,43 @@ def _update_data_structures(
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
-        try:
-            requirements_dep_file = parse_folder_or_filename(
-                path_with_extras.path.parent / local_dependency,
-            )
-            requirements_path = requirements_dep_file.path.resolve()
-        except FileNotFoundError:
-            # Means that this is a local package that is not managed by unidep.
-            # We do not need to do anything here, just in `unidep install`.
-            continue
-        if requirements_path in seen:
-            continue  # Avoids circular local_dependencies
-        if verbose:
-            print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
-        datas.append(_load(requirements_path, yaml))
-        all_extras.append(requirements_dep_file.extras)
-        seen.add(requirements_path)
+        _add_local_dependencies(
+            local_dependency=local_dependency,
+            path_with_extras=path_with_extras,
+            datas=datas,  # updated in place
+            all_extras=all_extras,  # updated in place
+            seen=seen,  # updated in place
+            yaml=yaml,
+            verbose=verbose,
+        )
+
+
+def _add_local_dependencies(
+    *,
+    local_dependency: str,
+    path_with_extras: PathWithExtras,
+    datas: list[dict[str, Any]],
+    all_extras: list[list[str]],
+    seen: set[Path],
+    yaml: YAML,
+    verbose: bool = False,
+) -> None:
+    try:
+        requirements_dep_file = parse_folder_or_filename(
+            path_with_extras.path.parent / local_dependency,
+        )
+        requirements_path = requirements_dep_file.path.resolve()
+    except FileNotFoundError:
+        # Means that this is a local package that is not managed by unidep.
+        # We do not need to do anything here, just in `unidep install`.
+        return
+    if requirements_path in seen:
+        return  # Avoids circular local_dependencies
+    if verbose:
+        print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
+    datas.append(_load(requirements_path, yaml))
+    all_extras.append(requirements_dep_file.extras)
+    seen.add(requirements_path)
 
 
 def parse_requirements(
@@ -321,10 +342,8 @@ def parse_requirements(
 
     identifier = -1
     for _extras, data in zip(all_extras, datas):
-        for channel in data.get("channels", []):
-            channels.add(channel)
-        for _platform in data.get("platforms", []):
-            platforms.add(_platform)
+        channels.update(data.get("channels", []))
+        platforms.update(data.get("platforms", []))
         if "dependencies" in data:
             identifier = _add_dependencies(
                 data["dependencies"],
@@ -346,6 +365,7 @@ def parse_requirements(
                         skip_dependencies,
                         is_optional=True,
                     )
+
     return ParsedRequirements(
         sorted(channels),
         sorted(platforms),
