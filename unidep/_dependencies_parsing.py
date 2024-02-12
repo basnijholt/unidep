@@ -329,11 +329,19 @@ def parse_requirements(  # noqa: PLR0912
     )
 
 
-def _check_allowed_local_dependency(dep: str) -> None:
-    if os.path.sep in dep and os.path.exists(dep):  # noqa: PTH110
+def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
+    if os.path.sep in name or "/" in name or name.startswith("."):
         msg = (
-            f"Local dependencies (`{dep}`) are not allowed in `dependencies`."
-            " Use the `local_dependencies` section instead."
+            (
+                f"Local dependencies (`{name}`) are not allowed in `dependencies`."
+                " Use the `local_dependencies` section instead."
+            )
+            if not is_optional
+            else (
+                f"Unfortunately, local dependencies (`{name}`) are not (yet!) allowed"
+                " in `optional_dependencies`. Please open an issue at"
+                " https://github.com/basnijholt/unidep/issues to discuss this."
+            )
         )
         raise ValueError(msg)
 
@@ -351,9 +359,6 @@ def _add_dependencies(
     for i, dep in enumerate(dependencies):
         identifier += 1
         if isinstance(dep, str):
-            if not is_optional:
-                _check_allowed_local_dependency(dep)
-
             specs = _parse_dependency(
                 dep,
                 dependencies,
@@ -365,14 +370,12 @@ def _add_dependencies(
                 skip_dependencies,
             )
             for spec in specs:
+                _check_allowed_local_dependency(spec.name, is_optional)
                 requirements[spec.name].append(spec)
             continue
         assert isinstance(dep, dict)
         for which in ["conda", "pip"]:
             if which in dep:
-                if not is_optional:
-                    _check_allowed_local_dependency(dep[which])
-
                 specs = _parse_dependency(
                     dep[which],
                     dep,
@@ -384,6 +387,7 @@ def _add_dependencies(
                     skip_dependencies,
                 )
                 for spec in specs:
+                    _check_allowed_local_dependency(spec.name, is_optional)
                     requirements[spec.name].append(spec)
     return identifier
 
