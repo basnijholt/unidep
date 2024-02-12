@@ -355,18 +355,20 @@ def parse_requirements(
                 overwrite_pins_map,
                 skip_dependencies,
             )
-        if "optional_dependencies" in data and all_extras is not None:
-            for optional_name, optional_deps in data["optional_dependencies"].items():
-                if optional_name in _extras or "*" in _extras:
-                    identifier = _add_dependencies(
-                        optional_deps,
-                        optional_dependencies[optional_name],  # updated in place
-                        identifier,
-                        ignore_pins,
-                        overwrite_pins_map,
-                        skip_dependencies,
-                        is_optional=True,
-                    )
+        for optional_name, optional_deps in data.get(
+            "optional_dependencies",
+            {},
+        ).items():
+            if optional_name in _extras or "*" in _extras:
+                identifier = _add_dependencies(
+                    optional_deps,
+                    optional_dependencies[optional_name],  # updated in place
+                    identifier,
+                    ignore_pins,
+                    overwrite_pins_map,
+                    skip_dependencies,
+                    is_optional=True,
+                )
 
     return ParsedRequirements(
         sorted(channels),
