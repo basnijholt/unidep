@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from unidep.platform_definitions import Selector
 from unidep.utils import (
+    PathWithExtras,
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     escape_unicode,
     extract_matching_platforms,
     identify_current_platform,
     parse_package_str,
+    split_path_and_extras,
 )
 
 if sys.version_info >= (3, 8):
@@ -123,6 +126,9 @@ def test_parse_package_str() -> None:
     assert parse_package_str("numpy >=1.20.0") == ("numpy", ">=1.20.0", None)
     assert parse_package_str("pandas<2.0,>=1.1.3") == ("pandas", "<2.0,>=1.1.3", None)
 
+    # Test a name that includes a dash
+    assert parse_package_str("python-yolo>=1.20.0") == ("python-yolo", ">=1.20.0", None)
+
     # Test with multiple version conditions
     assert parse_package_str("scipy>=1.2.3, <1.3") == ("scipy", ">=1.2.3, <1.3", None)
 
@@ -182,6 +188,38 @@ def test_parse_package_str_with_selector() -> None:
         assert parse_package_str("numpy:linux64 unknown")
 
 
+def test_parse_package_str_with_extras() -> None:
+    assert parse_package_str("numpy[full]") == ("numpy[full]", None, None)
+    assert parse_package_str("numpy[full]:win") == ("numpy[full]", None, "win")
+    assert parse_package_str("numpy[full]>1.20.0:win") == (
+        "numpy[full]",
+        ">1.20.0",
+        "win",
+    )
+
+    assert parse_package_str("../path/to/package[full]") == (
+        "../path/to/package[full]",
+        None,
+        None,
+    )
+    assert parse_package_str("../path/to/package[full]:win") == (
+        "../path/to/package[full]",
+        None,
+        "win",
+    )
+    assert parse_package_str("../path/to/package[full]>1.20.0:win") == (
+        "../path/to/package[full]",
+        ">1.20.0",
+        "win",
+    )
+
+    assert parse_package_str("python-yolo[full]>1.20.0:win") == (
+        "python-yolo[full]",
+        ">1.20.0",
+        "win",
+    )
+
+
 def test_extract_matching_platforms() -> None:
     # Test with a line having a linux selector
     content_linux = "dependency1  # [linux]"
@@ -237,3 +275,65 @@ def test_extract_matching_platforms() -> None:
     incorrect_platform = "dependency8  # [unknown-platform]"
     with pytest.raises(ValueError, match="Invalid platform selector"):
         extract_matching_platforms(incorrect_platform)
+
+
+def testsplit_path_and_extras() -> None:
+    # parse_with_extras
+    s = "any/path[something, another]"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path")
+    assert extras == ["something", "another"]
+    pe = PathWithExtras(path, extras)
+    assert pe.path_with_extras == Path("any/path[something,another]")
+
+    # parse_without_extras
+    s = "any/path"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path")
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    # parse_incorrect_format
+    # Technically this path is not correct, but we don't check for multiple []
+    s = "any/path[something][another]"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path[something]")
+    assert extras == ["another"]
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    # parse_empty_string
+    s = ""
+    path, extras = split_path_and_extras(s)
+    assert path == Path()
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    s = "any/path[something]/other"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path[something]/other")
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    s = "any/path[something]/other[foo]"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path[something]/other")
+    assert extras == ["foo"]
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    s = "any/path]something["
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path]something[")
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    s = "any/path[something"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path[something")
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)
+
+    s = "any/path]something]"
+    path, extras = split_path_and_extras(s)
+    assert path == Path("any/path]something]")
+    assert extras == []
+    assert PathWithExtras(path, extras).path_with_extras == Path(s)

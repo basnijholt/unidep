@@ -35,11 +35,11 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
-    dependencies_filename,
     escape_unicode,
     get_package_version,
     identify_current_platform,
     is_pip_installable,
+    parse_folder_or_filename,
     parse_package_str,
     warn,
 )
@@ -570,7 +570,7 @@ def _parse_args() -> argparse.Namespace:
 
     if "file" in args:
         args.file = [
-            f if not f.is_dir() else dependencies_filename(f) for f in args.file
+            f if not f.is_dir() else parse_folder_or_filename(f).path for f in args.file
         ]
 
     return args
@@ -750,18 +750,21 @@ def _install_command(  # noqa: PLR0912
     if no_dependencies:
         skip_pip = True
         skip_conda = True
-    files = tuple(dependencies_filename(f) for f in files)
+
+    paths_with_extras = [parse_folder_or_filename(f) for f in files]
     requirements = parse_requirements(
-        *files,
+        *[f.path for f in paths_with_extras],
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras=[f.extras for f in paths_with_extras],
     )
     platforms = [identify_current_platform()]
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
+        optional_dependencies=requirements.optional_dependencies,
     )
     env_spec = create_conda_env_specification(
         resolved,
@@ -807,18 +810,18 @@ def _install_command(  # noqa: PLR0912
 
     installable = []
     if not skip_local:
-        for file in files:
-            if is_pip_installable(file.parent):
-                installable.append(file.parent)
+        for file in paths_with_extras:
+            if is_pip_installable(file.path.parent):
+                installable.append(file.path.parent)
             else:  # pragma: no cover
                 print(
-                    f"⚠️  Project {file.parent} is not pip installable. "
+                    f"⚠️  Project {file.path.parent} is not pip installable. "
                     "Could not find setup.py or [build-system] in pyproject.toml.",
                 )
 
         # Install local dependencies (if any) included via `local_dependencies:`
         local_dependencies = parse_local_dependencies(
-            *files,
+            *[p.path_with_extras for p in paths_with_extras],
             check_pip_installable=True,
             verbose=verbose,
         )
@@ -934,6 +937,7 @@ def _merge_command(
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
+        optional_dependencies=requirements.optional_dependencies,
     )
     env_spec = create_conda_env_specification(
         resolved,
@@ -985,6 +989,7 @@ def _pip_compile_command(
     resolved = resolve_conflicts(
         requirements.requirements,
         [platform],
+        optional_dependencies=requirements.optional_dependencies,
     )
     python_deps = filter_python_dependencies(resolved)
     requirements_in = directory / "requirements.in"
@@ -1129,6 +1134,7 @@ def main() -> None:
         resolved = resolve_conflicts(
             requirements.requirements,
             platforms,
+            optional_dependencies=requirements.optional_dependencies,
         )
         env_spec = create_conda_env_specification(
             resolved,
