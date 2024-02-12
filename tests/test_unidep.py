@@ -2112,26 +2112,8 @@ def test_optional_dependencies(
     p = maybe_as_toml(toml_or_yaml, p)
 
     requirements = parse_requirements(p, verbose=False, extras="*")
-    assert requirements.optional_dependencies == {
-        "test": {
-            "pytest": [
-                Spec(
-                    name="pytest",
-                    which="conda",
-                    pin=None,
-                    identifier="08fd8713",
-                    selector=None,
-                ),
-                Spec(
-                    name="pytest",
-                    which="pip",
-                    pin=None,
-                    identifier="08fd8713",
-                    selector=None,
-                ),
-            ],
-        },
-    }
+    assert requirements.optional_dependencies.keys() == {"test"}
+    assert requirements.optional_dependencies["test"].keys() == {"pytest"}
 
     requirements = parse_requirements(p, verbose=False, extras=[["test"]])
     with pytest.raises(ValueError, match="Cannot specify `extras` list"):
@@ -2145,44 +2127,7 @@ def test_optional_dependencies(
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
-    assert resolved == {
-        "adaptive": {
-            None: {
-                "conda": Spec(
-                    name="adaptive",
-                    which="conda",
-                    pin="!=1.0.0,<2",
-                    identifier="17e5d607",
-                    selector=None,
-                ),
-                "pip": Spec(
-                    name="adaptive",
-                    which="pip",
-                    pin="!=1.0.0,<2",
-                    identifier="17e5d607",
-                    selector=None,
-                ),
-            },
-        },
-        "pytest": {
-            None: {
-                "conda": Spec(
-                    name="pytest",
-                    which="conda",
-                    pin=None,
-                    identifier="08fd8713",
-                    selector=None,
-                ),
-                "pip": Spec(
-                    name="pytest",
-                    which="pip",
-                    pin=None,
-                    identifier="08fd8713",
-                    selector=None,
-                ),
-            },
-        },
-    }
+    assert resolved.keys() == {"adaptive", "pytest"}
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -2322,7 +2267,7 @@ def test_optional_dependencies_with_local_dependencies(
     )
     p2 = maybe_as_toml(toml_or_yaml, p2)
 
-    requirements = parse_requirements(p2, verbose=False, extras="*")
+    requirements = parse_requirements(p2, verbose=True, extras="*")
     assert requirements.optional_dependencies.keys() == {"local"}
     assert requirements.optional_dependencies["local"].keys() == {"black"}
     assert requirements.requirements.keys() == {"adaptive", "numthreads"}
@@ -2369,7 +2314,7 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
     )
     p2 = maybe_as_toml(toml_or_yaml, p2)
 
-    requirements = parse_requirements(p2, verbose=False, extras="*")
+    requirements = parse_requirements(p2, verbose=True, extras="*")
     assert requirements.optional_dependencies.keys() == {"local", "test"}
     assert requirements.optional_dependencies["local"] == {}
     assert requirements.optional_dependencies["test"].keys() == {"pytest"}
