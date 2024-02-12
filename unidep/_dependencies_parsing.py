@@ -226,9 +226,9 @@ def _to_path_with_extras(
 def _update_data_structures(
     *,
     path_with_extras: PathWithExtras,
-    datas: list[dict[str, Any]],
-    all_extras: list[list[str]],
-    seen: set[Path],
+    datas: list[dict[str, Any]],  # modified in place
+    all_extras: list[list[str]],  # modified in place
+    seen: set[Path],  # modified in place
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
@@ -238,7 +238,7 @@ def _update_data_structures(
     datas.append(data)
     all_extras.append(path_with_extras.extras)
     _move_local_optional_dependencies_to_dependencies(
-        data=data,
+        data=data,  # modified in place
         path_with_extras=path_with_extras,
         verbose=verbose,
     )
@@ -250,9 +250,9 @@ def _update_data_structures(
         _add_local_dependencies(
             local_dependency=local_dependency,
             path_with_extras=path_with_extras,
-            datas=datas,  # updated in place
-            all_extras=all_extras,  # updated in place
-            seen=seen,  # updated in place
+            datas=datas,  # modified in place
+            all_extras=all_extras,  # modified in place
+            seen=seen,  # modified in place
             yaml=yaml,
             verbose=verbose,
         )
@@ -260,7 +260,7 @@ def _update_data_structures(
 
 def _move_local_optional_dependencies_to_dependencies(
     *,
-    data: dict[str, Any],
+    data: dict[str, Any],  # modified in place
     path_with_extras: PathWithExtras,
     verbose: bool = False,
 ) -> None:
@@ -355,9 +355,9 @@ def parse_requirements(
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
-            datas=datas,  # updated in place
-            all_extras=all_extras,  # updated in place
-            seen=seen,  # updated in place
+            datas=datas,  # modified in place
+            all_extras=all_extras,  # modified in place
+            seen=seen,  # modified in place
             yaml=yaml,
             verbose=verbose,
         )
@@ -379,7 +379,7 @@ def parse_requirements(
         if "dependencies" in data:
             identifier = _add_dependencies(
                 data["dependencies"],
-                requirements,  # updated in place
+                requirements,  # modified in place
                 identifier,
                 ignore_pins,
                 overwrite_pins_map,
@@ -389,7 +389,7 @@ def parse_requirements(
             if opt_name in _extras or "*" in _extras:
                 identifier = _add_dependencies(
                     opt_deps,
-                    optional_dependencies[opt_name],  # updated in place
+                    optional_dependencies[opt_name],  # modified in place
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
@@ -424,7 +424,7 @@ def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # no
 
 def _add_dependencies(
     dependencies: list[str],
-    requirements: dict[str, list[Spec]],
+    requirements: dict[str, list[Spec]],  # modified in place
     identifier: int,
     ignore_pins: list[str],
     overwrite_pins_map: dict[str, str | None],
