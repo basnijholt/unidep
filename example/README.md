@@ -106,11 +106,11 @@ Using `unidep` for installation offers a more comprehensive approach. It handles
 $ unidep install --dry-run -e ./setup_py_project
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge pandas adaptive">=1.0.0, <2.0.0" pfapack pipefunc`
 
-📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
+📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage codestructure aiokef markdown-code-runner home-assistant-streamdeck-yaml`
 
 📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install --no-dependencies -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install --no-dependencies -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
 
 ```
 
@@ -153,11 +153,11 @@ unidep install-all -e
 $ unidep install-all -e --dry-run
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge adaptive-scheduler numpy">=1.22" hpc05 pandas">=2,<3" pexpect adaptive pfapack pipefunc`
 
-📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install unidep markdown-code-runner home-assistant-streamdeck-yaml yaml2bib rsync-time-machine slurm-usage codestructure aiokef`
+📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install unidep markdown-code-runner home-assistant-streamdeck-yaml yaml2bib rsync-time-machine slurm-usage codestructure aiokef`
 
 📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install --no-dependencies -e ./hatch2_project -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.1/x64/bin/python -m pip install --no-dependencies -e ./hatch2_project -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
 
 ```
 
