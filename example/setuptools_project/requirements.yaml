@@ -14,4 +14,4 @@ optional_dependencies:
     - mypy
     - ruff
   test:
-    - pytest
+    - pytest-xdist
