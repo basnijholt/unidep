@@ -284,6 +284,7 @@ def get_package_version(package_name: str) -> str | None:
     Returns
     -------
     The version of the package, or None if the package is not found.
+
     """
     if sys.version_info >= (3, 8):
         import importlib.metadata

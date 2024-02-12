@@ -46,6 +46,7 @@ def filter_python_dependencies(
     ...     requirements.requirements, requirements.platforms
     ... )
     >>> python_deps = filter_python_dependencies(resolved)
+
     """
     pip_deps = []
     for platform_data in resolved.values():
