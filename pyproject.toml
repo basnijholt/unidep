@@ -47,6 +47,7 @@ test = [
     "pytest-cov",
     "pytest-mock",
     "conda-package-handling",
+    "rich",
 ]
 
 [project.scripts]
@@ -75,6 +76,7 @@ addopts = """
     --cov=unidep
     --cov-report term
     --cov-report html
+    --cov-report xml
     --cov-fail-under=95
     -W error
     -vvv
@@ -127,7 +129,7 @@ python_version = "3.7"
 
 # Use bump-my-version, e.g., call `bump-my-version bump minor`
 [tool.bumpversion]
-current_version = "0.48.0"
+current_version = "0.53.0"
 commit = true
 commit_args = "--no-verify"
 tag = true

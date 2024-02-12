@@ -61,7 +61,7 @@ def find_requirements_files(
             print(f"🔍 Scanning in `{path}` at depth {current_depth}")
         if current_depth > depth:
             return
-        for child in path.iterdir():
+        for child in sorted(path.iterdir()):
             if child.is_dir():
                 _scan_dir(child, current_depth + 1)
             elif child.name == "requirements.yaml":

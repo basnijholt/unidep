@@ -6,8 +6,11 @@ This module provides a command-line tool for managing conda environment.yaml fil
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
+import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -33,6 +36,7 @@ from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     escape_unicode,
+    get_package_version,
     identify_current_platform,
     is_pip_installable,
     parse_folder_or_filename,
@@ -60,7 +64,7 @@ except ImportError:  # pragma: no cover
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
 
 
-def _add_common_args(  # noqa: PLR0912
+def _add_common_args(  # noqa: PLR0912, C901
     sub_parser: argparse.ArgumentParser,
     options: set[str],
 ) -> None:  # pragma: no cover
@@ -72,14 +76,42 @@ def _add_common_args(  # noqa: PLR0912
             default=".",
             help=f"Base directory to scan for {_DEP_FILES} file(s), by default `.`",
         )
-    if "file" in options:
+    if "depth" in options:
+        sub_parser.add_argument(
+            "--depth",
+            type=int,
+            default=1,
+            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
+        )
+    if "file" in options or "file-alt" in options:
+        if "file-alt" in options:
+            help_msg = (
+                f"A single {_DEP_FILES} file to use, or"
+                " folder that contains that file. This is an alternative to using"
+                f" `--directory` which searches for all {_DEP_FILES} files in the"
+                " directory and its subdirectories."
+            )
+        else:
+            help_msg = (
+                f"The {_DEP_FILES} file to parse, or folder"
+                " that contains that file, by default `.`"
+            )
         sub_parser.add_argument(
             "-f",
             "--file",
             type=Path,
-            default=".",
-            help=f"The {_DEP_FILES} file to parse, or folder"
-            " that contains that file, by default `.`",
+            default=[],
+            action="append",
+            help=help_msg,
+        )
+    if "*files" in options:
+        sub_parser.add_argument(
+            "files",
+            type=Path,
+            nargs="+",
+            help=f"The {_DEP_FILES} file(s) to parse"
+            " or folder(s) that contain those file(s), by default `.`",
+            default=None,
         )
     if "verbose" in options:
         sub_parser.add_argument(
@@ -107,23 +139,6 @@ def _add_common_args(  # noqa: PLR0912
             "--editable",
             action="store_true",
             help="Install the project in editable mode",
-        )
-    if "depth" in options:
-        sub_parser.add_argument(
-            "--depth",
-            type=int,
-            default=1,
-            help=f"Maximum depth to scan for {_DEP_FILES} files, by default 1",
-        )
-    if "*files" in options:
-        sub_parser.add_argument(
-            "files",
-            type=Path,
-            nargs="+",
-            help=f"The {_DEP_FILES} file(s) to parse"
-            " or folder(s) that contain"
-            " those file(s), by default `.`",
-            default=None,  # default is "." set in `main`
         )
     if "skip-local" in options:
         sub_parser.add_argument(
@@ -172,6 +187,24 @@ def _add_common_args(  # noqa: PLR0912
             help="The conda executable to use",
             default=None,
         )
+    if "conda-env" in options:
+        grp = sub_parser.add_mutually_exclusive_group()
+        grp.add_argument(
+            "--conda-env-name",
+            type=str,
+            default=None,
+            help="Name of the conda environment, if not provided, the currently"
+            " active environment name is used, unless `--conda-env-prefix` is"
+            " provided",
+        )
+        grp.add_argument(
+            "--conda-env-prefix",
+            type=Path,
+            default=None,
+            help="Path to the conda environment, if not provided, the currently"
+            " active environment path is used, unless `--conda-env-name` is"
+            " provided",
+        )
     if "dry-run" in options:
         sub_parser.add_argument(
             "--dry-run",
@@ -199,6 +232,23 @@ def _add_common_args(  # noqa: PLR0912
             " e.g., `--overwrite-pin 'numpy==1.19.2'`. This option can be repeated"
             " to overwrite the pins of multiple packages.",
         )
+
+
+def _add_extra_flags(
+    subparser: argparse.ArgumentParser,
+    downstream_command: str,
+    unidep_subcommand: str,
+    example: str,
+) -> None:
+    subparser.add_argument(
+        "extra_flags",
+        nargs=argparse.REMAINDER,
+        help=f"Extra flags to pass to `{downstream_command}`. These flags are passed"
+        f" directly and should be provided in the format expected by"
+        f" `{downstream_command}`. For example, `unidep {unidep_subcommand} -- {example}`."  # noqa: E501
+        f" Note that the `--` is required to separate the flags for"
+        f" `unidep {unidep_subcommand}` from the flags for `{downstream_command}`.",
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -299,6 +349,7 @@ def _parse_args() -> argparse.Namespace:
         {
             "*files",
             "conda-executable",
+            "conda-env",
             "dry-run",
             "editable",
             "skip-local",
@@ -338,6 +389,7 @@ def _parse_args() -> argparse.Namespace:
         parser_install_all,
         {
             "conda-executable",
+            "conda-env",
             "dry-run",
             "editable",
             "depth",
@@ -401,6 +453,7 @@ def _parse_args() -> argparse.Namespace:
         parser_lock,
         {
             "directory",
+            "file-alt",
             "verbose",
             "platform",
             "depth",
@@ -409,6 +462,7 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
+    _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
 
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
@@ -452,21 +506,18 @@ def _parse_args() -> argparse.Namespace:
             "overwrite-pin",
         },
     )
-    parser_pip_compile.add_argument(
-        "extra_flags",
-        nargs=argparse.REMAINDER,
-        help="Extra flags to pass to `pip-compile`. These flags are passed directly"
-        " and should be provided in the format expected by `pip-compile`. For example,"
-        " `unidep pip-compile -- --generate-hashes --allow-unsafe`. Note that the"
-        " `--` is required to separate the flags for `unidep` from the flags for"
-        " `pip-compile`.",
+    _add_extra_flags(
+        parser_pip_compile,
+        "pip-compile",
+        "pip-compile",
+        "--generate-hashes --allow-unsafe",
     )
 
     # Subparser for the 'pip' and 'conda' command
     help_str = "Get the {} requirements for the current platform only."
     help_example = (
         " Example usage: `unidep {which} --file folder1 --file"
-        " folder2/requirements.yaml --seperator ' ' --platform linux-64` to"
+        " folder2/requirements.yaml --separator ' ' --platform linux-64` to"
         " extract all the {which} dependencies specific to the linux-64 platform. Note"
         " that the `--file` argument can be used multiple times to specify multiple"
         f" {_DEP_FILES}"
@@ -517,8 +568,11 @@ def _parse_args() -> argparse.Namespace:
         parser.print_help()
         sys.exit(1)
 
-    if "file" in args and args.file.is_dir():  # pragma: no cover
-        args.file = parse_folder_or_filename(args.file).path
+    if "file" in args:
+        args.file = [
+            f if not f.is_dir() else parse_folder_or_filename(f).path for f in args.file
+        ]
+
     return args
 
 
@@ -544,13 +598,120 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
+def _maybe_exe(conda_executable: str) -> str:
+    """Add .exe on Windows."""
+    if os.name == "nt":  # pragma: no cover
+        return f"{conda_executable}.exe"
+    return conda_executable
+
+
+def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list[str]]:
+    """Run a conda command and return the JSON output."""
+    try:
+        result = subprocess.run(
+            [_maybe_exe(conda_executable), *args, "--json"],  # noqa: S603
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:  # pragma: no cover
+        print(f"Error occurred: {e}")
+        raise
+    except json.JSONDecodeError as e:  # pragma: no cover
+        print(f"Failed to parse JSON: {e}")
+        raise
+
+
+@functools.lru_cache(maxsize=None)
+def _conda_env_list(conda_executable: str) -> list[str]:
+    """Get a list of conda environments."""
+    return _conda_cli_command_json(conda_executable, "env", "list")["envs"]
+
+
+@functools.lru_cache(maxsize=None)
+def _conda_info(conda_executable: str) -> dict:
+    return _conda_cli_command_json(conda_executable, "info")
+
+
+def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
+    """Get the root prefix of the conda installation."""
+    if os.environ.get("MAMBA_ROOT_PREFIX"):
+        return Path(os.environ["MAMBA_ROOT_PREFIX"])
+    if os.environ.get("CONDA_ROOT"):
+        return Path(os.environ["CONDA_ROOT"])
+    info_dict = _conda_info(conda_executable)
+    if conda_executable in ("conda", "mamba"):
+        prefix = info_dict.get("root_prefix") or info_dict["conda_prefix"]
+    else:
+        assert conda_executable == "micromamba"
+        prefix = info_dict["base environment"]
+    return Path(prefix)
+
+
+def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
+    """Get a list of conda environment directories."""
+    info_dict = _conda_info(conda_executable)
+    if conda_executable in ("conda", "mamba"):
+        envs_dirs = info_dict["envs_dirs"]
+    else:
+        assert conda_executable == "micromamba"
+        envs_dirs = info_dict["envs directories"]
+    return [Path(d) for d in envs_dirs]
+
+
+def _conda_env_name_to_prefix(
+    conda_executable: str,
+    conda_env_name: str,
+) -> Path:  # pragma: no cover
+    """Get the prefix of a conda environment."""
+    # Based on `conda.base.context.locate_prefix_by_name`
+    # https://github.com/conda/conda/blob/72fe69dac8b2fef351c511c813493fef17f295e1/conda/base/context.py#L1976-L1977
+    root_prefix = _conda_root_prefix(conda_executable)
+    if conda_env_name in ("base", "root"):
+        return root_prefix
+
+    for envs_dir in _conda_env_dirs(conda_executable):
+        prefix = envs_dir / conda_env_name
+        if prefix.exists():
+            return prefix
+
+    envs = _conda_env_list(conda_executable)
+    envs_str = "\n👉 ".join(envs)
+    msg = (
+        f"Could not find conda prefix with name `{conda_env_name}`."
+        f" Available prefixes:\n👉 {envs_str}"
+    )
+    raise ValueError(msg)
+
+
+def _python_executable(
+    conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> str:
+    """Get the Python executable to use for a conda environment."""
+    if conda_env_name is None and conda_env_prefix is None:
+        return sys.executable
+    if conda_env_name:
+        conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
+    assert conda_env_prefix is not None
+    if platform.system() == "Windows":  # pragma: no cover
+        python_executable = conda_env_prefix / "python.exe"
+    else:
+        python_executable = conda_env_prefix / "bin" / "python"
+    assert python_executable.exists()
+    return str(python_executable)
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
     dry_run: bool,
+    python_executable: str,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    pip_command = [sys.executable, "-m", "pip", "install"]
+    pip_command = [python_executable, "-m", "pip", "install"]
     if flags:
         pip_command.extend(flags)
 
@@ -572,6 +733,8 @@ def _pip_install_local(
 def _install_command(  # noqa: PLR0912
     *files: Path,
     conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
     dry_run: bool,
     editable: bool,
     skip_local: bool = False,
@@ -613,12 +776,19 @@ def _install_command(  # noqa: PLR0912
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
-
+        conda_env_args = []
+        if conda_env_name:
+            conda_env_args = ["--name", conda_env_name]
+            # Check if the environment exists
+            _conda_env_name_to_prefix(conda_executable, conda_env_name)
+        elif conda_env_prefix:
+            conda_env_args = ["--prefix", str(conda_env_prefix)]
         conda_command = [
-            conda_executable,
+            _maybe_exe(conda_executable),
             "install",
             "--yes",
             *channel_args,
+            *conda_env_args,
         ]
         # When running the command in terminal, we need to wrap the pin in quotes
         # so what we print is what the user would type (copy-paste).
@@ -627,8 +797,13 @@ def _install_command(  # noqa: PLR0912
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
+    python_executable = _python_executable(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
     if env_spec.pip and not skip_pip:
-        pip_command = [sys.executable, "-m", "pip", "install", *env_spec.pip]
+        pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)  # noqa: S603
@@ -668,6 +843,7 @@ def _install_command(  # noqa: PLR0912
                 *sorted(installable),
                 editable=editable,
                 dry_run=dry_run,
+                python_executable=python_executable,
                 flags=pip_flags,
             )
 
@@ -678,6 +854,8 @@ def _install_command(  # noqa: PLR0912
 def _install_all_command(
     *,
     conda_executable: str,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
     dry_run: bool,
     editable: bool,
     depth: int,
@@ -702,6 +880,8 @@ def _install_all_command(
     _install_command(
         *found_files,
         conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
         dry_run=dry_run,
         editable=editable,
         skip_local=skip_local,
@@ -719,6 +899,7 @@ def _merge_command(
     *,
     depth: int,
     directory: Path,
+    files: list[Path] | None,
     name: str,
     output: Path,
     stdout: bool,
@@ -732,14 +913,18 @@ def _merge_command(
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
 
-    found_files = find_requirements_files(
-        directory,
-        depth,
-        verbose=verbose,
-    )
-    if not found_files:
-        print(f"❌ No {_DEP_FILES} files found in {directory}")
-        sys.exit(1)
+    if files:  # ignores depth and directory!
+        found_files = files
+    else:
+        found_files = find_requirements_files(
+            directory,
+            depth,
+            verbose=verbose,
+        )
+        if not found_files:
+            print(f"❌ No {_DEP_FILES} files found in {directory}")
+            sys.exit(1)
+
     requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
@@ -815,7 +1000,7 @@ def _pip_compile_command(
         assert extra_flags[0] == "--"
         extra_flags = extra_flags[1:]
         if verbose:
-            print(f"📝 Extra flags: {extra_flags}")
+            print(f"📝 Extra flags for `pip-compile`: {extra_flags}")
 
     if output_file is None:
         output_file = directory / "requirements.txt"
@@ -847,26 +1032,72 @@ def _check_conda_prefix() -> None:  # pragma: no cover
         " operation. However, it's currently running with the Python interpreter"
         f" at `{sys.executable}`, which is not in the active Conda environment"
         f" (`{conda_prefix}`). Please install and run UniDep in the current"
-        " Conda environment to avoid any issues."
+        " Conda environment to avoid any issues, or provide the `--conda-env-name`"
+        " or `--conda-env-prefix` option to specify the Conda environment to use."
     )
     warn(msg, stacklevel=2)
     sys.exit(1)
 
 
+def _print_versions() -> None:  # pragma: no cover
+    """Print version information."""
+    path = Path(__file__).parent
+    txt = [
+        f"unidep version: {__version__}",
+        f"unidep location: {path}",
+        f"Python version: {sys.version}",
+        f"Python executable: {sys.executable}",
+    ]
+    extra_packages = [
+        "rich_argparse",
+        "rich",
+        "conda_lock",
+        "pydantic",
+        "pip_tools",
+        "conda_package_handling",
+        "ruamel.yaml",
+        "packaging",
+        "tomli",
+    ]
+    for package in extra_packages:
+        version = get_package_version(package)
+        if version is not None:
+            txt.append(f"{package} version: {version}")
+
+    if importlib.util.find_spec("rich") is not None:
+        _print_with_rich(txt)
+    else:
+        print("\n".join(txt))
+
+
+def _print_with_rich(data: list) -> None:
+    """Print data as a table using rich, if it's installed."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    table = Table(show_header=False)
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="magenta")
+    for line in data:
+        prop, value = line.split(":", 1)
+        table.add_row(prop, value.strip())
+    console.print(table)
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if "file" in args and not args.file.exists():  # pragma: no cover
-        print(f"❌ File {args.file} not found.")
+    if "file" in args and any(not f.exists() for f in args.file):
+        missing = [f"`{f}`" for f in args.file if not f.exists()]
+        print(f"❌ One or more files ({', '.join(missing)}) not found.")
         sys.exit(1)
-
-    if "files" in args and args.files is None:  # pragma: no cover
-        args.files = ["."]
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
             directory=args.directory,
+            files=None,
             name=args.name,
             output=args.output,
             stdout=args.stdout,
@@ -879,8 +1110,10 @@ def main() -> None:
         )
     elif args.command == "pip":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
+        assert len(args.file) <= 1
+        file = args.file[0] if args.file else Path()
         pip_dependencies = get_python_dependencies(
-            args.file,
+            file,
             platforms=platforms,
             verbose=args.verbose,
             ignore_pins=args.ignore_pin,
@@ -890,8 +1123,9 @@ def main() -> None:
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
+        files = args.file or [Path()]
         requirements = parse_requirements(
-            args.file,
+            *files,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
@@ -909,10 +1143,13 @@ def main() -> None:
         )
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
-        _check_conda_prefix()
+        if args.conda_env_name is None and args.conda_env_prefix is None:
+            _check_conda_prefix()
         _install_command(
-            *args.files,
+            *(args.files or [Path()]),
             conda_executable=args.conda_executable,
+            conda_env_name=args.conda_env_name,
+            conda_env_prefix=args.conda_env_prefix,
             dry_run=args.dry_run,
             editable=args.editable,
             skip_local=args.skip_local,
@@ -925,9 +1162,12 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "install-all":
-        _check_conda_prefix()
+        if args.conda_env_name is None and args.conda_env_prefix is None:
+            _check_conda_prefix()
         _install_all_command(
             conda_executable=args.conda_executable,
+            conda_env_name=args.conda_env_name,
+            conda_env_prefix=args.conda_env_prefix,
             dry_run=args.dry_run,
             editable=args.editable,
             depth=args.depth,
@@ -945,6 +1185,7 @@ def main() -> None:
         conda_lock_command(
             depth=args.depth,
             directory=args.directory,
+            files=args.file or None,
             platforms=args.platform,
             verbose=args.verbose,
             only_global=args.only_global,
@@ -952,6 +1193,7 @@ def main() -> None:
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
             check_input_hash=args.check_input_hash,
+            extra_flags=args.extra_flags,
             lockfile=args.lockfile,
         )
     elif args.command == "pip-compile":  # pragma: no cover
@@ -973,11 +1215,4 @@ def main() -> None:
             output_file=args.output_file,
         )
     elif args.command == "version":  # pragma: no cover
-        path = Path(__file__).parent
-        txt = (
-            f"unidep version: {__version__}",
-            f"unidep location: {path}",
-            f"Python version: {sys.version}",
-            f"Python executable: {sys.executable}",
-        )
-        print("\n".join(txt))
+        _print_versions()

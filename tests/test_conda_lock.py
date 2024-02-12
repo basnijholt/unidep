@@ -12,6 +12,7 @@ from ruamel.yaml import YAML
 from unidep._conda_lock import (
     LockSpec,
     _handle_missing_keys,
+    _parse_conda_lock_packages,
     conda_lock_command,
 )
 from unidep.utils import remove_top_comments
@@ -27,6 +28,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64", "osx-arm64"],
             verbose=True,
             only_global=False,
@@ -34,6 +36,7 @@ def test_conda_lock_command(tmp_path: Path) -> None:
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=["--", "--micromamba"],
         )
     with YAML(typ="safe") as yaml:
         with (folder / "project1" / "conda-lock.yml").open() as f:
@@ -62,6 +65,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
         conda_lock_command(
             depth=1,
             directory=folder,
+            files=None,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
@@ -69,6 +73,7 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=[],
         )
     with YAML(typ="safe") as yaml:
         with (folder / "project1" / "conda-lock.yml").open() as f:
@@ -140,11 +145,15 @@ def test_conda_lock_command_pip_and_conda_different_name(
 ) -> None:
     folder = tmp_path / "test-pip-and-conda-different-name"
     shutil.copytree(Path(__file__).parent / "test-pip-and-conda-different-name", folder)
-
+    files = [
+        folder / "project1" / "requirements.yaml",
+        folder / "project2" / "requirements.yaml",
+    ]
     with patch("unidep._conda_lock._run_conda_lock", return_value=None):
         conda_lock_command(
             depth=1,
-            directory=folder,
+            directory=folder,  # ignored when using files
+            files=files,
             platforms=["linux-64"],
             verbose=True,
             only_global=False,
@@ -152,6 +161,7 @@ def test_conda_lock_command_pip_and_conda_different_name(
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
+            extra_flags=[],
         )
     assert "Missing keys" not in capsys.readouterr().out
 
@@ -205,3 +215,56 @@ def test_handle_missing_keys(capsys: pytest.CaptureFixture) -> None:
 
     assert f"❌ Missing keys {missing_keys}" in capsys.readouterr().out
     assert ("pip", "linux-64", "nonexistent") in missing_keys
+
+
+def test_circular_dependency() -> None:
+    """Test that circular dependencies are handled correctly.
+
+    This test is based on the following requirements.yml file:
+
+    ```yaml
+    channels:
+        - conda-forge
+    dependencies:
+        - sphinx
+    platforms:
+        - linux-64
+    ```
+
+    The sphinx package has a circular dependency to itself, e.g., `sphinx` depends
+    on `sphinxcontrib-applehelp` which depends on `sphinx`.
+
+    Then we called `unidep conda-lock` on the above requirements.yml file. The
+    bit to reproduce the error is in the `package` list below.
+    """
+    package = [
+        {
+            "name": "sphinx",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinxcontrib-applehelp": ""},
+        },
+        {
+            "name": "sphinxcontrib-applehelp",
+            "version": "1.0.8",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinx": ">=5"},
+        },
+    ]
+    lock_spec = _parse_conda_lock_packages(package)
+    assert lock_spec.packages == {
+        ("conda", "linux-64", "sphinx"): {
+            "name": "sphinx",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinxcontrib-applehelp": ""},
+        },
+        ("conda", "linux-64", "sphinxcontrib-applehelp"): {
+            "name": "sphinxcontrib-applehelp",
+            "version": "1.0.8",
+            "manager": "conda",
+            "platform": "linux-64",
+            "dependencies": {"sphinx": ">=5"},
+        },
+    }

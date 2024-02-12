@@ -37,6 +37,7 @@ def _run_conda_lock(
     conda_lock_output: Path,
     *,
     check_input_hash: bool = False,
+    extra_flags: list[str],
 ) -> None:  # pragma: no cover
     if shutil.which("conda-lock") is None:
         msg = (
@@ -56,6 +57,7 @@ def _run_conda_lock(
         str(tmp_env),
         "--lockfile",
         str(conda_lock_output),
+        *extra_flags,
     ]
     if check_input_hash:
         cmd.append("--check-input-hash")
@@ -84,24 +86,29 @@ def _run_conda_lock(
 def _conda_lock_global(
     *,
     depth: int,
-    directory: str | Path,
+    directory: Path,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     check_input_hash: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    extra_flags: list[str],
     lockfile: str,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
     from unidep._cli import _merge_command
 
-    directory = Path(directory)
+    if files:
+        directory = files[0].parent
+
     tmp_env = directory / "tmp.environment.yaml"
     conda_lock_output = directory / lockfile
     _merge_command(
         depth=depth,
         directory=directory,
+        files=files,
         name="myenv",
         output=tmp_env,
         stdout=False,
@@ -112,7 +119,12 @@ def _conda_lock_global(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    _run_conda_lock(tmp_env, conda_lock_output, check_input_hash=check_input_hash)
+    _run_conda_lock(
+        tmp_env,
+        conda_lock_output,
+        check_input_hash=check_input_hash,
+        extra_flags=extra_flags,
+    )
     print(f"✅ Global dependencies locked successfully in `{conda_lock_output}`.")
     return conda_lock_output
 
@@ -135,13 +147,20 @@ def _parse_conda_lock_packages(
         package_name: str,
         resolved: dict[str, set[str]],
         dependencies: dict[str, set[str]],
+        seen: set[str],
     ) -> set[str]:
         if package_name in resolved:
             return resolved[package_name]
+        if package_name in seen:  # Circular dependency detected
+            return set()
+        seen.add(package_name)
+
         all_deps = set(dependencies[package_name])
         for dep in dependencies[package_name]:
-            all_deps.update(_recurse(dep, resolved, dependencies))
+            all_deps.update(_recurse(dep, resolved, dependencies, seen))
+
         resolved[package_name] = all_deps
+        seen.remove(package_name)
         return all_deps
 
     for p in conda_lock_packages:
@@ -153,7 +172,7 @@ def _parse_conda_lock_packages(
         for _platform, pkgs in platforms.items():
             _resolved: dict[str, set[str]] = {}
             for package in list(pkgs):
-                _recurse(package, _resolved, pkgs)
+                _recurse(package, _resolved, pkgs, set())
             resolved_manager[_platform] = _resolved
 
     packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]] = {}
@@ -407,11 +426,10 @@ def _download_and_get_package_names(
 
 
 def _conda_lock_subpackages(
-    directory: str | Path,
+    directory: Path,
     depth: int,
     conda_lock_file: str | Path,
 ) -> list[Path]:
-    directory = Path(directory)
     conda_lock_file = Path(conda_lock_file)
     with YAML(typ="rt") as yaml, conda_lock_file.open() as fp:
         data = yaml.load(fp)
@@ -443,6 +461,7 @@ def conda_lock_command(
     *,
     depth: int,
     directory: Path,
+    files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
     only_global: bool,
@@ -450,21 +469,30 @@ def conda_lock_command(
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    extra_flags: list[str],
     lockfile: str = "conda-lock.yml",
 ) -> None:
     """Generate a conda-lock file a collection of `requirements.yaml` and/or `pyproject.toml` files."""  # noqa: E501
+    if extra_flags:
+        assert extra_flags[0] == "--"
+        extra_flags = extra_flags[1:]
+        if verbose:
+            print(f"📝 Extra flags for `conda-lock lock`: {extra_flags}")
+
     conda_lock_output = _conda_lock_global(
         depth=depth,
         directory=directory,
+        files=files,
         platforms=platforms,
         verbose=verbose,
         check_input_hash=check_input_hash,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
+        extra_flags=extra_flags,
         lockfile=lockfile,
     )
-    if only_global:
+    if only_global or files:
         return
     sub_lock_files = _conda_lock_subpackages(
         directory=directory,
