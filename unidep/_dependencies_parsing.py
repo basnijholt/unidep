@@ -310,9 +310,9 @@ def parse_requirements(
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
-            datas=datas,  # gets updated in place
-            all_extras=all_extras,  # gets updated in place
-            seen=seen,  # gets updated in place
+            datas=datas,  # updated in place
+            all_extras=all_extras,  # updated in place
+            seen=seen,  # updated in place
             yaml=yaml,
             verbose=verbose,
         )
@@ -328,7 +328,7 @@ def parse_requirements(
         if "dependencies" in data:
             identifier = _add_dependencies(
                 data["dependencies"],
-                requirements,
+                requirements,  # updated in place
                 identifier,
                 ignore_pins,
                 overwrite_pins_map,
@@ -339,7 +339,7 @@ def parse_requirements(
                 if optional_name in _extras or "*" in _extras:
                     identifier = _add_dependencies(
                         optional_deps,
-                        optional_dependencies[optional_name],
+                        optional_dependencies[optional_name],  # updated in place
                         identifier,
                         ignore_pins,
                         overwrite_pins_map,
