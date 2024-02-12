@@ -218,7 +218,7 @@ def _to_path_with_extras(
         )
         raise ValueError(msg)
     if extras == "*":
-        extras = [extras] * len(paths)  # type: ignore[list-item]
+        extras = [["*"]] * len(paths)  # type: ignore[list-item]
 
     return [PathWithExtras(p.path, e) for p, e in zip(paths_with_extras, extras)]
 
@@ -314,7 +314,7 @@ def parse_requirements(  # noqa: PLR0912
             )
         if "optional_dependencies" in data and all_extras is not None:
             for optional_name, optional_deps in data["optional_dependencies"].items():
-                if optional_name in _extras:
+                if optional_name in _extras or "*" in _extras:
                     identifier = _add_dependencies(
                         optional_deps,
                         optional_dependencies[optional_name],
