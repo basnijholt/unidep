@@ -1176,6 +1176,12 @@ def main() -> None:
             requirements.channels,
             platforms=platforms,
         )
+
+        if any(parse_folder_or_filename(f).extras for f in files):
+            msg = "🚧 The `conda` command currently does not support extras."
+            print(msg)
+            sys.exit(1)
+
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
         if args.conda_env_name is None and args.conda_env_prefix is None:
