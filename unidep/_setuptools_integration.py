@@ -96,15 +96,15 @@ def get_python_dependencies(
     raises_if_missing: bool = True,
 ) -> Dependencies:
     """Extract Python (pip) requirements from a `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
-    p = Path(filename)
-    if not p.exists():
+    try:
+        p = parse_folder_or_filename(filename)
+    except FileNotFoundError:
         if raises_if_missing:
-            msg = f"File {filename} not found."
-            raise FileNotFoundError(msg)
+            raise
         return Dependencies(dependencies=[], extras={})
 
     requirements = parse_requirements(
-        p,
+        p.path,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,

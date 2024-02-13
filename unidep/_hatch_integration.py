@@ -37,11 +37,15 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
                 " Please remove `[project.dependencies]`, you cannot use both."
             )
             raise RuntimeError(error_msg)
-        metadata["dependencies"] = get_python_dependencies(
+        deps = get_python_dependencies(
             requirements_file,
             platforms=[identify_current_platform()],
             raises_if_missing=False,
         )
+        metadata["dependencies"] = deps.dependencies
+        if "optional-dependencies" not in metadata.get("dynamic", []):
+            return
+        metadata["optional-dependencies"] = deps.extras
 
 
 @hookimpl

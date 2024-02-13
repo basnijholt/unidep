@@ -1119,7 +1119,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
-        )
+        ).dependencies
         print(escape_unicode(args.separator).join(pip_dependencies))
     elif args.command == "conda":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
