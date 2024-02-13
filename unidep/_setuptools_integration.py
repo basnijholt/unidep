@@ -115,8 +115,8 @@ def get_python_dependencies(
         platforms = list(requirements.platforms)
     resolved = resolve_conflicts(requirements.requirements, platforms)
     dependencies = filter_python_dependencies(resolved)
-    # Note: This doesn't correctly handle conflicts between sections in
-    # the extras and the main dependencies.
+    # TODO[Bas]: This currentlt doesn't correctly handle  # noqa: TD004, TD003, FIX002
+    # conflicts between sections in the extras and the main dependencies.
     extras = {
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
         for section, reqs in requirements.optional_dependencies.items()
