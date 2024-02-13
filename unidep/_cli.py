@@ -569,11 +569,24 @@ def _parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     if "file" in args:
-        args.file = [
-            f if not f.is_dir() else parse_folder_or_filename(f).path for f in args.file
-        ]
+        _ensure_files(args.file)
 
     return args
+
+
+def _ensure_files(files: list[Path]) -> None:
+    """Ensure that the files exist."""
+    missing = []
+    for i, f in enumerate(files):
+        try:
+            path_with_extras = parse_folder_or_filename(f)
+        except FileNotFoundError:  # noqa: PERF203
+            missing.append(f"`{f}`")
+        else:
+            files[i] = path_with_extras.path_with_extras
+    if missing:
+        print(f"❌ One or more files ({', '.join(missing)}) not found.")
+        sys.exit(1)
 
 
 def _identify_conda_executable() -> str:  # pragma: no cover
@@ -1115,10 +1128,6 @@ def _pip_subcommand(
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-    if "file" in args and any(not f.exists() for f in args.file):
-        missing = [f"`{f}`" for f in args.file if not f.exists()]
-        print(f"❌ One or more files ({', '.join(missing)}) not found.")
-        sys.exit(1)
 
     if args.command == "merge":  # pragma: no cover
         _merge_command(
