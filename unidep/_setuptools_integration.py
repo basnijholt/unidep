@@ -109,12 +109,20 @@ def get_python_dependencies(
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras="*",
     )
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms or list(requirements.platforms),
-    )
-    return Dependencies(dependencies=filter_python_dependencies(resolved), extras={})
+    if not platforms:
+        platforms = list(requirements.platforms)
+    resolved = resolve_conflicts(requirements.requirements, platforms)
+    dependencies = filter_python_dependencies(resolved)
+    # Note: This doesn't correctly handle conflicts between sections in
+    # the extras and the main dependencies.
+    extras = {
+        section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
+        for section, reqs in requirements.optional_dependencies.items()
+    }
+
+    return Dependencies(dependencies=dependencies, extras=extras)
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
@@ -149,4 +157,6 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         verbose=bool(os.environ.get("UNIDEP_VERBOSE")),
     )
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
-    dist.extras_require = deps.extras  # type: ignore[attr-defined]
+
+    if deps.extras:
+        dist.extras_require = deps.extras  # type: ignore[attr-defined]
