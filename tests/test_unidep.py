@@ -2354,3 +2354,39 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
         optional_dependencies=requirements.optional_dependencies,
     )
     assert resolved.keys() == {"adaptive", "numthreads", "pytest"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_with_dicts(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p1 = tmp_path / "p1" / "requirements.yaml"
+    p1.parent.mkdir()
+    p1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            optional_dependencies:
+                flat:
+                    - conda: python-flatbuffers
+                      pip: flatbuffers
+            """,
+        ),
+    )
+    p1 = maybe_as_toml(toml_or_yaml, p1)
+
+    requirements = parse_requirements(p1, verbose=True, extras="*")
+    assert requirements.optional_dependencies.keys() == {"flat"}
+    assert requirements.optional_dependencies["flat"].keys() == {
+        "python-flatbuffers",
+        "flatbuffers",
+    }
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved.keys() == {"adaptive", "python-flatbuffers", "flatbuffers"}
