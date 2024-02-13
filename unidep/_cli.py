@@ -1090,22 +1090,25 @@ def _pip_subcommand(
     file: list[Path],
     platforms: list[Platform],
     verbose: bool,
-    ignore_pin: list[str] | None,
-    skip_dependency: list[str] | None,
-    overwrite_pin: list[str] | None,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
     separator: str,
 ) -> str:  # pragma: no cover
     platforms = platforms or [identify_current_platform()]
     assert len(file) <= 1
     path = file[0] if file else Path()
-    pip_dependencies = get_python_dependencies(
+    deps = get_python_dependencies(
         path,
         platforms=platforms,
         verbose=verbose,
-        ignore_pins=ignore_pin,
-        skip_dependencies=skip_dependency,
-        overwrite_pins=overwrite_pin,
-    ).dependencies
+        ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
+    )
+    pip_dependencies = deps.dependencies
+    for extra in parse_folder_or_filename(path).extras:
+        pip_dependencies.extend(deps.extras[extra])
     return escape_unicode(separator).join(pip_dependencies)
 
 
@@ -1138,9 +1141,9 @@ def main() -> None:
                 file=args.file,
                 platforms=args.platform,
                 verbose=args.verbose,
-                ignore_pin=args.ignore_pin,
-                skip_dependency=args.skip_dependency,
-                overwrite_pin=args.overwrite_pin,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
                 separator=args.separator,
             ),
         )
