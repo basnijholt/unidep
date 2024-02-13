@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "unidep"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,7 +10,7 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 # populated by `unidep` with the dependencies from the `requirements.yaml`
 # dependencies = []
 version = "0.1.0"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 
 [tool.setuptools]
 py-modules = ["setuptools_project"]

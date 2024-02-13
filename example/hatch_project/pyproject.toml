@@ -9,7 +9,7 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 # `dependencies` is not needed because it is automatically
 # populated by `unidep` with the dependencies from the `requirements.yaml`
 # dependencies = []
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 version = "0.1.0"
 
 [tool.hatch]
