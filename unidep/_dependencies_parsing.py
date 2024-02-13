@@ -273,6 +273,9 @@ def _move_local_optional_dependencies_to_dependencies(
     for extra in extras:
         moved = set()
         for dep in optional_dependencies.get(extra, []):
+            if isinstance(dep, dict):
+                # This is a {"pip": "package"} and/or {"conda": "package"} dependency
+                continue
             if _str_is_path_like(dep):
                 if verbose:
                     print(
