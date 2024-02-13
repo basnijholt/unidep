@@ -5,8 +5,9 @@ This module provides setuptools integration for unidep.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import parse_requirements
@@ -77,6 +78,11 @@ def filter_python_dependencies(
     return sorted(pip_deps)
 
 
+class Dependencies(NamedTuple):
+    dependencies: list[str]
+    extras: dict[str, list[str]]
+
+
 def get_python_dependencies(
     filename: str
     | Path
@@ -88,14 +94,14 @@ def get_python_dependencies(
     skip_dependencies: list[str] | None = None,
     platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
-) -> list[str]:
+) -> Dependencies:
     """Extract Python (pip) requirements from a `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     p = Path(filename)
     if not p.exists():
         if raises_if_missing:
             msg = f"File {filename} not found."
             raise FileNotFoundError(msg)
-        return []
+        return Dependencies(dependencies=[], extras={})
 
     requirements = parse_requirements(
         p,
@@ -108,7 +114,7 @@ def get_python_dependencies(
         requirements.requirements,
         platforms or list(requirements.platforms),
     )
-    return filter_python_dependencies(resolved)
+    return Dependencies(dependencies=filter_python_dependencies(resolved), extras={})
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
@@ -136,8 +142,11 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         # than failing.
         platforms = None
 
-    dist.install_requires = get_python_dependencies(  # type: ignore[attr-defined]
+    deps = get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
+        verbose=bool(os.environ.get("UNIDEP_VERBOSE")),
     )
+    dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
+    dist.extras_require = deps.extras  # type: ignore[attr-defined]

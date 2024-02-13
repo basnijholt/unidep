@@ -269,9 +269,9 @@ def _move_local_optional_dependencies_to_dependencies(
     if "*" in extras:
         extras = list(data.get("optional_dependencies", {}).keys())
 
+    optional_dependencies = data.get("optional_dependencies", {})
     for extra in extras:
         moved = set()
-        optional_dependencies = data.get("optional_dependencies", {})
         for dep in optional_dependencies.get(extra, []):
             if _str_is_path_like(dep):
                 if verbose:
@@ -284,6 +284,13 @@ def _move_local_optional_dependencies_to_dependencies(
         for dep in moved:
             extras = optional_dependencies[extra]  # key must exist if moved non-empty
             extras.pop(extras.index(dep))
+
+    # Remove empty optional_dependencies sections
+    to_delete = [extra for extra, deps in optional_dependencies.items() if not deps]
+    for extra in to_delete:
+        if verbose:
+            print(f"📄 Removing empty `{extra}` section from `optional_dependencies`")
+        optional_dependencies.pop(extra)
 
 
 def _add_local_dependencies(

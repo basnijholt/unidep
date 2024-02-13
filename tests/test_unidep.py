@@ -335,15 +335,19 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
 def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
     f1, f2 = setup_test_files
     requires1 = get_python_dependencies(str(f1))
-    assert requires1 == ["numpy"]
+    assert requires1.dependencies == ["numpy"]
     requires2 = get_python_dependencies(str(f2))
-    assert requires2 == ["pandas"]
+    assert requires2.dependencies == ["pandas"]
 
     # Test with a file that doesn't exist
     with pytest.raises(FileNotFoundError):
         get_python_dependencies("nonexistent_file.yaml", raises_if_missing=True)
     assert (
-        get_python_dependencies("nonexistent_file.yaml", raises_if_missing=False) == []
+        get_python_dependencies(
+            "nonexistent_file.yaml",
+            raises_if_missing=False,
+        ).dependencies
+        == []
     )
 
 
@@ -2283,6 +2287,7 @@ def test_optional_dependencies_with_local_dependencies(
 def test_optional_dependencies_with_local_dependencies_with_extras(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
+    capsys: pytest.CaptureFixture,
 ) -> None:
     p1 = tmp_path / "p1" / "requirements.yaml"
     p1.parent.mkdir()
@@ -2313,10 +2318,9 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
         ),
     )
     p2 = maybe_as_toml(toml_or_yaml, p2)
-
     requirements = parse_requirements(p2, verbose=True, extras="*")
-    assert requirements.optional_dependencies.keys() == {"local", "test"}
-    assert requirements.optional_dependencies["local"] == {}
+    assert "Removing empty" in capsys.readouterr().out
+    assert requirements.optional_dependencies.keys() == {"test"}
     assert requirements.optional_dependencies["test"].keys() == {"pytest"}
 
     resolved = resolve_conflicts(
