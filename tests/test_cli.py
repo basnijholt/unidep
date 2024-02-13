@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import textwrap
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,6 +18,7 @@ from unidep._cli import (
     _install_all_command,
     _install_command,
     _pip_compile_command,
+    _pip_subcommand,
     _print_versions,
 )
 
@@ -378,3 +380,39 @@ def test_version(capsys: pytest.CaptureFixture) -> None:
 def test_conda_env_list() -> None:
     conda_executable = _identify_conda_executable()
     _conda_env_list(conda_executable)
+
+
+def test_pip_optional(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo
+            optional_dependencies:
+                test:
+                    - bar
+            """,
+        ),
+    )
+    txt = _pip_subcommand(
+        file=[p],
+        platforms=[],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator=" ",
+    )
+    assert txt == "foo"
+
+    txt = _pip_subcommand(
+        file=[f"{p}[test]"],  # type: ignore[list-item]
+        platforms=[],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator=" ",
+    )
+    assert txt == "foo bar"

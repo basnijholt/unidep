@@ -5,16 +5,17 @@ This module provides setuptools integration for unidep.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import parse_requirements
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
-    dependencies_filename,
     identify_current_platform,
+    parse_folder_or_filename,
 )
 
 if TYPE_CHECKING:
@@ -77,6 +78,11 @@ def filter_python_dependencies(
     return sorted(pip_deps)
 
 
+class Dependencies(NamedTuple):
+    dependencies: list[str]
+    extras: dict[str, list[str]]
+
+
 def get_python_dependencies(
     filename: str
     | Path
@@ -88,27 +94,35 @@ def get_python_dependencies(
     skip_dependencies: list[str] | None = None,
     platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
-) -> list[str]:
+) -> Dependencies:
     """Extract Python (pip) requirements from a `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
-    p = Path(filename)
-    if not p.exists():
+    try:
+        p = parse_folder_or_filename(filename)
+    except FileNotFoundError:
         if raises_if_missing:
-            msg = f"File {filename} not found."
-            raise FileNotFoundError(msg)
-        return []
+            raise
+        return Dependencies(dependencies=[], extras={})
 
     requirements = parse_requirements(
-        p,
+        p.path,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras="*",
     )
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms or list(requirements.platforms),
-    )
-    return filter_python_dependencies(resolved)
+    if not platforms:
+        platforms = list(requirements.platforms)
+    resolved = resolve_conflicts(requirements.requirements, platforms)
+    dependencies = filter_python_dependencies(resolved)
+    # TODO[Bas]: This currentlt doesn't correctly handle  # noqa: TD004, TD003, FIX002
+    # conflicts between sections in the extras and the main dependencies.
+    extras = {
+        section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
+        for section, reqs in requirements.optional_dependencies.items()
+    }
+
+    return Dependencies(dependencies=dependencies, extras=extras)
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
@@ -117,7 +131,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     # root of the source tree".
     project_root = Path().resolve()
     try:
-        requirements_file = dependencies_filename(project_root)
+        requirements_file = parse_folder_or_filename(project_root).path
     except FileNotFoundError:
         return
     if requirements_file.exists() and dist.install_requires:  # type: ignore[attr-defined]
@@ -136,8 +150,13 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         # than failing.
         platforms = None
 
-    dist.install_requires = get_python_dependencies(  # type: ignore[attr-defined]
+    deps = get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
+        verbose=bool(os.environ.get("UNIDEP_VERBOSE")),
     )
+    dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
+
+    if deps.extras:
+        dist.extras_require = deps.extras  # type: ignore[attr-defined]
