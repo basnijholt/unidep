@@ -9,3 +9,7 @@ dependencies:
   - pandas >=2,<3
   - pexpect # [unix]
   - wexpect # [win]
+optional_dependencies:
+  test:
+    - pytest
+    - pytest-cov
