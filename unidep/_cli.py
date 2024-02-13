@@ -1085,6 +1085,30 @@ def _print_with_rich(data: list) -> None:
     console.print(table)
 
 
+def _pip_subcommand(
+    *,
+    file: list[Path],
+    platforms: list[Platform],
+    verbose: bool,
+    ignore_pin: list[str] | None,
+    skip_dependency: list[str] | None,
+    overwrite_pin: list[str] | None,
+    separator: str,
+) -> str:  # pragma: no cover
+    platforms = platforms or [identify_current_platform()]
+    assert len(file) <= 1
+    path = file[0] if file else Path()
+    pip_dependencies = get_python_dependencies(
+        path,
+        platforms=platforms,
+        verbose=verbose,
+        ignore_pins=ignore_pin,
+        skip_dependencies=skip_dependency,
+        overwrite_pins=overwrite_pin,
+    ).dependencies
+    return escape_unicode(separator).join(pip_dependencies)
+
+
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
@@ -1109,18 +1133,17 @@ def main() -> None:
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
-        platforms = args.platform or [identify_current_platform()]
-        assert len(args.file) <= 1
-        file = args.file[0] if args.file else Path()
-        pip_dependencies = get_python_dependencies(
-            file,
-            platforms=platforms,
-            verbose=args.verbose,
-            ignore_pins=args.ignore_pin,
-            skip_dependencies=args.skip_dependency,
-            overwrite_pins=args.overwrite_pin,
-        ).dependencies
-        print(escape_unicode(args.separator).join(pip_dependencies))
+        print(
+            _pip_subcommand(
+                file=args.file,
+                platforms=args.platform,
+                verbose=args.verbose,
+                ignore_pin=args.ignore_pin,
+                skip_dependency=args.skip_dependency,
+                overwrite_pin=args.overwrite_pin,
+                separator=args.separator,
+            ),
+        )
     elif args.command == "conda":  # pragma: no cover
         platforms = args.platform or [identify_current_platform()]
         files = args.file or [Path()]
