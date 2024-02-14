@@ -270,6 +270,7 @@ def extract_toc_links(md_file_path: Path) -> dict[str, str]:
     Returns
     -------
     A dictionary where keys are section titles and values are the corresponding links.
+
     """
     with md_file_path.open("r") as infile:
         readme_content = infile.read()
@@ -305,6 +306,7 @@ def extract_headers_from_markdown(md_file_path: Path) -> list[tuple[int, str]]:
     Returns
     -------
     A list of tuples containing the level of the header and the header text.
+
     """
     with md_file_path.open("r") as infile:
         content = infile.read()
@@ -334,6 +336,7 @@ def replace_links_in_markdown(
         A dictionary where keys are markdown file names and values are lists of headers.
     links
         A dictionary of original header texts mapped to their slug (anchor) in the original README.
+
     """
     with md_file_path.open("r") as infile:
         content = infile.read()
@@ -364,6 +367,7 @@ def decrease_header_levels(md_file_path: Path) -> None:
     ----------
     md_file_path
         Path to the Markdown file.
+
     """
     with md_file_path.open("r", encoding="utf-8") as file:
         content = file.read()
@@ -422,6 +426,7 @@ def process_readme_for_sphinx_docs(readme_path: Path, docs_path: Path) -> None:
         Path to the original README.md file.
     docs_path
         Path to the Sphinx documentation source directory.
+
     """
     # Step 1: Copy README.md to the Sphinx source directory and apply transformations
     output_file = docs_path / "source" / "README.md"
