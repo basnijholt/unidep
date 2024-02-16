@@ -28,11 +28,15 @@ jobs:
           python .github/use-local-unidep.py
       - name: Install example packages
         run: |
+          set -ex
           # Loop over all folders in `./example` and install them
           for d in ./example/*/ ; do
             pip install -e "$d"
+            pkg=$(basename $d)
+            python -c "import $pkg"
           done
         shell: bash
+
 
   conda-install:
     strategy:
@@ -64,8 +68,11 @@ jobs:
         shell: bash -el {0}
       - name: Install example packages
         run: |
+          set -ex
           # Loop over all folders in `./example` and install them
           for d in ./example/*/ ; do
             unidep install -e "$d"
+            pkg=$(basename $d)
+            python -c "import $pkg"
           done
         shell: bash -el {0}
