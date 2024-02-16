@@ -137,6 +137,26 @@ def get_python_dependencies(
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
+def _deps(requirements_file: Path) -> Dependencies:
+    try:
+        platforms = [identify_current_platform()]
+    except UnsupportedPlatformError:
+        # We don't know the current platform, so we can't filter out.
+        # This will result in selecting all platforms. But this is better
+        # than failing.
+        platforms = None
+
+    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
+    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
+    return get_python_dependencies(
+        requirements_file,
+        platforms=platforms,
+        raises_if_missing=False,
+        verbose=verbose,
+        include_local_dependencies=not skip_local_dependencies,
+    )
+
+
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
     """Entry point called by setuptools to get the dependencies for a project."""
     # PEP 517 says that "All hooks are run with working directory set to the
@@ -155,23 +175,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
 
-    try:
-        platforms = [identify_current_platform()]
-    except UnsupportedPlatformError:
-        # We don't know the current platform, so we can't filter out.
-        # This will result in selecting all platforms. But this is better
-        # than failing.
-        platforms = None
-
-    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
-    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
-    deps = get_python_dependencies(
-        requirements_file,
-        platforms=platforms,
-        raises_if_missing=False,
-        verbose=verbose,
-        include_local_dependencies=not skip_local_dependencies,
-    )
+    deps = _deps(requirements_file)
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
 
     if deps.extras:

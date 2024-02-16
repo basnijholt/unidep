@@ -4,16 +4,13 @@ This module contains the Hatchling integration.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from hatchling.metadata.plugin.interface import MetadataHookInterface
 from hatchling.plugin import hookimpl
 
-from unidep._setuptools_integration import get_python_dependencies
+from unidep._setuptools_integration import _deps
 from unidep.utils import (
-    UnsupportedPlatformError,
-    identify_current_platform,
     parse_folder_or_filename,
 )
 
@@ -43,23 +40,7 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
             )
             raise RuntimeError(error_msg)
 
-        try:
-            platforms = [identify_current_platform()]
-        except UnsupportedPlatformError:
-            # We don't know the current platform, so we can't filter out.
-            # This will result in selecting all platforms. But this is better
-            # than failing.
-            platforms = None
-
-        skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
-        verbose = bool(os.getenv("UNIDEP_VERBOSE"))
-        deps = get_python_dependencies(
-            requirements_file,
-            platforms=platforms,
-            raises_if_missing=False,
-            verbose=verbose,
-            include_local_dependencies=not skip_local_dependencies,
-        )
+        deps = _deps(requirements_file)
         metadata["dependencies"] = deps.dependencies
         if "optional-dependencies" not in metadata.get("dynamic", []):
             return
