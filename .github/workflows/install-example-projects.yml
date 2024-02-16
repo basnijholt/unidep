@@ -1,4 +1,4 @@
-name: pip-install
+name: install-example-projects
 
 on:
   push:
