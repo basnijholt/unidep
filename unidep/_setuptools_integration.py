@@ -154,6 +154,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
             " Remove the `install_requires` line from `setup.py`."
         )
         raise RuntimeError(msg)
+
     try:
         platforms = [identify_current_platform()]
     except UnsupportedPlatformError:
@@ -163,11 +164,12 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         platforms = None
 
     skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
+    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
     deps = get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
-        verbose=bool(os.getenv("UNIDEP_VERBOSE")),
+        verbose=verbose,
         include_local_dependencies=not skip_local_dependencies,
     )
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]

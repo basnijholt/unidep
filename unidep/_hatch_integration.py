@@ -11,7 +11,11 @@ from hatchling.metadata.plugin.interface import MetadataHookInterface
 from hatchling.plugin import hookimpl
 
 from unidep._setuptools_integration import get_python_dependencies
-from unidep.utils import identify_current_platform, parse_folder_or_filename
+from unidep.utils import (
+    UnsupportedPlatformError,
+    identify_current_platform,
+    parse_folder_or_filename,
+)
 
 __all__ = ["UnidepRequirementsMetadataHook"]
 
@@ -38,12 +42,22 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
                 " Please remove `[project.dependencies]`, you cannot use both."
             )
             raise RuntimeError(error_msg)
+
+        try:
+            platforms = [identify_current_platform()]
+        except UnsupportedPlatformError:
+            # We don't know the current platform, so we can't filter out.
+            # This will result in selecting all platforms. But this is better
+            # than failing.
+            platforms = None
+
         skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
+        verbose = bool(os.getenv("UNIDEP_VERBOSE"))
         deps = get_python_dependencies(
             requirements_file,
-            platforms=[identify_current_platform()],
+            platforms=platforms,
             raises_if_missing=False,
-            verbose=bool(os.getenv("UNIDEP_VERBOSE")),
+            verbose=verbose,
             include_local_dependencies=not skip_local_dependencies,
         )
         metadata["dependencies"] = deps.dependencies
