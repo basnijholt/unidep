@@ -106,7 +106,7 @@ Using `unidep` for installation offers a more comprehensive approach. It handles
 $ unidep install --dry-run -e ./setup_py_project
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge pandas adaptive">=0.15.0, <2.0.0" pfapack packaging`
 
-📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage codestructure aiokef markdown-code-runner numthreads`
+📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install yaml2bib rsync-time-machine slurm-usage pyyaml aiokef markdown-code-runner numthreads`
 
 📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project']}
 
@@ -153,7 +153,7 @@ unidep install-all -e
 $ unidep install-all -e --dry-run
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge adaptive-scheduler numpy">=1.21" hpc05 pandas">=1,<3" pexpect adaptive pfapack packaging`
 
-📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install unidep markdown-code-runner numthreads yaml2bib rsync-time-machine slurm-usage codestructure aiokef`
+📦 Installing pip dependencies with `/opt/hostedtoolcache/Python/3.12.2/x64/bin/python -m pip install unidep markdown-code-runner numthreads yaml2bib rsync-time-machine slurm-usage pyyaml aiokef`
 
 📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}
 

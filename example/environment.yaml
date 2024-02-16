@@ -23,7 +23,7 @@ dependencies:
     - rsync-time-machine
     - slurm-usage
     - fileup; sys_platform == 'darwin'
-    - codestructure
+    - pyyaml
     - aiokef
 platforms:
   - linux-64
