@@ -99,9 +99,9 @@ line_length = 88
 [tool.ruff]
 line-length = 88
 target-version = "py37"
-select = ["ALL"]
 
 [tool.ruff.lint]
+select = ["ALL"]
 ignore = [
     "T20",     # flake8-print
     "ANN101",  # Missing type annotation for {name} in method
