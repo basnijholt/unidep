@@ -18,7 +18,7 @@ dependencies:
   - pip:
     - unidep
     - markdown-code-runner
-    - home-assistant-streamdeck-yaml
+    - numthreads
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
     - rsync-time-machine
     - slurm-usage

@@ -28,7 +28,7 @@ dependencies = [
     "pfapack:linux64",
     "pipefunc",
     { pip = "markdown-code-runner" },
-    { pip = "home-assistant-streamdeck-yaml" },
+    { pip = "numthreads" },
 ]
 ```
 
