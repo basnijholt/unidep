@@ -29,7 +29,7 @@ dynamic = ["dependencies"]  # add "dependencies" here
 [tool.unidep]
 channels = ["conda-forge"]
 dependencies = [
-    "adaptive-scheduler:linux64",
+    { conda = "adaptive-scheduler:linux64" },
     { pip = "unidep" },
     "numpy >=1.21",
     "hpc05:linux64",
