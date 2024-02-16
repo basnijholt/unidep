@@ -1118,6 +1118,7 @@ def _pip_subcommand(
         ignore_pins=ignore_pins,
         skip_dependencies=skip_dependencies,
         overwrite_pins=overwrite_pins,
+        include_local_dependencies=True,
     )
     pip_dependencies = deps.dependencies
     for extra in parse_folder_or_filename(path).extras:

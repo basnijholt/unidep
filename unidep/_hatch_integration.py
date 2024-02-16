@@ -4,6 +4,7 @@ This module contains the Hatchling integration.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from hatchling.metadata.plugin.interface import MetadataHookInterface
@@ -37,10 +38,13 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
                 " Please remove `[project.dependencies]`, you cannot use both."
             )
             raise RuntimeError(error_msg)
+        skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
         deps = get_python_dependencies(
             requirements_file,
             platforms=[identify_current_platform()],
             raises_if_missing=False,
+            verbose=bool(os.getenv("UNIDEP_VERBOSE")),
+            include_local_dependencies=not skip_local_dependencies,
         )
         metadata["dependencies"] = deps.dependencies
         if "optional-dependencies" not in metadata.get("dynamic", []):
