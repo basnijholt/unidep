@@ -4,7 +4,7 @@ channels:
 dependencies:
   - adaptive-scheduler  # [linux64]
   - pip: unidep
-  - numpy >=1.22
+  - numpy >=1.21
   - hpc05  # [linux64]
   - pandas >=2,<3
   - pexpect # [unix]

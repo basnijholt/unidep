@@ -7,7 +7,7 @@ channels:
   - conda-forge
 dependencies:
   - sel(linux): adaptive-scheduler
-  - numpy >=1.22
+  - numpy >=1.21
   - sel(linux): hpc05
   - pandas >=2,<3
   - sel(linux): pexpect
