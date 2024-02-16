@@ -100,6 +100,8 @@ line_length = 88
 line-length = 88
 target-version = "py37"
 select = ["ALL"]
+
+[tool.ruff.lint]
 ignore = [
     "T20",     # flake8-print
     "ANN101",  # Missing type annotation for {name} in method
@@ -114,14 +116,14 @@ ignore = [
     "TD002",   # Missing author in TODO
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["SLF001", "D103", "E501", "PLR2004"]
 "tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
 "example/*" = ["INP001", "D100"]
 "docs/*" = ["INP001", "E501"]
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 18
 
 [tool.mypy]
