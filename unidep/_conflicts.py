@@ -178,6 +178,7 @@ def resolve_conflicts(
     Dictionary mapping package names to a dictionary of resolved metadata.
     The resolved metadata is a dictionary mapping platforms to a dictionary
     mapping sources to a single `Spec` object.
+
     """
     if platforms and not set(platforms).issubset(get_args(Platform)):
         msg = f"Invalid platform: {platforms}, must contain only {get_args(Platform)}"
