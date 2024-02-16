@@ -427,3 +427,28 @@ def test_local_non_unidep_and_non_installable_managed_dependency(
     )
     with pytest.raises(RuntimeError, match="is not pip installable"):
         parse_local_dependencies(r1, verbose=True)
+
+
+def test_parse_local_dependencies_missing(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - ../does-not-exist
+            """,
+        ),
+    )
+    with pytest.raises(FileNotFoundError, match="not found."):
+        parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
+
+    local_dependencies = parse_local_dependencies(
+        r1,
+        verbose=True,
+        raise_if_missing=False,
+    )
+    assert local_dependencies == {}

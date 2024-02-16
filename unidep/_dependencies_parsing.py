@@ -491,6 +491,7 @@ def _extract_local_dependencies(
     *,
     check_pip_installable: bool = True,
     verbose: bool = False,
+    raise_if_missing: bool = True,
 ) -> None:
     path, extras = parse_folder_or_filename(path)
     if path in processed:
@@ -504,8 +505,10 @@ def _extract_local_dependencies(
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
         if not abs_local.exists():
-            msg = f"File `{abs_local}` not found."
-            raise FileNotFoundError(msg)
+            if raise_if_missing:
+                msg = f"File `{abs_local}` not found."
+                raise FileNotFoundError(msg)
+            continue
 
         try:
             requirements_path = parse_folder_or_filename(abs_local).path
@@ -552,10 +555,14 @@ def parse_local_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
+    raise_if_missing: bool = True,
 ) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
     Works by loading the specified `local_dependencies` list.
+
+    Returns a dictionary with the:
+    name of the project folder => list of `Path`s of local dependencies folders.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
 
@@ -570,6 +577,7 @@ def parse_local_dependencies(
             dependencies=dependencies,
             check_pip_installable=check_pip_installable,
             verbose=verbose,
+            raise_if_missing=raise_if_missing,
         )
 
     return {
