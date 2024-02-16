@@ -14,7 +14,7 @@ dependencies:
   - sel(osx): pexpect
   - adaptive
   - sel(linux): pfapack
-  - pipefunc
+  - packaging
   - pip:
     - unidep
     - markdown-code-runner

@@ -26,7 +26,7 @@ channels = ["conda-forge"]
 dependencies = [
     "adaptive",
     "pfapack:linux64",
-    "pipefunc",
+    "packaging",
     { pip = "markdown-code-runner" },
     { pip = "numthreads" },
 ]
