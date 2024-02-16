@@ -32,6 +32,7 @@ jobs:
           for d in ./example/*/ ; do
             pip install -e "$d"
           done
+        shell: bash
 
   conda-install:
     strategy:
