@@ -351,6 +351,7 @@ def parse_requirements(
         `requirements.yaml` or `pyproject.toml` files, the inner list to the
         extras to include for that file. If "*", all extras are included,
         if None, no extras are included.
+
     """
     paths_with_extras = _to_path_with_extras(paths, extras)  # type: ignore[arg-type]
     ignore_pins = ignore_pins or []
