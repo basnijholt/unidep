@@ -16,14 +16,15 @@ for project_dir in PROJECT_DIRS:
     # `"unidep[toml] @ file://<abs-path-to-repo-root>"` respectively
     pyproject_toml = project_dir / "pyproject.toml"
     lines = pyproject_toml.read_text().splitlines()
+    repo_root = REPO_ROOT.as_posix()  # convert to posix path for windows
     for i, line in enumerate(lines):
         if "requires = [" in line:
             if "unidep[toml]" in line:
                 lines[i] = line.replace(
                     "unidep[toml]",
-                    f"unidep[toml] @ file://{REPO_ROOT}",
+                    f"unidep[toml] @ file://{repo_root}",
                 )
             elif "unidep" in line:
-                lines[i] = line.replace("unidep", f"unidep @ file://{REPO_ROOT}")
+                lines[i] = line.replace("unidep", f"unidep @ file://{repo_root}")
             break
     pyproject_toml.write_text("\n".join(lines))
