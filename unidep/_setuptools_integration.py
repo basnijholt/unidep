@@ -161,11 +161,13 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         # than failing.
         platforms = None
 
+    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
     deps = get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
-        verbose=bool(os.environ.get("UNIDEP_VERBOSE")),
+        verbose=bool(os.getenv("UNIDEP_VERBOSE")),
+        include_local_dependencies=not skip_local_dependencies,
     )
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
 
