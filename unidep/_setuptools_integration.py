@@ -16,6 +16,7 @@ from unidep.utils import (
     build_pep508_environment_marker,
     identify_current_platform,
     parse_folder_or_filename,
+    warn,
 )
 
 if TYPE_CHECKING:
@@ -141,6 +142,12 @@ def _deps(requirements_file: Path) -> Dependencies:
     try:
         platforms = [identify_current_platform()]
     except UnsupportedPlatformError:
+        warn(
+            "Could not identify the current platform."
+            " This may result in selecting all platforms."
+            " Please report this issue at"
+            " https://github.com/basnijholt/unidep/issues",
+        )
         # We don't know the current platform, so we can't filter out.
         # This will result in selecting all platforms. But this is better
         # than failing.
