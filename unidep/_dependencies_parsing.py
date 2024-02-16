@@ -515,6 +515,8 @@ def _extract_local_dependencies(
         except FileNotFoundError:
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_local):
+                # TODO[Bas]: Might not be the case when pip installing with local deps!
+                # FIX THIS BEFORE MERGING.
                 dependencies[str(base_path)].add(str(abs_local))
                 warn(
                     f"⚠️ Installing a local dependency (`{abs_local.name}`) which is"
