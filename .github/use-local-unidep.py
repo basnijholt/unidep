@@ -2,7 +2,7 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE_DIR = REPO_ROOT / "examples"
+EXAMPLE_DIR = REPO_ROOT / "example"
 PROJECT_DIRS = [p for p in EXAMPLE_DIR.iterdir() if p.name.endswith("_project")]
 
 print(
