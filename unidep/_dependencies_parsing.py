@@ -491,6 +491,8 @@ def _extract_local_dependencies(
     *,
     check_pip_installable: bool = True,
     verbose: bool = False,
+    raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
 ) -> None:
     path, extras = parse_folder_or_filename(path)
     if path in processed:
@@ -504,8 +506,10 @@ def _extract_local_dependencies(
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
         if not abs_local.exists():
-            msg = f"File `{abs_local}` not found."
-            raise FileNotFoundError(msg)
+            if raise_if_missing:
+                msg = f"File `{abs_local}` not found."
+                raise FileNotFoundError(msg)
+            continue
 
         try:
             requirements_path = parse_folder_or_filename(abs_local).path
@@ -513,13 +517,16 @@ def _extract_local_dependencies(
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_local):
                 dependencies[str(base_path)].add(str(abs_local))
-                warn(
-                    f"⚠️ Installing a local dependency (`{abs_local.name}`) which is"
-                    " not managed by unidep, this will skip all of its dependencies,"
-                    " i.e., it will call `pip install` with `--no-dependencies`."
-                    " To properly manage this dependency, add a `requirements.yaml`"
-                    " or `pyproject.toml` file with `[tool.unidep]` in its directory.",
-                )
+                if warn_non_managed:
+                    # We do not need to emit this warning when `pip install` is called
+                    warn(
+                        f"⚠️ Installing a local dependency (`{abs_local.name}`) which"
+                        " is not managed by unidep, this will skip all of its"
+                        " dependencies, i.e., it will call `pip install` with"
+                        "  `--no-dependencies`. To properly manage this dependency,"
+                        " add a `requirements.yaml` or `pyproject.toml` file with"
+                        " `[tool.unidep]` in its directory.",
+                    )
             else:
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not pip"
@@ -552,10 +559,15 @@ def parse_local_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
     verbose: bool = False,
+    raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
 ) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
     Works by loading the specified `local_dependencies` list.
+
+    Returns a dictionary with the:
+    name of the project folder => list of `Path`s of local dependencies folders.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
 
@@ -570,6 +582,8 @@ def parse_local_dependencies(
             dependencies=dependencies,
             check_pip_installable=check_pip_installable,
             verbose=verbose,
+            raise_if_missing=raise_if_missing,
+            warn_non_managed=warn_non_managed,
         )
 
     return {

@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from unidep._conflicts import resolve_conflicts
-from unidep._dependencies_parsing import parse_requirements
+from unidep._dependencies_parsing import parse_local_dependencies, parse_requirements
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     identify_current_platform,
     parse_folder_or_filename,
+    warn,
 )
 
 if TYPE_CHECKING:
@@ -95,6 +96,7 @@ def get_python_dependencies(
     skip_dependencies: list[str] | None = None,
     platforms: list[Platform] | None = None,
     raises_if_missing: bool = True,
+    include_local_dependencies: bool = False,
 ) -> Dependencies:
     """Extract Python (pip) requirements from a `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     try:
@@ -116,14 +118,54 @@ def get_python_dependencies(
         platforms = list(requirements.platforms)
     resolved = resolve_conflicts(requirements.requirements, platforms)
     dependencies = filter_python_dependencies(resolved)
-    # TODO[Bas]: This currentlt doesn't correctly handle  # noqa: TD004, TD003, FIX002
+    # TODO[Bas]: This currently doesn't correctly handle  # noqa: TD004, TD003, FIX002
     # conflicts between sections in the extras and the main dependencies.
     extras = {
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
         for section, reqs in requirements.optional_dependencies.items()
     }
+    if include_local_dependencies:
+        local_dependencies = parse_local_dependencies(
+            p.path_with_extras,
+            check_pip_installable=True,
+            verbose=verbose,
+            raise_if_missing=False,  # skip if local dep is not found
+            # We don't need to warn about skipping the dependencies of
+            # the local dependencies. That is only relevant for the
+            # `unidep install` commands.
+            warn_non_managed=False,
+        )
+        for paths in local_dependencies.values():
+            for path in paths:
+                dependencies.append(f"{path.name} @ file://{path.as_posix()}")
 
     return Dependencies(dependencies=dependencies, extras=extras)
+
+
+def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
+    try:
+        platforms = [identify_current_platform()]
+    except UnsupportedPlatformError:
+        warn(
+            "Could not identify the current platform."
+            " This may result in selecting all platforms."
+            " Please report this issue at"
+            " https://github.com/basnijholt/unidep/issues",
+        )
+        # We don't know the current platform, so we can't filter out.
+        # This will result in selecting all platforms. But this is better
+        # than failing.
+        platforms = None
+
+    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
+    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
+    return get_python_dependencies(
+        requirements_file,
+        platforms=platforms,
+        raises_if_missing=False,
+        verbose=verbose,
+        include_local_dependencies=not skip_local_dependencies,
+    )
 
 
 def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
@@ -143,20 +185,8 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
             " Remove the `install_requires` line from `setup.py`."
         )
         raise RuntimeError(msg)
-    try:
-        platforms = [identify_current_platform()]
-    except UnsupportedPlatformError:
-        # We don't know the current platform, so we can't filter out.
-        # This will result in selecting all platforms. But this is better
-        # than failing.
-        platforms = None
 
-    deps = get_python_dependencies(
-        requirements_file,
-        platforms=platforms,
-        raises_if_missing=False,
-        verbose=bool(os.environ.get("UNIDEP_VERBOSE")),
-    )
+    deps = _deps(requirements_file)
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
 
     if deps.extras:

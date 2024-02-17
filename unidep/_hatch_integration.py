@@ -9,8 +9,10 @@ from pathlib import Path
 from hatchling.metadata.plugin.interface import MetadataHookInterface
 from hatchling.plugin import hookimpl
 
-from unidep._setuptools_integration import get_python_dependencies
-from unidep.utils import identify_current_platform, parse_folder_or_filename
+from unidep._setuptools_integration import _deps
+from unidep.utils import (
+    parse_folder_or_filename,
+)
 
 __all__ = ["UnidepRequirementsMetadataHook"]
 
@@ -37,11 +39,8 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
                 " Please remove `[project.dependencies]`, you cannot use both."
             )
             raise RuntimeError(error_msg)
-        deps = get_python_dependencies(
-            requirements_file,
-            platforms=[identify_current_platform()],
-            raises_if_missing=False,
-        )
+
+        deps = _deps(requirements_file)
         metadata["dependencies"] = deps.dependencies
         if "optional-dependencies" not in metadata.get("dynamic", []):
             return
