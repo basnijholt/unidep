@@ -21,6 +21,7 @@ from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
 from unidep._dependencies_parsing import yaml_to_toml
 from unidep.platform_definitions import Platform, Spec
+from unidep.utils import is_pip_installable
 
 if TYPE_CHECKING:
     import sys
@@ -349,6 +350,37 @@ def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
         ).dependencies
         == []
     )
+
+
+def test_pip_install_local_dependencies(tmp_path: Path) -> None:
+    p = tmp_path / "pkg" / "requirements.yaml"
+    p.parent.mkdir(exist_ok=True)
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo
+            local_dependencies:
+                - ../local_package
+            """,
+        ),
+    )
+    deps = get_python_dependencies(p, raises_if_missing=False)
+    assert deps.dependencies == ["foo"]
+
+    deps = get_python_dependencies(p, include_local_dependencies=True)
+    assert deps.dependencies == ["foo"]  # because the local package doesn't exist
+
+    local_package = tmp_path / "local_package"
+    local_package.mkdir(exist_ok=True, parents=True)
+    assert not is_pip_installable(local_package)
+    (local_package / "setup.py").touch()
+    assert is_pip_installable(local_package)
+    deps = get_python_dependencies(p, include_local_dependencies=True)
+    assert deps.dependencies == [
+        "foo",
+        f"local_package @ file://{local_package.as_posix()}",
+    ]
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])

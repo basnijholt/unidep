@@ -130,6 +130,10 @@ def get_python_dependencies(
             check_pip_installable=True,
             verbose=verbose,
             raise_if_missing=False,  # skip if local dep is not found
+            # We don't need to warn about skipping the dependencies of
+            # the local dependencies. That is only relevant for the
+            # `unidep install` commands.
+            warn_non_managed=False,
         )
         for paths in local_dependencies.values():
             for path in paths:
@@ -138,7 +142,7 @@ def get_python_dependencies(
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
-def _deps(requirements_file: Path) -> Dependencies:
+def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
     try:
         platforms = [identify_current_platform()]
     except UnsupportedPlatformError:

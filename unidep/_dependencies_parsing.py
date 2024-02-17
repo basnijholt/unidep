@@ -492,6 +492,7 @@ def _extract_local_dependencies(
     check_pip_installable: bool = True,
     verbose: bool = False,
     raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
 ) -> None:
     path, extras = parse_folder_or_filename(path)
     if path in processed:
@@ -515,16 +516,17 @@ def _extract_local_dependencies(
         except FileNotFoundError:
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_local):
-                # TODO[Bas]: Might not be the case when pip installing with local deps!
-                # FIX THIS BEFORE MERGING.
                 dependencies[str(base_path)].add(str(abs_local))
-                warn(
-                    f"⚠️ Installing a local dependency (`{abs_local.name}`) which is"
-                    " not managed by unidep, this will skip all of its dependencies,"
-                    " i.e., it will call `pip install` with `--no-dependencies`."
-                    " To properly manage this dependency, add a `requirements.yaml`"
-                    " or `pyproject.toml` file with `[tool.unidep]` in its directory.",
-                )
+                if warn_non_managed:
+                    # We do not need to emit this warning when `pip install` is called
+                    warn(
+                        f"⚠️ Installing a local dependency (`{abs_local.name}`) which"
+                        " is not managed by unidep, this will skip all of its"
+                        " dependencies, i.e., it will call `pip install` with"
+                        "  `--no-dependencies`. To properly manage this dependency,"
+                        " add a `requirements.yaml` or `pyproject.toml` file with"
+                        " `[tool.unidep]` in its directory.",
+                    )
             else:
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not pip"
@@ -558,6 +560,7 @@ def parse_local_dependencies(
     check_pip_installable: bool = True,
     verbose: bool = False,
     raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
 ) -> dict[Path, list[Path]]:
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
@@ -580,6 +583,7 @@ def parse_local_dependencies(
             check_pip_installable=check_pip_installable,
             verbose=verbose,
             raise_if_missing=raise_if_missing,
+            warn_non_managed=warn_non_managed,
         )
 
     return {
