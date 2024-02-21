@@ -105,13 +105,14 @@ Both files contain the following keys:
 - **channels**: List of conda channels for packages, such as `conda-forge`.
 - **dependencies**: Mix of Conda and Pip packages.
 - **local_dependencies** (Optional): List of paths to other `requirements.yaml` or `pyproject.toml` files to include.
-- **platforms** (Optional): List of platforms that are supported (used in `conda-lock`).
 - **optional_dependencies** (Optional): Dictionary with lists of optional dependencies.
+- **platforms** (Optional): List of platforms that are supported (used in `conda-lock`).
 
 Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
 Choose the format that works best for your project.
 
 ### Example
+
 #### Example `requirements.yaml`
 
 Example of a `requirements.yaml` file:
@@ -132,14 +133,14 @@ local_dependencies:
   - ../other-project-using-unidep     # include other projects that use unidep
   - ../common-requirements.yaml       # include other requirements.yaml files
   - ../project-not-managed-by-unidep  # 🚨 Skips its dependencies!
-platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
-  - linux-64
-  - osx-arm64
-optional_dependencies:  # (Optional) specify optional dependencies
+optional_dependencies:
   test:
     - pytest
   full:
-    - ../other-local-dep[test]  # include its optional dependencies
+    - ../other-local-dep[test]  # include its optional 'test' dependencies
+platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
+  - linux-64
+  - osx-arm64
 ```
 
 > [!IMPORTANT]
@@ -167,14 +168,14 @@ local_dependencies = [
     "../common-requirements.yaml"      # include other requirements.yaml files
     "../project-not-managed-by-unidep" # 🚨 Skips its dependencies!
 ]
+optional_dependencies = {
+    test = ["pytest"],
+    full = ["../other-local-dep[test]"]  # include its optional 'test' dependencies
+}
 platforms = [ # (Optional) specify platforms that are supported (used in conda-lock)
     "linux-64",
     "osx-arm64"
 ]
-optional_dependencies = { # (Optional) specify optional dependencies
-    test = ["pytest"],
-    full = ["../other-local-dep[test]"]  # include its optional dependencies
-}
 ```
 
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
@@ -193,9 +194,9 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
-- Use `platforms:` to specify the platforms that are supported.
 - Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies!
 - Use `optional_dependencies:` to specify optional dependencies. Can be installed like `unidep install ".[test]"` or `pip install ".[test]"`.
+- Use `platforms:` to specify the platforms that are supported. If omitted, all platforms are assumed to be supported.
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
