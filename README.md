@@ -196,7 +196,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
 - Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies!
 - Use `optional_dependencies:` to specify optional dependencies. Can be installed like `unidep install ".[test]"` or `pip install ".[test]"`.
-- Use `platforms:` to specify the platforms that are supported.
+- Use `platforms:` to specify the platforms that are supported. If omitted, all platforms are assumed to be supported.
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
