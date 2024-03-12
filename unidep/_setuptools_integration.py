@@ -3,6 +3,7 @@
 
 This module provides setuptools integration for unidep.
 """
+
 from __future__ import annotations
 
 import os

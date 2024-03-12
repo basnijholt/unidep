@@ -2,6 +2,7 @@
 
 This module provides utility functions used throughout the package.
 """
+
 from __future__ import annotations
 
 import codecs

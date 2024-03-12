@@ -2,6 +2,7 @@
 
 Conda environment file generation functions.
 """
+
 from __future__ import annotations
 
 import sys

@@ -1,4 +1,5 @@
 """unidep's YAML parsing of the `local_dependencies` list."""
+
 from __future__ import annotations
 
 import shutil

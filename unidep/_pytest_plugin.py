@@ -4,6 +4,7 @@ Pytest plugin for running only tests of changed files.
 
 WARNING: Still experimental and not documented.
 """
+
 from __future__ import annotations
 
 import logging

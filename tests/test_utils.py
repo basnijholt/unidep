@@ -1,4 +1,5 @@
 """Tests for the unidep.utils module."""
+
 from __future__ import annotations
 
 import sys
