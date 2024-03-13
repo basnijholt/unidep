@@ -1,4 +1,5 @@
 """Update `pyproject.toml` in each example project to use local `unidep`."""
+
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

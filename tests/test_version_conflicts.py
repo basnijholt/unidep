@@ -1,4 +1,5 @@
 """Tests for the version conflict resolution logic."""
+
 from __future__ import annotations
 
 import pytest

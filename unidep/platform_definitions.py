@@ -2,6 +2,7 @@
 
 Types and definitions for platforms, selectors, and markers.
 """
+
 from __future__ import annotations
 
 import sys

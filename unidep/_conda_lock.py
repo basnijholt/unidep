@@ -2,6 +2,7 @@
 
 This module provides the `unidep conda-lock` CLI command, used in `unidep._cli`.
 """
+
 from __future__ import annotations
 
 import shutil
