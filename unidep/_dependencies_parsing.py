@@ -507,7 +507,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
         and is_pip_installable(path.parent)
         and not _is_same_path(path.parent, base_path)
     ):
-        dependencies[str(base_path)].add(str(path.parent))
+        dependencies[str(base_path)].add(str(path.parent.resolve()))
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
