@@ -77,20 +77,26 @@ def is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
     """Determine if the project is pip installable.
 
     Checks for existence of setup.py or [build-system] in pyproject.toml.
+    If the `toml` library is available, it is used to parse the `pyproject.toml` file.
+    If the `toml` library is not available, the function checks for the existence of
+    a line starting with "[build-system]". This does not handle the case where
+    [build-system] is inside of a multi-line literal string.
     """
     path = Path(folder)
     if (path / "setup.py").exists():
         return True
 
-    # When toml makes it into the standard library, we can use that instead
-    # For now this is good enough, except it doesn't handle the case where
-    # [build-system] is inside of a multi-line literal string.
     pyproject_path = path / "pyproject.toml"
     if pyproject_path.exists():
-        with pyproject_path.open("r") as file:
-            for line in file:
-                if line.strip().startswith("[build-system]"):
-                    return True
+        if HAS_TOML:
+            with pyproject_path.open("rb") as file:
+                pyproject_data = tomllib.load(file)
+                return "build-system" in pyproject_data
+        else:
+            with pyproject_path.open("r") as file:
+                for line in file:
+                    if line.strip().startswith("[build-system]"):
+                        return True
     return False
 
 
