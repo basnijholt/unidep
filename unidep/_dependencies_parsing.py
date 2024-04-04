@@ -483,10 +483,6 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _is_same_path(path1: Path, path2: Path) -> bool:
-    return path1.resolve() == path2.resolve()
-
-
 def _extract_local_dependencies(
     path: Path,
     base_path: Path,
