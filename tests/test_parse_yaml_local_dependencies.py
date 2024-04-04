@@ -284,7 +284,7 @@ def test_parse_local_dependencies_pip_installable(
     shutil.copytree(REPO_ROOT / "example", example_folder)
 
     # Add an extra project
-    extra_project = example_folder / "project69"
+    extra_project = example_folder / "extra_project"
     extra_project.mkdir(exist_ok=True, parents=True)
     (extra_project / "requirements.yaml").write_text(
         "local_dependencies: [../setup_py_project]",
@@ -295,7 +295,7 @@ def test_parse_local_dependencies_pip_installable(
     yaml = YAML(typ="safe")
     with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
-    requirements["local_dependencies"].append("../project69")
+    requirements["local_dependencies"].append("../extra_project")
     with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
@@ -453,3 +453,38 @@ def test_parse_local_dependencies_missing(
         raise_if_missing=False,
     )
     assert local_dependencies == {}
+
+
+def test_parse_local_dependencies_without_local_deps_themselves(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - ../project2
+            """,
+        ),
+    )
+
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+    r2 = project2 / "pyproject.toml"
+    r2.write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "wheel"]
+            """,
+        ),
+    )
+    with pytest.warns(UserWarning, match="not managed by unidep"):
+        local_dependencies = parse_local_dependencies(
+            r1,
+            verbose=True,
+            raise_if_missing=True,
+        )
+    assert local_dependencies == {project1: [project2]}
