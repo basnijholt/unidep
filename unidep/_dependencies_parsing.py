@@ -483,7 +483,11 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(
+def _is_same_path(path1: Path, path2: Path) -> bool:
+    return path1.resolve() == path2.resolve()
+
+
+def _extract_local_dependencies(  # noqa: PLR0912
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -498,6 +502,12 @@ def _extract_local_dependencies(
     if path in processed:
         return
     processed.add(path)
+    if (
+        is_pip_installable(base_path)
+        and is_pip_installable(path.parent)
+        and not _is_same_path(path.parent, base_path)
+    ):
+        dependencies[str(base_path)].add(str(path.parent.resolve()))
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
@@ -552,6 +562,7 @@ def _extract_local_dependencies(
             processed,
             dependencies,
             check_pip_installable=check_pip_installable,
+            verbose=verbose,
         )
 
 
