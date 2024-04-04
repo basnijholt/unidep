@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import textwrap
+from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -315,6 +316,7 @@ def test_parse_local_dependencies_pip_installable(
         verbose=True,
     )
     assert local_dependencies
+    # extra_project is not `pip installable` so it should not be included in the values()
     assert local_dependencies == {
         example_folder / "setup_py_project": [
             example_folder / "hatch_project",
@@ -325,6 +327,16 @@ def test_parse_local_dependencies_pip_installable(
         ],
         example_folder / "pyproject_toml_project": [
             example_folder / "hatch_project",
+        ],
+        example_folder / "extra_project": [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
+            example_folder / "setuptools_project",
+        ],
+        example_folder: [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
+            example_folder / "setuptools_project",
         ],
     }
 
@@ -338,20 +350,20 @@ def test_parse_local_dependencies_pip_installable_with_non_installable_project(
     shutil.copytree(REPO_ROOT / "example", example_folder)
 
     # Add an extra project
-    extra_project = example_folder / "project4"
+    extra_project = example_folder / "extra_project"
     extra_project.mkdir(exist_ok=True, parents=True)
     r_extra = extra_project / "requirements.yaml"
     r_extra.write_text("local_dependencies: [../setup_py_project]")
     r_extra = maybe_as_toml(toml_or_yaml, r_extra)
 
     # Add a line to hatch_project local_dependencies which should
-    # make hatch_project depend on setup_py_project, via project4! However, project4 is
+    # make hatch_project depend on setup_py_project, via extra_project! However, extra_project is
     # not `pip installable` so we're testing that path.
     setup_py_project_req = example_folder / "hatch_project" / "requirements.yaml"
     yaml = YAML(typ="safe")
     with setup_py_project_req.open("r") as f:
         requirements = yaml.load(f)
-    requirements["local_dependencies"] = ["../project4"]
+    requirements["local_dependencies"] = ["../extra_project"]
     with setup_py_project_req.open("w") as f:
         yaml.dump(requirements, f)
 
@@ -381,6 +393,11 @@ def test_parse_local_dependencies_pip_installable_with_non_installable_project(
         example_folder / "setuptools_project": [
             example_folder / "hatch_project",
             example_folder / "setup_py_project",
+        ],
+        example_folder / "extra_project": [
+            example_folder / "hatch_project",
+            example_folder / "setup_py_project",
+            example_folder / "setuptools_project",
         ],
     }
 
@@ -455,8 +472,10 @@ def test_parse_local_dependencies_missing(
     assert local_dependencies == {}
 
 
+@pytest.mark.parametrize("unidep_managed", [True, False])
 def test_parse_local_dependencies_without_local_deps_themselves(
     tmp_path: Path,
+    unidep_managed: bool,  # noqa: FBT001
 ) -> None:
     project1 = tmp_path / "project1"
     project1.mkdir(exist_ok=True, parents=True)
@@ -473,18 +492,28 @@ def test_parse_local_dependencies_without_local_deps_themselves(
     project2 = tmp_path / "project2"
     project2.mkdir(exist_ok=True, parents=True)
     r2 = project2 / "pyproject.toml"
-    r2.write_text(
-        textwrap.dedent(
-            """\
+    txt = textwrap.dedent(
+        """\
             [build-system]
             requires = ["setuptools", "wheel"]
             """,
-        ),
     )
-    with pytest.warns(UserWarning, match="not managed by unidep"):
+    if unidep_managed:
+        txt += '[tool.unidep]\ndependencies = ["numpy"]'
+    r2.write_text(txt)
+    ctx = (
+        pytest.warns(UserWarning, match="not managed by unidep")
+        if not unidep_managed
+        else nullcontext()
+    )
+    with ctx:
         local_dependencies = parse_local_dependencies(
             r1,
             verbose=True,
             raise_if_missing=True,
         )
     assert local_dependencies == {project1: [project2]}
+
+    r2.write_text("")
+    with pytest.raises(RuntimeError, match="is not pip installable"):
+        parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
