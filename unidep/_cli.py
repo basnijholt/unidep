@@ -614,17 +614,6 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
-def _capitalize_last_dir(path: str, *, capitalize: bool = True) -> str:
-    """Capitalize the last directory in a path."""
-    parts = path.split(os.sep)  # noqa: PTH206
-    if capitalize:
-        parts[-1] = parts[-1].capitalize()
-    else:
-        parts[-1] = parts[-1].lower()
-    return os.sep.join(parts)  # noqa: PTH118
-
-
-@functools.lru_cache(1)
 def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
     if os.name == "nt":  # pragma: no cover
@@ -632,47 +621,66 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         for exe in executables:
             if shutil.which(exe) is not None:
                 return exe
-        searched = []
-        conda_roots = [
-            r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
-            r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
-            r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
-            r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
-            r"C:\ProgramData\Anaconda3",  # https://stackoverflow.com/a/58211115
-            r"C:\ProgramData\Miniconda3",  # https://stackoverflow.com/a/51003321
-        ]
-        if conda_executable == "mamba":
-            conda_roots = [
-                r"C:\ProgramData\mambaforge",  # https://github.com/mamba-org/mamba/issues/1756#issuecomment-1517284831
-                r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
-                # First try native mamba locations, then Conda locations (in
-                # case `conda install mamba` was used)
-                *conda_roots,
-            ]
-        if conda_executable == "micromamba":
-            conda_roots = [
-                # Default installation directory based on the installation script
-                # https://raw.githubusercontent.com/mamba-org/micromamba-releases/main/install.ps1
-                r"%LOCALAPPDATA%\micromamba",
-            ]
-
-        extensions = (".exe", "", ".bat")
-        subs = ("condadir", "Scripts", "")  # The "" is for micromamba
-        for root, sub, ext in itertools.product(conda_roots, subs, extensions):
-            path = rf"{root}\{sub}\{conda_executable}{ext}"
-            path = os.path.expandvars(path)
-            for capitalize in (True, False):
-                # @sbalk reported that their `anaconda3` folder is lowercase
-                path = _capitalize_last_dir(path, capitalize=capitalize)
-                searched.append(path)
-                if os.path.exists(path):  # noqa: PTH110
-                    return path
-        msg = f"Could not find {conda_executable}."
-
-        searched_str = "\n👉 ".join(searched)
-        msg = f"Could not find {conda_executable}. Searched in:\n👉 {searched_str}"
-        raise FileNotFoundError(msg)
+        return _find_windows_path(conda_executable)
     return conda_executable
+
+
+def _capitalize_dir(path: str, *, capitalize: bool = True, index: int = -1) -> str:
+    """Capitalize or lowercase a directory in a path, on Windows only."""
+    sep = "\\"
+    parts = path.split(sep)
+    if capitalize:
+        parts[index] = parts[index].capitalize()
+    else:
+        parts[index] = parts[index].lower()
+    return sep.join(parts)
+
+
+@functools.lru_cache(1)
+def _find_windows_path(conda_executable: CondaExecutable) -> str:
+    """Find the path to the conda executable on Windows."""
+    searched = []
+    conda_roots = [
+        r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
+        r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
+        r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
+        r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
+        r"C:\ProgramData\Anaconda3",  # https://stackoverflow.com/a/58211115
+        r"C:\ProgramData\Miniconda3",  # https://stackoverflow.com/a/51003321
+    ]
+    if conda_executable == "mamba":
+        conda_roots = [
+            r"C:\ProgramData\mambaforge",  # https://github.com/mamba-org/mamba/issues/1756#issuecomment-1517284831
+            r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
+            # First try native mamba locations, then Conda locations (in
+            # case `conda install mamba` was used)
+            *conda_roots,
+        ]
+    if conda_executable == "micromamba":
+        conda_roots = [
+            # Default installation directory based on the installation script
+            # https://raw.githubusercontent.com/mamba-org/micromamba-releases/main/install.ps1
+            r"%LOCALAPPDATA%\micromamba",
+        ]
+
+    extensions = (".exe", "", ".bat")
+    subs = ("condadir\\", "Scripts\\", "")  # The "" is for micromamba
+    for root, sub, ext, cap in itertools.product(
+        conda_roots,
+        subs,
+        extensions,
+        (True, False),
+    ):
+        # @sbalk reported that his `anaconda3` folder is lowercase
+        path = rf"{_capitalize_dir(root, capitalize=cap)}\{sub}{conda_executable}{ext}"
+        path = os.path.expandvars(path)
+        searched.append(path)
+        if os.path.exists(path):  # noqa: PTH110
+            return path
+    msg = f"Could not find {conda_executable}."
+    searched_str = "\n👉 ".join(searched)
+    msg = f"Could not find {conda_executable}. Searched in:\n👉 {searched_str}"
+    raise FileNotFoundError(msg)
 
 
 def _conda_cli_command_json(
