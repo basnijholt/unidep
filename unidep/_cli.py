@@ -614,6 +614,16 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
+def _capitalize_last_dir(path: str, *, capitalize: bool = True) -> str:
+    """Capitalize the last directory in a path."""
+    parts = path.split(os.sep)  # noqa: PTH206
+    if capitalize:
+        parts[-1] = parts[-1].capitalize()
+    else:
+        parts[-1] = parts[-1].lower()
+    return os.sep.join(parts)  # noqa: PTH118
+
+
 @functools.lru_cache(1)
 def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
@@ -631,7 +641,6 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         elif conda_executable == "conda":
             conda_roots = [
                 r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
-                r"%USERPROFILE%\anaconda3",  # @sbalk
                 r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
                 r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
                 r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
@@ -653,8 +662,11 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         for root, sub, ext in itertools.product(conda_roots, subs, extensions):
             path = rf"{root}\{sub}\{conda_executable}{ext}"
             path = os.path.expandvars(path)
-            if os.path.exists(path):  # noqa: PTH110
-                return path
+            for capitalize in (True, False):
+                # @sbalk reported that their `anaconda3` folder is lowercase
+                path = _capitalize_last_dir(path, capitalize=capitalize)
+                if os.path.exists(path):  # noqa: PTH110
+                    return path
         msg = f"Could not find {conda_executable}."
         raise FileNotFoundError(msg)
     return conda_executable
