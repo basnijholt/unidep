@@ -622,6 +622,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         for exe in executables:
             if shutil.which(exe) is not None:
                 return exe
+
         if conda_executable == "mamba":
             conda_roots = [
                 r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
@@ -635,6 +636,16 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
                 r"C:\ProgramData\Anaconda3",  # https://stackoverflow.com/a/58211115
                 r"C:\ProgramData\Miniconda3",  # https://stackoverflow.com/a/51003321
             ]
+        elif conda_executable == "micromamba":
+            conda_roots = [
+                # Default installation directory based on the installation script
+                # https://raw.githubusercontent.com/mamba-org/micromamba-releases/main/install.ps1
+                r"%LOCALAPPDATA%\micromamba",
+            ]
+        else:
+            msg = f"Unknown conda executable: {conda_executable}"
+            raise ValueError(msg)
+
         extensions = (".exe", "", ".bat")
         subs = ("condadir", "Scripts")
         for root, sub, ext in itertools.product(conda_roots, subs, extensions):
