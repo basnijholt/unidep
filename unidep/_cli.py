@@ -664,7 +664,7 @@ def _find_windows_path(conda_executable: CondaExecutable) -> str:
         ]
 
     extensions = (".exe", "", ".bat")
-    subs = ("condadir\\", "Scripts\\", "")  # The "" is for micromamba
+    subs = ("condabin\\", "Scripts\\", "")  # The "" is for micromamba
     for root, sub, ext, cap in itertools.product(
         conda_roots,
         subs,
