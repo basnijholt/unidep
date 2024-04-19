@@ -621,6 +621,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         print("🐍 Running on Windows.")
         executables = [f"{conda_executable}.exe", conda_executable]
         for exe in executables:
+            break
             path = shutil.which(exe)
             if path is not None:
                 print(f"🔍 Found {path}.")
