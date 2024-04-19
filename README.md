@@ -81,7 +81,13 @@ Try it now and streamline your development process!
 
 ## :package: Installation
 
-To install `unidep`, run the following command:
+To install `unidep`, run one of the following commands that use [`pipx`](https://pipx.pypa.io/) (recommended), `pip`, or `conda`:
+
+```bash
+pipx install "unidep[all]"  # Recommended (install as a standalone CLI)
+```
+
+or
 
 ```bash
 pip install "unidep[all]"
