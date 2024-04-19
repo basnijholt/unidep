@@ -13,8 +13,10 @@ from unittest.mock import patch
 import pytest
 
 from unidep._cli import (
+    _capitalize_dir,
     _conda_env_list,
     _conda_root_prefix,
+    _find_windows_path,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
@@ -59,7 +61,7 @@ def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     ]:
         _install_command(
             REPO_ROOT / "example" / project,
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             dry_run=True,
             editable=False,
             verbose=True,
@@ -106,7 +108,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
 def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     _install_all_command(
-        conda_executable="",
+        conda_executable="",  # type: ignore[arg-type]
         conda_env_name=None,
         conda_env_prefix=None,
         dry_run=True,
@@ -342,7 +344,7 @@ def test_install_non_existing_file() -> None:
     with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
         _install_command(
             Path("does_not_exist"),
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
             dry_run=True,
@@ -361,7 +363,7 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match=match):
         _install_command(
             tmp_path,
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
             dry_run=True,
@@ -417,3 +419,136 @@ def test_pip_optional(tmp_path: Path) -> None:
         separator=" ",
     )
     assert txt == "foo bar"
+
+
+def test_capitalize_last_dir() -> None:
+    # Just needs to work for Windows paths
+    assert _capitalize_dir(r"foo\bar\baz") == r"foo\bar\Baz"
+    assert _capitalize_dir(r"foo\bar\baz", capitalize=False) == r"foo\bar\baz"
+    assert _capitalize_dir(r"foo\bar\baz", capitalize=True) == r"foo\bar\Baz"
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Don't test on Windows to make sure that conda is not found.",
+)
+def test_find_conda_windows() -> None:
+    """Tests whether the function searches the expected paths."""
+    with pytest.raises(
+        FileNotFoundError,
+        match="Could not find conda.",
+    ) as excinfo:
+        _find_windows_path("conda")
+    # This Windows hell... 🤦‍♂️
+    paths = [
+        r"👉 %USERPROFILE%\Anaconda3\condadir\conda.exe",
+        r"👉 %USERPROFILE%\anaconda3\condadir\conda.exe",
+        r"👉 %USERPROFILE%\Anaconda3\condadir\conda",
+        r"👉 %USERPROFILE%\anaconda3\condadir\conda",
+        r"👉 %USERPROFILE%\Anaconda3\condadir\conda.bat",
+        r"👉 %USERPROFILE%\anaconda3\condadir\conda.bat",
+        r"👉 %USERPROFILE%\Anaconda3\Scripts\conda.exe",
+        r"👉 %USERPROFILE%\anaconda3\Scripts\conda.exe",
+        r"👉 %USERPROFILE%\Anaconda3\Scripts\conda",
+        r"👉 %USERPROFILE%\anaconda3\Scripts\conda",
+        r"👉 %USERPROFILE%\Anaconda3\Scripts\conda.bat",
+        r"👉 %USERPROFILE%\anaconda3\Scripts\conda.bat",
+        r"👉 %USERPROFILE%\Anaconda3\conda.exe",
+        r"👉 %USERPROFILE%\anaconda3\conda.exe",
+        r"👉 %USERPROFILE%\Anaconda3\conda",
+        r"👉 %USERPROFILE%\anaconda3\conda",
+        r"👉 %USERPROFILE%\Anaconda3\conda.bat",
+        r"👉 %USERPROFILE%\anaconda3\conda.bat",
+        r"👉 %USERPROFILE%\Miniconda3\condadir\conda.exe",
+        r"👉 %USERPROFILE%\miniconda3\condadir\conda.exe",
+        r"👉 %USERPROFILE%\Miniconda3\condadir\conda",
+        r"👉 %USERPROFILE%\miniconda3\condadir\conda",
+        r"👉 %USERPROFILE%\Miniconda3\condadir\conda.bat",
+        r"👉 %USERPROFILE%\miniconda3\condadir\conda.bat",
+        r"👉 %USERPROFILE%\Miniconda3\Scripts\conda.exe",
+        r"👉 %USERPROFILE%\miniconda3\Scripts\conda.exe",
+        r"👉 %USERPROFILE%\Miniconda3\Scripts\conda",
+        r"👉 %USERPROFILE%\miniconda3\Scripts\conda",
+        r"👉 %USERPROFILE%\Miniconda3\Scripts\conda.bat",
+        r"👉 %USERPROFILE%\miniconda3\Scripts\conda.bat",
+        r"👉 %USERPROFILE%\Miniconda3\conda.exe",
+        r"👉 %USERPROFILE%\miniconda3\conda.exe",
+        r"👉 %USERPROFILE%\Miniconda3\conda",
+        r"👉 %USERPROFILE%\miniconda3\conda",
+        r"👉 %USERPROFILE%\Miniconda3\conda.bat",
+        r"👉 %USERPROFILE%\miniconda3\conda.bat",
+        r"👉 C:\Anaconda3\condadir\conda.exe",
+        r"👉 C:\anaconda3\condadir\conda.exe",
+        r"👉 C:\Anaconda3\condadir\conda",
+        r"👉 C:\anaconda3\condadir\conda",
+        r"👉 C:\Anaconda3\condadir\conda.bat",
+        r"👉 C:\anaconda3\condadir\conda.bat",
+        r"👉 C:\Anaconda3\Scripts\conda.exe",
+        r"👉 C:\anaconda3\Scripts\conda.exe",
+        r"👉 C:\Anaconda3\Scripts\conda",
+        r"👉 C:\anaconda3\Scripts\conda",
+        r"👉 C:\Anaconda3\Scripts\conda.bat",
+        r"👉 C:\anaconda3\Scripts\conda.bat",
+        r"👉 C:\Anaconda3\conda.exe",
+        r"👉 C:\anaconda3\conda.exe",
+        r"👉 C:\Anaconda3\conda",
+        r"👉 C:\anaconda3\conda",
+        r"👉 C:\Anaconda3\conda.bat",
+        r"👉 C:\anaconda3\conda.bat",
+        r"👉 C:\Miniconda3\condadir\conda.exe",
+        r"👉 C:\miniconda3\condadir\conda.exe",
+        r"👉 C:\Miniconda3\condadir\conda",
+        r"👉 C:\miniconda3\condadir\conda",
+        r"👉 C:\Miniconda3\condadir\conda.bat",
+        r"👉 C:\miniconda3\condadir\conda.bat",
+        r"👉 C:\Miniconda3\Scripts\conda.exe",
+        r"👉 C:\miniconda3\Scripts\conda.exe",
+        r"👉 C:\Miniconda3\Scripts\conda",
+        r"👉 C:\miniconda3\Scripts\conda",
+        r"👉 C:\Miniconda3\Scripts\conda.bat",
+        r"👉 C:\miniconda3\Scripts\conda.bat",
+        r"👉 C:\Miniconda3\conda.exe",
+        r"👉 C:\miniconda3\conda.exe",
+        r"👉 C:\Miniconda3\conda",
+        r"👉 C:\miniconda3\conda",
+        r"👉 C:\Miniconda3\conda.bat",
+        r"👉 C:\miniconda3\conda.bat",
+        r"👉 C:\ProgramData\Anaconda3\condadir\conda.exe",
+        r"👉 C:\ProgramData\anaconda3\condadir\conda.exe",
+        r"👉 C:\ProgramData\Anaconda3\condadir\conda",
+        r"👉 C:\ProgramData\anaconda3\condadir\conda",
+        r"👉 C:\ProgramData\Anaconda3\condadir\conda.bat",
+        r"👉 C:\ProgramData\anaconda3\condadir\conda.bat",
+        r"👉 C:\ProgramData\Anaconda3\Scripts\conda.exe",
+        r"👉 C:\ProgramData\anaconda3\Scripts\conda.exe",
+        r"👉 C:\ProgramData\Anaconda3\Scripts\conda",
+        r"👉 C:\ProgramData\anaconda3\Scripts\conda",
+        r"👉 C:\ProgramData\Anaconda3\Scripts\conda.bat",
+        r"👉 C:\ProgramData\anaconda3\Scripts\conda.bat",
+        r"👉 C:\ProgramData\Anaconda3\conda.exe",
+        r"👉 C:\ProgramData\anaconda3\conda.exe",
+        r"👉 C:\ProgramData\Anaconda3\conda",
+        r"👉 C:\ProgramData\anaconda3\conda",
+        r"👉 C:\ProgramData\Anaconda3\conda.bat",
+        r"👉 C:\ProgramData\anaconda3\conda.bat",
+        r"👉 C:\ProgramData\Miniconda3\condadir\conda.exe",
+        r"👉 C:\ProgramData\miniconda3\condadir\conda.exe",
+        r"👉 C:\ProgramData\Miniconda3\condadir\conda",
+        r"👉 C:\ProgramData\miniconda3\condadir\conda",
+        r"👉 C:\ProgramData\Miniconda3\condadir\conda.bat",
+        r"👉 C:\ProgramData\miniconda3\condadir\conda.bat",
+        r"👉 C:\ProgramData\Miniconda3\Scripts\conda.exe",
+        r"👉 C:\ProgramData\miniconda3\Scripts\conda.exe",
+        r"👉 C:\ProgramData\Miniconda3\Scripts\conda",
+        r"👉 C:\ProgramData\miniconda3\Scripts\conda",
+        r"👉 C:\ProgramData\Miniconda3\Scripts\conda.bat",
+        r"👉 C:\ProgramData\miniconda3\Scripts\conda.bat",
+        r"👉 C:\ProgramData\Miniconda3\conda.exe",
+        r"👉 C:\ProgramData\miniconda3\conda.exe",
+        r"👉 C:\ProgramData\Miniconda3\conda",
+        r"👉 C:\ProgramData\miniconda3\conda",
+        r"👉 C:\ProgramData\Miniconda3\conda.bat",
+        r"👉 C:\ProgramData\miniconda3\conda.bat",
+    ]
+    for path in paths:
+        assert path in excinfo.value.args[0]
