@@ -592,7 +592,7 @@ def _ensure_files(files: list[Path]) -> None:
         sys.exit(1)
 
 
-def _identify_conda_executable() -> str:  # pragma: no cover
+def _identify_conda_executable() -> CondaExecutable:  # pragma: no cover
     """Identify the conda executable to use.
 
     This function checks for micromamba, mamba, and conda in that order.

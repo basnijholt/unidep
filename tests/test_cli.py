@@ -13,6 +13,7 @@ from unittest.mock import patch
 import pytest
 
 from unidep._cli import (
+    _capitalize_last_dir,
     _conda_env_list,
     _conda_root_prefix,
     _identify_conda_executable,
@@ -59,7 +60,7 @@ def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
     ]:
         _install_command(
             REPO_ROOT / "example" / project,
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             dry_run=True,
             editable=False,
             verbose=True,
@@ -106,7 +107,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
 def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     _install_all_command(
-        conda_executable="",
+        conda_executable="",  # type: ignore[arg-type]
         conda_env_name=None,
         conda_env_prefix=None,
         dry_run=True,
@@ -342,7 +343,7 @@ def test_install_non_existing_file() -> None:
     with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
         _install_command(
             Path("does_not_exist"),
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
             dry_run=True,
@@ -361,7 +362,7 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match=match):
         _install_command(
             tmp_path,
-            conda_executable="",
+            conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
             dry_run=True,
@@ -417,3 +418,9 @@ def test_pip_optional(tmp_path: Path) -> None:
         separator=" ",
     )
     assert txt == "foo bar"
+
+
+def test_capitalize_last_dir() -> None:
+    assert _capitalize_last_dir("foo/bar/baz") == "foo/bar/Baz"
+    assert _capitalize_last_dir("foo/bar/baz", capitalize=False) == "foo/bar/baz"
+    assert _capitalize_last_dir("foo/bar/baz", capitalize=True) == "foo/bar/Baz"
