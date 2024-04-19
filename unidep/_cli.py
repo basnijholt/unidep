@@ -616,17 +616,22 @@ def _format_inline_conda_package(package: str) -> str:
 
 def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
-    print(f"🔍 Looking for {conda_executable}.")
     if os.name == "nt":  # pragma: no cover
-        print("🐍 Running on Windows.")
+        if conda_executable in ("micromamba", "mamba") and os.environ.get("MAMBA_EXE"):
+            return os.environ["MAMBA_EXE"]
+        if os.environ.get("CONDA_EXE"):
+            return os.environ["CONDA_EXE"]
+
         executables = [f"{conda_executable}.exe", conda_executable]
         for exe in executables:
-            break
             path = shutil.which(exe)
             if path is not None:
-                print(f"🔍 Found {path}.")
                 return path
-        print("🔍 Going to find in different paths.")
+
+        print(
+            "🔍 Going to search in different common paths"
+            f" because `{conda_executable}` was not found in PATH.",
+        )
         return _find_windows_path(conda_executable)
     return conda_executable
 
