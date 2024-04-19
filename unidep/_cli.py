@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import functools
 import importlib.util
+import itertools
 import json
 import os
 import platform
@@ -612,10 +613,25 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
+@functools.lru_cache(1)
 def _maybe_exe(conda_executable: str) -> str:
     """Add .exe on Windows."""
     if os.name == "nt":  # pragma: no cover
-        return f"{conda_executable}.exe"
+        conda_exe = f"{conda_executable}.exe"
+        if shutil.which(conda_exe) is not None:
+            return conda_exe
+        if shutil.which(conda_executable) is not None:
+            return conda_executable
+        roots = (os.path.expandvars(r"%USERPROFILE%"), r"C:\ProgramData")
+        conda_dirs = ("anaconda3", "Anaconda3", "Miniconda3", "miniconda3")
+        sub_dirs = ("condabin", "Scripts")
+        extensions = (".bat", ".exe", "")
+        for tup in itertools.product(roots, conda_dirs, sub_dirs, extensions):
+            path = r"{}\{}\{}\conda{}".format(*tup)
+            if os.path.exists(path):  # noqa: PTH110
+                return path
+        msg = f"Could not find {conda_executable}."
+        raise FileNotFoundError(msg)
     return conda_executable
 
 
