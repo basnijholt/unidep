@@ -617,10 +617,21 @@ def _format_inline_conda_package(package: str) -> str:
 def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
     if os.name == "nt":  # pragma: no cover
+        if conda_executable in ("micromamba", "mamba") and os.environ.get("MAMBA_EXE"):
+            return os.environ["MAMBA_EXE"]
+        if os.environ.get("CONDA_EXE"):
+            return os.environ["CONDA_EXE"]
+
         executables = [f"{conda_executable}.exe", conda_executable]
         for exe in executables:
-            if shutil.which(exe) is not None:
-                return exe
+            path = shutil.which(exe)
+            if path is not None:
+                return path
+
+        print(
+            "🔍 Going to search in different common paths"
+            f" because `{conda_executable}` was not found in PATH.",
+        )
         return _find_windows_path(conda_executable)
     return conda_executable
 
@@ -664,7 +675,7 @@ def _find_windows_path(conda_executable: CondaExecutable) -> str:
         ]
 
     extensions = (".exe", "", ".bat")
-    subs = ("condadir\\", "Scripts\\", "")  # The "" is for micromamba
+    subs = ("condabin\\", "Scripts\\", "")  # The "" is for micromamba
     for root, sub, ext, cap in itertools.product(
         conda_roots,
         subs,
