@@ -618,17 +618,28 @@ def _format_inline_conda_package(package: str) -> str:
 def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
     if os.name == "nt":  # pragma: no cover
-        conda_exe = f"{conda_executable}.exe"
-        if shutil.which(conda_exe) is not None:
-            return conda_exe
-        if shutil.which(conda_executable) is not None:
-            return conda_executable
-        roots = (os.path.expandvars(r"%USERPROFILE%"), r"C:\ProgramData")
-        conda_dirs = ("anaconda3", "Anaconda3", "Miniconda3", "miniconda3")
-        sub_dirs = ("condabin", "Scripts")
-        extensions = (".bat", ".exe", "")
-        for tup in itertools.product(roots, conda_dirs, sub_dirs, extensions):
-            path = r"{}\{}\{}\conda{}".format(*tup)
+        executables = [f"{conda_executable}.exe", conda_executable]
+        for exe in executables:
+            if shutil.which(exe) is not None:
+                return exe
+        if conda_executable == "mamba":
+            conda_roots = [
+                r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
+            ]
+        elif conda_executable == "conda":
+            conda_roots = [
+                r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
+                r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
+                r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
+                r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
+                r"C:\ProgramData\Anaconda3",  # https://stackoverflow.com/a/58211115
+                r"C:\ProgramData\Miniconda3",  # https://stackoverflow.com/a/51003321
+            ]
+        extensions = (".exe", "", ".bat")
+        subs = ("condadir", "Scripts")
+        for root, sub, ext in itertools.product(conda_roots, subs, extensions):
+            path = rf"{root}\{sub}\{conda_executable}{ext}"
+            path = os.path.expandvars(path)
             if os.path.exists(path):  # noqa: PTH110
                 return path
         msg = f"Could not find {conda_executable}."
