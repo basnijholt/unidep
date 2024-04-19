@@ -625,6 +625,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
 
         if conda_executable == "mamba":
             conda_roots = [
+                r"C:\ProgramData\mambaforge",  # https://github.com/mamba-org/mamba/issues/1756#issuecomment-1517284831
                 r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
             ]
         elif conda_executable == "conda":
@@ -647,7 +648,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
             raise ValueError(msg)
 
         extensions = (".exe", "", ".bat")
-        subs = ("condadir", "Scripts")
+        subs = ("condadir", "Scripts", "")  # The "" is for micromamba
         for root, sub, ext in itertools.product(conda_roots, subs, extensions):
             path = rf"{root}\{sub}\{conda_executable}{ext}"
             path = os.path.expandvars(path)
