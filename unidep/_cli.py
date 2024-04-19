@@ -631,6 +631,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         elif conda_executable == "conda":
             conda_roots = [
                 r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
+                r"%USERPROFILE%\anaconda3",  # @sbalk
                 r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
                 r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
                 r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
