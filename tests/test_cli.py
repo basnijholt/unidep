@@ -433,6 +433,7 @@ def test_capitalize_last_dir() -> None:
     reason="Don't test on Windows to make sure that conda is not found.",
 )
 def test_find_conda_windows() -> None:
+    """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
         match="Could not find conda.",
