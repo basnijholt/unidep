@@ -632,7 +632,7 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
         for exe in executables:
             if shutil.which(exe) is not None:
                 return exe
-
+        searched = []
         conda_roots = [
             r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
             r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
@@ -664,9 +664,13 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
             for capitalize in (True, False):
                 # @sbalk reported that their `anaconda3` folder is lowercase
                 path = _capitalize_last_dir(path, capitalize=capitalize)
+                searched.append(path)
                 if os.path.exists(path):  # noqa: PTH110
                     return path
         msg = f"Could not find {conda_executable}."
+
+        searched_str = "\n👉 ".join(searched)
+        msg = f"Could not find {conda_executable}. Searched in:\n👉 {searched_str}"
         raise FileNotFoundError(msg)
     return conda_executable
 
