@@ -84,6 +84,12 @@ Try it now and streamline your development process!
 To install `unidep`, run the following command:
 
 ```bash
+pipx install "unidep[all]"  # Recommended (install as a standalone CLI)
+```
+
+or
+
+```bash
 pip install "unidep[all]"
 ```
 
