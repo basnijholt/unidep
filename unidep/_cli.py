@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import functools
 import importlib.util
+import itertools
 import json
 import os
 import platform
@@ -63,6 +64,7 @@ except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
+CondaExecutable = Literal["conda", "mamba", "micromamba"]
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -612,14 +614,54 @@ def _format_inline_conda_package(package: str) -> str:
     return f'{pkg.name}"{pkg.pin.strip()}"'
 
 
-def _maybe_exe(conda_executable: str) -> str:
+@functools.lru_cache(1)
+def _maybe_exe(conda_executable: CondaExecutable) -> str:
     """Add .exe on Windows."""
     if os.name == "nt":  # pragma: no cover
-        return f"{conda_executable}.exe"
+        executables = [f"{conda_executable}.exe", conda_executable]
+        for exe in executables:
+            if shutil.which(exe) is not None:
+                return exe
+
+        if conda_executable == "mamba":
+            conda_roots = [
+                r"%USERPROFILE%\AppData\Local\mambaforge",  # https://stackoverflow.com/a/75612393
+            ]
+        elif conda_executable == "conda":
+            conda_roots = [
+                r"%USERPROFILE%\Anaconda3",  # https://stackoverflow.com/a/58211115
+                r"%USERPROFILE%\Miniconda3",  # https://stackoverflow.com/a/76545804
+                r"C:\Anaconda3",  # https://stackoverflow.com/a/44597801
+                r"C:\Miniconda3",  # https://stackoverflow.com/a/53685910
+                r"C:\ProgramData\Anaconda3",  # https://stackoverflow.com/a/58211115
+                r"C:\ProgramData\Miniconda3",  # https://stackoverflow.com/a/51003321
+            ]
+        elif conda_executable == "micromamba":
+            conda_roots = [
+                # Default installation directory based on the installation script
+                # https://raw.githubusercontent.com/mamba-org/micromamba-releases/main/install.ps1
+                r"%LOCALAPPDATA%\micromamba",
+            ]
+        else:
+            msg = f"Unknown conda executable: {conda_executable}"
+            raise ValueError(msg)
+
+        extensions = (".exe", "", ".bat")
+        subs = ("condadir", "Scripts")
+        for root, sub, ext in itertools.product(conda_roots, subs, extensions):
+            path = rf"{root}\{sub}\{conda_executable}{ext}"
+            path = os.path.expandvars(path)
+            if os.path.exists(path):  # noqa: PTH110
+                return path
+        msg = f"Could not find {conda_executable}."
+        raise FileNotFoundError(msg)
     return conda_executable
 
 
-def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list[str]]:
+def _conda_cli_command_json(
+    conda_executable: CondaExecutable,
+    *args: str,
+) -> dict[str, list[str]]:
     """Run a conda command and return the JSON output."""
     try:
         result = subprocess.run(
@@ -638,17 +680,17 @@ def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list
 
 
 @functools.lru_cache(maxsize=None)
-def _conda_env_list(conda_executable: str) -> list[str]:
+def _conda_env_list(conda_executable: CondaExecutable) -> list[str]:
     """Get a list of conda environments."""
     return _conda_cli_command_json(conda_executable, "env", "list")["envs"]
 
 
 @functools.lru_cache(maxsize=None)
-def _conda_info(conda_executable: str) -> dict:
+def _conda_info(conda_executable: CondaExecutable) -> dict:
     return _conda_cli_command_json(conda_executable, "info")
 
 
-def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
+def _conda_root_prefix(conda_executable: CondaExecutable) -> Path:  # pragma: no cover
     """Get the root prefix of the conda installation."""
     if os.environ.get("MAMBA_ROOT_PREFIX"):
         return Path(os.environ["MAMBA_ROOT_PREFIX"])
@@ -663,7 +705,9 @@ def _conda_root_prefix(conda_executable: str) -> Path:  # pragma: no cover
     return Path(prefix)
 
 
-def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
+def _conda_env_dirs(
+    conda_executable: CondaExecutable,
+) -> list[Path]:  # pragma: no cover
     """Get a list of conda environment directories."""
     info_dict = _conda_info(conda_executable)
     if conda_executable in ("conda", "mamba"):
@@ -675,7 +719,7 @@ def _conda_env_dirs(conda_executable: str) -> list[Path]:  # pragma: no cover
 
 
 def _conda_env_name_to_prefix(
-    conda_executable: str,
+    conda_executable: CondaExecutable,
     conda_env_name: str,
 ) -> Path:  # pragma: no cover
     """Get the prefix of a conda environment."""
@@ -700,7 +744,7 @@ def _conda_env_name_to_prefix(
 
 
 def _python_executable(
-    conda_executable: str,
+    conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
 ) -> str:
@@ -746,7 +790,7 @@ def _pip_install_local(
 
 def _install_command(  # noqa: PLR0912
     *files: Path,
-    conda_executable: str,
+    conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
     dry_run: bool,
@@ -867,7 +911,7 @@ def _install_command(  # noqa: PLR0912
 
 def _install_all_command(
     *,
-    conda_executable: str,
+    conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
     dry_run: bool,
