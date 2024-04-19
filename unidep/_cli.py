@@ -613,10 +613,23 @@ def _format_inline_conda_package(package: str) -> str:
 
 
 def _maybe_exe(conda_executable: str) -> str:
-    """Add .exe on Windows."""
+    """Return conda, conda.exe or anaconda3 conda.bat file path on Windows.
+    Throw error if none of them are found.
+    """
     if os.name == "nt":  # pragma: no cover
-        return f"{conda_executable}.exe"
-    return conda_executable
+        conda_with_exe = f"{conda_executable}.exe"
+        if shutil.which(conda_with_exe):
+            return conda_with_exe
+        elif shutil.which(conda_executable):
+            return conda_executable
+        elif shutil.which(
+            os.path.expandvars("%USERPROFILE%\\anaconda3\\condabin\\conda.bat")
+        ):
+            return os.path.expandvars("%USERPROFILE%\\anaconda3\\condabin\\conda.bat")
+        else:
+            raise FileNotFoundError("Could not find conda executable.")
+    else:
+        return conda_executable
 
 
 def _conda_cli_command_json(conda_executable: str, *args: str) -> dict[str, list[str]]:
