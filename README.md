@@ -490,7 +490,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
 ```
@@ -573,7 +573,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
 ```
@@ -656,7 +656,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
 ```
@@ -742,7 +742,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
 ```
@@ -816,7 +816,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
 ```
@@ -873,7 +873,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
   --separator SEPARATOR
@@ -932,7 +932,7 @@ options:
                         ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
                         Overwrite the version pin for a specific package,
-                        e.g., `--overwrite-pin 'numpy==1.19.2'`. This option
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
   --separator SEPARATOR
