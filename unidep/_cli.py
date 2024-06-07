@@ -232,7 +232,7 @@ def _add_common_args(  # noqa: PLR0912, C901
             action="append",
             default=[],
             help="Overwrite the version pin for a specific package,"
-            " e.g., `--overwrite-pin 'numpy==1.19.2'`. This option can be repeated"
+            " e.g., `--overwrite-pin 'numpy=1.19.2'`. This option can be repeated"
             " to overwrite the pins of multiple packages.",
         )
 
