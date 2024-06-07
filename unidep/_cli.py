@@ -865,8 +865,8 @@ def _install_command(  # noqa: PLR0912
         requirements.channels,
         platforms=platforms,
     )
+    conda_executable = conda_executable or _identify_conda_executable()
     if env_spec.conda and not skip_conda:
-        conda_executable = conda_executable or _identify_conda_executable()
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
