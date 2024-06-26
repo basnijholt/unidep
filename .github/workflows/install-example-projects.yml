@@ -34,6 +34,7 @@ jobs:
             pip install -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
+            pip list
           done
         shell: bash
 
@@ -73,6 +74,7 @@ jobs:
             unidep install -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
+            micromamba list
           done
         shell: bash -el {0}
 
@@ -113,5 +115,6 @@ jobs:
             unidep install -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
+            conda list
           done
         shell: bash -el {0}
