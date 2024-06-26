@@ -82,6 +82,8 @@ def _maybe_new_spec_with_combined_pinnings(
     specs: list[Spec],
 ) -> Spec:
     pinned_specs = [m for m in specs if m.pin is not None]
+    if len(pinned_specs) == 1:
+        return pinned_specs[0]
     if len(pinned_specs) > 1:
         first = pinned_specs[0]
         pins = [m.pin for m in pinned_specs]

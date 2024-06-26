@@ -2423,3 +2423,42 @@ def test_optional_dependencies_with_dicts(
         optional_dependencies=requirements.optional_dependencies,
     )
     assert resolved.keys() == {"adaptive", "python-flatbuffers", "flatbuffers"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_optional_dependencies_with_version_specifier(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            optional_dependencies:
+                specific:
+                    - adaptive =0.13.2
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False, extras="*")
+    assert requirements.optional_dependencies.keys() == {"specific"}
+    assert requirements.optional_dependencies["specific"].keys() == {"adaptive"}
+    assert (
+        requirements.optional_dependencies["specific"]["adaptive"][0].pin == "=0.13.2"
+    )
+
+    requirements = parse_requirements(p, verbose=False, extras=[["specific"]])
+    requirements2 = parse_requirements(Path(f"{p}[specific]"), verbose=False)
+    assert requirements2.optional_dependencies == requirements.optional_dependencies
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved.keys() == {"adaptive"}
+    assert resolved["adaptive"][None]["conda"].pin == "=0.13.2"
