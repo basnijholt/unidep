@@ -113,5 +113,6 @@ jobs:
             unidep install -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
+            micromamba list
           done
         shell: bash -el {0}
