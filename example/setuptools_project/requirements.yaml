@@ -2,7 +2,7 @@ name: setuptools_project
 channels:
   - conda-forge
 dependencies:
-  - adaptive
+  - adaptive  # [linux64]
   - pfapack  # [linux64]
   - packaging
   - pip: markdown-code-runner
