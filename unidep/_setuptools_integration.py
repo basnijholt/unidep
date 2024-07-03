@@ -6,7 +6,9 @@ This module provides setuptools integration for unidep.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -20,9 +22,17 @@ from unidep.utils import (
     warn,
 )
 
-if TYPE_CHECKING:
-    import sys
+try:  # pragma: no cover
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    HAS_TOML = True
+except ImportError:  # pragma: no cover
+    HAS_TOML = False
 
+
+if TYPE_CHECKING:
     from setuptools import Distribution
 
     from unidep.platform_definitions import (
@@ -138,9 +148,26 @@ def get_python_dependencies(
         )
         for paths in local_dependencies.values():
             for path in paths:
-                dependencies.append(path.as_posix())
+                name = _package_name_from_path(path)
+                dependencies.append(f"{name} @ file://{path.as_posix()}")
 
     return Dependencies(dependencies=dependencies, extras=extras)
+
+
+def _package_name_from_path(path: Path) -> str:
+    """Get the package name from a path."""
+    toml = path / "pyproject.toml"
+    if toml.exists() and HAS_TOML:
+        with toml.open("rb") as f:
+            data = tomllib.load(f)
+        with contextlib.suppress(KeyError):
+            # PEP 621: setuptools, flit, hatch, pdm
+            return data["package"]["name"]
+        with contextlib.suppress(KeyError):
+            # poetry doesn't follow any standard
+            return data["tool"]["poetry"]["name"]
+    # Best guess for the package name is folder name.
+    return path.name
 
 
 def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover

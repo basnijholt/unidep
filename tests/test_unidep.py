@@ -380,7 +380,7 @@ def test_pip_install_local_dependencies(tmp_path: Path) -> None:
     deps = get_python_dependencies(p, include_local_dependencies=True)
     assert deps.dependencies == [
         "foo",
-        local_package.as_posix(),
+        f"local_package @ file://{local_package.as_posix()}",
     ]
 
 
