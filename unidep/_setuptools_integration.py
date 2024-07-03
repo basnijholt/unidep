@@ -192,7 +192,7 @@ def _package_name_from_setup_py(file_path: Path) -> str:
 
 
 def _package_name_from_pyproject_toml(file_path: Path) -> str:
-    if not HAS_TOML:
+    if not HAS_TOML:  # pragma: no cover
         msg = "toml is required to parse pyproject.toml files."
         raise ImportError(msg)
     with file_path.open("rb") as f:
