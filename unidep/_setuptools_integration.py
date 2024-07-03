@@ -6,6 +6,8 @@ This module provides setuptools integration for unidep.
 
 from __future__ import annotations
 
+import ast
+import configparser
 import contextlib
 import os
 import sys
@@ -154,18 +156,73 @@ def get_python_dependencies(
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
+def _package_name_from_setup_cfg(file_path: Path) -> str:
+    config = configparser.ConfigParser()
+    config.read(file_path)
+    name = config.get("metadata", "name", fallback=None)
+    if name is None:
+        msg = "Could not find the package name in the setup.cfg file."
+        raise KeyError(msg)
+    return name
+
+
+def _package_name_from_setup_py(file_path: Path) -> str:
+    with file_path.open() as f:
+        file_content = f.read()
+
+    tree = ast.parse(file_content)
+
+    class SetupVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.package_name = None
+
+        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+            if isinstance(node.func, ast.Name) and node.func.id == "setup":
+                for keyword in node.keywords:
+                    if keyword.arg == "name":
+                        self.package_name = keyword.value.s  # type: ignore[attr-defined]
+
+    visitor = SetupVisitor()
+    visitor.visit(tree)
+    if visitor.package_name is None:
+        msg = "Could not find the package name in the setup.py file."
+        raise KeyError(msg)
+    return visitor.package_name
+
+
+def _package_name_from_pyproject_toml(file_path: Path) -> str:
+    if not HAS_TOML:
+        msg = "toml is required to parse pyproject.toml files."
+        raise ImportError(msg)
+    with file_path.open("rb") as f:
+        data = tomllib.load(f)
+    with contextlib.suppress(KeyError):
+        # PEP 621: setuptools, flit, hatch, pdm
+        return data["package"]["name"]
+    with contextlib.suppress(KeyError):
+        # poetry doesn't follow any standard
+        return data["tool"]["poetry"]["name"]
+    msg = "Could not find the package name in the pyproject.toml file."
+    raise KeyError(msg)
+
+
 def _package_name_from_path(path: Path) -> str:
     """Get the package name from a path."""
-    toml = path / "pyproject.toml"
-    if toml.exists() and HAS_TOML:
-        with toml.open("rb") as f:
-            data = tomllib.load(f)
-        with contextlib.suppress(KeyError):
-            # PEP 621: setuptools, flit, hatch, pdm
-            return data["package"]["name"]
-        with contextlib.suppress(KeyError):
-            # poetry doesn't follow any standard
-            return data["tool"]["poetry"]["name"]
+    pyproject_toml = path / "pyproject.toml"
+    if pyproject_toml.exists():
+        with contextlib.suppress(Exception):
+            return _package_name_from_pyproject_toml(pyproject_toml)
+
+    setup_cfg = path / "setup.cfg"
+    if setup_cfg.exists():
+        with contextlib.suppress(Exception):
+            return _package_name_from_setup_cfg(setup_cfg)
+
+    setup_py = path / "setup.py"
+    if setup_py.exists():
+        with contextlib.suppress(Exception):
+            return _package_name_from_setup_py(setup_py)
+
     # Best guess for the package name is folder name.
     return path.name
 
