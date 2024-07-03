@@ -180,13 +180,14 @@ def _package_name_from_setup_py(file_path: Path) -> str:
             if isinstance(node.func, ast.Name) and node.func.id == "setup":
                 for keyword in node.keywords:
                     if keyword.arg == "name":
-                        self.package_name = keyword.value.s  # type: ignore[attr-defined]
+                        self.package_name = keyword.value.value  # type: ignore[attr-defined]
 
     visitor = SetupVisitor()
     visitor.visit(tree)
     if visitor.package_name is None:
         msg = "Could not find the package name in the setup.py file."
         raise KeyError(msg)
+    assert isinstance(visitor.package_name, str)
     return visitor.package_name
 
 
@@ -198,11 +199,11 @@ def _package_name_from_pyproject_toml(file_path: Path) -> str:
         data = tomllib.load(f)
     with contextlib.suppress(KeyError):
         # PEP 621: setuptools, flit, hatch, pdm
-        return data["package"]["name"]
+        return data["project"]["name"]
     with contextlib.suppress(KeyError):
         # poetry doesn't follow any standard
         return data["tool"]["poetry"]["name"]
-    msg = "Could not find the package name in the pyproject.toml file."
+    msg = f"Could not find the package name in the pyproject.toml file: {data}."
     raise KeyError(msg)
 
 
