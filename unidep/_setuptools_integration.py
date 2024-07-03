@@ -138,7 +138,7 @@ def get_python_dependencies(
         )
         for paths in local_dependencies.values():
             for path in paths:
-                dependencies.append(f"{path.name} @ file://{path.as_posix()}")
+                dependencies.append(path.as_posix())
 
     return Dependencies(dependencies=dependencies, extras=extras)
 
