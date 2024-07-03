@@ -3,6 +3,8 @@
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from unidep._setuptools_integration import (
     _package_name_from_path,
     _package_name_from_pyproject_toml,
@@ -66,3 +68,19 @@ def test_package_name_from_cfg(tmp_path: Path) -> None:
     )
     assert _package_name_from_path(tmp_path) == "setup_cfg_project"
     assert _package_name_from_setup_cfg(setup_cfg) == "setup_cfg_project"
+    missing = tmp_path / "missing" / "setup.cfg"
+    assert not missing.exists()
+    with pytest.raises(KeyError):
+        _package_name_from_setup_cfg(missing)
+
+    setup_cfg2 = tmp_path / "setup.cfg"
+    setup_cfg2.write_text(
+        textwrap.dedent(
+            """\
+            [metadata]
+            yolo = missing
+            """,
+        ),
+    )
+    with pytest.raises(KeyError):
+        _package_name_from_setup_cfg(setup_cfg2)
