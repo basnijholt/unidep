@@ -701,7 +701,7 @@ def _conda_cli_command_json(
     """Run a conda command and return the JSON output."""
     try:
         result = subprocess.run(
-            [_maybe_exe(conda_executable), *args, "--json"],  # noqa: S603
+            [_maybe_exe(conda_executable), *args, "--json"],
             capture_output=True,
             text=True,
             check=True,
