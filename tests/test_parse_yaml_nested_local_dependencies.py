@@ -234,3 +234,92 @@ def test_nested_local_dependencies_with_non_unidep_managed_project(
     requirements = parse_requirements(r1, verbose=True)
 
     assert set(requirements.requirements.keys()) == {"package1", "package2"}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_nested_local_dependencies_with_extras(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project2 = tmp_path / "project2"
+    project3 = tmp_path / "project3"
+    for project in [project1, project2, project3]:
+        project.mkdir(exist_ok=True, parents=True)
+        (project / "setup.py").touch()  # Make projects pip installable
+
+    r1 = project1 / "requirements.yaml"
+    r2 = project2 / "requirements.yaml"
+    r3 = project3 / "requirements.yaml"
+
+    r1.write_text(
+        textwrap.dedent("""
+        dependencies:
+            - package1
+        local_dependencies:
+            - ../project2[test,docs]
+        optional_dependencies:
+            dev:
+                - dev-package
+    """),
+    )
+
+    r2.write_text(
+        textwrap.dedent("""
+        dependencies:
+            - package2
+        local_dependencies:
+            - ../project3[full]
+        optional_dependencies:
+            test:
+                - pytest
+            docs:
+                - sphinx
+    """),
+    )
+
+    r3.write_text(
+        textwrap.dedent("""
+        dependencies:
+            - package3
+        optional_dependencies:
+            full:
+                - extra-package
+    """),
+    )
+
+    r1 = maybe_as_toml(toml_or_yaml, r1)
+    r2 = maybe_as_toml(toml_or_yaml, r2)
+    r3 = maybe_as_toml(toml_or_yaml, r3)
+
+    local_dependencies = parse_local_dependencies(
+        Path(f"{r1}[dev]"),
+        verbose=True,
+        check_pip_installable=True,
+    )
+
+    assert local_dependencies == {
+        project1.resolve(): [project2.resolve(), project3.resolve()],
+    }
+
+    requirements = parse_requirements(r1, verbose=True, extras=[["dev"]])
+    assert set(requirements.requirements.keys()) == {
+        "package1",
+        "package2",
+        "package3",
+        "pytest",
+        "sphinx",
+        "dev-package",
+    }
+
+    # Test with different extras
+    requirements_full = parse_requirements(r1, verbose=True, extras=[["dev", "full"]])
+    assert set(requirements_full.requirements.keys()) == {
+        "package1",
+        "package2",
+        "package3",
+        "pytest",
+        "sphinx",
+        "dev-package",
+        "extra-package",
+    }
