@@ -2377,9 +2377,10 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
     )
     p2 = maybe_as_toml(toml_or_yaml, p2)
     requirements = parse_requirements(p2, verbose=True, extras="*")
+    # The deps in the 'test' section in p1 will be moved to the dependencies.
     assert "Removing empty" in capsys.readouterr().out
-    assert requirements.optional_dependencies.keys() == {"test"}
-    assert requirements.optional_dependencies["test"].keys() == {"pytest"}
+    assert not requirements.optional_dependencies.keys()
+    assert requirements.requirements.keys() == {"numthreads", "adaptive", "pytest"}
 
     resolved = resolve_conflicts(
         requirements.requirements,
