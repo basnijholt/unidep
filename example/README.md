@@ -64,6 +64,7 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 path_with_extras=PathWithExtras(path=PosixPath('pyproject_toml_project/pyproject.toml'), extras=[])
 📄 Parsing `../hatch_project[test]` from `local_dependencies`
 📄 Parsing `/home/runner/work/unidep/unidep/example/hatch_project/requirements.yaml[test]`
+📄 Moving `test` optional dependencies to main dependencies for `/home/runner/work/unidep/unidep/example/hatch_project/requirements.yaml[test]`
 📄 Parsing `setup_py_project/requirements.yaml`
 path_with_extras=PathWithExtras(path=PosixPath('setup_py_project/requirements.yaml'), extras=[])
 📄 Parsing `../setuptools_project` from `local_dependencies`
