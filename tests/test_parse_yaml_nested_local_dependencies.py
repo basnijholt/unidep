@@ -184,9 +184,13 @@ def test_nested_local_dependencies_with_non_unidep_managed_project(
     project1 = tmp_path / "project1"
     project2 = tmp_path / "project2"
     project3 = tmp_path / "project3"
-    for project in [project1, project2, project3]:
+    for project in [project1, project2]:
         project.mkdir(exist_ok=True, parents=True)
         (project / "setup.py").touch()  # Make projects pip installable
+
+    # Create project3 as a non-unidep managed project
+    project3.mkdir(exist_ok=True, parents=True)
+    (project3 / "setup.py").touch()  # Make it pip installable but not unidep managed
 
     r1 = project1 / "requirements.yaml"
     r2 = project2 / "requirements.yaml"
@@ -226,7 +230,7 @@ def test_nested_local_dependencies_with_non_unidep_managed_project(
         project1.resolve(): [project2.resolve(), project3.resolve()],
     }
 
-    with pytest.warns(UserWarning, match="not managed by unidep"):
-        requirements = parse_requirements(r1, verbose=True)
+    # We don't expect a warning here anymore, as it should have been raised in parse_local_dependencies
+    requirements = parse_requirements(r1, verbose=True)
 
     assert set(requirements.requirements.keys()) == {"package1", "package2"}
