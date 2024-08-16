@@ -230,23 +230,34 @@ def _update_data_structures(
     all_extras: list[list[str]],  # modified in place
     seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
+    is_nested: bool,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
     datas.append(data)
-    all_extras.append(path_with_extras.extras)
     _move_local_optional_dependencies_to_dependencies(
         data=data,  # modified in place
         path_with_extras=path_with_extras,
         verbose=verbose,
     )
+    if not is_nested:
+        all_extras.append(path_with_extras.extras)
+    else:
+        all_extras.append([])
+        _move_optional_dependencies_to_dependencies(
+            data=data,  # modified in place
+            path_with_extras=path_with_extras,
+            verbose=verbose,
+        )
 
     seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
+        # NOTE: The current function calls _add_local_dependencies,
+        # which calls the current function recursively
         _add_local_dependencies(
             local_dependency=local_dependency,
             path_with_extras=path_with_extras,
@@ -256,6 +267,32 @@ def _update_data_structures(
             yaml=yaml,
             verbose=verbose,
         )
+
+
+def _move_optional_dependencies_to_dependencies(
+    data: dict[str, Any],
+    path_with_extras: PathWithExtras,
+    *,
+    verbose: bool = False,
+) -> None:
+    optional_dependencies = data.pop("optional_dependencies", {})
+    for extra in path_with_extras.extras:
+        if extra == "*":
+            # If "*" is specified, include all optional dependencies
+            for opt_deps in optional_dependencies.values():
+                data.setdefault("dependencies", []).extend(opt_deps)
+            if verbose:
+                print(
+                    "📄 Moving all optional dependencies to main dependencies"
+                    f" for `{path_with_extras.path_with_extras}`",
+                )
+        elif extra in optional_dependencies:
+            data.setdefault("dependencies", []).extend(optional_dependencies[extra])
+            if verbose:
+                print(
+                    f"📄 Moving `{extra}` optional dependencies to main dependencies"
+                    f" for `{path_with_extras.path_with_extras}`",
+                )
 
 
 def _move_local_optional_dependencies_to_dependencies(
@@ -326,6 +363,7 @@ def _add_local_dependencies(
         seen=seen,  # modified in place
         yaml=yaml,
         verbose=verbose,
+        is_nested=True,
     )
 
 
@@ -376,6 +414,7 @@ def parse_requirements(
             seen=seen,  # modified in place
             yaml=yaml,
             verbose=verbose,
+            is_nested=False,
         )
 
     assert len(datas) == len(all_extras)
@@ -389,7 +428,7 @@ def parse_requirements(
     platforms: set[Platform] = set()
 
     identifier = -1
-    for _extras, data in zip(all_extras, datas):
+    for data, _extras in zip(datas, all_extras):
         channels.update(data.get("channels", []))
         platforms.update(data.get("platforms", []))
         if "dependencies" in data:

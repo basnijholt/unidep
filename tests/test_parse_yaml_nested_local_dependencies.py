@@ -309,7 +309,7 @@ def test_nested_local_dependencies_with_extras(
         "package3",
         "pytest",
         "sphinx",
-        "dev-package",
+        "extra-package",
     }
 
     # Test with different extras
@@ -320,6 +320,7 @@ def test_nested_local_dependencies_with_extras(
         "package3",
         "pytest",
         "sphinx",
-        "dev-package",
         "extra-package",
     }
+    assert requirements_full.optional_dependencies.keys() == {"dev"}
+    assert requirements_full.optional_dependencies["dev"].keys() == {"dev-package"}
