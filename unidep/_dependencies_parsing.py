@@ -319,23 +319,14 @@ def _add_local_dependencies(
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
-    data = _load(requirements_dep_file.path, yaml)
-    datas.append(data)
-    all_extras.append(requirements_dep_file.extras)
-    seen.add(requirements_dep_file.resolved())
-
-    # Handle `local_dependencies` of `local_dependencies`
-    for nested_dependency in _get_local_dependencies(data):
-        print("adding nested dependency")
-        _add_local_dependencies(
-            local_dependency=nested_dependency,
-            path_with_extras=requirements_dep_file,
-            datas=datas,  # modified in place
-            all_extras=all_extras,  # modified in place
-            seen=seen,  # modified in place
-            yaml=yaml,
-            verbose=verbose,
-        )
+    _update_data_structures(
+        path_with_extras=requirements_dep_file,
+        datas=datas,  # modified in place
+        all_extras=all_extras,  # modified in place
+        seen=seen,  # modified in place
+        yaml=yaml,
+        verbose=verbose,
+    )
 
 
 def parse_requirements(
