@@ -301,6 +301,20 @@ class PathWithExtras(NamedTuple):
             return self.path
         return Path(f"{self.path}[{','.join(self.extras)}]")
 
+    def resolved(self) -> PathWithExtras:
+        """Resolve the path and extras."""
+        return PathWithExtras(self.path.resolve(), self.extras)
+
+    def __hash__(self) -> int:
+        """Hash the path and extras."""
+        return hash((self.path, tuple(sorted(self.extras))))
+
+    def __eq__(self, other: object) -> bool:
+        """Check if two `PathWithExtras` are equal."""
+        if not isinstance(other, PathWithExtras):
+            return NotImplemented
+        return self.path == other.path and set(self.extras) == set(other.extras)
+
 
 def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
