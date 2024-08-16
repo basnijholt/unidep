@@ -347,7 +347,6 @@ def _add_local_dependencies(
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
-    print(f"{path_with_extras=}")
     try:
         requirements_dep_file = parse_folder_or_filename(
             path_with_extras.path.parent / local_dependency,
