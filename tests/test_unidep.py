@@ -14,6 +14,7 @@ from unidep import (
     filter_python_dependencies,
     find_requirements_files,
     get_python_dependencies,
+    parse_local_dependencies,
     parse_requirements,
     resolve_conflicts,
     write_conda_environment_file,
@@ -2381,6 +2382,14 @@ def test_optional_dependencies_with_local_dependencies_with_extras(
     assert "Removing empty" in capsys.readouterr().out
     assert not requirements.optional_dependencies.keys()
     assert requirements.requirements.keys() == {"numthreads", "adaptive", "pytest"}
+
+    # The local dependency section should still exist in p2
+    loc = parse_local_dependencies(
+        Path(f"{p2}[local]"),
+        verbose=True,
+        check_pip_installable=False,
+    )
+    assert len(loc) == 1
 
     resolved = resolve_conflicts(
         requirements.requirements,

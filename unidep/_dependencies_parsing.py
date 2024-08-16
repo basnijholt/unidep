@@ -237,7 +237,7 @@ def _update_data_structures(
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
     datas.append(data)
-    _move_local_optional_dependencies_to_dependencies(
+    _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
         path_with_extras=path_with_extras,
         verbose=verbose,
@@ -299,7 +299,7 @@ def _move_optional_dependencies_to_dependencies(
                 )
 
 
-def _move_local_optional_dependencies_to_dependencies(
+def _move_local_optional_dependencies_to_local_dependencies(
     *,
     data: dict[str, Any],  # modified in place
     path_with_extras: PathWithExtras,
@@ -472,7 +472,7 @@ def _str_is_path_like(s: str) -> bool:
 def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
     if _str_is_path_like(name):
         # There should not be path-like dependencies in the optional_dependencies
-        # section after _move_local_optional_dependencies_to_dependencies.
+        # section after _move_local_optional_dependencies_to_local_dependencies.
         assert not is_optional
         msg = (
             f"Local dependencies (`{name}`) are not allowed in `dependencies`."
@@ -548,6 +548,11 @@ def _extract_local_dependencies(
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
+    _move_local_optional_dependencies_to_local_dependencies(
+        data=data,  # modified in place
+        path_with_extras=PathWithExtras(path, extras),
+        verbose=verbose,
+    )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
