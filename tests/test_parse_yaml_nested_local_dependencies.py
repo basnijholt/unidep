@@ -56,34 +56,34 @@ def test_nested_local_dependencies_multiple_levels(
     r1.write_text(
         textwrap.dedent("""
         dependencies:
-          - package1
+            - package1
         local_dependencies:
-          - ../project2
+            - ../project2
     """),
     )
 
     r2.write_text(
         textwrap.dedent("""
         dependencies:
-          - package2
+            - package2
         local_dependencies:
-          - ../project3
+            - ../project3
     """),
     )
 
     r3.write_text(
         textwrap.dedent("""
         dependencies:
-          - package3
+            - package3
         local_dependencies:
-          - ../project4
+            - ../project4
     """),
     )
 
     r4.write_text(
         textwrap.dedent("""
         dependencies:
-          - package4
+            - package4
     """),
     )
 
@@ -134,27 +134,27 @@ def test_nested_local_dependencies_with_circular_reference(
     r1.write_text(
         textwrap.dedent("""
         dependencies:
-          - package1
+            - package1
         local_dependencies:
-          - ../project2
+            - ../project2
     """),
     )
 
     r2.write_text(
         textwrap.dedent("""
         dependencies:
-          - package2
+            - package2
         local_dependencies:
-          - ../project3
+            - ../project3
     """),
     )
 
     r3.write_text(
         textwrap.dedent("""
         dependencies:
-          - package3
+            - package3
         local_dependencies:
-          - ../project1
+            - ../project1
     """),
     )
 
@@ -198,18 +198,18 @@ def test_nested_local_dependencies_with_non_unidep_managed_project(
     r1.write_text(
         textwrap.dedent("""
         dependencies:
-          - package1
+            - package1
         local_dependencies:
-          - ../project2
+            - ../project2
     """),
     )
 
     r2.write_text(
         textwrap.dedent("""
         dependencies:
-          - package2
+            - package2
         local_dependencies:
-          - ../project3
+            - ../project3
     """),
     )
 
