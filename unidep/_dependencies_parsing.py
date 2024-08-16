@@ -201,8 +201,8 @@ def _to_path_with_extras(
 ) -> list[PathWithExtras]:
     if isinstance(extras, (list, tuple)) and len(extras) != len(paths):
         msg = (
-            f"Length of `extras` ({len(extras)}) does not match length of `paths`"
-            f" ({len(paths)})."
+            f"Length of `extras` ({len(extras)}) does not match length"
+            f" of `paths` ({len(paths)})."
         )
         raise ValueError(msg)
     paths_with_extras = [parse_folder_or_filename(p) for p in paths]
@@ -228,7 +228,7 @@ def _update_data_structures(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],  # modified in place
     all_extras: list[list[str]],  # modified in place
-    seen: set[Path],  # modified in place
+    seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
@@ -243,7 +243,7 @@ def _update_data_structures(
         verbose=verbose,
     )
 
-    seen.add(path_with_extras.path.resolve())
+    seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
@@ -302,26 +302,31 @@ def _add_local_dependencies(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],
     all_extras: list[list[str]],
-    seen: set[Path],
+    seen: set[PathWithExtras],
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
+    print(f"{path_with_extras=}")
     try:
         requirements_dep_file = parse_folder_or_filename(
             path_with_extras.path.parent / local_dependency,
-        )
-        requirements_path = requirements_dep_file.path.resolve()
+        ).resolved()
     except FileNotFoundError:
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
         return
-    if requirements_path in seen:
+    if requirements_dep_file in seen:
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
-    datas.append(_load(requirements_path, yaml))
-    all_extras.append(requirements_dep_file.extras)
-    seen.add(requirements_path)
+    _update_data_structures(
+        path_with_extras=requirements_dep_file,
+        datas=datas,  # modified in place
+        all_extras=all_extras,  # modified in place
+        seen=seen,  # modified in place
+        yaml=yaml,
+        verbose=verbose,
+    )
 
 
 def parse_requirements(
@@ -361,7 +366,7 @@ def parse_requirements(
     # `data` and `all_extras` are lists of the same length
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
-    seen: set[Path] = set()
+    seen: set[PathWithExtras] = set()
     yaml = YAML(typ="rt")
     for path_with_extras in paths_with_extras:
         _update_data_structures(
