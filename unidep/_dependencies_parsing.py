@@ -350,12 +350,12 @@ def _add_local_dependencies(
     try:
         requirements_dep_file = parse_folder_or_filename(
             path_with_extras.path.parent / local_dependency,
-        ).resolved()
+        )
     except FileNotFoundError:
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
         return
-    if requirements_dep_file in seen:
+    if requirements_dep_file.resolved() in seen:
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
