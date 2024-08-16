@@ -245,6 +245,10 @@ def _update_data_structures(
     if not is_nested:
         all_extras.append(path_with_extras.extras)
     else:
+        # When nested, the extras that are specified in the
+        # local_dependencies section should be moved to the main dependencies
+        # because they are not optional if specified in the file. Only
+        # the top-level extras are optional.
         all_extras.append([])
         _move_optional_dependencies_to_dependencies(
             data=data,  # modified in place
