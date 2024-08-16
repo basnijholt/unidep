@@ -62,11 +62,11 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 📄 Parsing `hatch_project/requirements.yaml`
 📄 Parsing `pyproject_toml_project/pyproject.toml`
 📄 Parsing `../hatch_project[test]` from `local_dependencies`
-📄 Parsing `/home/runner/work/unidep/unidep/example/hatch_project/requirements.yaml[test]`
-📄 Moving `test` optional dependencies to main dependencies for `/home/runner/work/unidep/unidep/example/hatch_project/requirements.yaml[test]`
+📄 Parsing `pyproject_toml_project/../hatch_project/requirements.yaml[test]`
+📄 Moving `test` optional dependencies to main dependencies for `pyproject_toml_project/../hatch_project/requirements.yaml[test]`
 📄 Parsing `setup_py_project/requirements.yaml`
 📄 Parsing `../setuptools_project` from `local_dependencies`
-📄 Parsing `/home/runner/work/unidep/unidep/example/setuptools_project/requirements.yaml`
+📄 Parsing `setup_py_project/../setuptools_project/requirements.yaml`
 📄 Parsing `setuptools_project/requirements.yaml`
 📝 Generating environment file at `environment.yaml`
 📝 Environment file generated successfully.
