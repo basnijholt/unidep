@@ -201,8 +201,8 @@ def _to_path_with_extras(
 ) -> list[PathWithExtras]:
     if isinstance(extras, (list, tuple)) and len(extras) != len(paths):
         msg = (
-            f"Length of `extras` ({len(extras)}) does not match length of `paths`"
-            f" ({len(paths)})."
+            f"Length of `extras` ({len(extras)}) does not match length"
+            f" of `paths` ({len(paths)})."
         )
         raise ValueError(msg)
     paths_with_extras = [parse_folder_or_filename(p) for p in paths]
@@ -228,25 +228,40 @@ def _update_data_structures(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],  # modified in place
     all_extras: list[list[str]],  # modified in place
-    seen: set[Path],  # modified in place
+    seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
+    is_nested: bool,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
     datas.append(data)
-    all_extras.append(path_with_extras.extras)
-    _move_local_optional_dependencies_to_dependencies(
+    _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
         path_with_extras=path_with_extras,
         verbose=verbose,
     )
+    if not is_nested:
+        all_extras.append(path_with_extras.extras)
+    else:
+        # When nested, the extras that are specified in the
+        # local_dependencies section should be moved to the main dependencies
+        # because they are not optional if specified in the file. Only
+        # the top-level extras are optional.
+        all_extras.append([])
+        _move_optional_dependencies_to_dependencies(
+            data=data,  # modified in place
+            path_with_extras=path_with_extras,
+            verbose=verbose,
+        )
 
-    seen.add(path_with_extras.path.resolve())
+    seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
+        # NOTE: The current function calls _add_local_dependencies,
+        # which calls the current function recursively
         _add_local_dependencies(
             local_dependency=local_dependency,
             path_with_extras=path_with_extras,
@@ -258,7 +273,33 @@ def _update_data_structures(
         )
 
 
-def _move_local_optional_dependencies_to_dependencies(
+def _move_optional_dependencies_to_dependencies(
+    data: dict[str, Any],
+    path_with_extras: PathWithExtras,
+    *,
+    verbose: bool = False,
+) -> None:
+    optional_dependencies = data.pop("optional_dependencies", {})
+    for extra in path_with_extras.extras:
+        if extra == "*":
+            # If "*" is specified, include all optional dependencies
+            for opt_deps in optional_dependencies.values():
+                data.setdefault("dependencies", []).extend(opt_deps)
+            if verbose:
+                print(
+                    "📄 Moving all optional dependencies to main dependencies"
+                    f" for `{path_with_extras.path_with_extras}`",
+                )
+        elif extra in optional_dependencies:
+            data.setdefault("dependencies", []).extend(optional_dependencies[extra])
+            if verbose:
+                print(
+                    f"📄 Moving `{extra}` optional dependencies to main dependencies"
+                    f" for `{path_with_extras.path_with_extras}`",
+                )
+
+
+def _move_local_optional_dependencies_to_local_dependencies(
     *,
     data: dict[str, Any],  # modified in place
     path_with_extras: PathWithExtras,
@@ -302,26 +343,31 @@ def _add_local_dependencies(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],
     all_extras: list[list[str]],
-    seen: set[Path],
+    seen: set[PathWithExtras],
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
     try:
         requirements_dep_file = parse_folder_or_filename(
             path_with_extras.path.parent / local_dependency,
-        )
-        requirements_path = requirements_dep_file.path.resolve()
+        ).resolved()
     except FileNotFoundError:
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
         return
-    if requirements_path in seen:
+    if requirements_dep_file in seen:
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
-    datas.append(_load(requirements_path, yaml))
-    all_extras.append(requirements_dep_file.extras)
-    seen.add(requirements_path)
+    _update_data_structures(
+        path_with_extras=requirements_dep_file,
+        datas=datas,  # modified in place
+        all_extras=all_extras,  # modified in place
+        seen=seen,  # modified in place
+        yaml=yaml,
+        verbose=verbose,
+        is_nested=True,
+    )
 
 
 def parse_requirements(
@@ -361,7 +407,7 @@ def parse_requirements(
     # `data` and `all_extras` are lists of the same length
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
-    seen: set[Path] = set()
+    seen: set[PathWithExtras] = set()
     yaml = YAML(typ="rt")
     for path_with_extras in paths_with_extras:
         _update_data_structures(
@@ -371,6 +417,7 @@ def parse_requirements(
             seen=seen,  # modified in place
             yaml=yaml,
             verbose=verbose,
+            is_nested=False,
         )
 
     assert len(datas) == len(all_extras)
@@ -384,7 +431,7 @@ def parse_requirements(
     platforms: set[Platform] = set()
 
     identifier = -1
-    for _extras, data in zip(all_extras, datas):
+    for data, _extras in zip(datas, all_extras):
         channels.update(data.get("channels", []))
         platforms.update(data.get("platforms", []))
         if "dependencies" in data:
@@ -424,7 +471,7 @@ def _str_is_path_like(s: str) -> bool:
 def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
     if _str_is_path_like(name):
         # There should not be path-like dependencies in the optional_dependencies
-        # section after _move_local_optional_dependencies_to_dependencies.
+        # section after _move_local_optional_dependencies_to_local_dependencies.
         assert not is_optional
         msg = (
             f"Local dependencies (`{name}`) are not allowed in `dependencies`."
@@ -500,6 +547,11 @@ def _extract_local_dependencies(
     processed.add(path)
     yaml = YAML(typ="safe")
     data = _load(path, yaml)
+    _move_local_optional_dependencies_to_local_dependencies(
+        data=data,  # modified in place
+        path_with_extras=PathWithExtras(path, extras),
+        verbose=verbose,
+    )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
