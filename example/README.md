@@ -63,10 +63,11 @@ This would be the same as running `unidep merge --name myenv --verbose`:
 📄 Parsing `pyproject_toml_project/pyproject.toml`
 path_with_extras=PathWithExtras(path=PosixPath('pyproject_toml_project/pyproject.toml'), extras=[])
 📄 Parsing `../hatch_project[test]` from `local_dependencies`
+📄 Parsing `/home/runner/work/unidep/unidep/example/hatch_project/requirements.yaml[test]`
 📄 Parsing `setup_py_project/requirements.yaml`
 path_with_extras=PathWithExtras(path=PosixPath('setup_py_project/requirements.yaml'), extras=[])
 📄 Parsing `../setuptools_project` from `local_dependencies`
-adding nested dependency
+📄 Parsing `/home/runner/work/unidep/unidep/example/setuptools_project/requirements.yaml`
 path_with_extras=PathWithExtras(path=PosixPath('/home/runner/work/unidep/unidep/example/setuptools_project/requirements.yaml'), extras=[])
 📄 Parsing `setuptools_project/requirements.yaml`
 path_with_extras=PathWithExtras(path=PosixPath('setuptools_project/requirements.yaml'), extras=[])
@@ -111,7 +112,6 @@ Using `unidep` for installation offers a more comprehensive approach. It handles
 ```bash
 $ unidep install --dry-run -e ./setup_py_project
 path_with_extras=PathWithExtras(path=PosixPath('setup_py_project/requirements.yaml'), extras=[])
-adding nested dependency
 path_with_extras=PathWithExtras(path=PosixPath('/home/runner/work/unidep/unidep/example/setuptools_project/requirements.yaml'), extras=[])
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge pandas">=1,<3" adaptive">=0.15.0, <2.0.0" pfapack packaging adaptive-scheduler numpy">=1.21" hpc05 pexpect pytest pytest-cov`
 
@@ -162,7 +162,6 @@ unidep install-all -e
 $ unidep install-all -e --dry-run
 path_with_extras=PathWithExtras(path=PosixPath('pyproject_toml_project/pyproject.toml'), extras=[])
 path_with_extras=PathWithExtras(path=PosixPath('setup_py_project/requirements.yaml'), extras=[])
-adding nested dependency
 path_with_extras=PathWithExtras(path=PosixPath('/home/runner/work/unidep/unidep/example/setuptools_project/requirements.yaml'), extras=[])
 path_with_extras=PathWithExtras(path=PosixPath('setuptools_project/requirements.yaml'), extras=[])
 📦 Installing conda dependencies with `conda install --yes --override-channels --channel conda-forge adaptive-scheduler numpy">=1.21" hpc05 pandas">=1,<3" pexpect adaptive">=0.15.0, <2.0.0" pfapack packaging pytest pytest-cov`
