@@ -821,7 +821,7 @@ def _pip_install_local(
 
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
-        subprocess.run(pip_command, check=True)  # noqa: S603
+        subprocess.run(pip_command, check=True)
 
 
 def _install_command(  # noqa: PLR0912
@@ -890,7 +890,7 @@ def _install_command(  # noqa: PLR0912
         conda_command_str = " ".join((*conda_command, *to_print))
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
-            subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]  # noqa: S603
+            subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
     python_executable = _python_executable(
         conda_executable,
         conda_env_name,
@@ -900,7 +900,7 @@ def _install_command(  # noqa: PLR0912
         pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
-            subprocess.run(pip_command, check=True)  # noqa: S603
+            subprocess.run(pip_command, check=True)
 
     installable = []
     if not skip_local:
@@ -1107,7 +1107,7 @@ def _pip_compile_command(
         str(requirements_in),
     ]
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
-    subprocess.run(cmd, check=True)  # noqa: S603
+    subprocess.run(cmd, check=True)
     if output_file.exists():  # pragma: no cover
         # might not exist in tests
         add_comment_to_file(output_file)

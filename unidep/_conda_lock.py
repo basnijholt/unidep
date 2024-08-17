@@ -64,7 +64,7 @@ def _run_conda_lock(
         cmd.append("--check-input-hash")
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
-        subprocess.run(cmd, check=True, text=True, capture_output=True)  # noqa: S603
+        subprocess.run(cmd, check=True, text=True, capture_output=True)
         remove_top_comments(conda_lock_output)
         add_comment_to_file(
             conda_lock_output,

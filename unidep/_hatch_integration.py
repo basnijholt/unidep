@@ -27,7 +27,7 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
         """Update the project table's metadata."""
         if "dependencies" not in metadata.get("dynamic", []):
             return
-        project_root = Path().resolve()
+        project_root = Path.cwd()
         try:
             requirements_file = parse_folder_or_filename(project_root).path
         except FileNotFoundError:
