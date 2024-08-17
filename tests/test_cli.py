@@ -86,7 +86,7 @@ def test_unidep_install_dry_run(project: str) -> None:
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install",
             "--dry-run",
@@ -134,7 +134,7 @@ def test_unidep_install_all_dry_run() -> None:
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install-all",
             "--dry-run",
@@ -170,7 +170,7 @@ def test_unidep_conda() -> None:
     assert requirements_path.exists(), "Requirements file does not exist"
 
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "conda",
             "--file",
@@ -195,7 +195,7 @@ def test_unidep_file_not_found_error() -> None:
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "conda",
             "--file",
@@ -245,7 +245,7 @@ def test_doubly_nested_project_folder_installable(
 
     # Run the unidep install command
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install",
             "--dry-run",
@@ -270,7 +270,7 @@ def test_doubly_nested_project_folder_installable(
     p6 = str(tmp_path / "example" / "hatch2_project")
     # Test depth 2
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install-all",
             "--dry-run",
@@ -291,7 +291,7 @@ def test_doubly_nested_project_folder_installable(
 
     # Test depth 1 (should not install project4)
     result = subprocess.run(
-        [  # noqa: S607, S603
+        [  # noqa: S607
             "unidep",
             "install-all",
             "--dry-run",
