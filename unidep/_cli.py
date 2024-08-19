@@ -874,7 +874,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         requirements.channels,
         platforms=platforms,
     )
-    if conda_executable is None:
+    if not conda_executable:  # None or empty string
         conda_executable = _identify_conda_executable()
     if conda_lock_file:  # As late as possible to error out early in previous steps
         _create_env_from_lock(
