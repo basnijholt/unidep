@@ -170,9 +170,9 @@ dependencies = [
     { conda = "cuda-toolkit =11.8:linux64" }         # Use platform selectors by appending `:linux64`
 ]
 local_dependencies = [
-    "../other-project-using-unidep",   # include other projects that use unidep
-    "../common-requirements.yaml"      # include other requirements.yaml files
-    "../project-not-managed-by-unidep" # 🚨 Skips its dependencies!
+    "../other-project-using-unidep",    # include other projects that use unidep
+    "../common-requirements.yaml",      # include other requirements.yaml files
+    "../project-not-managed-by-unidep"  # 🚨 Skips its dependencies!
 ]
 optional_dependencies = {
     test = ["pytest"],
