@@ -13,14 +13,14 @@ from unidep._cli import (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_subprocess_run(monkeypatch: pytest.MonkeyPatch) -> Mock:
     mock = Mock()
     monkeypatch.setattr("subprocess.run", mock)
     return mock
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_print(monkeypatch: pytest.MonkeyPatch) -> Mock:
     mock = Mock()
     monkeypatch.setattr("builtins.print", mock)
