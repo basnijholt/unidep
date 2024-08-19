@@ -1033,6 +1033,11 @@ def _create_env_from_lock(  # noqa: PLR0912
         )
         sys.exit(1)
 
+    if conda_env_name:
+        env_args = ["--name", conda_env_name]
+    elif conda_env_prefix:
+        env_args = ["--prefix", str(conda_env_prefix)]
+
     if conda_executable == "micromamba":
         create_cmd = [
             _maybe_exe(conda_executable),
@@ -1040,25 +1045,17 @@ def _create_env_from_lock(  # noqa: PLR0912
             "-f",
             str(conda_lock_file),
             "--yes",
+            *env_args,
         ]
-        if conda_env_name:
-            create_cmd.extend(["--name", conda_env_name])
-        elif conda_env_prefix:
-            create_cmd.extend(["--prefix", str(conda_env_prefix)])
         if verbose:
             create_cmd.append("--verbose")
     else:  # conda or mamba
-        create_cmd = ["conda-lock", "install"]
+        create_cmd = ["conda-lock", "install", *env_args]
 
         if conda_executable == "mamba":
             create_cmd.append("--mamba")
         elif conda_executable == "conda":
-            create_cmd.extend(["--conda", _maybe_exe(conda_executable)])
-
-        if conda_env_name:
-            create_cmd.extend(["-n", conda_env_name])
-        elif conda_env_prefix:
-            create_cmd.extend(["-p", str(conda_env_prefix)])
+            create_cmd.extend(["--conda", "conda"])
 
         create_cmd.append(str(conda_lock_file))
 
