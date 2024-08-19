@@ -15,7 +15,7 @@ from unidep._cli import (
 
 @pytest.fixture()
 def mock_subprocess_run(monkeypatch: pytest.MonkeyPatch) -> Mock:
-    mock = pytest.Mock()
+    mock = Mock()
     monkeypatch.setattr("subprocess.run", mock)
     return mock
 
