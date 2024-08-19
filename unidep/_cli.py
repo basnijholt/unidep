@@ -1017,7 +1017,7 @@ def _install_all_command(
     )
 
 
-def _create_env_from_lock(
+def _create_env_from_lock(  # noqa: PLR0912
     conda_lock_file: Path,
     conda_executable: CondaExecutable,
     conda_env_name: str | None,
@@ -1033,13 +1033,6 @@ def _create_env_from_lock(
         )
         sys.exit(1)
 
-    if conda_env_name:
-        assert conda_env_name is not None
-        env_args = ["--name", conda_env_name]
-    elif conda_env_prefix:
-        assert conda_env_prefix is not None
-        env_args = ["--prefix", str(conda_env_prefix)]
-
     if conda_executable == "micromamba":
         create_cmd = [
             _maybe_exe(conda_executable),
@@ -1047,60 +1040,47 @@ def _create_env_from_lock(
             "-f",
             str(conda_lock_file),
             "--yes",
-            *env_args,
         ]
+        if conda_env_name:
+            create_cmd.extend(["--name", conda_env_name])
+        elif conda_env_prefix:
+            create_cmd.extend(["--prefix", str(conda_env_prefix)])
         if verbose:
             create_cmd.append("--verbose")
-        create_cmd_str = " ".join(create_cmd)
-        print(f"📦 Creating conda environment with `{create_cmd_str}`\n")
-        if not dry_run:
-            subprocess.run(create_cmd, check=True)
     else:  # conda or mamba
-        assert conda_executable in ("conda", "mamba")
-        try:
-            from conda_lock.conda_lock import run_lock
-        except ImportError:
-            msg = (
-                "❌ conda-lock is required for using conda or mamba with lock files. "
-                "Please install it with `pip install conda-lock`."
-            )
-            print(msg)
-            sys.exit(1)
+        create_cmd = ["conda-lock", "install"]
 
-        print(f"📦 Creating conda environment '{conda_env_name}' using conda-lock.")
-        if not dry_run:
-            run_lock(
-                environment_files=[conda_lock_file],
-                conda_exe=_maybe_exe(conda_executable),
-                mamba=(conda_executable == "mamba"),
-                micromamba=False,  # We handle micromamba separately
-                lockfile_path=conda_lock_file,
-                check_input_hash=True,
-                filename_template=None,  # Use default
-                platform=None,  # Use all platforms in the lock file
-                kinds=["lock"],  # Prefer using the lock file directly
-            )
+        if conda_executable == "mamba":
+            create_cmd.append("--mamba")
+        elif conda_executable == "conda":
+            create_cmd.extend(["--conda", _maybe_exe(conda_executable)])
 
-            # Now use conda/mamba to create the environment from the lock file
-            install_cmd = [
-                _maybe_exe(conda_executable),
-                "create",
-                "--file",
-                str(conda_lock_file),
-                "--yes",
-                *env_args,
-            ]
-            if verbose:
-                install_cmd.append("--verbose")
-            install_cmd_str = " ".join(install_cmd)
-            print(
-                f"📦 Installing packages into '{conda_env_name}'"
-                f" environment with {install_cmd_str}`",
-            )
-            subprocess.run(install_cmd, check=True)
+        if conda_env_name:
+            create_cmd.extend(["-n", conda_env_name])
+        elif conda_env_prefix:
+            create_cmd.extend(["-p", str(conda_env_prefix)])
+
+        create_cmd.append(str(conda_lock_file))
 
         if verbose:
-            print(f"✅ Environment '{conda_env_name}' created successfully.")
+            create_cmd.append("--log-level=DEBUG")
+
+    create_cmd_str = " ".join(map(str, create_cmd))
+    env_identifier = (
+        f"'{conda_env_name}'" if conda_env_name else f"at '{conda_env_prefix}'"
+    )
+    print(f"📦 Creating conda environment {env_identifier} with `{create_cmd_str}`")
+
+    if not dry_run:
+        try:
+            subprocess.run(create_cmd, check=True)
+            if verbose:
+                print(f"✅ Environment {env_identifier} created successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to create environment: {e}")
+            sys.exit(1)
+    else:
+        print("🏁 Dry run completed. No environment was created.")
 
 
 def _merge_command(
