@@ -62,6 +62,7 @@ def test_install_command(project: str, capsys: pytest.CaptureFixture) -> None:
         _install_command(
             REPO_ROOT / "example" / project,
             conda_executable="",  # type: ignore[arg-type]
+            conda_lock_file=None,
             dry_run=True,
             editable=False,
             verbose=True,
@@ -111,6 +112,7 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
         conda_executable="",  # type: ignore[arg-type]
         conda_env_name=None,
         conda_env_prefix=None,
+        conda_lock_file=None,
         dry_run=True,
         editable=True,
         directory=REPO_ROOT / "example",
@@ -347,6 +349,7 @@ def test_install_non_existing_file() -> None:
             conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
+            conda_lock_file=None,
             dry_run=True,
             editable=True,
             verbose=True,
@@ -366,6 +369,7 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             conda_executable="",  # type: ignore[arg-type]
             conda_env_name=None,
             conda_env_prefix=None,
+            conda_lock_file=None,
             dry_run=True,
             editable=True,
             verbose=True,
