@@ -1049,6 +1049,8 @@ def _maybe_conda_run(
     if not conda_executable:  # None or empty string
         return []
     if conda_env_name is None and conda_env_prefix is None:
+        if not os.getenv("CONDA_PREFIX") or not os.getenv("MAMBA_ROOT_PREFIX"):
+            return []
         exe = Path(sys.executable)
         conda_prefix = exe.parent if os.name == "nt" else exe.parent.parent
         env_args = ["--prefix", str(conda_prefix)]
@@ -1377,7 +1379,6 @@ def _pip_subcommand(
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
-
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
