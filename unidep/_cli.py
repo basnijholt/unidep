@@ -1064,7 +1064,8 @@ def _create_env_from_lock(  # noqa: PLR0912
 
         if verbose:
             create_cmd.append("--log-level=DEBUG")
-
+        if not dry_run:
+            _verify_conda_lock_installed()
     create_cmd_str = " ".join(map(str, create_cmd))
     env_identifier = (
         f"'{conda_env_name}'" if conda_env_name else f"at '{conda_env_prefix}'"
@@ -1081,6 +1082,40 @@ def _create_env_from_lock(  # noqa: PLR0912
             sys.exit(1)
     else:
         print("🏁 Dry run completed. No environment was created.")
+
+
+def _verify_conda_lock_installed() -> None:
+    """Verify that conda-lock is installed and accessible."""
+    if shutil.which("conda-lock") is None:
+        print(
+            "❌ conda-lock is not installed or not found in PATH.\n"
+            "Please install it with one of the following commands:\n"
+            "  pip install conda-lock\n"
+            "  conda install conda-lock -c conda-forge\n"
+            "  mamba install conda-lock -c conda-forge",
+        )
+        sys.exit(1)
+
+    try:
+        # Check if conda-lock is working correctly
+        subprocess.run(
+            ["conda-lock", "--version"],  # noqa: S607
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        print(
+            "❌ conda-lock is installed but not working correctly.\n"
+            "Please try reinstalling it with one of the following commands:\n"
+            "  `pip install --force-reinstall conda-lock`\n"
+            "  `conda install --force-reinstall conda-lock -c conda-forge`\n"
+            "  `mamba install --force-reinstall conda-lock -c conda-forge`\n"
+            "  `pipx install --force-reinstall conda-lock`",
+        )
+        sys.exit(1)
+
+    # If we get here, conda-lock is installed and working
 
 
 def _merge_command(
