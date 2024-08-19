@@ -619,6 +619,13 @@ def _identify_conda_executable() -> CondaExecutable:  # pragma: no cover
     raise RuntimeError(msg)
 
 
+def _maybe_conda_executable() -> CondaExecutable | None:
+    try:
+        return _identify_conda_executable()
+    except RuntimeError:  # pragma: no cover
+        return None
+
+
 def _format_inline_conda_package(package: str) -> str:
     pkg = parse_package_str(package)
     if pkg.pin is None:
@@ -792,7 +799,7 @@ def _conda_env_name_to_prefix(
 
 
 def _python_executable(
-    conda_executable: CondaExecutable,
+    conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
 ) -> str:
@@ -800,6 +807,7 @@ def _python_executable(
     if conda_env_name is None and conda_env_prefix is None:
         return sys.executable
     if conda_env_name:
+        assert conda_executable is not None
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
     if platform.system() == "Windows":  # pragma: no cover
@@ -815,9 +823,10 @@ def _pip_install_local(
     editable: bool,
     dry_run: bool,
     python_executable: str,
+    conda_run: list[str],
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    pip_command = [python_executable, "-m", "pip", "install"]
+    pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
     if flags:
         pip_command.extend(flags)
 
@@ -875,8 +884,9 @@ def _install_command(  # noqa: PLR0912, PLR0915
         platforms=platforms,
     )
     if not conda_executable:  # None or empty string
-        conda_executable = _identify_conda_executable()
+        conda_executable = _maybe_conda_executable()
     if conda_lock_file:  # As late as possible to error out early in previous steps
+        assert conda_executable is not None
         _create_env_from_lock(
             conda_lock_file,
             conda_executable,
@@ -892,6 +902,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_conda = True
 
     if env_spec.conda and not skip_conda:
+        assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
@@ -922,7 +933,15 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_prefix,
     )
     if env_spec.pip and not skip_pip:
-        pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
+        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
+        pip_command = [
+            *conda_run,
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            *env_spec.pip,
+        ]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)
@@ -957,13 +976,18 @@ def _install_command(  # noqa: PLR0912, PLR0915
             pip_flags = ["--no-dependencies"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
-
+            conda_run = _maybe_conda_run(
+                conda_executable,
+                conda_env_name,
+                conda_env_prefix,
+            )
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,
                 dry_run=dry_run,
                 python_executable=python_executable,
                 flags=pip_flags,
+                conda_run=conda_run,
             )
 
     if not dry_run:  # pragma: no cover
@@ -1014,6 +1038,27 @@ def _install_all_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+
+
+def _maybe_conda_run(
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> list[str]:
+    if not conda_executable:  # None or empty string
+        return []
+    if conda_env_name is None and conda_env_prefix is None:
+        if not os.getenv("CONDA_PREFIX") and not os.getenv("MAMBA_ROOT_PREFIX"):
+            # Conda/mamba/micromamba might be installed but not in PATH
+            return []
+        exe = Path(sys.executable)
+        conda_prefix = exe.parent if os.name == "nt" else exe.parent.parent
+        env_args = ["--prefix", str(conda_prefix)]
+    elif conda_env_name:
+        env_args = ["--name", conda_env_name]
+    elif conda_env_prefix:
+        env_args = ["--prefix", str(conda_env_prefix)]
+    return [conda_executable, "run", *env_args]
 
 
 def _create_env_from_lock(  # noqa: PLR0912
@@ -1067,7 +1112,7 @@ def _create_env_from_lock(  # noqa: PLR0912
     )
     print(f"📦 Creating conda environment {env_identifier} with `{create_cmd_str}`")
 
-    if not dry_run:
+    if not dry_run:  # pragma: no cover
         try:
             subprocess.run(create_cmd, check=True)
             if verbose:
