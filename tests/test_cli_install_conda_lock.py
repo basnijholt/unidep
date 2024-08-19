@@ -73,7 +73,7 @@ def test_create_env_from_lock_dry_run(
     # Check the command string separately
     cmd_str = first_call.args[0]
     if conda_executable == "micromamba":
-        assert "micromamba create" in cmd_str
+        assert "micromamba create" in cmd_str or "micromamba.exe create" in cmd_str
         assert "-f conda-lock.yml" in cmd_str
         assert "--yes" in cmd_str
         assert "--verbose" in cmd_str
