@@ -838,7 +838,7 @@ def _pip_install_local(
 
 def _install_command(  # noqa: PLR0912, PLR0915
     *files: Path,
-    conda_executable: CondaExecutable,
+    conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
     conda_lock_file: Path | None,
@@ -874,9 +874,9 @@ def _install_command(  # noqa: PLR0912, PLR0915
         requirements.channels,
         platforms=platforms,
     )
-
+    if conda_executable is None:
+        conda_executable = _identify_conda_executable()
     if conda_lock_file:  # As late as possible to error out early in previous steps
-        # assert conda_env_name is not None or conda_env_prefix is not None
         _create_env_from_lock(
             conda_lock_file,
             conda_executable,
@@ -892,7 +892,6 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_conda = True
 
     if env_spec.conda and not skip_conda:
-        conda_executable = conda_executable or _identify_conda_executable()
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
@@ -973,7 +972,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
 
 def _install_all_command(
     *,
-    conda_executable: CondaExecutable,
+    conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
     conda_lock_file: Path | None,
@@ -1033,7 +1032,6 @@ def _create_env_from_lock(
             " `--conda-env-prefix` when using `--conda-lock-file`.",
         )
         sys.exit(1)
-    conda_executable = conda_executable or _identify_conda_executable()
 
     if conda_env_name:
         assert conda_env_name is not None
