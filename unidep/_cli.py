@@ -815,10 +815,10 @@ def _pip_install_local(
     editable: bool,
     dry_run: bool,
     python_executable: str,
-    env: dict[str, str] | None,
+    conda_run: list[str],
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    pip_command = [python_executable, "-m", "pip", "install"]
+    pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
     if flags:
         pip_command.extend(flags)
 
@@ -834,7 +834,7 @@ def _pip_install_local(
 
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
-        subprocess.run(pip_command, check=True, env=env)
+        subprocess.run(pip_command, check=True)
 
 
 def _install_command(  # noqa: PLR0912, PLR0915
@@ -925,10 +925,11 @@ def _install_command(  # noqa: PLR0912, PLR0915
 
     if env_spec.pip and not skip_pip:
         pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
-        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
+        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
+        command = [*conda_run, *pip_command]
+        print(f"📦 Installing pip dependencies with `{' '.join(command)}`\n")
         if not dry_run:  # pragma: no cover
-            env = _path_env_var(conda_executable, conda_env_name, conda_env_prefix)
-            subprocess.run(pip_command, check=True, env=env)
+            subprocess.run(command, check=True)
 
     installable = []
     if not skip_local:
@@ -960,14 +961,18 @@ def _install_command(  # noqa: PLR0912, PLR0915
             pip_flags = ["--no-dependencies"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
-
+            conda_run = _maybe_conda_run(
+                conda_executable,
+                conda_env_name,
+                conda_env_prefix,
+            )
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,
                 dry_run=dry_run,
                 python_executable=python_executable,
                 flags=pip_flags,
-                env=_path_env_var(conda_executable, conda_env_name, conda_env_prefix),
+                conda_run=conda_run,
             )
 
     if not dry_run:  # pragma: no cover
@@ -1020,37 +1025,20 @@ def _install_all_command(
     )
 
 
-def _conda_env_prefix(
+def _maybe_conda_run(
     conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
-) -> Path | None:
-    if conda_env_prefix:
-        return conda_env_prefix
-    if conda_env_name:
-        return _conda_env_name_to_prefix(conda_executable, conda_env_name)
-
-    # If neither name nor prefix is specified, use the current conda/mamba prefix
-    try:
-        return _conda_root_prefix(conda_executable)
-    except Exception:  # noqa: BLE001
-        # If we're not in a conda/mamba environment
-        return None
-
-
-def _path_env_var(
-    conda_executable: CondaExecutable,
-    conda_env_name: str | None,
-    conda_env_prefix: Path | None,
-) -> dict[str, str] | None:
-    conda_prefix = _conda_env_prefix(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
-    if conda_prefix is None:
-        return None
-    return {"PATH": str(conda_prefix / "bin")}
+) -> list[str]:
+    if conda_env_name is None and conda_env_prefix is None:
+        exe = Path(sys.executable)
+        conda_prefix = exe.parent if os.name == "nt" else exe.parent.parent
+        env_args = ["--prefix", str(conda_prefix)]
+    elif conda_env_name:
+        env_args = ["--name", conda_env_name]
+    elif conda_env_prefix:
+        env_args = ["--prefix", str(conda_env_prefix)]
+    return [conda_executable, "run", *env_args]
 
 
 def _create_env_from_lock(  # noqa: PLR0912
