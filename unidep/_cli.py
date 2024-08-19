@@ -99,6 +99,7 @@ def _add_common_args(  # noqa: PLR0912, C901
                 f"The {_DEP_FILES} file to parse, or folder"
                 " that contains that file, by default `.`"
             )
+        assert "conda-lock-file" not in options  # both use "-f"
         sub_parser.add_argument(
             "-f",
             "--file",
@@ -235,6 +236,15 @@ def _add_common_args(  # noqa: PLR0912, C901
             " e.g., `--overwrite-pin 'numpy=1.19.2'`. This option can be repeated"
             " to overwrite the pins of multiple packages.",
         )
+    if "conda-lock-file" in options:
+        sub_parser.add_argument(
+            "-f",
+            "--conda-lock-file",
+            type=Path,
+            help="Path to the `conda-lock.yml` file to use for creating the new"
+            " environment. Must be used with `--conda-env-name`"
+            " or `--conda-env-prefix`.",
+        )
 
 
 def _add_extra_flags(
@@ -353,6 +363,7 @@ def _parse_args() -> argparse.Namespace:
             "*files",
             "conda-executable",
             "conda-env",
+            "conda-lock-file",
             "dry-run",
             "editable",
             "skip-local",
@@ -393,6 +404,7 @@ def _parse_args() -> argparse.Namespace:
         {
             "conda-executable",
             "conda-env",
+            "conda-lock-file",
             "dry-run",
             "editable",
             "depth",
@@ -824,11 +836,12 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)
 
 
-def _install_command(  # noqa: PLR0912
+def _install_command(  # noqa: PLR0912, PLR0915
     *files: Path,
     conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
+    conda_lock_file: Path | None,
     dry_run: bool,
     editable: bool,
     skip_local: bool = False,
@@ -841,10 +854,6 @@ def _install_command(  # noqa: PLR0912
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
-    if no_dependencies:
-        skip_pip = True
-        skip_conda = True
-
     paths_with_extras = [parse_folder_or_filename(f) for f in files]
     requirements = parse_requirements(
         *[f.path for f in paths_with_extras],
@@ -865,6 +874,23 @@ def _install_command(  # noqa: PLR0912
         requirements.channels,
         platforms=platforms,
     )
+
+    if conda_lock_file:  # As late as possible to error out early in previous steps
+        # assert conda_env_name is not None or conda_env_prefix is not None
+        _create_env_from_lock(
+            conda_lock_file,
+            conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+            dry_run=dry_run,
+            verbose=verbose,
+        )
+        no_dependencies = True  # Assume the lock file has all dependencies
+
+    if no_dependencies:
+        skip_pip = True
+        skip_conda = True
+
     if env_spec.conda and not skip_conda:
         conda_executable = conda_executable or _identify_conda_executable()
         channel_args = ["--override-channels"] if env_spec.channels else []
@@ -950,6 +976,7 @@ def _install_all_command(
     conda_executable: CondaExecutable,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
+    conda_lock_file: Path | None,
     dry_run: bool,
     editable: bool,
     depth: int,
@@ -971,11 +998,13 @@ def _install_all_command(
     if not found_files:
         print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
+
     _install_command(
         *found_files,
         conda_executable=conda_executable,
         conda_env_name=conda_env_name,
         conda_env_prefix=conda_env_prefix,
+        conda_lock_file=conda_lock_file,
         dry_run=dry_run,
         editable=editable,
         skip_local=skip_local,
@@ -987,6 +1016,93 @@ def _install_all_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+
+
+def _create_env_from_lock(
+    conda_lock_file: Path,
+    conda_executable: CondaExecutable,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    *,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    if conda_env_name is None and conda_env_prefix is None:
+        print(
+            "❌ Please provide either `--conda-env-name` or"
+            " `--conda-env-prefix` when using `--conda-lock-file`.",
+        )
+        sys.exit(1)
+    conda_executable = conda_executable or _identify_conda_executable()
+
+    if conda_env_name:
+        assert conda_env_name is not None
+        env_args = ["--name", conda_env_name]
+    elif conda_env_prefix:
+        assert conda_env_prefix is not None
+        env_args = ["--prefix", str(conda_env_prefix)]
+
+    if conda_executable == "micromamba":
+        create_cmd = [
+            _maybe_exe(conda_executable),
+            "create",
+            "-f",
+            str(conda_lock_file),
+            "--yes",
+            *env_args,
+        ]
+        if verbose:
+            create_cmd.append("--verbose")
+        create_cmd_str = " ".join(create_cmd)
+        print(f"📦 Creating conda environment with `{create_cmd_str}`\n")
+        if not dry_run:
+            subprocess.run(create_cmd, check=True)
+    else:  # conda or mamba
+        assert conda_executable in ("conda", "mamba")
+        try:
+            from conda_lock.conda_lock import run_lock
+        except ImportError:
+            msg = (
+                "❌ conda-lock is required for using conda or mamba with lock files. "
+                "Please install it with `pip install conda-lock`."
+            )
+            print(msg)
+            sys.exit(1)
+
+        print(f"📦 Creating conda environment '{conda_env_name}' using conda-lock.")
+        if not dry_run:
+            run_lock(
+                environment_files=[conda_lock_file],
+                conda_exe=_maybe_exe(conda_executable),
+                mamba=(conda_executable == "mamba"),
+                micromamba=False,  # We handle micromamba separately
+                lockfile_path=conda_lock_file,
+                check_input_hash=True,
+                filename_template=None,  # Use default
+                platform=None,  # Use all platforms in the lock file
+                kinds=["lock"],  # Prefer using the lock file directly
+            )
+
+            # Now use conda/mamba to create the environment from the lock file
+            install_cmd = [
+                _maybe_exe(conda_executable),
+                "create",
+                "--file",
+                str(conda_lock_file),
+                "--yes",
+                *env_args,
+            ]
+            if verbose:
+                install_cmd.append("--verbose")
+            install_cmd_str = " ".join(install_cmd)
+            print(
+                f"📦 Installing packages into '{conda_env_name}'"
+                f" environment with {install_cmd_str}`",
+            )
+            subprocess.run(install_cmd, check=True)
+
+        if verbose:
+            print(f"✅ Environment '{conda_env_name}' created successfully.")
 
 
 def _merge_command(
@@ -1273,6 +1389,7 @@ def main() -> None:
             conda_executable=args.conda_executable,
             conda_env_name=args.conda_env_name,
             conda_env_prefix=args.conda_env_prefix,
+            conda_lock_file=args.conda_lock_file,
             dry_run=args.dry_run,
             editable=args.editable,
             skip_local=args.skip_local,
@@ -1291,6 +1408,7 @@ def main() -> None:
             conda_executable=args.conda_executable,
             conda_env_name=args.conda_env_name,
             conda_env_prefix=args.conda_env_prefix,
+            conda_lock_file=args.conda_lock_file,
             dry_run=args.dry_run,
             editable=args.editable,
             depth=args.depth,
