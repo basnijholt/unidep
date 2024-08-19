@@ -559,16 +559,13 @@ def test_find_conda_windows() -> None:
         assert path in excinfo.value.args[0]
 
 
-def test_conda_env_name_specified() -> None:
+def test_maybe_conda_run() -> None:
     result = _maybe_conda_run("conda", "my_env", None)
     assert result == ["conda", "run", "--name", "my_env"]
 
+    p = Path("/path/to/env")
+    result = _maybe_conda_run("conda", None, p)
+    assert result == ["conda", "run", "--prefix", str(p)]
 
-def test_conda_env_prefix_specified() -> None:
-    result = _maybe_conda_run("conda", None, Path("/path/to/env"))
-    assert result == ["conda", "run", "--prefix", "/path/to/env"]
-
-
-def test_mamba_executable() -> None:
     result = _maybe_conda_run("mamba", "my_env", None)
     assert result == ["mamba", "run", "--name", "my_env"]
