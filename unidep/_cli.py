@@ -815,7 +815,7 @@ def _pip_install_local(
     editable: bool,
     dry_run: bool,
     python_executable: str,
-    path: Path | None,
+    env: dict[str, str] | None,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     pip_command = [python_executable, "-m", "pip", "install"]
@@ -834,7 +834,6 @@ def _pip_install_local(
 
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
-        env = {"PATH": str(path / "bin")} if path is not None else None
         subprocess.run(pip_command, check=True, env=env)
 
 
@@ -923,11 +922,13 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_name,
         conda_env_prefix,
     )
+
     if env_spec.pip and not skip_pip:
         pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
-            subprocess.run(pip_command, check=True)
+            env = _path_env_var(conda_executable, conda_env_name, conda_env_prefix)
+            subprocess.run(pip_command, check=True, env=env)
 
     installable = []
     if not skip_local:
@@ -966,11 +967,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
                 dry_run=dry_run,
                 python_executable=python_executable,
                 flags=pip_flags,
-                path=_conda_env_prefix(
-                    conda_executable,
-                    conda_env_name,
-                    conda_env_prefix,
-                ),
+                env=_path_env_var(conda_executable, conda_env_name, conda_env_prefix),
             )
 
     if not dry_run:  # pragma: no cover
@@ -1039,6 +1036,21 @@ def _conda_env_prefix(
     except Exception:  # noqa: BLE001
         # If we're not in a conda/mamba environment
         return None
+
+
+def _path_env_var(
+    conda_executable: CondaExecutable,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> dict[str, str] | None:
+    conda_prefix = _conda_env_prefix(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    if conda_prefix is None:
+        return None
+    return {"PATH": str(conda_prefix / "bin")}
 
 
 def _create_env_from_lock(  # noqa: PLR0912
