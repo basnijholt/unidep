@@ -516,7 +516,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-executable {conda,mamba,micromamba}]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
-                      [--overwrite-pin OVERWRITE_PIN]
+                      [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -576,6 +576,10 @@ options:
                         e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
+  -f CONDA_LOCK_FILE, --conda-lock-file CONDA_LOCK_FILE
+                        Path to the `conda-lock.yml` file to use for creating
+                        the new environment. Must be used with `--conda-env-
+                        name` or `--conda-env-prefix`.
 ```
 
 <!-- OUTPUT:END -->
@@ -599,7 +603,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-executable {conda,mamba,micromamba}]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
-                      [--overwrite-pin OVERWRITE_PIN]
+                      [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -659,6 +663,10 @@ options:
                         e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
                         can be repeated to overwrite the pins of multiple
                         packages.
+  -f CONDA_LOCK_FILE, --conda-lock-file CONDA_LOCK_FILE
+                        Path to the `conda-lock.yml` file to use for creating
+                        the new environment. Must be used with `--conda-env-
+                        name` or `--conda-env-prefix`.
 ```
 
 <!-- OUTPUT:END -->
