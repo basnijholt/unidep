@@ -997,7 +997,6 @@ def _install_all_command(
     if not found_files:
         print(f"❌ No {_DEP_FILES} files found in {directory}")
         sys.exit(1)
-
     _install_command(
         *found_files,
         conda_executable=conda_executable,
@@ -1032,8 +1031,7 @@ def _create_env_from_lock(  # noqa: PLR0912
             " `--conda-env-prefix` when using `--conda-lock-file`.",
         )
         sys.exit(1)
-
-    if conda_env_name:
+    elif conda_env_name:
         env_args = ["--name", conda_env_name]
     elif conda_env_prefix:
         env_args = ["--prefix", str(conda_env_prefix)]
@@ -1050,6 +1048,8 @@ def _create_env_from_lock(  # noqa: PLR0912
         if verbose:
             create_cmd.append("--verbose")
     else:  # conda or mamba
+        if not dry_run:
+            _verify_conda_lock_installed()
         create_cmd = ["conda-lock", "install", *env_args]
 
         if conda_executable == "mamba":
@@ -1061,8 +1061,6 @@ def _create_env_from_lock(  # noqa: PLR0912
 
         if verbose:
             create_cmd.append("--log-level=DEBUG")
-        if not dry_run:
-            _verify_conda_lock_installed()
     create_cmd_str = " ".join(map(str, create_cmd))
     env_identifier = (
         f"'{conda_env_name}'" if conda_env_name else f"at '{conda_env_prefix}'"
