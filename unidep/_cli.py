@@ -932,7 +932,6 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_name,
         conda_env_prefix,
     )
-
     if env_spec.pip and not skip_pip:
         conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         pip_command = [
@@ -1050,6 +1049,7 @@ def _maybe_conda_run(
         return []
     if conda_env_name is None and conda_env_prefix is None:
         if not os.getenv("CONDA_PREFIX") or not os.getenv("MAMBA_ROOT_PREFIX"):
+            # Conda/mamba/micromamba might be installed but not in PATH
             return []
         exe = Path(sys.executable)
         conda_prefix = exe.parent if os.name == "nt" else exe.parent.parent
@@ -1379,6 +1379,7 @@ def _pip_subcommand(
 def main() -> None:
     """Main entry point for the command-line tool."""
     args = _parse_args()
+
     if args.command == "merge":  # pragma: no cover
         _merge_command(
             depth=args.depth,
