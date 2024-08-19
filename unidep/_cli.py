@@ -622,7 +622,7 @@ def _identify_conda_executable() -> CondaExecutable:  # pragma: no cover
 def _maybe_conda_executable() -> CondaExecutable | None:
     try:
         return _identify_conda_executable()
-    except RuntimeError:
+    except RuntimeError:  # pragma: no cover
         return None
 
 
@@ -1048,7 +1048,7 @@ def _maybe_conda_run(
     if not conda_executable:  # None or empty string
         return []
     if conda_env_name is None and conda_env_prefix is None:
-        if not os.getenv("CONDA_PREFIX") or not os.getenv("MAMBA_ROOT_PREFIX"):
+        if not os.getenv("CONDA_PREFIX") and not os.getenv("MAMBA_ROOT_PREFIX"):
             # Conda/mamba/micromamba might be installed but not in PATH
             return []
         exe = Path(sys.executable)
@@ -1112,7 +1112,7 @@ def _create_env_from_lock(  # noqa: PLR0912
     )
     print(f"📦 Creating conda environment {env_identifier} with `{create_cmd_str}`")
 
-    if not dry_run:
+    if not dry_run:  # pragma: no cover
         try:
             subprocess.run(create_cmd, check=True)
             if verbose:
