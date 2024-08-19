@@ -20,6 +20,7 @@ from unidep._cli import (
     _identify_conda_executable,
     _install_all_command,
     _install_command,
+    _maybe_conda_run,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
@@ -556,3 +557,18 @@ def test_find_conda_windows() -> None:
     ]
     for path in paths:
         assert path in excinfo.value.args[0]
+
+
+def test_conda_env_name_specified() -> None:
+    result = _maybe_conda_run("conda", "my_env", None)
+    assert result == ["conda", "run", "--name", "my_env"]
+
+
+def test_conda_env_prefix_specified() -> None:
+    result = _maybe_conda_run("conda", None, Path("/path/to/env"))
+    assert result == ["conda", "run", "--prefix", "/path/to/env"]
+
+
+def test_mamba_executable() -> None:
+    result = _maybe_conda_run("mamba", "my_env", None)
+    assert result == ["mamba", "run", "--name", "my_env"]
