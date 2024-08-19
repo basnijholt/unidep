@@ -242,8 +242,8 @@ def _add_common_args(  # noqa: PLR0912, C901
             "--conda-lock-file",
             type=Path,
             help="Path to the `conda-lock.yml` file to use for creating the new"
-            " environment. Must be used with `--conda-env-name`"
-            " or `--conda-env-prefix`.",
+            " environment. Assumes that the lock file contains all dependencies."
+            " Must be used with `--conda-env-name` or `--conda-env-prefix`.",
         )
 
 
