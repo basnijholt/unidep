@@ -934,12 +934,18 @@ def _install_command(  # noqa: PLR0912, PLR0915
     )
 
     if env_spec.pip and not skip_pip:
-        pip_command = [python_executable, "-m", "pip", "install", *env_spec.pip]
         conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
-        command = [*conda_run, *pip_command]
-        print(f"📦 Installing pip dependencies with `{' '.join(command)}`\n")
+        pip_command = [
+            *conda_run,
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            *env_spec.pip,
+        ]
+        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
-            subprocess.run(command, check=True)
+            subprocess.run(pip_command, check=True)
 
     installable = []
     if not skip_local:
