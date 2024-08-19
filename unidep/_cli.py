@@ -1046,7 +1046,7 @@ def _maybe_conda_run(
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
 ) -> list[str]:
-    if conda_executable is None:
+    if not conda_executable:  # None or empty string
         return []
     if conda_env_name is None and conda_env_prefix is None:
         exe = Path(sys.executable)
