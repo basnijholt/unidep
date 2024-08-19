@@ -578,8 +578,9 @@ options:
                         packages.
   -f CONDA_LOCK_FILE, --conda-lock-file CONDA_LOCK_FILE
                         Path to the `conda-lock.yml` file to use for creating
-                        the new environment. Must be used with `--conda-env-
-                        name` or `--conda-env-prefix`.
+                        the new environment. Assumes that the lock file
+                        contains all dependencies. Must be used with `--conda-
+                        env-name` or `--conda-env-prefix`.
 ```
 
 <!-- OUTPUT:END -->
@@ -665,8 +666,9 @@ options:
                         packages.
   -f CONDA_LOCK_FILE, --conda-lock-file CONDA_LOCK_FILE
                         Path to the `conda-lock.yml` file to use for creating
-                        the new environment. Must be used with `--conda-env-
-                        name` or `--conda-env-prefix`.
+                        the new environment. Assumes that the lock file
+                        contains all dependencies. Must be used with `--conda-
+                        env-name` or `--conda-env-prefix`.
 ```
 
 <!-- OUTPUT:END -->
