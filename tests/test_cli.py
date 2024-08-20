@@ -559,6 +559,10 @@ def test_find_conda_windows() -> None:
         assert path in excinfo.value.args[0]
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="On Windows it will search for Conda because of `_maybe_exe`.",
+)
 def test_maybe_conda_run() -> None:
     result = _maybe_conda_run("conda", "my_env", None)
     assert result == ["conda", "run", "--name", "my_env"]
