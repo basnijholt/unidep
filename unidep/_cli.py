@@ -1058,7 +1058,7 @@ def _maybe_conda_run(
         env_args = ["--name", conda_env_name]
     elif conda_env_prefix:
         env_args = ["--prefix", str(conda_env_prefix)]
-    return [conda_executable, "run", *env_args]
+    return [_maybe_exe(conda_executable), "run", *env_args]
 
 
 def _create_env_from_lock(  # noqa: PLR0912
