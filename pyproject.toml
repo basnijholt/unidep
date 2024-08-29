@@ -69,7 +69,7 @@ include = ["unidep.*", "unidep"]
 version = { attr = "unidep._version.__version__" }
 
 [tool.setuptools.package-data]
-"pkgname" = ["py.typed"]
+"unidep" = ["py.typed"]
 
 [tool.pytest.ini_options]
 addopts = """
