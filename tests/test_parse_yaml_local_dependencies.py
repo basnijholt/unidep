@@ -465,7 +465,7 @@ def test_local_empty_git_submodule_dependency(
             """,
         ),
     )
-    with pytest.raises(RuntimeError, match="is not pip installable"):
+    with pytest.raises(RuntimeError, match="is an empty Git submodule"):
         parse_local_dependencies(r1, verbose=True)
 
 
