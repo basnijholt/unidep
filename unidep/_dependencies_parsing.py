@@ -579,6 +579,15 @@ def _extract_local_dependencies(
                         " add a `requirements.yaml` or `pyproject.toml` file with"
                         " `[tool.unidep]` in its directory.",
                     )
+            elif _is_empty_git_submodule(local_path):
+                # Extra check for empty Git submodules (common problem folks run into)
+                msg = (
+                    f"`{local_dependency}` in `local_dependencies` is not installable"
+                    " by pip because it is an empty Git submodule. Either remove it"
+                    " from `local_dependencies` or fetch the submodule with"
+                    " `git submodule update --init --recursive`."
+                )
+                raise RuntimeError(msg) from None
             else:
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not pip"
@@ -674,3 +683,16 @@ def yaml_to_toml(yaml_path: Path) -> str:
                         dep[which] = f"{dep[which]}:{selector}"
 
     return tomli_w.dumps({"tool": {"unidep": data}})
+
+
+def _is_empty_git_submodule(path: Path) -> bool:
+    """Checks if the given path is an empty Git submodule."""
+    if not path.is_dir():
+        return False
+
+    git_file = path / ".git"
+    if not git_file.exists() or not git_file.is_file():
+        return False
+
+    # Check if it's empty (apart from the .git file)
+    return len(list(path.iterdir())) == 1  # Only .git should be present
