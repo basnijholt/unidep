@@ -579,7 +579,7 @@ def _extract_local_dependencies(
                         " add a `requirements.yaml` or `pyproject.toml` file with"
                         " `[tool.unidep]` in its directory.",
                     )
-            elif _is_empty_git_submodule(local_path):
+            elif _is_empty_git_submodule(abs_local):
                 # Extra check for empty Git submodules (common problem folks run into)
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not installable"
