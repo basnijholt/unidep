@@ -461,7 +461,7 @@ def test_local_empty_git_submodule_dependency(
         textwrap.dedent(
             """\
             local_dependencies:
-                - ../project2  # is not managed by unidep and not installable
+                - ../project2  # has only `.git` file
             """,
         ),
     )
