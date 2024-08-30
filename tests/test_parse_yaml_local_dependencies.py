@@ -447,6 +447,28 @@ def test_local_non_unidep_and_non_installable_managed_dependency(
         parse_local_dependencies(r1, verbose=True)
 
 
+def test_local_empty_git_submodule_dependency(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+    (project2 / ".git").touch()
+
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - ../project2  # has only `.git` file
+            """,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="is an empty Git submodule"):
+        parse_local_dependencies(r1, verbose=True)
+
+
 def test_parse_local_dependencies_missing(
     tmp_path: Path,
 ) -> None:
