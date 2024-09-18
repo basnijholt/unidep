@@ -605,15 +605,14 @@ def _ensure_files(files: list[Path]) -> None:
 
 
 def _get_conda_executable(which: CondaExecutable) -> str | None:
-    w = shutil.which(which)
-    if w is not None:
+    if shutil.which(which):
         return which  # Found in PATH so return the name
     # e.g., micromamba might be a bash function, check env var in that case
     env_var = "CONDA_EXE" if which == "conda" else "MAMBA_EXE"
     exe = os.environ.get(env_var, None)
-    if exe is None:
+    if exe is None:  # pragma: no cover
         return None
-    if Path(exe).name != which:
+    if Path(exe).name != which:  # pragma: no cover
         return None
     return exe
 
