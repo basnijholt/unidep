@@ -604,16 +604,30 @@ def _ensure_files(files: list[Path]) -> None:
         sys.exit(1)
 
 
+def _get_conda_executable(which: CondaExecutable) -> str | None:
+    w = shutil.which(which)
+    if w is not None:
+        return which  # Found in PATH so return the name
+    # e.g., micromamba might be a bash function, check env var in that case
+    env_var = "CONDA_EXE" if which == "conda" else "MAMBA_EXE"
+    exe = os.environ.get(env_var, None)
+    if exe is None:
+        return None
+    if Path(exe).name != which:
+        return None
+    return exe
+
+
 def _identify_conda_executable() -> CondaExecutable:  # pragma: no cover
     """Identify the conda executable to use.
 
     This function checks for micromamba, mamba, and conda in that order.
     """
-    if shutil.which("micromamba"):
+    if _get_conda_executable("micromamba") is not None:
         return "micromamba"
-    if shutil.which("mamba"):
+    if _get_conda_executable("mamba") is not None:
         return "mamba"
-    if shutil.which("conda"):
+    if _get_conda_executable("conda") is not None:
         return "conda"
     msg = "Could not identify conda executable."
     raise RuntimeError(msg)
@@ -652,7 +666,9 @@ def _maybe_exe(conda_executable: CondaExecutable) -> str:
             f" because `{conda_executable}` was not found in PATH.",
         )
         return _find_windows_path(conda_executable)
-    return conda_executable
+    executable = _get_conda_executable(conda_executable)
+    assert executable is not None
+    return executable
 
 
 def _capitalize_dir(path: str, *, capitalize: bool = True, index: int = -1) -> str:
