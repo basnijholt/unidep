@@ -7,7 +7,9 @@ import re
 import shutil
 import subprocess
 import textwrap
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Generator
 from unittest.mock import patch
 
 import pytest
@@ -559,17 +561,33 @@ def test_find_conda_windows() -> None:
         assert path in excinfo.value.args[0]
 
 
+@contextmanager
+def set_env_var(key: str, value: str) -> Generator[None, None, None]:
+    original_value = os.environ.get(key)
+    os.environ[key] = value
+    try:
+        yield
+    finally:
+        if original_value is None:
+            del os.environ[key]
+        else:
+            os.environ[key] = original_value
+
+
 @pytest.mark.skipif(
     os.name == "nt",
     reason="On Windows it will search for Conda because of `_maybe_exe`.",
 )
 def test_maybe_conda_run() -> None:
-    result = _maybe_conda_run("conda", "my_env", None)
-    assert result == ["conda", "run", "--name", "my_env"]
+    with set_env_var("CONDA_EXE", "conda"):
+        result = _maybe_conda_run("conda", "my_env", None)
+        assert result == ["conda", "run", "--name", "my_env"]
 
     p = Path("/path/to/env")
-    result = _maybe_conda_run("conda", None, p)
-    assert result == ["conda", "run", "--prefix", str(p)]
+    with set_env_var("CONDA_EXE", "conda"):
+        result = _maybe_conda_run("conda", None, p)
+        assert result == ["conda", "run", "--prefix", str(p)]
 
-    result = _maybe_conda_run("mamba", "my_env", None)
-    assert result == ["mamba", "run", "--name", "my_env"]
+    with set_env_var("MAMBA_EXE", "mamba"):
+        result = _maybe_conda_run("mamba", "my_env", None)
+        assert result == ["mamba", "run", "--name", "my_env"]
