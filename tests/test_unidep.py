@@ -2472,3 +2472,29 @@ def test_optional_dependencies_with_version_specifier(
     )
     assert resolved.keys() == {"adaptive"}
     assert resolved["adaptive"][None]["conda"].pin == "=0.13.2"
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_different_version_specifiers(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - flatten-dict>= 0.4
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    assert resolved["flatten-dict"][None]["conda"].pin == ">=0.4"
