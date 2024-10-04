@@ -390,7 +390,8 @@ positional arguments:
                         Subcommands
     merge               Combine multiple (or a single) `requirements.yaml` or
                         `pyproject.toml` files into a single Conda installable
-                        `environment.yaml` file.
+                        `environment.yaml` file or Pixi installable
+                        `pixi.toml` file.
     install             Automatically install all dependencies from one or
                         more `requirements.yaml` or `pyproject.toml` files.
                         This command first installs dependencies with Conda,
@@ -450,17 +451,18 @@ usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
 
 Combine multiple (or a single) `requirements.yaml` or `pyproject.toml` files
-into a single Conda installable `environment.yaml` file. Example usage:
-`unidep merge --directory . --depth 1 --output environment.yaml` to search for
-`requirements.yaml` or `pyproject.toml` files in the current directory and its
-subdirectories and create `environment.yaml`. These are the defaults, so you
-can also just run `unidep merge`.
+into a single Conda installable `environment.yaml` file or Pixi installable
+`pixi.toml` file. Example usage: `unidep merge --directory . --depth 1
+--output environment.yaml` to search for `requirements.yaml` or
+`pyproject.toml` files in the current directory and its subdirectories and
+create `environment.yaml`. These are the defaults, so you can also just run
+`unidep merge`.
 
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
                         Output file for the conda environment, by default
-                        `environment.yaml`
+                        `environment.yaml` or `pixi.toml` if `--pixi` is used
   -n NAME, --name NAME  Name of the conda environment, by default `myenv`
   --stdout              Output to stdout instead of a file
   --selector {sel,comment}
