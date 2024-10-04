@@ -130,19 +130,16 @@ def _parse_pixi_lock_packages(
         channels = env_data.get("channels", [])
         for platform, packages_list in env_data.get("packages", {}).items():
             for pkg_entry in packages_list:
-                # pkg_entry is a dict like {'conda': 'url'}
                 for manager, url in pkg_entry.items():
-                    # Extract the package filename from the URL
+                    # Extract package name from URL
                     package_filename = url.split("/")[-1]
-                    # Remove the file extension to get package name and version
-                    package_name_version = package_filename.split(".")[0]
-                    # Split the name and version
-                    # For conda packages, the format is name-version-build
-                    parts = package_name_version.split("-")
+                    # Remove the extension
+                    if package_filename.endswith((".conda", ".tar.bz2")):
+                        package_filename = package_filename.rsplit(".", 1)[0]
+                    # For conda packages, format is name-version-build
+                    parts = package_filename.split("-")
                     if len(parts) >= 3:
-                        package_name = "-".join(
-                            parts[:-2],
-                        )  # Join parts for names with hyphens
+                        package_name = "-".join(parts[:-2])
                         package_version = parts[-2]
                     else:
                         package_name = parts[0]
