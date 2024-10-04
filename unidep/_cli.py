@@ -319,6 +319,11 @@ def _parse_args() -> argparse.Namespace:
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
     )
+    parser_merge.add_argument(
+        "--pixi",
+        action="store_true",
+        help="Generate a `pixi.toml` file instead of `environment.yaml`",
+    )
     _add_common_args(
         parser_merge,
         {
@@ -861,7 +866,7 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)
 
 
-def _install_command(  # noqa: PLR0912, PLR0915
+def _install_command(  # noqa: C901, PLR0912, PLR0915
     *files: Path,
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
@@ -923,17 +928,17 @@ def _install_command(  # noqa: PLR0912, PLR0915
         print("🔮 Installing conda dependencies with `pixi`")
         generate_pixi_toml(
             resolved,
-            platforms,
             channels=requirements.channels,
+            platforms=platforms,
             output_file="pixi.toml",
             verbose=verbose,
         )
         # Install dependencies using pixi
         if not dry_run:
-            subprocess.run(["pixi", "install"], check=True)
+            subprocess.run(["pixi", "install"], check=True)  # noqa: S607
         # Optionally, handle local packages
-        if not skip_local:
-            _install_local_packages_with_pixi(...)
+        # if not skip_local:
+        #     _install_local_packages_with_pixi(...)
         return  # Exit after handling pixi
     elif env_spec.conda:
         assert conda_executable is not None
@@ -1205,6 +1210,7 @@ def _merge_command(
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    pixi: bool,
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
@@ -1236,13 +1242,22 @@ def _merge_command(
         platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
+    output_file = None if stdout else output
+    if pixi:
+        generate_pixi_toml(
+            resolved,
+            channels=requirements.channels,
+            platforms=requirements.platforms,
+            output_file=output_file,
+            verbose=verbose,
+        )
+        return
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         platforms,
         selector=selector,
     )
-    output_file = None if stdout else output
     write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
     if output_file:
         found_files_str = ", ".join(f"`{f}`" for f in found_files)
@@ -1427,6 +1442,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
+            pixi=args.pixi,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover

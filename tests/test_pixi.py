@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,6 +16,7 @@ from unidep._pixi import generate_pixi_toml
 
 if TYPE_CHECKING:
     import sys
+    from pathlib import Path
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -46,6 +46,8 @@ def test_filter_python_dependencies_with_platforms(
                 - conda-forge
             dependencies:
                 - foo # [unix]
+            platforms:
+                - linux-64
             """,
         ),
     )
@@ -55,17 +57,23 @@ def test_filter_python_dependencies_with_platforms(
     output_file = tmp_path / "pixi.toml"
     generate_pixi_toml(
         resolved,
-        requirements,
+        channels=requirements.channels,
+        platforms=requirements.platforms,
         output_file=output_file,
         verbose=False,
     )
     assert output_file.read_text() == textwrap.dedent(
         """\
         [project]
-        platforms = ["linux-64"]
-        channels = ["conda-forge"]
+        name = "unidep"
+        platforms = [
+            "linux-64",
+        ]
+        channels = [
+            "conda-forge",
+        ]
 
-        [dependencies]
+        [target.linux-64.dependencies]
         foo = "*"
         """,
     )

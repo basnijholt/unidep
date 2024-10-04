@@ -4,8 +4,9 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from unidep._conda_env import _extract_conda_pip_dependencies
+
 if TYPE_CHECKING:
-    from unidep._dependencies_parsing import ParsedRequirements
     from unidep.platform_definitions import CondaPip, Platform, Spec
 
 try:  # pragma: no cover
@@ -20,36 +21,108 @@ except ImportError:  # pragma: no cover
 
 def generate_pixi_toml(
     resolved_dependencies: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
-    requirements: ParsedRequirements,
-    output_file: str = "pixi.toml",
+    channels: list[str],
+    platforms: list[Platform],
+    output_file: str | Path | None = "pixi.toml",
     *,
     verbose: bool = False,
 ) -> None:
-    pixi_data = {}
+    pixi_data = _initialize_pixi_data(channels, platforms)
+    _process_dependencies(pixi_data, resolved_dependencies)
+    _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
-    pixi_data["project"] = {
-        "platforms": requirements.platforms,
-        "channels": requirements.channels,
-    }
+
+def _initialize_pixi_data(
+    channels: list[str],
+    platforms: list[Platform],
+) -> dict[str, dict[str, Any]]:
+    pixi_data: dict[str, dict[str, Any]] = {}
 
     # Include extra configurations from pyproject.toml
-    pixi_data.update(_parse_pixi_sections_from_pyproject())
+    sections = _parse_pixi_sections_from_pyproject()
+    pixi_data.update(sections)
 
-    # Map unidep dependencies to pixi.toml sections
+    # Set 'project' section
+    pixi_data.setdefault("project", {})
+    project_name = Path.cwd().name
+    pixi_data["project"].setdefault("name", project_name)
+    pixi_data["project"].setdefault("platforms", platforms)
+    pixi_data["project"].setdefault("channels", channels)
+
+    # Initialize dependencies sections
     pixi_data.setdefault("dependencies", {})
     pixi_data.setdefault("pypi-dependencies", {})
+    pixi_data.setdefault("target", {})  # For platform-specific dependencies
 
-    # Add conda dependencies
-    for dep in resolved_dependencies["conda"]:
-        pixi_data["dependencies"][dep.name] = dep.pin or "*"
+    return pixi_data
 
-    # Add pip dependencies
-    for dep in resolved_dependencies["pip"]:
-        pixi_data["pypi-dependencies"][dep.name] = dep.pin or "*"
+
+def _process_dependencies(
+    pixi_data: dict[str, dict[str, Any]],
+    resolved_dependencies: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
+) -> None:
+    # Extract conda and pip dependencies
+    conda_deps, pip_deps = _extract_conda_pip_dependencies(resolved_dependencies)
+
+    # Process conda dependencies
+    for pkg_name, platform_to_spec in conda_deps.items():
+        for _platform, spec in platform_to_spec.items():
+            pin = spec.pin or "*"
+            if _platform is None:
+                # Applies to all platforms
+                pixi_data["dependencies"][pkg_name] = pin
+            else:
+                # Platform-specific dependency
+                # Ensure target section exists
+                target = pixi_data["target"].setdefault(_platform, {})
+                deps = target.setdefault("dependencies", {})
+                deps[pkg_name] = pin
+
+    # Process pip dependencies
+    for pkg_name, platform_to_spec in pip_deps.items():
+        for _platform, spec in platform_to_spec.items():
+            pin = spec.pin or "*"
+            if _platform is None:
+                # Applies to all platforms
+                pixi_data["pypi-dependencies"][pkg_name] = pin
+            else:
+                # Platform-specific dependency
+                # Ensure target section exists
+                target = pixi_data["target"].setdefault(_platform, {})
+                deps = target.setdefault("pypi-dependencies", {})
+                deps[pkg_name] = pin
+
+    # Remove empty sections if necessary
+    if not pixi_data["dependencies"]:
+        del pixi_data["dependencies"]
+    if not pixi_data["pypi-dependencies"]:
+        del pixi_data["pypi-dependencies"]
+    if not pixi_data["target"]:
+        del pixi_data["target"]
+
+
+def _write_pixi_toml(
+    pixi_data: dict[str, dict[str, Any]],
+    output_file: str | Path | None,
+    *,
+    verbose: bool,
+) -> None:
+    try:
+        import tomli_w
+    except ImportError:  # pragma: no cover
+        msg = (
+            "❌ `tomli_w` is required to write TOML files."
+            " Install it with `pip install tomli_w`."
+        )
+        raise ImportError(msg) from None
 
     # Write pixi.toml file
-    with open(output_file, "w") as f:  # noqa: PTH123
-        tomllib.dump(pixi_data, f)
+    if output_file is not None:
+        with open(output_file, "wb") as f:  # noqa: PTH123
+            tomli_w.dump(pixi_data, f)
+    else:
+        # to stdout
+        tomli_w.dump(pixi_data, sys.stdout.buffer)
     if verbose:
         print(f"✅ Generated pixi.toml at {output_file}")
 
