@@ -1,6 +1,6 @@
 # This file is created and managed by `unidep` 0.63.2.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep pixi-lock`
+# File generated with: `unidep pixi-lock -d tests/simple_monorepo -p osx-64 -p osx-arm64`
 #
 # This environment can be installed with
 # `pixi install`

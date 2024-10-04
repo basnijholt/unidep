@@ -19,7 +19,7 @@ def test_pixi_lock_command(tmp_path: Path) -> None:
             depth=1,
             directory=folder,
             files=None,
-            platforms=["linux-64", "osx-arm64"],
+            platforms=["osx-64", "osx-arm64"],
             verbose=True,
             only_global=False,
             check_input_hash=True,
@@ -33,36 +33,39 @@ def test_pixi_lock_command(tmp_path: Path) -> None:
             lock1 = yaml.load(f)
         with (folder / "project2" / "pixi.lock").open() as f:
             lock2 = yaml.load(f)
-
-    assert lock1["environments"]["default"]["packages"]["osx-64"] == [
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-64/bzip2-1.0.8-hfdf4475_7.conda",
-        },
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
-        },
-    ]
-    assert lock1["environments"]["default"]["packages"]["osx-arm64"] == [
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h99b78c6_7.conda",
-        },
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
-        },
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
-        },
-    ]
-    assert lock2["environments"]["default"]["packages"]["osx-64"] == [
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
-        },
-    ]
-    assert lock2["environments"]["default"]["packages"]["osx-arm64"] == [
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
-        },
-        {
-            "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
-        },
-    ]
+    assert lock1["environments"]["default"]["packages"] == {
+        "osx-64": [
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-64/bzip2-1.0.8-hfdf4475_7.conda",
+            },
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
+            },
+        ],
+        "osx-arm64": [
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h99b78c6_7.conda",
+            },
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
+            },
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
+            },
+        ],
+    }
+    assert lock2["environments"]["default"]["packages"] == {
+        "osx-64": [
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
+            },
+        ],
+        "osx-arm64": [
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
+            },
+            {
+                "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
+            },
+        ],
+    }

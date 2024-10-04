@@ -1,15 +1,26 @@
 # This file is created and managed by `unidep` 0.63.2.
 # For details see https://github.com/basnijholt/unidep
-# File generated with: `unidep pixi-lock`
+# File generated with: `unidep pixi-lock -d tests/simple_monorepo -p osx-64 -p osx-arm64`
 #
 # This environment can be installed with
 # `pixi install`
 # This file is a `pixi.lock` file generated via `unidep`.
-# For details see https://github.com/pyx/conda-pix
+# For details see https://pixi.sh/
 
 environments:
   default:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
-packages: {}
+    packages:
+      osx-64:
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda
+      osx-arm64:
+      - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda
+packages:
+  osx-64:
+  - conda: https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda
+  osx-arm64:
+  - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
+  - conda: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda
 version: 5

@@ -119,12 +119,14 @@ class PixiLockSpec(NamedTuple):
     """A specification of the pixi lock file."""
 
     packages: dict[tuple[Platform, str], dict[str, Any]]
+    dependencies: dict[tuple[Platform, str], set[str]]
 
 
 def _parse_pixi_lock_packages(
     pixi_lock_data: dict[str, Any],
 ) -> PixiLockSpec:
     packages = {}
+    dependencies = {}
     environments = pixi_lock_data.get("environments", {})
     for env_name, env_data in environments.items():
         channels = env_data.get("channels", [])
@@ -153,7 +155,39 @@ def _parse_pixi_lock_packages(
                         "url": url,
                         "version": package_version,
                     }
-    return PixiLockSpec(packages=packages)
+
+                    # Download and parse dependencies
+                    pkg_dependencies = _download_and_get_dependencies(url)
+                    dependencies[key] = pkg_dependencies
+    return PixiLockSpec(packages=packages, dependencies=dependencies)
+
+
+def _download_and_get_dependencies(url: str) -> set[str]:
+    import json
+    import tarfile
+    import tempfile
+    import urllib.request
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        file_name = url.split("/")[-1]
+        file_path = temp_path / file_name
+        urllib.request.urlretrieve(url, str(file_path))
+
+        if file_name.endswith(".tar.bz2"):
+            with tarfile.open(file_path, "r:bz2") as tar:
+                try:
+                    index_file = tar.extractfile("info/index.json")
+                    index_json = json.load(index_file)
+                    return set(index_json.get("depends", []))
+                except KeyError:
+                    return set()
+        elif file_name.endswith(".conda"):
+            # Handle .conda packages (requires conda_package_handling)
+            # Similar to the conda-lock implementation
+            pass
+    return set()
 
 
 def _pixi_lock_subpackage(
@@ -165,6 +199,22 @@ def _pixi_lock_subpackage(
 ) -> Path:
     requirements = parse_requirements(file)
     locked_entries: dict[Platform, list[dict]] = defaultdict(list)
+    locked_keys: set[tuple[Platform, str]] = set()
+    missing_keys: set[tuple[Platform, str]] = set()
+
+    def add_package_with_dependencies(platform: Platform, name: str):
+        key = (platform, name)
+        if key in locked_keys:
+            return
+        if key not in lock_spec.packages:
+            missing_keys.add(key)
+            return
+        pkg_entry = lock_spec.packages[key]["package"]
+        locked_entries[platform].append(pkg_entry)
+        locked_keys.add(key)
+        for dep in lock_spec.dependencies.get(key, set()):
+            dep_name = dep.split(" ")[0]  # Remove version specifiers
+            add_package_with_dependencies(platform, dep_name)
 
     for name, specs in requirements.requirements.items():
         if name.startswith("__"):
@@ -177,23 +227,10 @@ def _pixi_lock_subpackage(
                 _platforms = [p for p in _platforms if p in platforms]
 
             for _platform in _platforms:
-                key = (_platform, name)
-                if key in lock_spec.packages:
-                    pkg_entry = lock_spec.packages[key]["package"]
-                    locked_entries[_platform].append(pkg_entry)
-                else:
-                    print(
-                        f"⚠️  Package {name} for platform {_platform} not found"
-                        " in global lock file.",
-                    )
+                add_package_with_dependencies(_platform, name)
 
-    urls = defaultdict(list)
-    packages_list = []
-    for platform, entries in locked_entries.items():
-        for entry in entries:
-            for url in entry.values():
-                urls[platform].append(url)
-            packages_list.append(entry)
+    if missing_keys:
+        print(f"⚠️  Missing packages: {missing_keys}")
 
     # Generate subproject pixi.lock
     pixi_lock_output = file.parent / "pixi.lock"
@@ -226,7 +263,7 @@ def _pixi_lock_subpackage(
             "# This environment can be installed with",
             "# `pixi install`",
             "# This file is a `pixi.lock` file generated via `unidep`.",
-            "# For details see https://github.com/pyx/conda-pix",
+            "# For details see https://pixi.sh/",
         ],
     )
     return pixi_lock_output
@@ -311,7 +348,6 @@ def pixi_lock_command(
         global_lock_data = yaml.load(fp)
 
     lock_spec = _parse_pixi_lock_packages(global_lock_data)
-    print(f"{lock_spec=}")
     sub_lock_files = []
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
