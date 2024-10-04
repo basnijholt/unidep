@@ -11,10 +11,10 @@ from ruamel.yaml import YAML
 from unidep._pixi_lock import pixi_lock_command
 
 
-def test_conda_lock_command(tmp_path: Path) -> None:
+def test_pixi_lock_command(tmp_path: Path) -> None:
     folder = tmp_path / "simple_monorepo"
     shutil.copytree(Path(__file__).parent / "simple_monorepo", folder)
-    with patch("unidep._conda_lock._run_pixi_lock", return_value=None):
+    with patch("unidep._pixi_lock._run_pixi_lock", return_value=None):
         pixi_lock_command(
             depth=1,
             directory=folder,
