@@ -985,7 +985,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         print("🔮 Installing conda dependencies with `pixi`")
         generate_pixi_toml(
             resolved,
-            name=None,
+            project_name=None,
             channels=requirements.channels,
             platforms=platforms,
             output_file="pixi.toml",

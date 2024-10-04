@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover
 
 def generate_pixi_toml(
     resolved_dependencies: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
-    project_name: str,
+    project_name: str | None,
     channels: list[str],
     platforms: list[Platform],
     output_file: str | Path | None = "pixi.toml",
@@ -37,7 +37,7 @@ def generate_pixi_toml(
 def _initialize_pixi_data(
     channels: list[str],
     platforms: list[Platform],
-    project_name: str,
+    project_name: str | None,
 ) -> dict[str, dict[str, Any]]:
     pixi_data: dict[str, dict[str, Any]] = {}
     if not platforms:

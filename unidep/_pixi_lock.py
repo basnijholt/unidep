@@ -49,7 +49,7 @@ def _run_pixi_lock(
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         with change_directory(pixi_toml.parent):
-            subprocess.run(cmd, check=True, text=True, capture_output=True)
+            subprocess.run(cmd, check=True, text=True)
         # Optionally process the lock file if needed
         add_comment_to_file(
             pixi_lock_output,
@@ -187,6 +187,14 @@ def _pixi_lock_subpackage(
                         " in global lock file.",
                     )
 
+    urls = defaultdict(list)
+    packages_list = []
+    for platform, entries in locked_entries.items():
+        for entry in entries:
+            for url in entry.values():
+                urls[platform].append(url)
+            packages_list.append(entry)
+
     # Generate subproject pixi.lock
     pixi_lock_output = file.parent / "pixi.lock"
     sub_lock_data = {
@@ -199,6 +207,7 @@ def _pixi_lock_subpackage(
                 "packages": dict(locked_entries),
             },
         },
+        "packages": dict(locked_entries),
     }
 
     if yaml is None:
@@ -235,8 +244,10 @@ def _check_consistent_lock_files(
     environments = global_data.get("environments", {})
     for env_data in environments.values():
         for packages_list in env_data.get("packages", {}).values():
-            print(f"{packages_list=}")
-            global_packages.update(packages_list)
+            for pkg_entry in packages_list:
+                # pkg_entry is a dict like {'conda': 'url'}
+                for manager, url in pkg_entry.items():
+                    global_packages.add(url)
 
     mismatches = []
     for lock_file in sub_lock_files:
@@ -247,7 +258,9 @@ def _check_consistent_lock_files(
         environments = data.get("environments", {})
         for env_data in environments.values():
             for packages_list in env_data.get("packages", {}).values():
-                sub_packages.update(packages_list)
+                for pkg_entry in packages_list:
+                    for manager, url in pkg_entry.items():
+                        sub_packages.add(url)
 
         if not sub_packages.issubset(global_packages):
             missing = sub_packages - global_packages
@@ -298,7 +311,7 @@ def pixi_lock_command(
         global_lock_data = yaml.load(fp)
 
     lock_spec = _parse_pixi_lock_packages(global_lock_data)
-
+    print(f"{lock_spec=}")
     sub_lock_files = []
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
