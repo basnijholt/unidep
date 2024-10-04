@@ -57,6 +57,7 @@ def test_filter_python_dependencies_with_platforms(
     output_file = tmp_path / "pixi.toml"
     generate_pixi_toml(
         resolved,
+        project_name=None,
         channels=requirements.channels,
         platforms=requirements.platforms,
         output_file=output_file,

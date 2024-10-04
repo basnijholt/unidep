@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from unidep._conda_env import _extract_conda_pip_dependencies
+from unidep.utils import identify_current_platform
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import CondaPip, Platform, Spec
@@ -21,13 +22,14 @@ except ImportError:  # pragma: no cover
 
 def generate_pixi_toml(
     resolved_dependencies: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
+    project_name: str,
     channels: list[str],
     platforms: list[Platform],
     output_file: str | Path | None = "pixi.toml",
     *,
     verbose: bool = False,
 ) -> None:
-    pixi_data = _initialize_pixi_data(channels, platforms)
+    pixi_data = _initialize_pixi_data(channels, platforms, project_name)
     _process_dependencies(pixi_data, resolved_dependencies)
     _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
@@ -35,17 +37,18 @@ def generate_pixi_toml(
 def _initialize_pixi_data(
     channels: list[str],
     platforms: list[Platform],
+    project_name: str,
 ) -> dict[str, dict[str, Any]]:
     pixi_data: dict[str, dict[str, Any]] = {}
-
+    if not platforms:
+        platforms = [identify_current_platform()]
     # Include extra configurations from pyproject.toml
     sections = _parse_pixi_sections_from_pyproject()
     pixi_data.update(sections)
 
     # Set 'project' section
     pixi_data.setdefault("project", {})
-    project_name = Path.cwd().name
-    pixi_data["project"].setdefault("name", project_name)
+    pixi_data["project"].setdefault("name", project_name or Path.cwd().name)
     pixi_data["project"].setdefault("platforms", platforms)
     pixi_data["project"].setdefault("channels", channels)
 

@@ -30,6 +30,7 @@ from unidep._dependencies_parsing import (
     parse_requirements,
 )
 from unidep._pixi import generate_pixi_toml
+from unidep._pixi_lock import pixi_lock_command
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
@@ -265,7 +266,7 @@ def _add_extra_flags(
     )
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
         formatter_class=_HelpFormatter,
@@ -485,6 +486,61 @@ def _parse_args() -> argparse.Namespace:
         },
     )
     _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
+
+    # Subparser for the 'pixi-lock' command
+    pixi_lock_help = (
+        "Generate a global `pixi.lock` file for a collection of"
+        f" {_DEP_FILES}"
+        " files. Additionally, create individual"
+        f" `pixi.lock` files for each {_DEP_FILES} file"
+        " consistent with the global lock file."
+    )
+    pixi_lock_example = (
+        " Example usage: `unidep pixi-lock --directory ./projects` to generate"
+        f" pixi lock files for all {_DEP_FILES}"
+        " files in the `./projects`"
+        " directory. Use `--only-global` to generate only the global lock file."
+    )
+
+    parser_pixi_lock = subparsers.add_parser(
+        "pixi-lock",
+        help=pixi_lock_help,
+        description=pixi_lock_help + pixi_lock_example,
+        formatter_class=_HelpFormatter,
+    )
+
+    parser_pixi_lock.add_argument(
+        "--only-global",
+        action="store_true",
+        help="Only generate the global lock file",
+    )
+    parser_pixi_lock.add_argument(
+        "--lockfile",
+        type=Path,
+        default="pixi.lock",
+        help="Specify a path for the global lockfile (default: `pixi.lock`"
+        " in current directory). Path should be relative, e.g.,"
+        " `--lockfile ./locks/pixi.lock`.",
+    )
+    parser_pixi_lock.add_argument(
+        "--check-input-hash",
+        action="store_true",
+        help="Check existing input hashes in lockfiles before regenerating lock files.",
+    )
+    _add_common_args(
+        parser_pixi_lock,
+        {
+            "directory",
+            "file-alt",
+            "verbose",
+            "platform",
+            "depth",
+            "ignore-pin",
+            "skip-dependency",
+            "overwrite-pin",
+        },
+    )
+    _add_extra_flags(parser_pixi_lock, "pixi lock", "pixi-lock", "--platform")
 
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
@@ -929,6 +985,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         print("🔮 Installing conda dependencies with `pixi`")
         generate_pixi_toml(
             resolved,
+            name=None,
             channels=requirements.channels,
             platforms=platforms,
             output_file="pixi.toml",
@@ -1251,6 +1308,7 @@ def _merge_command(
     if pixi:
         generate_pixi_toml(
             resolved,
+            project_name=name,
             channels=requirements.channels,
             platforms=requirements.platforms,
             output_file=output_file,
@@ -1430,7 +1488,7 @@ def _pip_subcommand(
     return escape_unicode(separator).join(pip_dependencies)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
 
@@ -1544,6 +1602,20 @@ def main() -> None:
             check_input_hash=args.check_input_hash,
             extra_flags=args.extra_flags,
             lockfile=args.lockfile,
+        )
+    elif args.command == "pixi-lock":
+        pixi_lock_command(
+            depth=args.depth,
+            directory=args.directory,
+            files=args.file or None,
+            platforms=args.platform,
+            verbose=args.verbose,
+            only_global=args.only_global,
+            ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
+            check_input_hash=args.check_input_hash,
+            extra_flags=args.extra_flags,
         )
     elif args.command == "pip-compile":  # pragma: no cover
         if args.platform and len(args.platform) > 1:
