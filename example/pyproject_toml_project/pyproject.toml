@@ -18,15 +18,11 @@ py-modules = ["pyproject_toml_project"]
 [tool.unidep]
 channels = ["conda-forge"]
 dependencies = [
-    "adaptive:linux64",
-    "pfapack:linux64",
-    "packaging",
-    { pip = "markdown-code-runner" },
-    { pip = "numthreads" },
+    "libzlib"
 ]
-local_dependencies = [
-    "../hatch_project[test]",  # Local dependency with optional dependencies
-]
-[tool.unidep.optional_dependencies]
-dev = ["mypy", "ruff"]
-test = ["pytest"]
+# local_dependencies = [
+#     "../hatch_project[test]",  # Local dependency with optional dependencies
+# ]
+# [tool.unidep.optional_dependencies]
+# dev = ["mypy", "ruff"]
+# test = ["pytest"]

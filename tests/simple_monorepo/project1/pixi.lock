@@ -1,0 +1,15 @@
+# This file is created and managed by `unidep` 0.63.2.
+# For details see https://github.com/basnijholt/unidep
+# File generated with: `unidep pixi-lock`
+#
+# This environment can be installed with
+# `pixi install`
+# This file is a `pixi.lock` file generated via `unidep`.
+# For details see https://github.com/pyx/conda-pix
+
+environments:
+  default:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+packages: {}
+version: 5
