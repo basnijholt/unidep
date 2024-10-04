@@ -29,6 +29,7 @@ from unidep._dependencies_parsing import (
     parse_local_dependencies,
     parse_requirements,
 )
+from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
@@ -64,7 +65,7 @@ except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
-CondaExecutable = Literal["conda", "mamba", "micromamba"]
+CondaExecutable = Literal["conda", "mamba", "micromamba", "pixi"]
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -916,7 +917,25 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_pip = True
         skip_conda = True
 
-    if env_spec.conda and not skip_conda:
+    if skip_conda:
+        pass
+    elif conda_executable == "pixi":
+        print("🔮 Installing conda dependencies with `pixi`")
+        generate_pixi_toml(
+            resolved,
+            platforms,
+            channels=requirements.channels,
+            output_file="pixi.toml",
+            verbose=verbose,
+        )
+        # Install dependencies using pixi
+        if not dry_run:
+            subprocess.run(["pixi", "install"], check=True)
+        # Optionally, handle local packages
+        if not skip_local:
+            _install_local_packages_with_pixi(...)
+        return  # Exit after handling pixi
+    elif env_spec.conda:
         assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
