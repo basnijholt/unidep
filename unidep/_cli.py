@@ -294,9 +294,9 @@ def _parse_args() -> argparse.Namespace:
     parser_merge.add_argument(
         "-o",
         "--output",
-        type=Path,
-        default="environment.yaml",
-        help="Output file for the conda environment, by default `environment.yaml`",
+        default=None,
+        help="Output file for the conda environment, by default `environment.yaml`"
+        ", or `pixi.toml` if `--pixi` is used",
     )
     parser_merge.add_argument(
         "-n",
@@ -1203,7 +1203,7 @@ def _merge_command(
     directory: Path,
     files: list[Path] | None,
     name: str,
-    output: Path,
+    output: str | Path | None,
     stdout: bool,
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
@@ -1215,6 +1215,10 @@ def _merge_command(
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
+
+    if output is None:
+        output = "environment.yaml" if not pixi else "pixi.toml"
+    output = Path(output)
 
     if files:  # ignores depth and directory!
         found_files = files
