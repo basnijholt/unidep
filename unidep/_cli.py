@@ -276,7 +276,8 @@ def _parse_args() -> argparse.Namespace:
     merge_help = (
         f"Combine multiple (or a single) {_DEP_FILES}"
         " files into a"
-        " single Conda installable `environment.yaml` file."
+        " single Conda installable `environment.yaml` file"
+        " or Pixi installable `pixi.toml` file."
     )
     merge_example = (
         " Example usage: `unidep merge --directory . --depth 1 --output environment.yaml`"  # noqa: E501
@@ -296,7 +297,7 @@ def _parse_args() -> argparse.Namespace:
         "--output",
         default=None,
         help="Output file for the conda environment, by default `environment.yaml`"
-        ", or `pixi.toml` if `--pixi` is used",
+        " or `pixi.toml` if `--pixi` is used",
     )
     parser_merge.add_argument(
         "-n",
