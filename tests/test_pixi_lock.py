@@ -29,17 +29,40 @@ def test_pixi_lock_command(tmp_path: Path) -> None:
             extra_flags=["--", "--micromamba"],
         )
     with YAML(typ="safe") as yaml:
-        with (folder / "project1" / "conda-lock.yml").open() as f:
+        with (folder / "project1" / "pixi.lock").open() as f:
             lock1 = yaml.load(f)
-        with (folder / "project2" / "conda-lock.yml").open() as f:
+        with (folder / "project2" / "pixi.lock").open() as f:
             lock2 = yaml.load(f)
 
-    assert [p["name"] for p in lock1["package"] if p["platform"] == "osx-arm64"] == [
-        "bzip2",
-        "python_abi",
-        "tzdata",
+    assert lock1["environments"]["default"]["packages"]["osx-64"] == [
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-64/bzip2-1.0.8-hfdf4475_7.conda",
+        },
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
+        },
     ]
-    assert [p["name"] for p in lock2["package"] if p["platform"] == "osx-arm64"] == [
-        "python_abi",
-        "tzdata",
+    assert lock1["environments"]["default"]["packages"]["osx-arm64"] == [
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h99b78c6_7.conda",
+        },
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
+        },
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
+        },
+    ]
+    assert lock2["environments"]["default"]["packages"]["osx-64"] == [
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda",
+        },
+    ]
+    assert lock2["environments"]["default"]["packages"]["osx-arm64"] == [
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda",
+        },
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda",
+        },
     ]
