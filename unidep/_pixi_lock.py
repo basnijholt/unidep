@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -14,38 +15,27 @@ from unidep.utils import add_comment_to_file, change_directory
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from unidep.platform_definitions import Platform
-
-    if sys.version_info >= (3, 8):
-        pass
-    else:
-        pass
+    from unidep.platform_definitions import CondaPip, Platform
 
 
 def _run_pixi_lock(
     pixi_toml: Path,
     pixi_lock_output: Path,
     *,
-    check_input_hash: bool = False,
     extra_flags: list[str],
 ) -> None:
     if shutil.which("pixi") is None:
         msg = (
             "Cannot find `pixi`."
-            " Please install it with `mamba install -c conda-forge pixi`."
+            " Please install it, see the documentation"
+            " at https://pixi.sh/latest/"
         )
         raise RuntimeError(msg)
-    if not check_input_hash and pixi_lock_output.exists():
+    if pixi_lock_output.exists():
         print(f"🗑️ Removing existing `{pixi_lock_output}`")
         pixi_lock_output.unlink()
 
-    cmd = [
-        "pixi",
-        "list",
-        *extra_flags,
-    ]
-    if check_input_hash:
-        cmd.append("--check-input-hash")
+    cmd = ["pixi", "list", *extra_flags]
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         with change_directory(pixi_toml.parent):
@@ -76,7 +66,6 @@ def _pixi_lock_global(
     files: list[Path] | None,
     platforms: list[Platform],
     verbose: bool,
-    check_input_hash: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
@@ -108,7 +97,6 @@ def _pixi_lock_global(
     _run_pixi_lock(
         pixi_toml,
         pixi_lock_output,
-        check_input_hash=check_input_hash,
         extra_flags=extra_flags,
     )
     print("✅ Global dependencies locked successfully in `pixi.lock`.")
@@ -118,71 +106,90 @@ def _pixi_lock_global(
 class PixiLockSpec(NamedTuple):
     """A specification of the pixi lock file."""
 
-    packages: dict[tuple[Platform, str], dict[str, Any]]
-    dependencies: dict[tuple[Platform, str], set[str]]
+    packages: dict[tuple[CondaPip, Platform, str], list[dict[str, Any]]]
+    dependencies: dict[tuple[CondaPip, Platform, str], set[str]]
+    channels: list[dict[str, str]]
+    indexes: list[str]
+
+
+def _filter_clean_deps(dependencies: list[str]) -> list[str]:
+    package_names = []
+    for dep in dependencies:
+        # Split the dependency and the environment marker
+        if ";" in dep:
+            dep_part, marker_part = dep.split(";", 1)
+            marker_part = marker_part.strip()
+        else:
+            dep_part = dep
+            marker_part = ""
+
+        # Skip if 'extra ==' is in the environment marker
+        if "extra ==" in marker_part:
+            continue
+
+        # Extract the package name
+        dep_part = dep_part.strip()
+        package_name = re.split(r"[<>=!~\s]", dep_part)[0]
+        package_names.append(package_name)
+
+    return package_names
 
 
 def _parse_pixi_lock_packages(
     pixi_lock_data: dict[str, Any],
-) -> PixiLockSpec:
+) -> dict[str, PixiLockSpec]:
     # Build a mapping from URL to package metadata
-    url_to_package = {}
-    for pkg in pixi_lock_data.get("packages", []):
-        url = pkg.get("url")
-        if url:
-            url_to_package[url] = pkg
-
-    packages: dict[tuple[str, Platform, str], dict[str, Any]] = {}
-    dependencies_raw: dict[Platform, dict[str, set[str]]] = defaultdict(
-        lambda: defaultdict(set),
-    )
-
+    url_to_package = {pkg["url"]: pkg for pkg in pixi_lock_data.get("packages", [])}
+    lock_specs: dict[str, PixiLockSpec] = {}
     environments = pixi_lock_data.get("environments", {})
     for env_name, env_data in environments.items():
-        channels = env_data.get("channels", [])
-        for platform, packages_list in env_data.get("packages", {}).items():
-            for pkg_entry in packages_list:
-                for manager, url in pkg_entry.items():
-                    # manager is expected to be "conda"
-                    pkg_metadata = url_to_package.get(url)
-                    if not pkg_metadata:
-                        print(f"⚠️ Missing metadata for package at URL {url}")
-                        continue
-                    package_name = pkg_metadata.get("name")
-                    key = (manager, platform, package_name)
-                    if key in packages:
-                        continue  # avoid duplicates
-                    packages[key] = {
-                        "manager": manager,
-                        "platform": platform,
-                        "name": package_name,
-                        "package_metadata": pkg_metadata,
-                        "channels": channels,
-                        "url": url,
-                    }
-                    # Extract dependencies
-                    depends = pkg_metadata.get("depends", [])
-                    dependencies_raw[platform][package_name].update(
-                        dep.split(" ")[0] for dep in depends
+        deps: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(set)),
+        )
+        for platform, packages_dict in env_data.get("packages", {}).items():
+            for manager_url in packages_dict:
+                for manager, url in manager_url.items():
+                    dep = url_to_package[url]
+                    name = dep["name"]
+                    depends = dep.get(
+                        "depends" if manager == "conda" else "requires_dict",
+                        [],
                     )
+                    deps[manager][platform][name].update(_filter_clean_deps(depends))
 
-    # Now resolve dependencies recursively, similar to conda-lock
-    resolved_dependencies: dict[Platform, dict[str, set[str]]] = {}
-    for platform, pkgs in dependencies_raw.items():
-        resolved_pkgs: dict[str, set[str]] = {}
-        for package in pkgs:
-            _recurse_pixi(package, resolved_pkgs, pkgs, set())
-        resolved_dependencies[platform] = resolved_pkgs
+        resolved: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = {}
+        for manager, platforms in deps.items():
+            resolved_manager = resolved.setdefault(manager, {})
+            for _platform, pkgs in platforms.items():
+                _resolved: dict[str, set[str]] = {}
+                for package in list(pkgs):
+                    _recurse_pixi(package, _resolved, pkgs, set())
+                resolved_manager[_platform] = _resolved
 
-    # Flatten the dependencies dict to match the packages keys
-    dependencies_flat = {
-        (manager, platform, name): deps
-        for (manager, platform, name) in packages
-        for name_, deps in resolved_dependencies[platform].items()
-        if name_ == packages[(manager, platform, name)]["name"]
-    }
+        packages: dict[tuple[CondaPip, Platform, str], list[dict[str, Any]]] = (
+            defaultdict(list)
+        )
+        for p in pixi_lock_data.get("packages", []):
+            key = (p["kind"], p.get("subdir"), p["name"])
+            # Could be multiple entries for the same package,
+            # e.g., different wheels for different OS versions
+            packages[key].append(p)
 
-    return PixiLockSpec(packages, dependencies_flat)
+        # Flatten the `dependencies` dict to same format as `packages`
+        dependencies = {
+            (which, platform, name): deps
+            for which, platforms in resolved.items()
+            for platform, pkgs in platforms.items()
+            for name, deps in pkgs.items()
+        }
+        lock_specs[env_name] = PixiLockSpec(
+            packages,
+            dependencies,
+            env_data.get("channels", []),
+            env_data.get("indexes", []),
+        )
+
+    return lock_specs
 
 
 def _recurse_pixi(
@@ -193,12 +200,14 @@ def _recurse_pixi(
 ) -> set[str]:
     if package_name in resolved:
         return resolved[package_name]
-    if package_name in seen:
+    if package_name in seen:  # Circular dependency detected
         return set()
     seen.add(package_name)
+
     all_deps = set(dependencies.get(package_name, []))
     for dep in dependencies.get(package_name, []):
         all_deps.update(_recurse_pixi(dep, resolved, dependencies, seen))
+
     resolved[package_name] = all_deps
     seen.remove(package_name)
     return all_deps
@@ -214,21 +223,22 @@ def _pixi_lock_subpackage(
     requirements = parse_requirements(file)
     locked_entries: dict[Platform, list[dict]] = defaultdict(list)
     locked_packages: list[dict] = []
-    locked_keys: set[tuple[str, Platform, str]] = set()
-    missing_keys: set[tuple[str, Platform, str]] = set()
+    locked_keys: set[tuple[CondaPip, Platform, str]] = set()
+    missing_keys: set[tuple[CondaPip, Platform, str]] = set()
 
-    def add_package_with_dependencies(platform: Platform, name: str):
-        key = ("conda", platform, name)
+    def add_package_with_dependencies(platform: Platform, name: str) -> None:
+        key: tuple[CondaPip, Platform, str] = ("conda", platform, name)
         if key in locked_keys:
             return
         if key not in lock_spec.packages:
             missing_keys.add(key)
             return
-        pkg_info = lock_spec.packages[key]
-        # Add to locked_entries
-        locked_entries[platform].append({pkg_info["manager"]: pkg_info["url"]})
-        # Add to locked_packages
-        locked_packages.append(pkg_info["package_metadata"])
+        pkg_infos = lock_spec.packages[key]
+        for pkg_info in pkg_infos:
+            # Add to locked_entries
+            locked_entries[platform].append({pkg_info["kind"]: pkg_info["url"]})
+            # Add to locked_packages
+            locked_packages.append(pkg_info)
         locked_keys.add(key)
         # Recursively add dependencies
         dependencies = lock_spec.dependencies.get(key, set())
@@ -257,9 +267,8 @@ def _pixi_lock_subpackage(
         "version": 5,
         "environments": {
             "default": {
-                "channels": lock_spec.packages[next(iter(lock_spec.packages))][
-                    "channels"
-                ],
+                "channels": lock_spec.channels,
+                "indexes": lock_spec.indexes,
                 "packages": dict(locked_entries),
             },
         },
@@ -302,7 +311,7 @@ def _check_consistent_lock_files(
         for packages_list in env_data.get("packages", {}).values():
             for pkg_entry in packages_list:
                 # pkg_entry is a dict like {'conda': 'url'}
-                for manager, url in pkg_entry.items():
+                for url in pkg_entry.values():
                     global_packages.add(url)
 
     mismatches = []
@@ -315,7 +324,7 @@ def _check_consistent_lock_files(
         for env_data in environments.values():
             for packages_list in env_data.get("packages", {}).values():
                 for pkg_entry in packages_list:
-                    for manager, url in pkg_entry.items():
+                    for url in pkg_entry.values():
                         sub_packages.add(url)
 
         if not sub_packages.issubset(global_packages):
@@ -335,7 +344,6 @@ def pixi_lock_command(
     platforms: list[Platform],
     verbose: bool,
     only_global: bool,
-    check_input_hash: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
@@ -354,7 +362,6 @@ def pixi_lock_command(
         files=files,
         platforms=platforms,
         verbose=verbose,
-        check_input_hash=check_input_hash,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
@@ -366,7 +373,7 @@ def pixi_lock_command(
     with YAML(typ="safe") as yaml, pixi_lock_output.open() as fp:
         global_lock_data = yaml.load(fp)
 
-    lock_spec = _parse_pixi_lock_packages(global_lock_data)
+    lock_specs = _parse_pixi_lock_packages(global_lock_data)["default"]
     sub_lock_files = []
     found_files = find_requirements_files(directory, depth)
     for file in found_files:
@@ -374,7 +381,7 @@ def pixi_lock_command(
             continue
         sublock_file = _pixi_lock_subpackage(
             file=file,
-            lock_spec=lock_spec,
+            lock_spec=lock_specs,
             platforms=platforms,
             yaml=yaml,
         )

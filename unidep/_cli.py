@@ -522,11 +522,6 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         " in current directory). Path should be relative, e.g.,"
         " `--lockfile ./locks/pixi.lock`.",
     )
-    parser_pixi_lock.add_argument(
-        "--check-input-hash",
-        action="store_true",
-        help="Check existing input hashes in lockfiles before regenerating lock files.",
-    )
     _add_common_args(
         parser_pixi_lock,
         {
@@ -1614,7 +1609,6 @@ def main() -> None:  # noqa: PLR0912
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
-            check_input_hash=args.check_input_hash,
             extra_flags=args.extra_flags,
         )
     elif args.command == "pip-compile":  # pragma: no cover

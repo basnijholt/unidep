@@ -22,7 +22,6 @@ def test_pixi_lock_command(tmp_path: Path) -> None:
             platforms=["osx-64", "osx-arm64"],
             verbose=True,
             only_global=False,
-            check_input_hash=True,
             ignore_pins=[],
             overwrite_pins=[],
             skip_dependencies=[],
