@@ -170,6 +170,8 @@ def _parse_pixi_lock_packages(
             defaultdict(list)
         )
         for p in pixi_lock_data.get("packages", []):
+            # TODO: subdir is missing for pypi! This will cause issues
+            # later in the code.
             key = (p["kind"], p.get("subdir"), p["name"])
             # Could be multiple entries for the same package,
             # e.g., different wheels for different OS versions
