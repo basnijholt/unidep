@@ -226,8 +226,12 @@ def _pixi_lock_subpackage(
     locked_keys: set[tuple[CondaPip, Platform, str]] = set()
     missing_keys: set[tuple[CondaPip, Platform, str]] = set()
 
-    def add_package_with_dependencies(platform: Platform, name: str) -> None:
-        key: tuple[CondaPip, Platform, str] = ("conda", platform, name)
+    def add_package_with_dependencies(
+        which: CondaPip,
+        platform: Platform,
+        name: str,
+    ) -> None:
+        key: tuple[CondaPip, Platform, str] = (which, platform, name)
         if key in locked_keys:
             return
         if key not in lock_spec.packages:
@@ -243,7 +247,7 @@ def _pixi_lock_subpackage(
         # Recursively add dependencies
         dependencies = lock_spec.dependencies.get(key, set())
         for dep_name in dependencies:
-            add_package_with_dependencies(platform, dep_name)
+            add_package_with_dependencies(which, platform, dep_name)
 
     for name, specs in requirements.requirements.items():
         if name.startswith("__"):
@@ -256,7 +260,7 @@ def _pixi_lock_subpackage(
                 _platforms = [p for p in _platforms if p in platforms]
 
             for _platform in _platforms:
-                add_package_with_dependencies(_platform, name)
+                add_package_with_dependencies(spec.which, _platform, name)
 
     if missing_keys:
         print(f"⚠️  Missing packages: {missing_keys}")
