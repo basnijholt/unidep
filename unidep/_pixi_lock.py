@@ -125,69 +125,83 @@ class PixiLockSpec(NamedTuple):
 def _parse_pixi_lock_packages(
     pixi_lock_data: dict[str, Any],
 ) -> PixiLockSpec:
-    packages = {}
-    dependencies = {}
+    # Build a mapping from URL to package metadata
+    url_to_package = {}
+    for pkg in pixi_lock_data.get("packages", []):
+        url = pkg.get("url")
+        if url:
+            url_to_package[url] = pkg
+
+    packages: dict[tuple[str, Platform, str], dict[str, Any]] = {}
+    dependencies_raw: dict[Platform, dict[str, set[str]]] = defaultdict(
+        lambda: defaultdict(set),
+    )
+
     environments = pixi_lock_data.get("environments", {})
     for env_name, env_data in environments.items():
         channels = env_data.get("channels", [])
         for platform, packages_list in env_data.get("packages", {}).items():
             for pkg_entry in packages_list:
                 for manager, url in pkg_entry.items():
-                    # Extract package name from URL
-                    package_filename = url.split("/")[-1]
-                    # Remove the extension
-                    if package_filename.endswith((".conda", ".tar.bz2")):
-                        package_filename = package_filename.rsplit(".", 1)[0]
-                    # For conda packages, format is name-version-build
-                    parts = package_filename.split("-")
-                    if len(parts) >= 3:
-                        package_name = "-".join(parts[:-2])
-                        package_version = parts[-2]
-                    else:
-                        package_name = parts[0]
-                        package_version = parts[1] if len(parts) > 1 else ""
-                    key = (platform, package_name)
+                    # manager is expected to be "conda"
+                    pkg_metadata = url_to_package.get(url)
+                    if not pkg_metadata:
+                        print(f"⚠️ Missing metadata for package at URL {url}")
+                        continue
+                    package_name = pkg_metadata.get("name")
+                    key = (manager, platform, package_name)
+                    if key in packages:
+                        continue  # avoid duplicates
                     packages[key] = {
-                        "environment": env_name,
-                        "channels": channels,
-                        "package": pkg_entry,
                         "manager": manager,
+                        "platform": platform,
+                        "name": package_name,
+                        "package_metadata": pkg_metadata,
+                        "channels": channels,
                         "url": url,
-                        "version": package_version,
                     }
+                    # Extract dependencies
+                    depends = pkg_metadata.get("depends", [])
+                    dependencies_raw[platform][package_name].update(
+                        dep.split(" ")[0] for dep in depends
+                    )
 
-                    # Download and parse dependencies
-                    pkg_dependencies = _download_and_get_dependencies(url)
-                    dependencies[key] = pkg_dependencies
-    return PixiLockSpec(packages=packages, dependencies=dependencies)
+    # Now resolve dependencies recursively, similar to conda-lock
+    resolved_dependencies: dict[Platform, dict[str, set[str]]] = {}
+    for platform, pkgs in dependencies_raw.items():
+        resolved_pkgs: dict[str, set[str]] = {}
+        for package in pkgs:
+            _recurse_pixi(package, resolved_pkgs, pkgs, set())
+        resolved_dependencies[platform] = resolved_pkgs
+
+    # Flatten the dependencies dict to match the packages keys
+    dependencies_flat = {
+        (manager, platform, name): deps
+        for (manager, platform, name) in packages
+        for name_, deps in resolved_dependencies[platform].items()
+        if name_ == packages[(manager, platform, name)]["name"]
+    }
+
+    return PixiLockSpec(packages, dependencies_flat)
 
 
-def _download_and_get_dependencies(url: str) -> set[str]:
-    import json
-    import tarfile
-    import tempfile
-    import urllib.request
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        file_name = url.split("/")[-1]
-        file_path = temp_path / file_name
-        urllib.request.urlretrieve(url, str(file_path))
-
-        if file_name.endswith(".tar.bz2"):
-            with tarfile.open(file_path, "r:bz2") as tar:
-                try:
-                    index_file = tar.extractfile("info/index.json")
-                    index_json = json.load(index_file)
-                    return set(index_json.get("depends", []))
-                except KeyError:
-                    return set()
-        elif file_name.endswith(".conda"):
-            # Handle .conda packages (requires conda_package_handling)
-            # Similar to the conda-lock implementation
-            pass
-    return set()
+def _recurse_pixi(
+    package_name: str,
+    resolved: dict[str, set[str]],
+    dependencies: dict[str, set[str]],
+    seen: set[str],
+) -> set[str]:
+    if package_name in resolved:
+        return resolved[package_name]
+    if package_name in seen:
+        return set()
+    seen.add(package_name)
+    all_deps = set(dependencies.get(package_name, []))
+    for dep in dependencies.get(package_name, []):
+        all_deps.update(_recurse_pixi(dep, resolved, dependencies, seen))
+    resolved[package_name] = all_deps
+    seen.remove(package_name)
+    return all_deps
 
 
 def _pixi_lock_subpackage(
@@ -195,25 +209,30 @@ def _pixi_lock_subpackage(
     file: Path,
     lock_spec: PixiLockSpec,
     platforms: list[Platform],
-    yaml: YAML | None,  # Passing this to preserve order!
+    yaml: YAML | None,
 ) -> Path:
     requirements = parse_requirements(file)
     locked_entries: dict[Platform, list[dict]] = defaultdict(list)
-    locked_keys: set[tuple[Platform, str]] = set()
-    missing_keys: set[tuple[Platform, str]] = set()
+    locked_packages: list[dict] = []
+    locked_keys: set[tuple[str, Platform, str]] = set()
+    missing_keys: set[tuple[str, Platform, str]] = set()
 
     def add_package_with_dependencies(platform: Platform, name: str):
-        key = (platform, name)
+        key = ("conda", platform, name)
         if key in locked_keys:
             return
         if key not in lock_spec.packages:
             missing_keys.add(key)
             return
-        pkg_entry = lock_spec.packages[key]["package"]
-        locked_entries[platform].append(pkg_entry)
+        pkg_info = lock_spec.packages[key]
+        # Add to locked_entries
+        locked_entries[platform].append({pkg_info["manager"]: pkg_info["url"]})
+        # Add to locked_packages
+        locked_packages.append(pkg_info["package_metadata"])
         locked_keys.add(key)
-        for dep in lock_spec.dependencies.get(key, set()):
-            dep_name = dep.split(" ")[0]  # Remove version specifiers
+        # Recursively add dependencies
+        dependencies = lock_spec.dependencies.get(key, set())
+        for dep_name in dependencies:
             add_package_with_dependencies(platform, dep_name)
 
     for name, specs in requirements.requirements.items():
@@ -244,7 +263,7 @@ def _pixi_lock_subpackage(
                 "packages": dict(locked_entries),
             },
         },
-        "packages": dict(locked_entries),
+        "packages": locked_packages,
     }
 
     if yaml is None:
