@@ -1,0 +1,16 @@
+[project]
+name = "myenv"
+platforms = [
+    "osx-64",
+    "osx-arm64",
+]
+channels = [
+    "conda-forge",
+]
+
+[dependencies]
+bzip2 = "*"
+python_abi = "*"
+
+[target.osx-arm64.dependencies]
+tzdata = "*"

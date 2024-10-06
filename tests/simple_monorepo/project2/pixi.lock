@@ -1,0 +1,63 @@
+# This file is created and managed by `unidep` 0.63.2.
+# For details see https://github.com/basnijholt/unidep
+# File generated with: `unidep pixi-lock -d tests/simple_monorepo -p osx-64 -p osx-arm64`
+#
+# This environment can be installed with
+# `pixi install`
+# This file is a `pixi.lock` file generated via `unidep`.
+# For details see https://pixi.sh/
+
+environments:
+  default:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+    packages:
+      osx-64:
+      - conda: https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda
+      osx-arm64:
+      - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda
+packages:
+- build: hc8b5060_0
+  kind: conda
+  license: LicenseRef-Public-Domain
+  md5: 8ac3367aafb1cc0a068483c580af8015
+  name: tzdata
+  noarch: generic
+  sha256: 4fde5c3008bf5d2db82f2b50204464314cc3c91c1d953652f7bd01d9e52aefdf
+  size: 122354
+  subdir: noarch
+  timestamp: 1728047496079
+  url: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
+  version: 2024b
+- build: 5_cp313t
+  build_number: 5
+  constrains:
+  - python 3.13.* *_cp313t
+  kind: conda
+  license: BSD-3-Clause
+  license_family: BSD
+  md5: 32ba8fc57ccb0b48dd6006974f65c525
+  name: python_abi
+  sha256: a96553de64be6441400e88c2c6ad7123d91cbcea4898b5966a653163f30d9f55
+  size: 6300
+  subdir: osx-64
+  timestamp: 1723823108577
+  url: https://conda.anaconda.org/conda-forge/osx-64/python_abi-3.13-5_cp313t.conda
+  version: '3.13'
+- build: 5_cp313t
+  build_number: 5
+  constrains:
+  - python 3.13.* *_cp313t
+  kind: conda
+  license: BSD-3-Clause
+  license_family: BSD
+  md5: 24a9a05eba65586da53ad7b56a06dc02
+  name: python_abi
+  sha256: 2165466ff175e1890b66d079d64449a1b6dd9873fb0f5e977839ccc4639b813b
+  size: 6317
+  subdir: osx-arm64
+  timestamp: 1723823118660
+  url: https://conda.anaconda.org/conda-forge/osx-arm64/python_abi-3.13-5_cp313t.conda
+  version: '3.13'
+version: 5
