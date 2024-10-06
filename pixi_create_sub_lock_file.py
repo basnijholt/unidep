@@ -87,11 +87,9 @@ def all_virtual_packages(env: Environment) -> dict[Platform, set[str]]:
                 if not spec.name.normalized.startswith("__"):
                     continue
                 version = _version_requirement_to_lowest_version(spec.version)
-                if version is None:
-                    continue
                 virtual_package = GenericVirtualPackage(
                     spec.name,
-                    version=Version(version),
+                    version=Version(version or "0"),
                     build_string=spec.build or "*",
                 )
                 virtual_packages[platform].add(virtual_package)
@@ -142,12 +140,11 @@ async def create_subset_lock_file(
     return new_lock_file
 
 
-# Usage
 async def main() -> None:
     """Example usage of create_subset_lock_file."""
     original_lock_file_path = "pixi.lock"
-    required_packages = ["pandas", "scipy"]
-    platform = Platform("osx-arm64")
+    required_packages = ["tornado", "scipy", "ipykernel", "adaptive", "unidep"]
+    platform = Platform("linux-64")
     new_lock_file = await create_subset_lock_file(
         original_lock_file_path,
         required_packages,
