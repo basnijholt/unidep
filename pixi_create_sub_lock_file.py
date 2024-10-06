@@ -28,38 +28,37 @@ def create_repodata_from_pixi_lock(lock_file_path: str) -> dict[str, dict]:
     repodata = {}
     for platform in env.platforms():
         subdir = str(platform)
+        packages = env.conda_repodata_records_for_platform(platform)
+        if not packages:
+            continue
+
         repodata[subdir] = {
             "info": {
                 "subdir": subdir,
                 "base_url": f"https://conda.anaconda.org/conda-forge/{subdir}",
             },
-            "packages": {},
+            "packages": {
+                f"{pkg.name.normalized}-{pkg.version}-{pkg.build}.conda": {
+                    "build": pkg.build,
+                    "build_number": pkg.build_number,
+                    "depends": pkg.depends,
+                    "constrains": pkg.constrains,
+                    "license": pkg.license,
+                    "license_family": pkg.license_family,
+                    "md5": pkg.md5.hex() if pkg.md5 else None,
+                    "name": pkg.name.normalized,
+                    "sha256": pkg.sha256.hex() if pkg.sha256 else None,
+                    "size": pkg.size,
+                    "subdir": pkg.subdir,
+                    "timestamp": int(pkg.timestamp.timestamp() * 1000)
+                    if pkg.timestamp
+                    else None,
+                    "version": str(pkg.version),
+                }
+                for pkg in packages
+            },
             "repodata_version": 2,
         }
-        conda_packages = env.conda_repodata_records_for_platform(platform)
-        if not conda_packages:
-            return repodata
-        for package in conda_packages:
-            filename = (
-                f"{package.name.normalized}-{package.version}-{package.build}.conda"
-            )
-            repodata[subdir]["packages"][filename] = {  # type: ignore[index]
-                "build": package.build,
-                "build_number": package.build_number,
-                "depends": package.depends,
-                "constrains": package.constrains,
-                "license": package.license,
-                "license_family": package.license_family,
-                "md5": package.md5.hex() if package.md5 else None,
-                "name": package.name.normalized,
-                "sha256": package.sha256.hex() if package.sha256 else None,
-                "size": package.size,
-                "subdir": package.subdir,
-                "timestamp": int(package.timestamp.timestamp() * 1000)
-                if package.timestamp
-                else None,
-                "version": str(package.version),
-            }
     return repodata
 
 
@@ -84,15 +83,14 @@ def all_virtual_packages(env: Environment) -> dict[Platform, set[str]]:
             repo_record = package.as_conda()
             for dep in repo_record.depends:
                 spec = MatchSpec(dep)
-                if not spec.name.normalized.startswith("__"):
-                    continue
-                version = _version_requirement_to_lowest_version(spec.version)
-                virtual_package = GenericVirtualPackage(
-                    spec.name,
-                    version=Version(version or "0"),
-                    build_string=spec.build or "*",
-                )
-                virtual_packages[platform].add(virtual_package)
+                if spec.name.normalized.startswith("__"):
+                    version = _version_requirement_to_lowest_version(spec.version)
+                    virtual_package = GenericVirtualPackage(
+                        spec.name,
+                        version=Version(version or "0"),
+                        build_string=spec.build or "*",
+                    )
+                    virtual_packages[platform].add(virtual_package)
     return virtual_packages
 
 
@@ -124,8 +122,9 @@ async def create_subset_lock_file(
     print(f"Temporary repodata file: {temp_file_path}")
     dummy_channel = Channel("dummy", ChannelConfig())
     sparse_repo_data = SparseRepoData(dummy_channel, str(platform), temp_file_path)
-    specs = [MatchSpec(f"{pkg}") for pkg in required_packages]
+    specs = [MatchSpec(pkg) for pkg in required_packages]
     virtual_packages = all_virtual_packages(env)[platform]
+
     solved_records = await solve_with_sparse_repodata(
         specs=specs,
         sparse_repodata=[sparse_repo_data],
