@@ -125,9 +125,7 @@ async def create_subset_lock_file(
     dummy_channel = Channel("dummy", ChannelConfig())
     sparse_repo_data = SparseRepoData(dummy_channel, str(platform), temp_file_path)
     specs = [MatchSpec(f"{pkg}") for pkg in required_packages]
-    print(f"Specs: {specs}")
     virtual_packages = all_virtual_packages(env)[platform]
-    print(f"Detected virtual packages: {virtual_packages}")
     solved_records = await solve_with_sparse_repodata(
         specs=specs,
         sparse_repodata=[sparse_repo_data],
@@ -143,7 +141,7 @@ async def create_subset_lock_file(
 async def main() -> None:
     """Example usage of create_subset_lock_file."""
     original_lock_file_path = "pixi.lock"
-    required_packages = ["tornado", "scipy", "ipykernel", "adaptive", "unidep"]
+    required_packages = ["tornado", "scipy", "ipykernel", "adaptive"]
     platform = Platform("linux-64")
     new_lock_file = await create_subset_lock_file(
         original_lock_file_path,
@@ -153,6 +151,5 @@ async def main() -> None:
     new_lock_file.to_path("new_lock_file.lock")
 
 
-# Run the async function
 if __name__ == "__main__":
     asyncio.run(main())
