@@ -71,7 +71,7 @@ jobs:
           set -ex
           # Loop over all folders in `./example` and install them
           for d in ./example/*/ ; do
-            unidep install -e "$d"
+            unidep install --verbose -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
             micromamba list
@@ -112,7 +112,7 @@ jobs:
           set -ex
           # Loop over all folders in `./example` and install them
           for d in ./example/*/ ; do
-            unidep install -e "$d"
+            unidep install --verbose -e "$d"
             pkg=$(basename $d)
             python -c "import $pkg"
             conda list
