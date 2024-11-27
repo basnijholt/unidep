@@ -229,19 +229,15 @@ def _is_redundant(pinning: str, other_pinnings: list[str]) -> bool:
             continue
 
         if op == "<" and (
-            other_op == "<"
-            and version >= other_version
-            or other_op == "<="
-            and version > other_version
+            (other_op == "<" and version >= other_version)
+            or (other_op == "<=" and version > other_version)
         ):
             return True
         if op == "<=" and other_op in ["<", "<="] and version >= other_version:
             return True
         if op == ">" and (
-            other_op == ">"
-            and version <= other_version
-            or other_op == ">="
-            and version < other_version
+            (other_op == ">" and version <= other_version)
+            or (other_op == ">=" and version < other_version)
         ):
             return True
         if op == ">=" and other_op in [">", ">="] and version <= other_version:
