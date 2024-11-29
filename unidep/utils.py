@@ -6,13 +6,15 @@ This module provides utility functions used throughout the package.
 from __future__ import annotations
 
 import codecs
+import os
 import platform
 import re
 import sys
 import warnings
 from collections import defaultdict
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import Any, Generator, NamedTuple, cast
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -374,3 +376,14 @@ def get_package_version(package_name: str) -> str | None:
             return pkg_resources.get_distribution(package_name).version
         except pkg_resources.DistributionNotFound:
             return None
+
+
+@contextmanager
+def change_directory(new_path: str | Path) -> Generator[None, None, None]:
+    """A context manager to change the current working directory."""
+    original_path = os.getcwd()  # noqa: PTH109
+    try:
+        os.chdir(new_path)
+        yield
+    finally:
+        os.chdir(original_path)
