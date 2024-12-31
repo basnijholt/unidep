@@ -6,7 +6,7 @@ from typing import Literal
 
 import pytest
 
-from unidep import parse_local_dependencies
+from unidep import parse_local_dependencies, parse_requirements
 from unidep._dependencies_parsing import yaml_to_toml
 
 
@@ -98,6 +98,9 @@ def test_local_wheel_and_folder(
         local_dep.resolve(),
         project2.resolve(),
     ]
+
+    requirements = parse_requirements(r1, verbose=True)
+    assert requirements.requirements == {}
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
