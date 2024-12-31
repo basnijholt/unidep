@@ -479,10 +479,6 @@ def _str_is_path_like(s: str) -> bool:
 
 def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
     if _str_is_path_like(name):
-        path = Path(name)
-        if path.suffix in (".whl", ".zip"):
-            # Wheel/zip file dependencies should be in `local_dependencies`
-            return
         # There should not be path-like dependencies in the optional_dependencies
         # section after _move_local_optional_dependencies_to_local_dependencies.
         assert not is_optional
