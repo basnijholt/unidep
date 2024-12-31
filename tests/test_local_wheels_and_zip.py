@@ -38,7 +38,11 @@ def test_local_wheel(tmp_path: Path, toml_or_yaml: Literal["toml", "yaml"]) -> N
     local_dep = tmp_path / "example.whl"
     local_dep.touch()  # Create a dummy .whl file
 
-    dependencies = parse_local_dependencies(r1, check_pip_installable=False)
+    dependencies = parse_local_dependencies(
+        r1,
+        check_pip_installable=False,
+        verbose=True,
+    )
     assert dependencies[project1.resolve()] == [local_dep.resolve()]
 
 

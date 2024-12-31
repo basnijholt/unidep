@@ -352,19 +352,17 @@ def _add_local_dependencies(
             path_with_extras.path.parent / local_dependency,
         )
     except FileNotFoundError:
-        local_path, _ = split_path_and_extras(local_dependency)
-        abs_local = (path_with_extras.path.parent / local_path).resolve()
-        if abs_local.suffix in (".whl", ".zip"):
-            if verbose:
-                print(
-                    f"⚠️  Local dependency `{local_dependency}` is a wheel or zip file. "
-                    "Skipping parsing, but it will be installed by pip if "
-                    "`--skip-local` is not set. Note that unidep will not "
-                    "detect its dependencies.",
-                )
-            return
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
+        return
+    if requirements_dep_file.path.suffix in (".whl", ".zip"):
+        if verbose:
+            print(
+                f"⚠️  Local dependency `{local_dependency}` is a wheel or zip file. "
+                "Skipping parsing, but it will be installed by pip if "
+                "`--skip-local` is not set. Note that unidep will not "
+                "detect its dependencies.",
+            )
         return
     if requirements_dep_file.resolved() in seen:
         return  # Avoids circular local_dependencies
