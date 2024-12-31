@@ -352,6 +352,17 @@ def _add_local_dependencies(
             path_with_extras.path.parent / local_dependency,
         )
     except FileNotFoundError:
+        local_path, _ = split_path_and_extras(local_dependency)
+        abs_local = (path_with_extras.path.parent / local_path).resolve()
+        if abs_local.suffix in (".whl", ".zip"):
+            if verbose:
+                print(
+                    f"⚠️  Local dependency `{local_dependency}` is a wheel or zip file. "
+                    "Skipping parsing, but it will be installed by pip if "
+                    "`--skip-local` is not set. Note that unidep will not "
+                    "detect its dependencies.",
+                )
+            return
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
         return
@@ -470,6 +481,10 @@ def _str_is_path_like(s: str) -> bool:
 
 def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # noqa: FBT001
     if _str_is_path_like(name):
+        path = Path(name)
+        if path.suffix in (".whl", ".zip"):
+            # Wheel/zip file dependencies should be in `local_dependencies`
+            return
         # There should not be path-like dependencies in the optional_dependencies
         # section after _move_local_optional_dependencies_to_local_dependencies.
         assert not is_optional
@@ -530,7 +545,7 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(
+def _extract_local_dependencies(  # noqa: PLR0912
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -557,6 +572,11 @@ def _extract_local_dependencies(
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
+        if abs_local.suffix in (".whl", ".zip"):
+            if verbose:
+                print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
+            dependencies[str(base_path)].add(str(abs_local))
+            continue
         if not abs_local.exists():
             if raise_if_missing:
                 msg = f"File `{abs_local}` not found."
