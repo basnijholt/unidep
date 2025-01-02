@@ -191,14 +191,13 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
             elif project_dependency_handling == "pip-only":
                 for dep in project_dependencies:
                     unidep_dependencies.append({"pip": dep})
-            elif project_dependency_handling == "ignore":
-                return unidep_cfg
-            else:
+            elif project_dependency_handling != "ignore":
                 msg = (
                     f"Invalid `project_dependency_handling` value: {project_dependency_handling}."  # noqa: E501
                     " Must be one of 'same-name', 'pip-only', 'ignore'."
                 )
                 raise ValueError(msg)
+            return unidep_cfg
     with p.open() as f:
         return yaml.load(f)
 
