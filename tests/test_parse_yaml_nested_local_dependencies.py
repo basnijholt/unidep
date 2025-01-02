@@ -12,7 +12,8 @@ from unidep import (
     parse_local_dependencies,
     parse_requirements,
 )
-from unidep._dependencies_parsing import yaml_to_toml
+
+from .helpers import maybe_as_toml
 
 if TYPE_CHECKING:
     import sys
@@ -24,15 +25,6 @@ if TYPE_CHECKING:
 
 
 REPO_ROOT = Path(__file__).parent.parent
-
-
-def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
-    if toml_or_yaml == "toml":
-        toml = yaml_to_toml(p)
-        p.unlink()
-        p = p.with_name("pyproject.toml")
-        p.write_text(toml)
-    return p
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
