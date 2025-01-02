@@ -50,6 +50,7 @@ Try it now and streamline your development process!
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
+  - [Project Dependency Handling](#project-dependency-handling)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
