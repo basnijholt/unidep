@@ -21,9 +21,10 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
-from unidep._dependencies_parsing import yaml_to_toml
 from unidep.platform_definitions import Platform, Spec
 from unidep.utils import is_pip_installable
+
+from .helpers import maybe_as_toml
 
 if TYPE_CHECKING:
     import sys
@@ -35,15 +36,6 @@ if TYPE_CHECKING:
 
 
 REPO_ROOT = Path(__file__).parent.parent
-
-
-def maybe_as_toml(toml_or_yaml: Literal["toml", "yaml"], p: Path) -> Path:
-    if toml_or_yaml == "toml":
-        toml = yaml_to_toml(p)
-        p.unlink()
-        p = p.with_name("pyproject.toml")
-        p.write_text(toml)
-    return p
 
 
 @pytest.fixture(params=["toml", "yaml"])
