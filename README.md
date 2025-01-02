@@ -309,6 +309,44 @@ Note that the `package-name:unix` syntax can also be used in the `requirements.y
 `unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
 It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
+### Project Dependency Handling
+
+The `project_dependency_handling` option in `[tool.unidep]` (in `pyproject.toml`) controls how dependencies listed in the standard `[project.dependencies]` section of `pyproject.toml` are handled when processed by `unidep`.
+
+**Modes:**
+
+- **`ignore`** (default): Dependencies in `[project.dependencies]` are ignored by `unidep`.
+- **`same-name`**: Dependencies in `[project.dependencies]` are treated as dependencies with the same name for both Conda and Pip. They will be added to the `dependencies` list in `[tool.unidep]` under the assumption that the package name is the same for both package managers.
+- **`pip-only`**: Dependencies in `[project.dependencies]` are treated as pip-only dependencies. They will be added to the `dependencies` list in `[tool.unidep]` under the `pip` key.
+
+**Example `pyproject.toml`:**
+
+```toml
+[build-system]
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my-project"
+version = "0.1.0"
+dependencies = [  # These will be handled according to the `project_dependency_handling` option
+  "requests",
+  "pandas",
+]
+
+[tool.unidep]
+project_dependency_handling = "same-name"  # Or "pip-only", "ignore"
+dependencies = [
+    {conda = "python-graphviz", pip = "graphivz"},
+]
+```
+
+**Notes:**
+
+- The `project_dependency_handling` option only affects how dependencies from `[project.dependencies]` are processed. Dependencies directly listed under `[tool.unidep.dependencies]` are handled as before.
+- This feature is helpful for projects that are already using the standard `[project.dependencies]` field and want to integrate `unidep` without duplicating their dependency list.
+- The `project_dependency_handling` feature is _*only available*_ when using `pyproject.toml` files. It is not supported in `requirements.yaml` files.
+
 ## :jigsaw: Build System Integration
 
 > [!TIP]
