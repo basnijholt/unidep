@@ -186,20 +186,32 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
                 "project_dependency_handling",
                 "ignore",
             )
-            if project_dependency_handling == "same-name":
-                unidep_dependencies.extend(project_dependencies)
-            elif project_dependency_handling == "pip-only":
-                for dep in project_dependencies:
-                    unidep_dependencies.append({"pip": dep})
-            elif project_dependency_handling != "ignore":
-                msg = (
-                    f"Invalid `project_dependency_handling` value: {project_dependency_handling}."  # noqa: E501
-                    " Must be one of 'same-name', 'pip-only', 'ignore'."
-                )
-                raise ValueError(msg)
+            _add_project_dependencies(
+                project_dependencies,
+                unidep_dependencies,
+                project_dependency_handling,
+            )
             return unidep_cfg
     with p.open() as f:
         return yaml.load(f)
+
+
+def _add_project_dependencies(
+    project_dependencies: list[str],
+    unidep_dependencies: list[dict[str, str] | str],
+    project_dependency_handling: Literal["same-name", "pip-only", "ignore"],
+) -> None:
+    """Add project dependencies to unidep dependencies based on the chosen handling."""
+    if project_dependency_handling == "same-name":
+        unidep_dependencies.extend(project_dependencies)
+    elif project_dependency_handling == "pip-only":
+        unidep_dependencies.extend([{"pip": dep} for dep in project_dependencies])
+    elif project_dependency_handling != "ignore":
+        msg = (
+            f"Invalid `project_dependency_handling` value: {project_dependency_handling}."  # noqa: E501
+            " Must be one of 'same-name', 'pip-only', 'ignore'."
+        )
+        raise ValueError(msg)
 
 
 def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
