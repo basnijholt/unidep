@@ -5,6 +5,7 @@ This module provides parsing of `requirements.yaml` and `pyproject.toml` files.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import sys
@@ -162,6 +163,7 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     return result
 
 
+@functools.lru_cache
 def _load(p: Path, yaml: YAML) -> dict[str, Any]:
     if p.suffix == ".toml":
         if not HAS_TOML:  # pragma: no cover
