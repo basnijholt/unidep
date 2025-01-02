@@ -310,7 +310,7 @@ Note that the `package-name:unix` syntax can also be used in the `requirements.y
 `unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
 It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
-### Project Dependency Handling
+### `[project.dependencies]` in `pyproject.toml` handling
 
 The `project_dependency_handling` option in `[tool.unidep]` (in `pyproject.toml`) controls how dependencies listed in the standard `[project.dependencies]` section of `pyproject.toml` are handled when processed by `unidep`.
 
