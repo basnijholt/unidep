@@ -176,7 +176,29 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
             )
             raise ImportError(msg)
         with p.open("rb") as f:
-            return tomllib.load(f)["tool"]["unidep"]
+            pyproject = tomllib.load(f)
+            project_dependencies = pyproject.get("project", {}).get("dependencies", [])
+            unidep_cfg = pyproject["tool"]["unidep"]
+            if not project_dependencies:
+                return unidep_cfg
+            unidep_dependencies = unidep_cfg.setdefault("dependencies", [])
+            project_dependency_handling = unidep_cfg.get(
+                "project_dependency_handling",
+                "ignore",
+            )
+            if project_dependency_handling == "same-name":
+                unidep_dependencies.extend(project_dependencies)
+            elif project_dependency_handling == "pip-only":
+                for dep in project_dependencies:
+                    unidep_dependencies.append({"pip": dep})
+            elif project_dependency_handling == "ignore":
+                return unidep_cfg
+            else:
+                msg = (
+                    f"Invalid `project_dependency_handling` value: {project_dependency_handling}."  # noqa: E501
+                    " Must be one of 'same-name', 'pip-only', 'ignore'."
+                )
+                raise ValueError(msg)
     with p.open() as f:
         return yaml.load(f)
 
@@ -419,7 +441,7 @@ def parse_requirements(
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
     seen: set[PathWithExtras] = set()
-    yaml = YAML(typ="rt")
+    yaml = YAML(typ="rt")  # Might be unused if all are TOML files
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
