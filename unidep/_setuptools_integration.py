@@ -11,7 +11,6 @@ import configparser
 import contextlib
 import os
 import sys
-import urllib
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -152,8 +151,11 @@ def get_python_dependencies(
         for paths in local_dependencies.values():
             for path in paths:
                 name = _package_name_from_path(path)
-                uri = urllib.request.pathname2url(str(path))
+                # TODO: Consider doing this properly using pathname2url  # noqa: FIX002
+                # https://github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
+                uri = path.as_posix().replace(" ", "%20")
                 dependencies.append(f"{name} @ file://{uri}")
+
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
