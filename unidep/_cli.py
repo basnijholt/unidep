@@ -850,7 +850,11 @@ def _pip_install_local(
             relative_prefix = ".\\" if os.name == "nt" else "./"
             folder = f"{relative_prefix}{folder}"  # noqa: PLW2901
 
-        if editable:
+        if (
+            editable
+            and not str(folder).endswith(".whl")
+            and not str(folder).endswith(".zip")
+        ):
             pip_command.extend(["-e", str(folder)])
         else:
             pip_command.append(str(folder))
