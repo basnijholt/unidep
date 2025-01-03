@@ -278,7 +278,7 @@ def test_extract_matching_platforms() -> None:
         extract_matching_platforms(incorrect_platform)
 
 
-def testsplit_path_and_extras() -> None:
+def test_split_path_and_extras() -> None:
     # parse_with_extras
     s = "any/path[something, another]"
     path, extras = split_path_and_extras(s)
