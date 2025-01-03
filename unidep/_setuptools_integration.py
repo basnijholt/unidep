@@ -153,8 +153,7 @@ def get_python_dependencies(
             for path in paths:
                 name = _package_name_from_path(path)
                 uri = "file:" + urllib.request.pathname2url(str(path))
-                dependencies.append(f"{name} @ file://{uri}")
-
+                dependencies.append(f"{name} @ {uri}")
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
