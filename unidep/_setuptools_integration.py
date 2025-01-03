@@ -13,7 +13,6 @@ import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
-from urllib.parse import quote
 
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import parse_local_dependencies, parse_requirements
@@ -152,7 +151,7 @@ def get_python_dependencies(
         for paths in local_dependencies.values():
             for path in paths:
                 name = _package_name_from_path(path)
-                uri = quote(path.as_posix())  # e.g., replace spaces with %20
+                uri = path.as_posix().replace(" ", "%20")
                 dependencies.append(f"{name} @ file://{uri}")
 
     return Dependencies(dependencies=dependencies, extras=extras)
