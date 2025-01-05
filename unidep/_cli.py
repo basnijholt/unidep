@@ -177,6 +177,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "no-dependencies" in options:
         sub_parser.add_argument(
             "--no-dependencies",
+            "--no-deps",
             action="store_true",
             help=f"Skip installing dependencies from {_DEP_FILES}"
             " file(s) and only install local package(s). Useful after"
@@ -244,6 +245,13 @@ def _add_common_args(  # noqa: PLR0912, C901
             help="Path to the `conda-lock.yml` file to use for creating the new"
             " environment. Assumes that the lock file contains all dependencies."
             " Must be used with `--conda-env-name` or `--conda-env-prefix`.",
+        )
+    if "no-uv" in options:
+        sub_parser.add_argument(
+            "--no-uv",
+            action="store_true",
+            help="Disables the use of `uv` for pip install. By default, `uv` is used"
+            " if it is available in the PATH.",
         )
 
 
@@ -373,6 +381,7 @@ def _parse_args() -> argparse.Namespace:
             "ignore-pin",
             "skip-dependency",
             "overwrite-pin",
+            "no-uv",
             "verbose",
         },
     )
@@ -416,6 +425,7 @@ def _parse_args() -> argparse.Namespace:
             "ignore-pin",
             "skip-dependency",
             "overwrite-pin",
+            "no-uv",
             "verbose",
         },
     )
@@ -833,15 +843,27 @@ def _python_executable(
     return str(python_executable)
 
 
+def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
+    """Check if the user wants to use the `uv` package."""
+    if no_uv:
+        return False
+    return shutil.which("uv") is not None
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
     dry_run: bool,
     python_executable: str,
     conda_run: list[str],
+    no_uv: bool,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
+    if _use_uv(no_uv):
+        pip_command = ["uv", "pip", "install", "--python", python_executable]
+    else:
+        pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
+
     if flags:
         pip_command.extend(flags)
 
@@ -879,6 +901,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
+    no_uv: bool = True,
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
@@ -952,15 +975,29 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_prefix,
     )
     if env_spec.pip and not skip_pip:
-        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
-        pip_command = [
-            *conda_run,
-            python_executable,
-            "-m",
-            "pip",
-            "install",
-            *env_spec.pip,
-        ]
+        if _use_uv(no_uv):
+            pip_command = [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                python_executable,
+                *env_spec.pip,
+            ]
+        else:
+            conda_run = _maybe_conda_run(
+                conda_executable,
+                conda_env_name,
+                conda_env_prefix,
+            )
+            pip_command = [
+                *conda_run,
+                python_executable,
+                "-m",
+                "pip",
+                "install",
+                *env_spec.pip,
+            ]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)
@@ -992,7 +1029,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
             if dep.resolve() not in installable_set
         ]
         if installable:
-            pip_flags = ["--no-dependencies"]  # we just ran pip/conda install, so skip
+            pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
             conda_run = _maybe_conda_run(
@@ -1006,6 +1043,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
                 dry_run=dry_run,
                 python_executable=python_executable,
                 flags=pip_flags,
+                no_uv=no_uv,
                 conda_run=conda_run,
             )
 
@@ -1030,6 +1068,7 @@ def _install_all_command(
     ignore_pins: list[str] | None = None,
     overwrite_pins: list[str] | None = None,
     skip_dependencies: list[str] | None = None,
+    no_uv: bool = True,
     verbose: bool = False,
 ) -> None:  # pragma: no cover
     found_files = find_requirements_files(
@@ -1055,6 +1094,7 @@ def _install_all_command(
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
+        no_uv=no_uv,
         verbose=verbose,
     )
 
@@ -1471,6 +1511,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
+            no_uv=args.no_uv,
             verbose=args.verbose,
         )
     elif args.command == "install-all":
@@ -1492,6 +1533,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
+            no_uv=args.no_uv,
             verbose=args.verbose,
         )
     elif args.command == "conda-lock":  # pragma: no cover

@@ -127,10 +127,11 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing pip dependencies" in captured.out
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
-    assert f"pip install --no-dependencies {pkgs}`" in captured.out
+    assert f"pip install --no-deps {pkgs}`" in captured.out
 
 
-def test_unidep_install_all_dry_run() -> None:
+@pytest.mark.parametrize("with_uv", [True, False])
+def test_unidep_install_all_dry_run(tmp_path: Path, with_uv: bool) -> None:  # noqa: FBT001
     # Path to the requirements file
     requirements_path = REPO_ROOT / "example"
 
@@ -138,6 +139,10 @@ def test_unidep_install_all_dry_run() -> None:
     assert requirements_path.exists(), "Requirements file does not exist"
 
     # Run the unidep install command
+    env = os.environ.copy()
+    if with_uv:  # Ensure that the `uv` command is available
+        env["PATH"] = str(tmp_path) + os.pathsep + env["PATH"]
+        (tmp_path / "uv").touch(mode=0o755)
     result = subprocess.run(
         [  # noqa: S607
             "unidep",
@@ -146,11 +151,13 @@ def test_unidep_install_all_dry_run() -> None:
             "--editable",
             "--directory",
             str(requirements_path),
+            *(["--no-uv"] if not with_uv else []),
         ],
         check=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=env,
     )
 
     # Check the output
@@ -165,7 +172,10 @@ def test_unidep_install_all_dry_run() -> None:
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "📦 Installing project with `" in result.stdout
-    assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
+    if with_uv:
+        assert "uv pip install --python" in result.stdout
+    else:
+        assert f" -m pip install --no-deps {pkgs}" in result.stdout
 
 
 def test_unidep_conda() -> None:
@@ -256,6 +266,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             str(project4 / "requirements.yaml"),
         ],
         check=True,
@@ -269,7 +280,7 @@ def test_doubly_nested_project_folder_installable(
     p3 = str(tmp_path / "example" / "setuptools_project")
     p4 = str(tmp_path / "example" / "extra_projects" / "project4")
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
     p5 = str(tmp_path / "example" / "pyproject_toml_project")
     p6 = str(tmp_path / "example" / "hatch2_project")
@@ -281,6 +292,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             "--directory",
             str(example_folder),
             "--depth",
@@ -292,7 +304,7 @@ def test_doubly_nested_project_folder_installable(
         encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
     # Test depth 1 (should not install project4)
     result = subprocess.run(
@@ -302,6 +314,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             "--directory",
             str(example_folder),
             "--depth",
@@ -313,7 +326,7 @@ def test_doubly_nested_project_folder_installable(
         encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
 
 def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
