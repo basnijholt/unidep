@@ -859,7 +859,7 @@ def _pip_install_local(
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     if _use_uv(no_uv):
-        pip_command = ["uv", "pip", "install", "-p", python_executable]
+        pip_command = ["uv", "pip", "install", "--python", python_executable]
     else:
         pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
 
@@ -979,7 +979,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
                 "uv",
                 "pip",
                 "install",
-                "-p",
+                "--python",
                 python_executable,
                 *env_spec.pip,
             ]
