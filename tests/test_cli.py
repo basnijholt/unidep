@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -131,12 +132,18 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
 
 
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
-    mock_uv_path = tmp_path / "uv"
-    mock_uv_path.write_text("#!/bin/sh\necho 'Mock uv called'")
+    """Create a mock uv executable and return env with it in the PATH."""
+    mock_uv_path = tmp_path / ("uv.bat" if platform.system() == "Windows" else "uv")
+    if platform.system() == "Windows":
+        mock_uv_path.write_text("@echo off\necho Mock uv called %*")
+    else:
+        mock_uv_path.write_text("#!/bin/sh\necho 'Mock uv called' \"$@\"")
     mock_uv_path.chmod(0o755)  # Make it executable
 
     # Add tmp_path to the PATH environment variable
-    return {"PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"}
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path}{os.pathsep}{env['PATH']}"
+    return env
 
 
 @pytest.mark.parametrize("with_uv", [True, False])
