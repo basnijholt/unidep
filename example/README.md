@@ -114,7 +114,7 @@ $ unidep install --dry-run -e ./setup_py_project
 
 📝 Found local dependencies: {'setup_py_project': ['hatch_project', 'setuptools_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.8/x64/bin/python -m pip install --no-dependencies -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.8/x64/bin/python -m pip install --no-deps -e /home/runner/work/unidep/unidep/example/hatch_project -e /home/runner/work/unidep/unidep/example/setuptools_project -e ./setup_py_project`
 
 ```
 
@@ -161,7 +161,7 @@ $ unidep install-all -e --dry-run
 
 📝 Found local dependencies: {'pyproject_toml_project': ['hatch_project'], 'setup_py_project': ['hatch_project', 'setuptools_project'], 'setuptools_project': ['hatch_project']}
 
-📦 Installing project with `/opt/hostedtoolcache/Python/3.12.8/x64/bin/python -m pip install --no-dependencies -e ./hatch2_project -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
+📦 Installing project with `/opt/hostedtoolcache/Python/3.12.8/x64/bin/python -m pip install --no-deps -e ./hatch2_project -e ./hatch_project -e ./pyproject_toml_project -e ./setup_py_project -e ./setuptools_project`
 
 ```
 

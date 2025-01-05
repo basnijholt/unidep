@@ -557,6 +557,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -621,6 +622,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->
@@ -645,6 +648,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -709,6 +713,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->
