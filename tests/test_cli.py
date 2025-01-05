@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -127,10 +128,26 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert "Installing pip dependencies" in captured.out
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
-    assert f"pip install --no-dependencies {pkgs}`" in captured.out
+    assert f"pip install --no-deps {pkgs}`" in captured.out
 
 
-def test_unidep_install_all_dry_run() -> None:
+def mock_uv_env(tmp_path: Path) -> dict[str, str]:
+    """Create a mock uv executable and return env with it in the PATH."""
+    mock_uv_path = tmp_path / ("uv.bat" if platform.system() == "Windows" else "uv")
+    if platform.system() == "Windows":
+        mock_uv_path.write_text("@echo off\necho Mock uv called %*")
+    else:
+        mock_uv_path.write_text("#!/bin/sh\necho 'Mock uv called' \"$@\"")
+    mock_uv_path.chmod(0o755)  # Make it executable
+
+    # Add tmp_path to the PATH environment variable
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path}{os.pathsep}{env['PATH']}"
+    return env
+
+
+@pytest.mark.parametrize("with_uv", [True, False])
+def test_unidep_install_all_dry_run(tmp_path: Path, with_uv: bool) -> None:  # noqa: FBT001
     # Path to the requirements file
     requirements_path = REPO_ROOT / "example"
 
@@ -146,11 +163,13 @@ def test_unidep_install_all_dry_run() -> None:
             "--editable",
             "--directory",
             str(requirements_path),
+            *(["--no-uv"] if not with_uv else []),
         ],
         check=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=mock_uv_env(tmp_path) if with_uv else None,
     )
 
     # Check the output
@@ -165,7 +184,10 @@ def test_unidep_install_all_dry_run() -> None:
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert "📦 Installing project with `" in result.stdout
-    assert f" -m pip install --no-dependencies {pkgs}" in result.stdout
+    if with_uv:
+        assert "uv pip install --python" in result.stdout
+    else:
+        assert f" -m pip install --no-deps {pkgs}" in result.stdout
 
 
 def test_unidep_conda() -> None:
@@ -256,6 +278,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             str(project4 / "requirements.yaml"),
         ],
         check=True,
@@ -269,7 +292,7 @@ def test_doubly_nested_project_folder_installable(
     p3 = str(tmp_path / "example" / "setuptools_project")
     p4 = str(tmp_path / "example" / "extra_projects" / "project4")
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
     p5 = str(tmp_path / "example" / "pyproject_toml_project")
     p6 = str(tmp_path / "example" / "hatch2_project")
@@ -281,6 +304,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             "--directory",
             str(example_folder),
             "--depth",
@@ -292,7 +316,7 @@ def test_doubly_nested_project_folder_installable(
         encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p4, p5, p6))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
     # Test depth 1 (should not install project4)
     result = subprocess.run(
@@ -302,6 +326,7 @@ def test_doubly_nested_project_folder_installable(
             "--dry-run",
             "--editable",
             "--no-dependencies",
+            "--no-uv",
             "--directory",
             str(example_folder),
             "--depth",
@@ -313,7 +338,7 @@ def test_doubly_nested_project_folder_installable(
         encoding="utf-8",
     )
     pkgs = " ".join([f"-e {p}" for p in sorted((p1, p2, p3, p5, p6))])
-    assert f"pip install --no-dependencies {pkgs}`" in result.stdout
+    assert f"pip install --no-deps {pkgs}`" in result.stdout
 
 
 def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:

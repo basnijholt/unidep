@@ -18,6 +18,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **📝 Unified Dependency File**: Use either `requirements.yaml` or `pyproject.toml` to manage both Conda and Pip dependencies in one place.
 - **⚙️ Build System Integration**: Integrates with Setuptools and Hatchling for automatic dependency handling during `pip install ./your-package`.
 - **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
+- **⚡️ Fast Pip Operations**: Leverages `uv` (if installed) for faster pip installations.
 - **🏢 Monorepo-Friendly**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
@@ -557,6 +558,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -591,7 +593,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
@@ -621,6 +624,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->
@@ -645,6 +650,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -679,7 +685,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
@@ -709,6 +716,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->
