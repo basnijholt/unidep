@@ -130,6 +130,15 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert f"pip install --no-deps {pkgs}`" in captured.out
 
 
+def mock_uv_env(tmp_path: Path) -> dict[str, str]:
+    mock_uv_path = tmp_path / "uv"
+    mock_uv_path.write_text("#!/bin/sh\necho 'Mock uv called'")
+    mock_uv_path.chmod(0o755)  # Make it executable
+
+    # Add tmp_path to the PATH environment variable
+    return {"PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"}
+
+
 @pytest.mark.parametrize("with_uv", [True, False])
 def test_unidep_install_all_dry_run(tmp_path: Path, with_uv: bool) -> None:  # noqa: FBT001
     # Path to the requirements file
@@ -139,10 +148,6 @@ def test_unidep_install_all_dry_run(tmp_path: Path, with_uv: bool) -> None:  # n
     assert requirements_path.exists(), "Requirements file does not exist"
 
     # Run the unidep install command
-    env = os.environ.copy()
-    if with_uv:  # Ensure that the `uv` command is available
-        env["PATH"] = str(tmp_path) + os.pathsep + env["PATH"]
-        (tmp_path / "uv").touch(mode=0o755)
     result = subprocess.run(
         [  # noqa: S607
             "unidep",
@@ -157,7 +162,7 @@ def test_unidep_install_all_dry_run(tmp_path: Path, with_uv: bool) -> None:  # n
         capture_output=True,
         text=True,
         encoding="utf-8",
-        env=env,
+        env=mock_uv_env(tmp_path) if with_uv else None,
     )
 
     # Check the output
