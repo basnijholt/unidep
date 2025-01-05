@@ -624,7 +624,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
                         f"⚠️ Installing a local dependency (`{abs_local.name}`) which"
                         " is not managed by unidep, this will skip all of its"
                         " dependencies, i.e., it will call `pip install` with"
-                        "  `--no-dependencies`. To properly manage this dependency,"
+                        "  `--no-deps`. To properly manage this dependency,"
                         " add a `requirements.yaml` or `pyproject.toml` file with"
                         " `[tool.unidep]` in its directory.",
                     )

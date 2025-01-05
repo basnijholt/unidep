@@ -177,6 +177,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "no-dependencies" in options:
         sub_parser.add_argument(
             "--no-dependencies",
+            "--no-deps",
             action="store_true",
             help=f"Skip installing dependencies from {_DEP_FILES}"
             " file(s) and only install local package(s). Useful after"
