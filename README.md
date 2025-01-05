@@ -18,6 +18,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **📝 Unified Dependency File**: Use either `requirements.yaml` or `pyproject.toml` to manage both Conda and Pip dependencies in one place.
 - **⚙️ Build System Integration**: Integrates with Setuptools and Hatchling for automatic dependency handling during `pip install ./your-package`.
 - **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
+- **⚡️ Fast Pip Operations**: Leverages `uv` (if installed) for faster pip installations.
 - **🏢 Monorepo-Friendly**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
