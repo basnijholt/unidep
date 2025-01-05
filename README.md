@@ -593,7 +593,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
@@ -684,7 +685,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
