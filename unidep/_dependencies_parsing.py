@@ -628,15 +628,6 @@ def _extract_local_dependencies(  # noqa: PLR0912
                         " add a `requirements.yaml` or `pyproject.toml` file with"
                         " `[tool.unidep]` in its directory.",
                     )
-            elif _is_empty_git_submodule(abs_local):
-                # Extra check for empty Git submodules (common problem folks run into)
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not installable"
-                    " by pip because it is an empty Git submodule. Either remove it"
-                    " from `local_dependencies` or fetch the submodule with"
-                    " `git submodule update --init --recursive`."
-                )
-                raise RuntimeError(msg) from None
             elif _is_empty_folder(abs_local):
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not pip"
@@ -644,6 +635,15 @@ def _extract_local_dependencies(  # noqa: PLR0912
                     " an uninitialized Git submodule? If so, initialize it with"
                     " `git submodule update --init --recursive`. Otherwise,"
                     " remove it from `local_dependencies`."
+                )
+                raise RuntimeError(msg) from None
+            elif _is_empty_git_submodule(abs_local):
+                # Extra check for empty Git submodules (common problem folks run into)
+                msg = (
+                    f"`{local_dependency}` in `local_dependencies` is not installable"
+                    " by pip because it is an empty Git submodule. Either remove it"
+                    " from `local_dependencies` or fetch the submodule with"
+                    " `git submodule update --init --recursive`."
                 )
                 raise RuntimeError(msg) from None
             else:
