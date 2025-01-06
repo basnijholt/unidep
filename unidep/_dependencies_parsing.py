@@ -637,6 +637,15 @@ def _extract_local_dependencies(  # noqa: PLR0912
                     " `git submodule update --init --recursive`."
                 )
                 raise RuntimeError(msg) from None
+            elif _is_empty_folder(abs_local):
+                msg = (
+                    f"`{local_dependency}` in `local_dependencies` is not pip"
+                    " installable because it is an empty folder. Is it perhaps"
+                    " an uninitialized Git submodule? If so, initialize it with"
+                    " `git submodule update --init --recursive`. Otherwise,"
+                    " remove it from `local_dependencies`."
+                )
+                raise RuntimeError(msg) from None
             else:
                 msg = (
                     f"`{local_dependency}` in `local_dependencies` is not pip"
@@ -745,3 +754,8 @@ def _is_empty_git_submodule(path: Path) -> bool:
 
     # Check if it's empty (apart from the .git file)
     return len(list(path.iterdir())) == 1  # Only .git should be present
+
+
+def _is_empty_folder(path: Path) -> bool:
+    """Checks if the given path is an empty folder."""
+    return not any(path.iterdir())
