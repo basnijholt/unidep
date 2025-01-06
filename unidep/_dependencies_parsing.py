@@ -5,6 +5,7 @@ This module provides parsing of `requirements.yaml` and `pyproject.toml` files.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import os
 import sys
@@ -162,6 +163,7 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
     return result
 
 
+@functools.lru_cache
 def _load(p: Path, yaml: YAML) -> dict[str, Any]:
     if p.suffix == ".toml":
         if not HAS_TOML:  # pragma: no cover
@@ -174,9 +176,42 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
             )
             raise ImportError(msg)
         with p.open("rb") as f:
-            return tomllib.load(f)["tool"]["unidep"]
+            pyproject = tomllib.load(f)
+            project_dependencies = pyproject.get("project", {}).get("dependencies", [])
+            unidep_cfg = pyproject["tool"]["unidep"]
+            if not project_dependencies:
+                return unidep_cfg
+            unidep_dependencies = unidep_cfg.setdefault("dependencies", [])
+            project_dependency_handling = unidep_cfg.get(
+                "project_dependency_handling",
+                "ignore",
+            )
+            _add_project_dependencies(
+                project_dependencies,
+                unidep_dependencies,
+                project_dependency_handling,
+            )
+            return unidep_cfg
     with p.open() as f:
         return yaml.load(f)
+
+
+def _add_project_dependencies(
+    project_dependencies: list[str],
+    unidep_dependencies: list[dict[str, str] | str],
+    project_dependency_handling: Literal["same-name", "pip-only", "ignore"],
+) -> None:
+    """Add project dependencies to unidep dependencies based on the chosen handling."""
+    if project_dependency_handling == "same-name":
+        unidep_dependencies.extend(project_dependencies)
+    elif project_dependency_handling == "pip-only":
+        unidep_dependencies.extend([{"pip": dep} for dep in project_dependencies])
+    elif project_dependency_handling != "ignore":
+        msg = (
+            f"Invalid `project_dependency_handling` value: {project_dependency_handling}."  # noqa: E501
+            " Must be one of 'same-name', 'pip-only', 'ignore'."
+        )
+        raise ValueError(msg)
 
 
 def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
@@ -355,6 +390,15 @@ def _add_local_dependencies(
         # Means that this is a local package that is not managed by unidep.
         # We do not need to do anything here, just in `unidep install`.
         return
+    if requirements_dep_file.path.suffix in (".whl", ".zip"):
+        if verbose:
+            print(
+                f"⚠️  Local dependency `{local_dependency}` is a wheel or zip file. "
+                "Skipping parsing, but it will be installed by pip if "
+                "`--skip-local` is not set. Note that unidep will not "
+                "detect its dependencies.",
+            )
+        return
     if requirements_dep_file.resolved() in seen:
         return  # Avoids circular local_dependencies
     if verbose:
@@ -408,7 +452,7 @@ def parse_requirements(
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
     seen: set[PathWithExtras] = set()
-    yaml = YAML(typ="rt")
+    yaml = YAML(typ="rt")  # Might be unused if all are TOML files
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
@@ -530,7 +574,7 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(
+def _extract_local_dependencies(  # noqa: PLR0912
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -557,6 +601,11 @@ def _extract_local_dependencies(
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
+        if abs_local.suffix in (".whl", ".zip"):
+            if verbose:
+                print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
+            dependencies[str(base_path)].add(str(abs_local))
+            continue
         if not abs_local.exists():
             if raise_if_missing:
                 msg = f"File `{abs_local}` not found."
@@ -575,7 +624,7 @@ def _extract_local_dependencies(
                         f"⚠️ Installing a local dependency (`{abs_local.name}`) which"
                         " is not managed by unidep, this will skip all of its"
                         " dependencies, i.e., it will call `pip install` with"
-                        "  `--no-dependencies`. To properly manage this dependency,"
+                        "  `--no-deps`. To properly manage this dependency,"
                         " add a `requirements.yaml` or `pyproject.toml` file with"
                         " `[tool.unidep]` in its directory.",
                     )

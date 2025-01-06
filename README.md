@@ -18,6 +18,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **📝 Unified Dependency File**: Use either `requirements.yaml` or `pyproject.toml` to manage both Conda and Pip dependencies in one place.
 - **⚙️ Build System Integration**: Integrates with Setuptools and Hatchling for automatic dependency handling during `pip install ./your-package`.
 - **💻 One-Command Installation**: `unidep install` handles Conda, Pip, and local dependencies effortlessly.
+- **⚡️ Fast Pip Operations**: Leverages `uv` (if installed) for faster pip installations.
 - **🏢 Monorepo-Friendly**: Render (multiple) `requirements.yaml` or `pyproject.toml` files into one Conda `environment.yaml` file and maintain fully consistent global *and* per sub package `conda-lock` files.
 - **🌍 Platform-Specific Support**: Specify dependencies for different operating systems or architectures.
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
@@ -50,6 +51,7 @@ Try it now and streamline your development process!
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
+  - [`[project.dependencies]` in `pyproject.toml` handling](#projectdependencies-in-pyprojecttoml-handling)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
@@ -309,6 +311,44 @@ Note that the `package-name:unix` syntax can also be used in the `requirements.y
 `unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
 It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
 
+### `[project.dependencies]` in `pyproject.toml` handling
+
+The `project_dependency_handling` option in `[tool.unidep]` (in `pyproject.toml`) controls how dependencies listed in the standard `[project.dependencies]` section of `pyproject.toml` are handled when processed by `unidep`.
+
+**Modes:**
+
+- **`ignore`** (default): Dependencies in `[project.dependencies]` are ignored by `unidep`.
+- **`same-name`**: Dependencies in `[project.dependencies]` are treated as dependencies with the same name for both Conda and Pip. They will be added to the `dependencies` list in `[tool.unidep]` under the assumption that the package name is the same for both package managers.
+- **`pip-only`**: Dependencies in `[project.dependencies]` are treated as pip-only dependencies. They will be added to the `dependencies` list in `[tool.unidep]` under the `pip` key.
+
+**Example `pyproject.toml`:**
+
+```toml
+[build-system]
+requires = ["hatchling", "unidep"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my-project"
+version = "0.1.0"
+dependencies = [  # These will be handled according to the `project_dependency_handling` option
+  "requests",
+  "pandas",
+]
+
+[tool.unidep]
+project_dependency_handling = "same-name"  # Or "pip-only", "ignore"
+dependencies = [
+    {conda = "python-graphviz", pip = "graphivz"},
+]
+```
+
+**Notes:**
+
+- The `project_dependency_handling` option only affects how dependencies from `[project.dependencies]` are processed. Dependencies directly listed under `[tool.unidep.dependencies]` are handled as before.
+- This feature is helpful for projects that are already using the standard `[project.dependencies]` field and want to integrate `unidep` without duplicating their dependency list.
+- The `project_dependency_handling` feature is _*only available*_ when using `pyproject.toml` files. It is not supported in `requirements.yaml` files.
+
 ## :jigsaw: Build System Integration
 
 > [!TIP]
@@ -527,6 +567,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -561,7 +602,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
@@ -591,6 +633,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->
@@ -615,6 +659,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
+                      [--no-uv]
                       files [files ...]
 
 Automatically install all dependencies from one or more `requirements.yaml` or
@@ -649,7 +694,8 @@ options:
                         specifying a different package to skip. For example,
                         use `--skip-dependency pandas` to skip installing
                         pandas.
-  --no-dependencies     Skip installing dependencies from `requirements.yaml`
+  --no-dependencies, --no-deps
+                        Skip installing dependencies from `requirements.yaml`
                         or `pyproject.toml` file(s) and only install local
                         package(s). Useful after installing a `conda-lock.yml`
                         file because then all dependencies have already been
@@ -679,6 +725,8 @@ options:
                         the new environment. Assumes that the lock file
                         contains all dependencies. Must be used with `--conda-
                         env-name` or `--conda-env-prefix`.
+  --no-uv               Disables the use of `uv` for pip install. By default,
+                        `uv` is used if it is available in the PATH.
 ```
 
 <!-- OUTPUT:END -->

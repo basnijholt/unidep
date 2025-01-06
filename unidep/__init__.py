@@ -17,6 +17,7 @@ from unidep._setuptools_integration import (
 from unidep._version import __version__
 
 __all__ = [
+    "__version__",
     "create_conda_env_specification",
     "filter_python_dependencies",
     "find_requirements_files",
@@ -25,5 +26,4 @@ __all__ = [
     "parse_requirements",
     "resolve_conflicts",
     "write_conda_environment_file",
-    "__version__",
 ]
