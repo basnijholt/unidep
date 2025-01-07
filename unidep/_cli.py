@@ -860,7 +860,14 @@ def _pip_install_local(
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     if _use_uv(no_uv):
-        pip_command = ["uv", "pip", "install", "--python", python_executable]
+        pip_command = [
+            *conda_run,
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python_executable,
+        ]
     else:
         pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
 
@@ -975,8 +982,10 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_prefix,
     )
     if env_spec.pip and not skip_pip:
+        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         if _use_uv(no_uv):
             pip_command = [
+                *conda_run,
                 "uv",
                 "pip",
                 "install",
@@ -985,11 +994,6 @@ def _install_command(  # noqa: PLR0912, PLR0915
                 *env_spec.pip,
             ]
         else:
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
             pip_command = [
                 *conda_run,
                 python_executable,
