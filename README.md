@@ -485,7 +485,7 @@ See `unidep merge -h` for more information:
 usage: unidep merge [-h] [-o OUTPUT] [-n NAME] [--stdout]
                     [--selector {sel,comment}] [-d DIRECTORY] [--depth DEPTH]
                     [-v]
-                    [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
+                    [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--skip-dependency SKIP_DEPENDENCY]
                     [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
 
@@ -514,7 +514,7 @@ options:
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
                         `pyproject.toml` files, by default 1
   -v, --verbose         Print verbose output
-  --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
+  -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
@@ -555,7 +555,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
+                      [-n CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       [--no-uv]
@@ -601,7 +601,7 @@ options:
                         installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
-  --conda-env-name CONDA_ENV_NAME
+  -n CONDA_ENV_NAME, --conda-env-name CONDA_ENV_NAME
                         Name of the conda environment, if not provided, the
                         currently active environment name is used, unless
                         `--conda-env-prefix` is provided
@@ -647,7 +647,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [--conda-env-name CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
+                      [-n CONDA_ENV_NAME | --conda-env-prefix CONDA_ENV_PREFIX]
                       [--dry-run] [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       [--no-uv]
@@ -693,7 +693,7 @@ options:
                         installed.
   --conda-executable {conda,mamba,micromamba}
                         The conda executable to use
-  --conda-env-name CONDA_ENV_NAME
+  -n CONDA_ENV_NAME, --conda-env-name CONDA_ENV_NAME
                         Name of the conda environment, if not provided, the
                         currently active environment name is used, unless
                         `--conda-env-prefix` is provided
@@ -739,7 +739,7 @@ See `unidep conda-lock -h` for more information:
 usage: unidep conda-lock [-h] [--only-global] [--lockfile LOCKFILE]
                          [--check-input-hash] [-d DIRECTORY] [--depth DEPTH]
                          [-f FILE] [-v]
-                         [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
+                         [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                          [--skip-dependency SKIP_DEPENDENCY]
                          [--ignore-pin IGNORE_PIN]
                          [--overwrite-pin OVERWRITE_PIN]
@@ -784,7 +784,7 @@ options:
                         all `requirements.yaml` or `pyproject.toml` files in
                         the directory and its subdirectories.
   -v, --verbose         Print verbose output
-  --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
+  -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
@@ -823,7 +823,7 @@ See `unidep pip-compile -h` for more information:
 ```bash
 usage: unidep pip-compile [-h] [-o OUTPUT_FILE] [-d DIRECTORY] [--depth DEPTH]
                           [-v]
-                          [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
+                          [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                           [--skip-dependency SKIP_DEPENDENCY]
                           [--ignore-pin IGNORE_PIN]
                           [--overwrite-pin OVERWRITE_PIN]
@@ -858,7 +858,7 @@ options:
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
                         `pyproject.toml` files, by default 1
   -v, --verbose         Print verbose output
-  --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
+  -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
@@ -896,7 +896,7 @@ See `unidep pip -h` for more information:
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```bash
 usage: unidep pip [-h] [-f FILE] [-v]
-                  [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
+                  [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                   [--skip-dependency SKIP_DEPENDENCY]
                   [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
                   [--separator SEPARATOR]
@@ -915,7 +915,7 @@ options:
                         parse, or folder that contains that file, by default
                         `.`
   -v, --verbose         Print verbose output
-  --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
+  -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
@@ -955,7 +955,7 @@ See `unidep conda -h` for more information:
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```bash
 usage: unidep conda [-h] [-f FILE] [-v]
-                    [--platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
+                    [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
                     [--skip-dependency SKIP_DEPENDENCY]
                     [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
                     [--separator SEPARATOR]
@@ -974,7 +974,7 @@ options:
                         parse, or folder that contains that file, by default
                         `.`
   -v, --verbose         Print verbose output
-  --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
+  -p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
                         platforms can be specified. By default, the current
                         platform (`linux-64`) is used.
