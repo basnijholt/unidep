@@ -127,8 +127,8 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "platform" in options:
         current_platform = identify_current_platform()
         sub_parser.add_argument(
-            "--platform",
             "-p",
+            "--platform",
             type=str,
             action="append",  # Allow multiple instances of -p
             default=[],
@@ -195,6 +195,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "conda-env" in options:
         grp = sub_parser.add_mutually_exclusive_group()
         grp.add_argument(
+            "-n",
             "--conda-env-name",
             type=str,
             default=None,
