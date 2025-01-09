@@ -16,6 +16,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from unidep._conda_env import (
@@ -913,6 +914,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
+    start_time = time.time()
     paths_with_extras = [parse_folder_or_filename(f) for f in files]
     requirements = parse_requirements(
         *[f.path for f in paths_with_extras],
@@ -1053,7 +1055,9 @@ def _install_command(  # noqa: PLR0912, PLR0915
             )
 
     if not dry_run:  # pragma: no cover
-        print("✅ All dependencies installed successfully.")
+        total_time = time.time() - start_time
+        msg = f"✅ All dependencies installed successfully in {total_time:.2f} seconds."
+        print(msg)
 
 
 def _install_all_command(
