@@ -35,7 +35,7 @@ def _run_pixi_lock(
         print(f"🗑️ Removing existing `{pixi_lock_output}`")
         pixi_lock_output.unlink()
 
-    cmd = ["pixi", "list", *extra_flags]
+    cmd = ["pixi", "lock", "--manifest-path", str(pixi_toml), *extra_flags]
     print(f"🔒 Locking dependencies with `{' '.join(cmd)}`\n")
     try:
         with change_directory(pixi_toml.parent):
