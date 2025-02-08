@@ -161,8 +161,13 @@ def _process_dependencies(  # noqa: PLR0912
         # Also create one environment per feature.
         for feat in all_features:
             # Environment names cannot use _, only lowercase letters, digits, and -
-            name = feat.replace("_", "-")
+            name = feature_name_to_env_name(feat)
             pixi_data["environments"][name] = [feat]
+
+
+def feature_name_to_env_name(feature_name: str) -> str:
+    """Convert a feature name to a valid environment name."""
+    return feature_name.replace("_", "-")
 
 
 def _write_pixi_toml(

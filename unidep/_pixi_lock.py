@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 
 from unidep._dependencies_parsing import find_requirements_files
+from unidep._pixi import feature_name_to_env_name
 from unidep.utils import add_comment_to_file, change_directory
 
 if TYPE_CHECKING:
@@ -180,7 +181,8 @@ def _generate_sub_lock_file(
     """
     # Look up the environment for the given feature.
     envs = global_lock_data.get("environments", {})
-    env_data = envs.get(feature_name)
+    env_name = feature_name_to_env_name(feature_name)
+    env_data = envs.get(env_name)
     if env_data is None:
         msg = f"Feature '{feature_name}' not found in the global lock file."
         raise ValueError(msg)
