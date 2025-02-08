@@ -5,3 +5,6 @@ channels:
   - conda-forge
 dependencies:
   - conda: python_abi
+platforms:
+  - osx-64
+  - osx-arm64
