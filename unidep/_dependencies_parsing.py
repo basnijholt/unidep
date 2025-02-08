@@ -264,16 +264,19 @@ def _update_data_structures(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],  # modified in place
     all_extras: list[list[str]],  # modified in place
-    seen: set[PathWithExtras],  # modified in place
+    seen: set[tuple[PathWithExtras, ...]],  # modified in place
     yaml: YAML,
     is_nested: bool,
-    origin: Path | None = None,
+    origin: PathWithExtras | None = None,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
-    data["_origin"] = origin or path_with_extras.path
+    if origin is None:
+        data["_origin"] = path_with_extras.path
+    else:
+        data["_origin"] = origin.path
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
@@ -294,7 +297,11 @@ def _update_data_structures(
             verbose=verbose,
         )
 
-    seen.add(path_with_extras.resolved())
+    seen.add(
+        (origin.resolved(), path_with_extras.resolved())
+        if origin is not None
+        else (path_with_extras.resolved(),),
+    )
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
@@ -381,7 +388,7 @@ def _add_local_dependencies(
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],
     all_extras: list[list[str]],
-    seen: set[PathWithExtras],
+    seen: set[tuple[PathWithExtras, ...]],
     yaml: YAML,
     verbose: bool = False,
 ) -> None:
@@ -414,7 +421,7 @@ def _add_local_dependencies(
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
-        origin=path_with_extras.path,
+        origin=path_with_extras,
     )
 
 
@@ -455,7 +462,7 @@ def parse_requirements(
     # `data` and `all_extras` are lists of the same length
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
-    seen: set[PathWithExtras] = set()
+    seen: set[tuple[PathWithExtras, ...]] = set()
     yaml = YAML(typ="rt")  # Might be unused if all are TOML files
     for path_with_extras in paths_with_extras:
         _update_data_structures(
