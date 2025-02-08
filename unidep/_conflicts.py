@@ -88,11 +88,13 @@ def _maybe_new_spec_with_combined_pinnings(
         first = pinned_specs[0]
         pins = [m.pin for m in pinned_specs]
         pin = combine_version_pinnings(pins, name=first.name)  # type: ignore[arg-type]
+        combined_files = tuple({f for spec in specs for f in (spec.origin or ())})
         return Spec(
             name=first.name,
             which=first.which,
             pin=pin,
             identifier=first.identifier,  # should I create a new one?
+            origin=combined_files,
         )
 
     # Flatten the list
