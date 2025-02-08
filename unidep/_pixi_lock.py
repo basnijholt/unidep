@@ -151,7 +151,7 @@ def _check_consistent_lock_files(
 
 def _generate_sub_lock_file(
     feature_name: str,
-    global_lock_data: dict[str, any],
+    global_lock_data: dict[str, Any],
     yaml_obj: YAML,
     output_dir: Path,
 ) -> Path:
@@ -159,10 +159,14 @@ def _generate_sub_lock_file(
 
     Parameters
     ----------
-      - feature_name: The name of the feature (derived from the parent folder’s stem).
-      - global_lock_data: The global lock file data as a dict.
-      - yaml_obj: A ruamel.yaml YAML instance for dumping.
-      - output_dir: The directory where the sublock file should be written.
+    feature_name
+        The name of the feature (derived from the parent folder's stem).
+    global_lock_data
+        The global lock file data as a dict.
+    yaml_obj
+        A ruamel.yaml YAML instance for dumping.
+    output_dir
+        The directory where the sublock file should be written.
 
     Returns
     -------
@@ -178,32 +182,33 @@ def _generate_sub_lock_file(
     envs = global_lock_data.get("environments", {})
     env_data = envs.get(feature_name)
     if env_data is None:
-        raise ValueError(f"Feature '{feature_name}' not found in the global lock file.")
+        msg = f"Feature '{feature_name}' not found in the global lock file."
+        raise ValueError(msg)
 
-    # Create a new lock dictionary with version and a single environment renamed "default".
+    # Create a new lock dictionary with version and a single env renamed "default".
     new_lock = {
         "version": global_lock_data.get("version"),
         "environments": {"default": env_data},
     }
 
-    # Collect all URLs from the environment’s package list.
+    # Collect all URLs from the environment's package list.
     used_urls = set()
     # The environment data is expected to have a "packages" key mapping each platform
     # to a list of package entry dicts.
     env_packages = env_data.get("packages", {})
-    for platform, pkg_list in env_packages.items():
+    for pkg_list in env_packages.values():
         for pkg_entry in pkg_list:
             # Assume each pkg_entry is a dict with one key: either "conda" or "pypi"
-            for _, url in pkg_entry.items():
+            for url in pkg_entry.values():
                 used_urls.add(url)
 
-    # Filter the global packages list to include only those entries used in this environment.
+    # Filter the global packages list to include only those entries used in this env.
     global_packages = global_lock_data.get("packages", [])
-    filtered_packages = []
-    for pkg in global_packages:
-        # Check if either the value under "conda" or "pypi" is in used_urls.
-        if (pkg.get("conda") in used_urls) or (pkg.get("pypi") in used_urls):
-            filtered_packages.append(pkg)
+    filtered_packages = [
+        pkg
+        for pkg in global_packages
+        if (pkg.get("conda") in used_urls) or (pkg.get("pypi") in used_urls)
+    ]
     new_lock["packages"] = filtered_packages
 
     # Write the new lock file into output_dir as "pixi.lock"
@@ -219,9 +224,7 @@ def pixi_lock_command(
     depth: int,
     directory: Path,
     files: list[Path] | None,
-    platforms: list[
-        any
-    ],  # Platform type (import from unidep.platform_definitions if needed)
+    platforms: list[Platform],
     verbose: bool,
     only_global: bool,
     ignore_pins: list[str],
@@ -234,7 +237,7 @@ def pixi_lock_command(
     This command first creates a global lock file (using _pixi_lock_global).
     Then, if neither only_global is True nor specific files were passed, it scans
     for requirements files in subdirectories. For each such file, it derives a
-    feature name from the parent directory’s stem and generates a sub-lock file
+    feature name from the parent directory's stem and generates a sub-lock file
     that contains a single environment called "default" built from the corresponding
     environment in the global lock file.
     """
@@ -257,7 +260,7 @@ def pixi_lock_command(
         skip_dependencies=skip_dependencies,
         extra_flags=extra_flags,
     )
-    # If only_global is True or specific files were provided, do not generate sublock files.
+    # If only_global or specific files were provided, do not generate sublock files.
     if only_global or files:
         return
 
@@ -278,20 +281,15 @@ def pixi_lock_command(
         feature_name = req_file.resolve().parent.stem
         if verbose:
             print(
-                f"🔍 Processing sublock for feature '{feature_name}' from file: {req_file}",
+                f"🔍 Processing sublock for feature '{feature_name}' from file: {req_file}",  # noqa: E501,
             )
-        try:
-            sublock_file = _generate_sub_lock_file(
-                feature_name=feature_name,
-                global_lock_data=global_lock_data,
-                yaml_obj=yaml_obj,
-                output_dir=req_file.parent,
-            )
-        except Exception as e:  # noqa: BLE001
-            print(
-                f"⚠️  Error generating sublock for feature '{feature_name}' from {req_file}: {e}",
-            )
-            continue
+        sublock_file = _generate_sub_lock_file(
+            feature_name=feature_name,
+            global_lock_data=global_lock_data,
+            yaml_obj=yaml_obj,
+            output_dir=req_file.parent,
+        )
+
         print(f"📝 Generated sublock file for '{req_file}': {sublock_file}")
         sub_lock_files.append(sublock_file)
 
