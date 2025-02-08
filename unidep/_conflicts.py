@@ -78,7 +78,7 @@ def _pop_unused_platforms_and_maybe_expand_none(
         platform_data.pop(_platform)
 
 
-def _maybe_new_spec_with_combined_pinnings(
+def _maybe_new_spec_with_combined_pinnings_and_origins(
     specs: list[Spec],
 ) -> Spec:
     pinned_specs = [m for m in specs if m.pin is not None]
@@ -118,7 +118,7 @@ def _combine_pinning_within_platform(
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, specs in packages.items():
-            spec = _maybe_new_spec_with_combined_pinnings(specs)
+            spec = _maybe_new_spec_with_combined_pinnings_and_origins(specs)
             reduced_data[_platform][which] = spec
     return reduced_data
 
