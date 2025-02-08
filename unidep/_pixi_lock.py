@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import re
 import shutil
 import subprocess
 import sys
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep._dependencies_parsing import find_requirements_files, parse_requirements
+from unidep._dependencies_parsing import find_requirements_files
 from unidep.utils import add_comment_to_file, change_directory
 
 if TYPE_CHECKING:
@@ -112,197 +110,6 @@ class PixiLockSpec(NamedTuple):
     indexes: list[str]
 
 
-def _filter_clean_deps(dependencies: list[str]) -> list[str]:
-    package_names = []
-    for dep in dependencies:
-        # Split the dependency and the environment marker
-        if ";" in dep:
-            dep_part, marker_part = dep.split(";", 1)
-            marker_part = marker_part.strip()
-        else:
-            dep_part = dep
-            marker_part = ""
-
-        # Skip if 'extra ==' is in the environment marker
-        if "extra ==" in marker_part:
-            continue
-
-        # Extract the package name
-        dep_part = dep_part.strip()
-        package_name = re.split(r"[<>=!~\s]", dep_part)[0]
-        package_names.append(package_name)
-
-    return package_names
-
-
-def _parse_pixi_lock_packages(
-    pixi_lock_data: dict[str, Any],
-) -> dict[str, PixiLockSpec]:
-    # Build a mapping from URL to package metadata
-    url_to_package = {pkg["url"]: pkg for pkg in pixi_lock_data.get("packages", [])}
-    lock_specs: dict[str, PixiLockSpec] = {}
-    environments = pixi_lock_data.get("environments", {})
-    for env_name, env_data in environments.items():
-        deps: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(set)),
-        )
-        for platform, packages_dict in env_data.get("packages", {}).items():
-            for manager_url in packages_dict:
-                for manager, url in manager_url.items():
-                    dep = url_to_package[url]
-                    name = dep["name"]
-                    depends = dep.get(
-                        "depends" if manager == "conda" else "requires_dict",
-                        [],
-                    )
-                    deps[manager][platform][name].update(_filter_clean_deps(depends))
-
-        resolved: dict[CondaPip, dict[Platform, dict[str, set[str]]]] = {}
-        for manager, platforms in deps.items():
-            resolved_manager = resolved.setdefault(manager, {})
-            for _platform, pkgs in platforms.items():
-                _resolved: dict[str, set[str]] = {}
-                for package in list(pkgs):
-                    _recurse_pixi(package, _resolved, pkgs, set())
-                resolved_manager[_platform] = _resolved
-
-        packages: dict[tuple[CondaPip, Platform, str], list[dict[str, Any]]] = (
-            defaultdict(list)
-        )
-        for p in pixi_lock_data.get("packages", []):
-            # TODO: subdir is missing for pypi! This will cause issues
-            # later in the code.
-            key = (p["kind"], p.get("subdir"), p["name"])
-            # Could be multiple entries for the same package,
-            # e.g., different wheels for different OS versions
-            packages[key].append(p)
-
-        # Flatten the `dependencies` dict to same format as `packages`
-        dependencies = {
-            (which, platform, name): deps
-            for which, platforms in resolved.items()
-            for platform, pkgs in platforms.items()
-            for name, deps in pkgs.items()
-        }
-        lock_specs[env_name] = PixiLockSpec(
-            packages,
-            dependencies,
-            env_data.get("channels", []),
-            env_data.get("indexes", []),
-        )
-
-    return lock_specs
-
-
-def _recurse_pixi(
-    package_name: str,
-    resolved: dict[str, set[str]],
-    dependencies: dict[str, set[str]],
-    seen: set[str],
-) -> set[str]:
-    if package_name in resolved:
-        return resolved[package_name]
-    if package_name in seen:  # Circular dependency detected
-        return set()
-    seen.add(package_name)
-
-    all_deps = set(dependencies.get(package_name, []))
-    for dep in dependencies.get(package_name, []):
-        all_deps.update(_recurse_pixi(dep, resolved, dependencies, seen))
-
-    resolved[package_name] = all_deps
-    seen.remove(package_name)
-    return all_deps
-
-
-def _pixi_lock_subpackage(
-    *,
-    file: Path,
-    lock_spec: PixiLockSpec,
-    platforms: list[Platform],
-    yaml: YAML | None,
-) -> Path:
-    requirements = parse_requirements(file)
-    locked_entries: dict[Platform, list[dict]] = defaultdict(list)
-    locked_packages: list[dict] = []
-    locked_keys: set[tuple[CondaPip, Platform, str]] = set()
-    missing_keys: set[tuple[CondaPip, Platform, str]] = set()
-
-    def add_package_with_dependencies(
-        which: CondaPip,
-        platform: Platform,
-        name: str,
-    ) -> None:
-        key: tuple[CondaPip, Platform, str] = (which, platform, name)
-        if key in locked_keys:
-            return
-        if key not in lock_spec.packages:
-            missing_keys.add(key)
-            return
-        pkg_infos = lock_spec.packages[key]
-        for pkg_info in pkg_infos:
-            # Add to locked_entries
-            locked_entries[platform].append({pkg_info["kind"]: pkg_info["url"]})
-            # Add to locked_packages
-            locked_packages.append(pkg_info)
-        locked_keys.add(key)
-        # Recursively add dependencies
-        dependencies = lock_spec.dependencies.get(key, set())
-        for dep_name in dependencies:
-            add_package_with_dependencies(which, platform, dep_name)
-
-    for name, specs in requirements.requirements.items():
-        if name.startswith("__"):
-            continue
-        for spec in specs:
-            _platforms = spec.platforms()
-            if _platforms is None:
-                _platforms = platforms
-            else:
-                _platforms = [p for p in _platforms if p in platforms]
-
-            for _platform in _platforms:
-                add_package_with_dependencies(spec.which, _platform, name)
-
-    if missing_keys:
-        print(f"⚠️  Missing packages: {missing_keys}")
-
-    # Generate subproject pixi.lock
-    pixi_lock_output = file.parent / "pixi.lock"
-    sub_lock_data = {
-        "version": 5,
-        "environments": {
-            "default": {
-                "channels": lock_spec.channels,
-                "indexes": lock_spec.indexes,
-                "packages": dict(locked_entries),
-            },
-        },
-        "packages": locked_packages,
-    }
-
-    if yaml is None:
-        yaml = YAML(typ="rt")
-    yaml.default_flow_style = False
-    yaml.width = 4096
-    yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
-
-    with pixi_lock_output.open("w") as fp:
-        yaml.dump(sub_lock_data, fp)
-
-    add_comment_to_file(
-        pixi_lock_output,
-        extra_lines=[
-            "#",
-            "# This environment can be installed with",
-            "# `pixi install`",
-            "# This file is a `pixi.lock` file generated via `unidep`.",
-            "# For details see https://pixi.sh/",
-        ],
-    )
-    return pixi_lock_output
-
-
 def _check_consistent_lock_files(
     global_lock_file: Path,
     sub_lock_files: list[Path],
@@ -342,12 +149,79 @@ def _check_consistent_lock_files(
     return mismatches
 
 
+def _generate_sub_lock_file(
+    feature_name: str,
+    global_lock_data: dict[str, any],
+    yaml_obj: YAML,
+    output_dir: Path,
+) -> Path:
+    """Generate a sub-lock file for a given feature.
+
+    Parameters
+    ----------
+      - feature_name: The name of the feature (derived from the parent folder’s stem).
+      - global_lock_data: The global lock file data as a dict.
+      - yaml_obj: A ruamel.yaml YAML instance for dumping.
+      - output_dir: The directory where the sublock file should be written.
+
+    Returns
+    -------
+      - The Path to the newly written sub-lock file.
+
+    The new lock file will contain a single environment ("default") whose contents
+    are exactly the environment for the given feature in the global lock file. It
+    also includes only the package entries from the global "packages" list that are
+    used by that environment.
+
+    """
+    # Look up the environment for the given feature.
+    envs = global_lock_data.get("environments", {})
+    env_data = envs.get(feature_name)
+    if env_data is None:
+        raise ValueError(f"Feature '{feature_name}' not found in the global lock file.")
+
+    # Create a new lock dictionary with version and a single environment renamed "default".
+    new_lock = {
+        "version": global_lock_data.get("version"),
+        "environments": {"default": env_data},
+    }
+
+    # Collect all URLs from the environment’s package list.
+    used_urls = set()
+    # The environment data is expected to have a "packages" key mapping each platform
+    # to a list of package entry dicts.
+    env_packages = env_data.get("packages", {})
+    for platform, pkg_list in env_packages.items():
+        for pkg_entry in pkg_list:
+            # Assume each pkg_entry is a dict with one key: either "conda" or "pypi"
+            for _, url in pkg_entry.items():
+                used_urls.add(url)
+
+    # Filter the global packages list to include only those entries used in this environment.
+    global_packages = global_lock_data.get("packages", [])
+    filtered_packages = []
+    for pkg in global_packages:
+        # Check if either the value under "conda" or "pypi" is in used_urls.
+        if (pkg.get("conda") in used_urls) or (pkg.get("pypi") in used_urls):
+            filtered_packages.append(pkg)
+    new_lock["packages"] = filtered_packages
+
+    # Write the new lock file into output_dir as "pixi.lock"
+    output_file = output_dir / "pixi.lock"
+    with output_file.open("w") as f:
+        yaml_obj.dump(new_lock, f)
+    return output_file
+
+
+# Updated pixi_lock_command
 def pixi_lock_command(
     *,
     depth: int,
     directory: Path,
     files: list[Path] | None,
-    platforms: list[Platform],
+    platforms: list[
+        any
+    ],  # Platform type (import from unidep.platform_definitions if needed)
     verbose: bool,
     only_global: bool,
     ignore_pins: list[str],
@@ -355,14 +229,24 @@ def pixi_lock_command(
     overwrite_pins: list[str],
     extra_flags: list[str],
 ) -> None:
-    """Generate a pixi.lock file for a collection of dependencies."""
+    """Generate a pixi.lock file for a collection of dependencies.
+
+    This command first creates a global lock file (using _pixi_lock_global).
+    Then, if neither only_global is True nor specific files were passed, it scans
+    for requirements files in subdirectories. For each such file, it derives a
+    feature name from the parent directory’s stem and generates a sub-lock file
+    that contains a single environment called "default" built from the corresponding
+    environment in the global lock file.
+    """
+    # Process extra flags (assume they are prefixed with "--")
     if extra_flags:
         assert extra_flags[0] == "--"
         extra_flags = extra_flags[1:]
         if verbose:
             print(f"📝 Extra flags for `pixi lock`: {extra_flags}")
 
-    pixi_lock_output = _pixi_lock_global(
+    # Step 1: Generate the global lock file.
+    global_lock_file = _pixi_lock_global(
         depth=depth,
         directory=directory,
         files=files,
@@ -373,29 +257,47 @@ def pixi_lock_command(
         skip_dependencies=skip_dependencies,
         extra_flags=extra_flags,
     )
+    # If only_global is True or specific files were provided, do not generate sublock files.
     if only_global or files:
         return
 
-    with YAML(typ="safe") as yaml, pixi_lock_output.open() as fp:
-        global_lock_data = yaml.load(fp)
+    # Step 2: Load the global lock file.
+    yaml_obj = YAML(typ="rt")
+    with global_lock_file.open() as fp:
+        global_lock_data = yaml_obj.load(fp)
 
-    lock_specs = _parse_pixi_lock_packages(global_lock_data)["default"]
-    sub_lock_files = []
+    # Step 3: Find all requirements files in subdirectories.
     found_files = find_requirements_files(directory, depth)
-    for file in found_files:
-        if file.parent == directory:
+    sub_lock_files = []
+    for req_file in found_files:
+        # Skip files in the root directory.
+        if req_file.parent == directory:
             continue
-        sublock_file = _pixi_lock_subpackage(
-            file=file,
-            lock_spec=lock_specs,
-            platforms=platforms,
-            yaml=yaml,
-        )
-        print(f"📝 Generated lock file for `{file}`: `{sublock_file}`")
+
+        # Derive feature name from the parent directory's stem.
+        feature_name = req_file.resolve().parent.stem
+        if verbose:
+            print(
+                f"🔍 Processing sublock for feature '{feature_name}' from file: {req_file}",
+            )
+        try:
+            sublock_file = _generate_sub_lock_file(
+                feature_name=feature_name,
+                global_lock_data=global_lock_data,
+                yaml_obj=yaml_obj,
+                output_dir=req_file.parent,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(
+                f"⚠️  Error generating sublock for feature '{feature_name}' from {req_file}: {e}",
+            )
+            continue
+        print(f"📝 Generated sublock file for '{req_file}': {sublock_file}")
         sub_lock_files.append(sublock_file)
 
+    # Step 3: Check consistency between the global and the sublock files.
     mismatches = _check_consistent_lock_files(
-        global_lock_file=pixi_lock_output,
+        global_lock_file=global_lock_file,
         sub_lock_files=sub_lock_files,
     )
     if not mismatches:
