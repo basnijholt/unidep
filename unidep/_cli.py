@@ -16,6 +16,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from unidep._conda_env import (
@@ -129,8 +130,8 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "platform" in options:
         current_platform = identify_current_platform()
         sub_parser.add_argument(
-            "--platform",
             "-p",
+            "--platform",
             type=str,
             action="append",  # Allow multiple instances of -p
             default=[],
@@ -197,6 +198,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "conda-env" in options:
         grp = sub_parser.add_mutually_exclusive_group()
         grp.add_argument(
+            "-n",
             "--conda-env-name",
             type=str,
             default=None,
@@ -918,7 +920,14 @@ def _pip_install_local(
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     if _use_uv(no_uv):
-        pip_command = ["uv", "pip", "install", "--python", python_executable]
+        pip_command = [
+            *conda_run,
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python_executable,
+        ]
     else:
         pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
 
@@ -963,6 +972,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
     verbose: bool = False,
 ) -> None:
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
+    start_time = time.time()
     paths_with_extras = [parse_folder_or_filename(f) for f in files]
     requirements = parse_requirements(
         *[f.path for f in paths_with_extras],
@@ -1052,8 +1062,10 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         conda_env_prefix,
     )
     if env_spec.pip and not skip_pip:
+        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         if _use_uv(no_uv):
             pip_command = [
+                *conda_run,
                 "uv",
                 "pip",
                 "install",
@@ -1062,11 +1074,6 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
                 *env_spec.pip,
             ]
         else:
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
             pip_command = [
                 *conda_run,
                 python_executable,
@@ -1125,7 +1132,9 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
             )
 
     if not dry_run:  # pragma: no cover
-        print("✅ All dependencies installed successfully.")
+        total_time = time.time() - start_time
+        msg = f"✅ All dependencies installed successfully in {total_time:.2f} seconds."
+        print(msg)
 
 
 def _install_all_command(
