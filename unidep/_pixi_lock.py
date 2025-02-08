@@ -218,7 +218,6 @@ def _generate_sub_lock_file(
     return output_file
 
 
-# Updated pixi_lock_command
 def pixi_lock_command(
     *,
     depth: int,

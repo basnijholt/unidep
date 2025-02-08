@@ -60,7 +60,14 @@ def _initialize_pixi_data(
     return pixi_data
 
 
-def group_by_origin(
+def _format_pin(pin: str) -> Any:
+    parts = pin.split()
+    if len(parts) == 2:  # noqa: PLR2004
+        return {"version": parts[0], "build": parts[1]}
+    return pin
+
+
+def _group_by_origin(
     resolved_deps: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
 ) -> dict[Path, dict[str, dict[Platform | None, dict[CondaPip, Spec]]]]:
     groups: dict[Path, dict[str, dict[Platform | None, dict[CondaPip, Spec]]]] = {}
@@ -84,7 +91,7 @@ def _process_dependencies(  # noqa: PLR0912
     """Process the resolved dependencies and update the pixi manifest data.
 
     This function first groups the resolved dependencies by origin (using
-    group_by_origin) and then creates a separate feature (under the "feature"
+    _group_by_origin) and then creates a separate feature (under the "feature"
     key in pixi_data) for each origin. The feature name is derived using the
     parent directory's stem of the origin file.
 
@@ -94,7 +101,7 @@ def _process_dependencies(  # noqa: PLR0912
       - one environment per feature (with the feature name as the sole member).
     """
     # --- Step 1: Group by origin and create per-origin features ---
-    origin_groups = group_by_origin(resolved_dependencies)
+    origin_groups = _group_by_origin(resolved_dependencies)
     features = pixi_data.setdefault("feature", {})
 
     for origin_path, group_deps in origin_groups.items():
@@ -115,6 +122,7 @@ def _process_dependencies(  # noqa: PLR0912
         for pkg_name, platform_to_spec in group_conda.items():
             for _platform, spec in platform_to_spec.items():
                 pin = spec.pin or "*"
+                pin = _format_pin(pin)
                 if _platform is None:
                     feature_entry["dependencies"][pkg_name] = pin
                 else:
