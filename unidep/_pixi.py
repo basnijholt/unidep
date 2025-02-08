@@ -60,48 +60,101 @@ def _initialize_pixi_data(
     return pixi_data
 
 
-def _process_dependencies(
+def group_by_origin(
+    resolved_deps: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
+) -> dict[Path, dict[str, dict[Platform | None, dict[CondaPip, Spec]]]]:
+    groups: dict[Path, dict[str, dict[Platform | None, dict[CondaPip, Spec]]]] = {}
+    for pkg_name, platform_map in resolved_deps.items():
+        for plat, manager_map in platform_map.items():
+            for manager, spec in manager_map.items():
+                for origin in spec.origin:
+                    # Normalize origin to a Path object
+                    origin_path = Path(origin)
+                    groups.setdefault(origin_path, {})
+                    groups[origin_path].setdefault(pkg_name, {})
+                    groups[origin_path][pkg_name].setdefault(plat, {})
+                    groups[origin_path][pkg_name][plat][manager] = spec
+    return groups
+
+
+def _process_dependencies(  # noqa: PLR0912
     pixi_data: dict[str, dict[str, Any]],
     resolved_dependencies: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
 ) -> None:
-    # Extract conda and pip dependencies
-    conda_deps, pip_deps = _extract_conda_pip_dependencies(resolved_dependencies)
+    """Process the resolved dependencies and update the pixi manifest data.
 
-    # Process conda dependencies
-    for pkg_name, platform_to_spec in conda_deps.items():
-        for _platform, spec in platform_to_spec.items():
-            pin = spec.pin or "*"
-            if _platform is None:
-                # Applies to all platforms
-                pixi_data["dependencies"][pkg_name] = pin
-            else:
-                # Platform-specific dependency
-                # Ensure target section exists
-                target = pixi_data["target"].setdefault(_platform, {})
-                deps = target.setdefault("dependencies", {})
-                deps[pkg_name] = pin
+    This function first groups the resolved dependencies by origin (using
+    group_by_origin) and then creates a separate feature (under the "feature"
+    key in pixi_data) for each origin. The feature name is derived using the
+    parent directory's stem of the origin file.
 
-    # Process pip dependencies
-    for pkg_name, platform_to_spec in pip_deps.items():
-        for _platform, spec in platform_to_spec.items():
-            pin = spec.pin or "*"
-            if _platform is None:
-                # Applies to all platforms
-                pixi_data["pypi-dependencies"][pkg_name] = pin
-            else:
-                # Platform-specific dependency
-                # Ensure target section exists
-                target = pixi_data["target"].setdefault(_platform, {})
-                deps = target.setdefault("pypi-dependencies", {})
-                deps[pkg_name] = pin
+    After creating the per-origin features, if the manifest does not yet have an
+    "environments" table, we automatically add one with:
+      - a "default" environment that includes all features, and
+      - one environment per feature (with the feature name as the sole member).
+    """
+    # --- Step 1: Group by origin and create per-origin features ---
+    origin_groups = group_by_origin(resolved_dependencies)
+    features = pixi_data.setdefault("feature", {})
 
-    # Remove empty sections if necessary
-    if not pixi_data["dependencies"]:
-        del pixi_data["dependencies"]
-    if not pixi_data["pypi-dependencies"]:
-        del pixi_data["pypi-dependencies"]
-    if not pixi_data["target"]:
-        del pixi_data["target"]
+    for origin_path, group_deps in origin_groups.items():
+        # Derive a feature name from the parent folder of the origin file.
+        feature_name = origin_path.resolve().parent.stem
+
+        # Initialize the feature entry.
+        feature_entry: dict[str, Any] = {
+            "dependencies": {},
+            "pypi-dependencies": {},
+            "target": {},
+        }
+
+        # Extract conda and pip dependencies from the grouped data.
+        group_conda, group_pip = _extract_conda_pip_dependencies(group_deps)
+
+        # Process conda dependencies for this feature.
+        for pkg_name, platform_to_spec in group_conda.items():
+            for _platform, spec in platform_to_spec.items():
+                pin = spec.pin or "*"
+                if _platform is None:
+                    feature_entry["dependencies"][pkg_name] = pin
+                else:
+                    target = feature_entry["target"].setdefault(_platform, {})
+                    deps = target.setdefault("dependencies", {})
+                    deps[pkg_name] = pin
+
+        # Process pip dependencies for this feature.
+        for pkg_name, platform_to_spec in group_pip.items():
+            for _platform, spec in platform_to_spec.items():
+                pin = spec.pin or "*"
+                if _platform is None:
+                    feature_entry["pypi-dependencies"][pkg_name] = pin
+                else:
+                    target = feature_entry["target"].setdefault(_platform, {})
+                    deps = target.setdefault("pypi-dependencies", {})
+                    deps[pkg_name] = pin
+
+        # Remove empty sections.
+        if not feature_entry["dependencies"]:
+            del feature_entry["dependencies"]
+        if not feature_entry["pypi-dependencies"]:
+            del feature_entry["pypi-dependencies"]
+        if not feature_entry["target"]:
+            del feature_entry["target"]
+
+        # Save this feature entry.
+        features[feature_name] = feature_entry
+
+    # --- Step 2: Automatically add the environments table if not already defined ---
+    if "environments" not in pixi_data:
+        all_features = list(features.keys())
+        pixi_data["environments"] = {}
+        # The "default" environment will include all features.
+        pixi_data["environments"]["default"] = all_features
+        # Also create one environment per feature.
+        for feat in all_features:
+            # Environment names cannot use _, only lowercase letters, digits, and -
+            name = feat.replace("_", "-")
+            pixi_data["environments"][name] = [feat]
 
 
 def _write_pixi_toml(
