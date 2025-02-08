@@ -2581,3 +2581,130 @@ def test_optional_dependencies_with_version_specifier(
     )
     assert resolved.keys() == {"adaptive"}
     assert resolved["adaptive"][None]["conda"].pin == "=0.13.2"
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_origin_in_spec(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    d1 = tmp_path / "dir1"
+    d1.mkdir()
+    f1 = d1 / "requirements.yaml"
+    f1.write_text("dependencies:\n  - numpy\n  - conda: mumps")
+
+    d2 = tmp_path / "dir2"
+    d2.mkdir()
+    f2 = d2 / "requirements.yaml"
+    f2.write_text("dependencies:\n  - pip: pandas\n  - numpy")
+    f1 = maybe_as_toml(toml_or_yaml, f1)
+    f2 = maybe_as_toml(toml_or_yaml, f2)
+
+    requirements = parse_requirements(f1, f2, verbose=False)
+    assert requirements.requirements == {
+        "numpy": [
+            Spec(
+                name="numpy",
+                which="conda",
+                pin=None,
+                identifier="17e5d607",
+                selector=None,
+                origin=(f1,),
+            ),
+            Spec(
+                name="numpy",
+                which="pip",
+                pin=None,
+                identifier="17e5d607",
+                selector=None,
+                origin=(f1,),
+            ),
+            Spec(
+                name="numpy",
+                which="conda",
+                pin=None,
+                identifier="9e467fa1",
+                selector=None,
+                origin=(f2,),
+            ),
+            Spec(
+                name="numpy",
+                which="pip",
+                pin=None,
+                identifier="9e467fa1",
+                selector=None,
+                origin=(f2,),
+            ),
+        ],
+        "mumps": [
+            Spec(
+                name="mumps",
+                which="conda",
+                pin=None,
+                identifier="5eb93b8c",
+                selector=None,
+                origin=(f1,),
+            ),
+        ],
+        "pandas": [
+            Spec(
+                name="pandas",
+                which="pip",
+                pin=None,
+                identifier="08fd8713",
+                selector=None,
+                origin=(f2,),
+            ),
+        ],
+    }
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+    )
+    assert resolved == {
+        "numpy": {
+            None: {
+                "conda": Spec(
+                    name="numpy",
+                    which="conda",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                    origin=(f1, f2),
+                ),
+                "pip": Spec(
+                    name="numpy",
+                    which="pip",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                    origin=(f1, f2),
+                ),
+            },
+        },
+        "mumps": {
+            None: {
+                "conda": Spec(
+                    name="mumps",
+                    which="conda",
+                    pin=None,
+                    identifier="5eb93b8c",
+                    selector=None,
+                    origin=(f1,),
+                ),
+            },
+        },
+        "pandas": {
+            None: {
+                "pip": Spec(
+                    name="pandas",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                    origin=(f2,),
+                ),
+            },
+        },
+    }
