@@ -103,30 +103,69 @@ def test_project_dependency_handling_in_pyproject_toml(
 
     expected = {
         "python-graphviz": [
-            Spec(name="python-graphviz", which="conda", identifier="17e5d607"),
+            Spec(
+                name="python-graphviz",
+                which="conda",
+                identifier="17e5d607",
+                origin=(p,),
+            ),
         ],
         "graphviz": [
-            Spec(name="graphviz", which="pip", identifier="17e5d607"),
-            Spec(name="graphviz", which="conda", identifier="5eb93b8c"),
+            Spec(name="graphviz", which="pip", identifier="17e5d607", origin=(p,)),
+            Spec(name="graphviz", which="conda", identifier="5eb93b8c", origin=(p,)),
         ],
     }
     if project_dependency_handling == "pip-only":
         expected.update(
             {
-                "requests": [Spec(name="requests", which="pip", identifier="08fd8713")],
-                "pandas": [Spec(name="pandas", which="pip", identifier="9e467fa1")],
+                "requests": [
+                    Spec(
+                        name="requests",
+                        which="pip",
+                        identifier="08fd8713",
+                        origin=(p,),
+                    ),
+                ],
+                "pandas": [
+                    Spec(
+                        name="pandas",
+                        which="pip",
+                        identifier="9e467fa1",
+                        origin=(p,),
+                    ),
+                ],
             },
         )
     elif project_dependency_handling == "same-name":
         expected.update(
             {
                 "requests": [
-                    Spec(name="requests", which="conda", identifier="08fd8713"),
-                    Spec(name="requests", which="pip", identifier="08fd8713"),
+                    Spec(
+                        name="requests",
+                        which="conda",
+                        identifier="08fd8713",
+                        origin=(p,),
+                    ),
+                    Spec(
+                        name="requests",
+                        which="pip",
+                        identifier="08fd8713",
+                        origin=(p,),
+                    ),
                 ],
                 "pandas": [
-                    Spec(name="pandas", which="conda", identifier="9e467fa1"),
-                    Spec(name="pandas", which="pip", identifier="9e467fa1"),
+                    Spec(
+                        name="pandas",
+                        which="conda",
+                        identifier="9e467fa1",
+                        origin=(p,),
+                    ),
+                    Spec(
+                        name="pandas",
+                        which="pip",
+                        identifier="9e467fa1",
+                        origin=(p,),
+                    ),
                 ],
             },
         )
