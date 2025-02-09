@@ -267,13 +267,13 @@ def _update_data_structures(
     seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
     is_nested: bool,
-    origin: Path | None = None,
+    origin: Path,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
-    data["_origin"] = origin or path_with_extras.path
+    data["_origin"] = origin
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
@@ -307,6 +307,7 @@ def _update_data_structures(
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
+            origin=origin,
             verbose=verbose,
         )
 
@@ -383,6 +384,7 @@ def _add_local_dependencies(
     all_extras: list[list[str]],
     seen: set[PathWithExtras],
     yaml: YAML,
+    origin: Path,
     verbose: bool = False,
 ) -> None:
     try:
@@ -414,7 +416,7 @@ def _add_local_dependencies(
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
-        origin=path_with_extras.path,
+        origin=origin,
     )
 
 
@@ -466,6 +468,7 @@ def parse_requirements(
             yaml=yaml,
             verbose=verbose,
             is_nested=False,
+            origin=path_with_extras.path,
         )
 
     assert len(datas) == len(all_extras)
