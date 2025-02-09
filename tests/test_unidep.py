@@ -22,7 +22,7 @@ from unidep import (
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import is_pip_installable
+from unidep.utils import PathWithExtras, is_pip_installable
 
 from .helpers import maybe_as_toml
 
@@ -2355,6 +2355,7 @@ def test_pip_dep_with_extras(
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
+    path_with_extras = PathWithExtras(p, extras=["*"])
     assert resolved == {
         "adaptive": {
             None: {
@@ -2364,7 +2365,7 @@ def test_pip_dep_with_extras(
                     pin=None,
                     identifier="17e5d607",
                     selector=None,
-                    origin=(p,),
+                    origin=(path_with_extras,),
                 ),
             },
         },
@@ -2376,7 +2377,7 @@ def test_pip_dep_with_extras(
                     pin=None,
                     identifier="17e5d607",
                     selector=None,
-                    origin=(p,),
+                    origin=(path_with_extras,),
                 ),
             },
         },

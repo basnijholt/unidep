@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from unidep.utils import PathWithExtras
+
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
@@ -123,7 +125,7 @@ class Spec(NamedTuple):
     identifier: str | None = None
     # can be of type `Selector` but also space separated string of `Selector`s
     selector: str | None = None
-    origin: tuple[Path, ...] = ()
+    origin: tuple[Path | PathWithExtras, ...] = ()
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""

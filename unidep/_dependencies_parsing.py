@@ -112,7 +112,7 @@ def _parse_dependency(
     ignore_pins: list[str],
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
-    origin: Path,
+    origin: Path | PathWithExtras,
 ) -> list[Spec]:
     name, pin, selector = parse_package_str(dependency)
     if name in ignore_pins:
@@ -498,7 +498,7 @@ def parse_requirements(
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
-                origin=data["_origin"].path,
+                origin=_maybe_path(data["_origin"]),
             )
         for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
             if opt_name in _extras or "*" in _extras:
@@ -510,7 +510,7 @@ def parse_requirements(
                     overwrite_pins_map,
                     skip_dependencies,
                     is_optional=True,
-                    origin=data["_origin"].path,
+                    origin=_maybe_path(data["_origin"]),
                 )
 
     return ParsedRequirements(
@@ -519,6 +519,12 @@ def parse_requirements(
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
     )
+
+
+def _maybe_path(path_with_extras: PathWithExtras) -> Path | PathWithExtras:
+    if path_with_extras.extras:
+        return path_with_extras
+    return path_with_extras.path
 
 
 def _str_is_path_like(s: str) -> bool:
@@ -547,7 +553,7 @@ def _add_dependencies(
     skip_dependencies: list[str],
     *,
     is_optional: bool = False,
-    origin: Path,
+    origin: Path | PathWithExtras,
 ) -> int:
     for i, dep in enumerate(dependencies):
         identifier += 1
