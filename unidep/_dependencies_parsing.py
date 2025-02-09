@@ -267,16 +267,13 @@ def _update_data_structures(
     seen: set[tuple[PathWithExtras, ...]],  # modified in place
     yaml: YAML,
     is_nested: bool,
-    origin: PathWithExtras | None = None,
+    origin: PathWithExtras,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
-    if origin is None:
-        data["_origin"] = path_with_extras.path
-    else:
-        data["_origin"] = origin.path
+    data["_origin"] = origin
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
@@ -297,11 +294,7 @@ def _update_data_structures(
             verbose=verbose,
         )
 
-    seen.add(
-        (origin.resolved(), path_with_extras.resolved())
-        if origin is not None
-        else (path_with_extras.resolved(),),
-    )
+    seen.add(_unique([path_with_extras, origin]))
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
@@ -314,8 +307,14 @@ def _update_data_structures(
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
+            origin=origin,
             verbose=verbose,
         )
+
+
+def _unique(paths: list[PathWithExtras]) -> tuple[PathWithExtras, ...]:
+    """Remove duplicates from a list of PathWithExtras."""
+    return tuple(sorted({p.resolved() for p in paths}))
 
 
 def _move_optional_dependencies_to_dependencies(
@@ -390,6 +389,7 @@ def _add_local_dependencies(
     all_extras: list[list[str]],
     seen: set[tuple[PathWithExtras, ...]],
     yaml: YAML,
+    origin: PathWithExtras,
     verbose: bool = False,
 ) -> None:
     try:
@@ -409,7 +409,7 @@ def _add_local_dependencies(
                 "detect its dependencies.",
             )
         return
-    if requirements_dep_file.resolved() in seen:
+    if _unique([origin, requirements_dep_file]) in seen:
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
@@ -421,7 +421,7 @@ def _add_local_dependencies(
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
-        origin=path_with_extras,
+        origin=origin,
     )
 
 
@@ -473,6 +473,7 @@ def parse_requirements(
             yaml=yaml,
             verbose=verbose,
             is_nested=False,
+            origin=path_with_extras,
         )
 
     assert len(datas) == len(all_extras)
@@ -497,7 +498,7 @@ def parse_requirements(
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
-                origin=data["_origin"],
+                origin=data["_origin"].path,
             )
         for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
             if opt_name in _extras or "*" in _extras:
@@ -509,7 +510,7 @@ def parse_requirements(
                     overwrite_pins_map,
                     skip_dependencies,
                     is_optional=True,
-                    origin=data["_origin"],
+                    origin=data["_origin"].path,
                 )
 
     return ParsedRequirements(
