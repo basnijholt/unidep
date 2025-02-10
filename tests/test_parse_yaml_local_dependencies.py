@@ -129,12 +129,16 @@ def test_circular_local_dependencies_with_common(
     # but `resolve_conflicts` will remove the duplicates
     assert len(requirements.requirements["adaptive"]) == 4
     assert len(requirements.requirements["adaptive-scheduler"]) == 2
-    assert len(requirements.requirements["unidep"]) == 4
+    unidep = requirements.requirements["unidep"]
+    assert len(unidep) == 4
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert len(resolved["adaptive"]) == 1
     assert len(resolved["adaptive"][None]) == 2
     assert len(resolved["adaptive-scheduler"]) == 1
     assert len(resolved["adaptive-scheduler"][None]) == 2
+    unidep_origin = resolved["unidep"][None]["conda"].origin
+    # Should have all 3 files in its origin
+    assert len(unidep_origin) == 3
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])

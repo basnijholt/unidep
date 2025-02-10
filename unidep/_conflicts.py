@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING
 from packaging import version
 
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import PathWithExtras, defaultdict_to_dict, warn
+from unidep.utils import (
+    PathWithExtras,
+    defaultdict_to_dict,
+    unique_path_with_extras,
+    warn,
+)
 
 if sys.version_info >= (3, 8):
     from typing import get_args
@@ -21,8 +26,6 @@ else:  # pragma: no cover
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from unidep.platform_definitions import CondaPip
 
 VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
@@ -80,10 +83,8 @@ def _pop_unused_platforms_and_maybe_expand_none(
         platform_data.pop(_platform)
 
 
-def _path_sort_key(path: PathWithExtras | Path) -> str:
-    if isinstance(path, PathWithExtras):
-        return str(path.resolved().path_with_extras)
-    return str(path.resolve())
+def _path_sort_key(path: PathWithExtras) -> str:
+    return str(path.resolved().path_with_extras)
 
 
 def _maybe_new_spec_with_combined_pinnings_and_origins(
@@ -91,7 +92,10 @@ def _maybe_new_spec_with_combined_pinnings_and_origins(
 ) -> Spec:
     pinned_specs = [m for m in specs if m.pin is not None]
     combined_origin = tuple(
-        sorted({p for s in specs for p in s.origin}, key=_path_sort_key),
+        sorted(
+            unique_path_with_extras(*(p for s in specs for p in s.origin)),
+            key=_path_sort_key,
+        ),
     )
     if len(pinned_specs) == 1:
         if len(combined_origin) == 1:
