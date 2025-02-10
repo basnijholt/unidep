@@ -93,10 +93,16 @@ def _maybe_new_spec_with_combined_pinnings_and_origins(
     pinned_specs = [m for m in specs if m.pin is not None]
     combined_origin = tuple(
         sorted(
-            unique_path_with_extras(*(p for s in specs for p in s.origin)),
+            # Only check the last one, which is the real origin
+            # Alternatively, bin by "real origin" (the last) and choose the
+            # shortest path to it.
+            # Or do: `unique_path_with_extras(*(p for s in specs for p in s.origin))`
+            # Still need to think about the best approach here
+            unique_path_with_extras(*(s.origin[-1] for s in specs)),
             key=_path_sort_key,
         ),
     )
+
     if len(pinned_specs) == 1:
         if len(combined_origin) == 1:
             return pinned_specs[0]
