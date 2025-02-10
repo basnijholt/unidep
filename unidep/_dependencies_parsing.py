@@ -26,6 +26,7 @@ from unidep.utils import (
     selector_from_comment,
     split_path_and_extras,
     unidep_configured_in_toml,
+    unique_path_with_extras,
     warn,
 )
 
@@ -129,19 +130,12 @@ def _parse_dependency(
     if comment and selector is None:
         selector = selector_from_comment(comment)
     identifier_hash = _identifier(identifier, selector)
-    origin_paths = _maybe_paths(origin)  # makes testing easier
     if which == "both":
         return [
-            Spec(name, "conda", pin, identifier_hash, selector, origin=origin_paths),
-            Spec(name, "pip", pin, identifier_hash, selector, origin=origin_paths),
+            Spec(name, "conda", pin, identifier_hash, selector, origin=origin),
+            Spec(name, "pip", pin, identifier_hash, selector, origin=origin),
         ]
-    return [Spec(name, which, pin, identifier_hash, selector, origin=origin_paths)]
-
-
-def _maybe_paths(
-    path_with_extras: tuple[PathWithExtras, ...],
-) -> tuple[Path | PathWithExtras, ...]:
-    return tuple(p if p.extras else p.path for p in path_with_extras)
+    return [Spec(name, which, pin, identifier_hash, selector, origin=origin)]
 
 
 class ParsedRequirements(NamedTuple):
@@ -280,7 +274,7 @@ def _update_data_structures(
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
-    origin = _unique_path_with_extras(*origin, path_with_extras)
+    origin = unique_path_with_extras(*origin, path_with_extras)
     data["_origin"] = origin
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
@@ -325,15 +319,6 @@ def _unique_sorted_resolved(
 ) -> tuple[PathWithExtras, ...]:
     """Remove duplicates from a list of PathWithExtras."""
     return tuple(sorted({p.resolved() for p in paths}))
-
-
-def _unique_path_with_extras(*paths: PathWithExtras) -> tuple[PathWithExtras, ...]:
-    unique: list[PathWithExtras] = []
-    for p in paths:
-        if p.resolved() in [p_.resolved() for p_ in unique]:
-            continue
-        unique.append(p)
-    return tuple(unique)
 
 
 def _move_optional_dependencies_to_dependencies(

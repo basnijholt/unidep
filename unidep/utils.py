@@ -311,6 +311,8 @@ class PathWithExtras(NamedTuple):
 
     def __eq__(self, other: object) -> bool:
         """Check if two `PathWithExtras` are equal."""
+        if isinstance(other, Path):
+            return self.path_with_extras == other
         if not isinstance(other, PathWithExtras):
             return NotImplemented
         return self.path == other.path and set(self.extras) == set(other.extras)
@@ -336,6 +338,16 @@ def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
         msg = f"File `{path}` not found."
         raise FileNotFoundError(msg)
     return PathWithExtras(path, extras)
+
+
+def unique_path_with_extras(*paths: PathWithExtras) -> tuple[PathWithExtras, ...]:
+    """Ensures all paths are unique, maintains order."""
+    unique: list[PathWithExtras] = []
+    for p in paths:
+        if p.resolved() in [p_.resolved() for p_ in unique]:
+            continue
+        unique.append(p)
+    return tuple(unique)
 
 
 def defaultdict_to_dict(d: defaultdict | Any) -> dict:
