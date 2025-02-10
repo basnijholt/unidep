@@ -112,7 +112,7 @@ def _parse_dependency(
     ignore_pins: list[str],
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
-    origin: Path | PathWithExtras,
+    origin: tuple[PathWithExtras, ...],
 ) -> list[Spec]:
     name, pin, selector = parse_package_str(dependency)
     if name in ignore_pins:
@@ -129,12 +129,19 @@ def _parse_dependency(
     if comment and selector is None:
         selector = selector_from_comment(comment)
     identifier_hash = _identifier(identifier, selector)
+    origin_paths = _maybe_paths(origin)  # makes testing easier
     if which == "both":
         return [
-            Spec(name, "conda", pin, identifier_hash, selector, origin=(origin,)),
-            Spec(name, "pip", pin, identifier_hash, selector, origin=(origin,)),
+            Spec(name, "conda", pin, identifier_hash, selector, origin=origin_paths),
+            Spec(name, "pip", pin, identifier_hash, selector, origin=origin_paths),
         ]
-    return [Spec(name, which, pin, identifier_hash, selector, origin=(origin,))]
+    return [Spec(name, which, pin, identifier_hash, selector, origin=origin_paths)]
+
+
+def _maybe_paths(
+    path_with_extras: tuple[PathWithExtras, ...],
+) -> tuple[Path | PathWithExtras, ...]:
+    return tuple(p if p.extras else p.path for p in path_with_extras)
 
 
 class ParsedRequirements(NamedTuple):
@@ -267,12 +274,13 @@ def _update_data_structures(
     seen: set[tuple[PathWithExtras, ...]],  # modified in place
     yaml: YAML,
     is_nested: bool,
-    origin: PathWithExtras,
+    origin: tuple[PathWithExtras, ...],
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
+    origin = _unique_path_with_extras(*origin, path_with_extras)
     data["_origin"] = origin
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
@@ -294,7 +302,7 @@ def _update_data_structures(
             verbose=verbose,
         )
 
-    seen.add(_unique([path_with_extras, origin]))
+    seen.add(_unique_sorted_resolved(origin))
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
@@ -312,9 +320,20 @@ def _update_data_structures(
         )
 
 
-def _unique(paths: list[PathWithExtras]) -> tuple[PathWithExtras, ...]:
+def _unique_sorted_resolved(
+    paths: tuple[PathWithExtras, ...],
+) -> tuple[PathWithExtras, ...]:
     """Remove duplicates from a list of PathWithExtras."""
     return tuple(sorted({p.resolved() for p in paths}))
+
+
+def _unique_path_with_extras(*paths: PathWithExtras) -> tuple[PathWithExtras, ...]:
+    unique: list[PathWithExtras] = []
+    for p in paths:
+        if p.resolved() in [p_.resolved() for p_ in unique]:
+            continue
+        unique.append(p)
+    return tuple(unique)
 
 
 def _move_optional_dependencies_to_dependencies(
@@ -389,7 +408,7 @@ def _add_local_dependencies(
     all_extras: list[list[str]],
     seen: set[tuple[PathWithExtras, ...]],
     yaml: YAML,
-    origin: PathWithExtras,
+    origin: tuple[PathWithExtras, ...],
     verbose: bool = False,
 ) -> None:
     try:
@@ -409,7 +428,7 @@ def _add_local_dependencies(
                 "detect its dependencies.",
             )
         return
-    if _unique([origin, requirements_dep_file]) in seen:
+    if _unique_sorted_resolved((*origin, requirements_dep_file)) in seen:
         return  # Avoids circular local_dependencies
     if verbose:
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
@@ -473,7 +492,7 @@ def parse_requirements(
             yaml=yaml,
             verbose=verbose,
             is_nested=False,
-            origin=path_with_extras,
+            origin=(path_with_extras,),
         )
 
     assert len(datas) == len(all_extras)
@@ -498,7 +517,7 @@ def parse_requirements(
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
-                origin=_maybe_path(data["_origin"]),
+                origin=data["_origin"],
             )
         for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
             if opt_name in _extras or "*" in _extras:
@@ -510,7 +529,7 @@ def parse_requirements(
                     overwrite_pins_map,
                     skip_dependencies,
                     is_optional=True,
-                    origin=_maybe_path(data["_origin"]),
+                    origin=data["_origin"],
                 )
 
     return ParsedRequirements(
@@ -519,12 +538,6 @@ def parse_requirements(
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
     )
-
-
-def _maybe_path(path_with_extras: PathWithExtras) -> Path | PathWithExtras:
-    if path_with_extras.extras:
-        return path_with_extras
-    return path_with_extras.path
 
 
 def _str_is_path_like(s: str) -> bool:
@@ -553,7 +566,7 @@ def _add_dependencies(
     skip_dependencies: list[str],
     *,
     is_optional: bool = False,
-    origin: Path | PathWithExtras,
+    origin: tuple[PathWithExtras, ...],
 ) -> int:
     for i, dep in enumerate(dependencies):
         identifier += 1
