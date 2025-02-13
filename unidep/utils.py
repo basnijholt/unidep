@@ -311,9 +311,7 @@ class PathWithExtras(NamedTuple):
 
     def __eq__(self, other: object) -> bool:
         """Check if two `PathWithExtras` are equal."""
-        if isinstance(other, Path):
-            return self.path_with_extras == other
-        if not isinstance(other, PathWithExtras):
+        if not isinstance(other, PathWithExtras):  # pragma: no cover
             return NotImplemented
         return self.path == other.path and set(self.extras) == set(other.extras)
 
