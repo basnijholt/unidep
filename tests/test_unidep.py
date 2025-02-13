@@ -254,7 +254,6 @@ def test_create_conda_env_specification_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p)
     resolved = resolve_conflicts(
         requirements.requirements,
@@ -392,7 +391,6 @@ def test_channels(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) -> None
     p = tmp_path / "requirements.yaml"
     p.write_text("channels:\n  - conda-forge\n  - defaults")
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.channels == ["conda-forge", "defaults"]
 
@@ -1350,7 +1348,6 @@ def test_pip_pinned_conda_not(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1382,7 +1379,6 @@ def test_conda_pinned_pip_not(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1413,7 +1409,6 @@ def test_filter_python_dependencies_with_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
     python_deps = filter_python_dependencies(resolved)
@@ -1437,7 +1432,6 @@ def test_conda_with_comments(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1469,7 +1463,6 @@ def test_duplicate_names(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1500,7 +1493,6 @@ def test_conflicts_when_selector_comment(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1532,7 +1524,6 @@ def test_conflicts_when_selector_comment(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1582,7 +1573,6 @@ def test_platforms_section_in_yaml(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -1621,7 +1611,6 @@ def test_platforms_section_in_yaml_similar_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     with pytest.warns(UserWarning, match="Dependency Conflict on"):
@@ -1680,7 +1669,6 @@ def test_conda_with_non_platform_comment(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
@@ -2035,7 +2023,6 @@ def test_with_unused_platform(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)
@@ -2286,7 +2273,6 @@ def test_optional_dependencies(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
 
     requirements = parse_requirements(p, verbose=False, extras="*")
     assert requirements.optional_dependencies.keys() == {"test"}
@@ -2326,7 +2312,6 @@ def test_optional_dependencies_multiple_sections(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
 
     requirements = parse_requirements(p, verbose=False, extras=[["test"]])
     assert requirements.optional_dependencies.keys() == {"test"}
@@ -2357,7 +2342,6 @@ def test_optional_dependencies_get_python_dependencies(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
 
     deps = get_python_dependencies(f"{p}[test]", verbose=False)
     assert deps.dependencies == []
@@ -2381,7 +2365,6 @@ def test_pip_dep_with_extras(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-    (PathWithExtras(p, []),)
 
     requirements = parse_requirements(p, verbose=False, extras="*")
     assert requirements.optional_dependencies == {}
