@@ -12,6 +12,7 @@ from unidep._dependencies_parsing import (
     parse_requirements,
 )
 from unidep.platform_definitions import Spec
+from unidep.utils import PathWithExtras
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -100,19 +101,19 @@ def test_project_dependency_handling_in_pyproject_toml(
     )
 
     requirements = parse_requirements(p)
-
+    ori = (PathWithExtras(p, []),)
     expected = {
         "python-graphviz": [
             Spec(
                 name="python-graphviz",
                 which="conda",
                 identifier="17e5d607",
-                origin=(p,),
+                origin=ori,
             ),
         ],
         "graphviz": [
-            Spec(name="graphviz", which="pip", identifier="17e5d607", origin=(p,)),
-            Spec(name="graphviz", which="conda", identifier="5eb93b8c", origin=(p,)),
+            Spec(name="graphviz", which="pip", identifier="17e5d607", origin=ori),
+            Spec(name="graphviz", which="conda", identifier="5eb93b8c", origin=ori),
         ],
     }
     if project_dependency_handling == "pip-only":
@@ -123,7 +124,7 @@ def test_project_dependency_handling_in_pyproject_toml(
                         name="requests",
                         which="pip",
                         identifier="08fd8713",
-                        origin=(p,),
+                        origin=ori,
                     ),
                 ],
                 "pandas": [
@@ -131,7 +132,7 @@ def test_project_dependency_handling_in_pyproject_toml(
                         name="pandas",
                         which="pip",
                         identifier="9e467fa1",
-                        origin=(p,),
+                        origin=ori,
                     ),
                 ],
             },
@@ -144,13 +145,13 @@ def test_project_dependency_handling_in_pyproject_toml(
                         name="requests",
                         which="conda",
                         identifier="08fd8713",
-                        origin=(p,),
+                        origin=ori,
                     ),
                     Spec(
                         name="requests",
                         which="pip",
                         identifier="08fd8713",
-                        origin=(p,),
+                        origin=ori,
                     ),
                 ],
                 "pandas": [
@@ -158,13 +159,13 @@ def test_project_dependency_handling_in_pyproject_toml(
                         name="pandas",
                         which="conda",
                         identifier="9e467fa1",
-                        origin=(p,),
+                        origin=ori,
                     ),
                     Spec(
                         name="pandas",
                         which="pip",
                         identifier="9e467fa1",
-                        origin=(p,),
+                        origin=ori,
                     ),
                 ],
             },
