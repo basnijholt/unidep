@@ -8,6 +8,7 @@
       - uv (for fast pip installations)
       - unidep (to manage unified Conda and Pip dependencies)
     It mirrors the functionality of the Unix bootstrap script, but is tailored for Windows.
+    When run in non-interactive mode (using -NonInteractive), micromamba is initialized with the default prefix.
 
 .INSTRUCTIONS:
     To run this script directly from the web, open PowerShell and execute:
@@ -21,12 +22,11 @@
 
 Write-Host "Downloading and installing micromamba and uv..."
 
-# Install micromamba, automatically accepting defaults
-$micromamba_install_script = Invoke-WebRequest -Uri 'https://micro.mamba.pm/install.ps1' -UseBasicParsing
-$micromamba_install_script.Content | Out-String | % { $_ -replace "Read-Host", "#Read-Host" } | Invoke-Expression
+# Install micromamba in non-interactive mode
+powershell -NonInteractive -ExecutionPolicy Bypass -Command "irm 'https://micro.mamba.pm/install.ps1' | iex"
 
-# Install uv
-powershell -ExecutionPolicy ByPass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+# Install uv in non-interactive mode
+powershell -NonInteractive -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
 
 # Install unidep using uv
 # Note: uv should now be available in your PATH; if not, restart PowerShell or add its install location.
