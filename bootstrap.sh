@@ -14,11 +14,11 @@
 # https://github.com/basnijholt/unidep
 #
 # If you prefer to run the commands manually, you can execute each section one by one.
-# Otherwise, piping this script directly to bash ensures everything is installed in one go.
+# Otherwise, piping this script directly to your default shell ensures everything is installed in one go.
 
 echo "Downloading and installing micromamba to ~/.local/bin/micromamba and uv to ~/.local/bin/uv"
 
-# Run the micromamba installer (https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+# Install micromamba (https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 VERSION="1.5.12-0" "${SHELL}" <(curl -LsSf micro.mamba.pm/install.sh) < /dev/null
 
 # Install uv (https://docs.astral.sh/uv/getting-started/installation/)
