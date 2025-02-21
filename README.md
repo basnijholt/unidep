@@ -88,7 +88,7 @@ Try it now and streamline your development process!
 To get started quickly with UniDep, run the following command. This will download and install [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html) (recommended for fast Conda environment management), [uv](https://docs.astral.sh/uv/getting-started/installation/) (recommended for faster pip installations), and then install UniDep:
 
 ```bash
-"${SHELL}" <(curl -L raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
+"${SHELL}" <(curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
 ```
 
 > [!NOTE]

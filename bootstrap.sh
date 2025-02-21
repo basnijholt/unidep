@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this script with:
-#   "${SHELL}" <(curl -L raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
+#   "${SHELL}" <(curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
 #
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 #
