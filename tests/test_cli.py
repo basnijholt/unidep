@@ -25,6 +25,7 @@ from unidep._cli import (
     _install_all_command,
     _install_command,
     _maybe_conda_run,
+    _maybe_create_conda_env_args,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
@@ -662,7 +663,6 @@ def test_maybe_create_conda_env_args_creates_env(
     )
 
     # Now call _maybe_create_conda_env_args with a non-existing environment name.
-    from unidep._cli import _maybe_create_conda_env_args
 
     args = _maybe_create_conda_env_args("conda", "non-existing-env", None)
 
@@ -672,6 +672,21 @@ def test_maybe_create_conda_env_args_creates_env(
     )
     # Also, the returned arguments should be the standard ones for a named env.
     assert args == ["--name", "non-existing-env"]
+
+    # Optionally, verify that our fake function printed the expected message.
+    output = capsys.readouterr().out
+    assert "Fake create called with" in output
+
+    # Now with a prefix
+    prefix = Path("/home/user/micromamba/envs/non-existing-env")
+    args = _maybe_create_conda_env_args("conda", None, prefix)
+
+    # Check that our fake_create was called (i.e. the environment creation was triggered)
+    assert created, (
+        "Expected environment creation to be triggered for non-existing env."
+    )
+    # Also, the returned arguments should be the standard ones for a named env.
+    assert args == ["--prefix", str(prefix)]
 
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
