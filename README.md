@@ -565,8 +565,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [-n CONDA_ENV_NAME |
-                      --conda-env-prefix CONDA_ENV_PREFIX] [--dry-run]
+                      [-n CONDA_ENV_NAME | -p CONDA_ENV_PREFIX] [--dry-run]
                       [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       [--no-uv]
@@ -616,7 +615,7 @@ options:
                         Name of the conda environment, if not provided, the
                         currently active environment name is used, unless
                         `--conda-env-prefix` is provided
-  --conda-env-prefix CONDA_ENV_PREFIX
+  -p, --conda-env-prefix CONDA_ENV_PREFIX
                         Path to the conda environment, if not provided, the
                         currently active environment path is used, unless
                         `--conda-env-name` is provided
@@ -658,8 +657,7 @@ usage: unidep install [-h] [-v] [-e] [--skip-local] [--skip-pip]
                       [--skip-conda] [--skip-dependency SKIP_DEPENDENCY]
                       [--no-dependencies]
                       [--conda-executable {conda,mamba,micromamba}]
-                      [-n CONDA_ENV_NAME |
-                      --conda-env-prefix CONDA_ENV_PREFIX] [--dry-run]
+                      [-n CONDA_ENV_NAME | -p CONDA_ENV_PREFIX] [--dry-run]
                       [--ignore-pin IGNORE_PIN]
                       [--overwrite-pin OVERWRITE_PIN] [-f CONDA_LOCK_FILE]
                       [--no-uv]
@@ -709,7 +707,7 @@ options:
                         Name of the conda environment, if not provided, the
                         currently active environment name is used, unless
                         `--conda-env-prefix` is provided
-  --conda-env-prefix CONDA_ENV_PREFIX
+  -p, --conda-env-prefix CONDA_ENV_PREFIX
                         Path to the conda environment, if not provided, the
                         currently active environment path is used, unless
                         `--conda-env-name` is provided

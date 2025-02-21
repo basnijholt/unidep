@@ -205,6 +205,7 @@ def _add_common_args(  # noqa: PLR0912, C901
             " provided",
         )
         grp.add_argument(
+            "-p",  # Overlaps with `--platform`, but that's fine
             "--conda-env-prefix",
             type=Path,
             default=None,
