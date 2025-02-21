@@ -38,7 +38,7 @@ Try it now and streamline your development process!
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [:rocket: Bootstrap from Scratch](#bootstrap-from-scratch)
+- [:rocket: Bootstrap from Scratch](#rocket-bootstrap-from-scratch)
 - [:package: Installation](#package-installation)
 - [:memo: `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
   - [Example](#example)
