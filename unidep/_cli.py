@@ -852,7 +852,10 @@ def _maybe_create_conda_env_args(
     return conda_env_args
 
 
-def _create_conda_environment(conda_executable: CondaExecutable, *args: str) -> None:
+def _create_conda_environment(
+    conda_executable: CondaExecutable,
+    *args: str,
+) -> None:  # pragma: no cover
     """Create an empty conda environment."""
     conda_command = [_maybe_exe(conda_executable), "create", "--yes", *args]
     print(f"📦 Creating empty conda environment with `{' '.join(conda_command)}`\n")
