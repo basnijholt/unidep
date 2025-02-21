@@ -23,7 +23,8 @@
 Write-Host "Downloading and installing micromamba and uv..."
 
 # Install micromamba in non-interactive mode
-powershell -NonInteractive -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/basnijholt/micromamba-releases/refs/heads/defaults/install.ps1' | iex"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/basnijholt/micromamba-releases/refs/heads/defaults/install.ps1" -OutFile "install.ps1"
+powershell -NonInteractive -ExecutionPolicy Bypass -File .\install.ps1
 
 # Install uv in non-interactive mode
 powershell -NonInteractive -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
