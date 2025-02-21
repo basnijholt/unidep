@@ -78,8 +78,8 @@ jobs:
         shell: bash -el {0}
       - name: Install pyproject_toml_project in new environment
         run: |
-          unidep install -n new-env -e ./example/hatch_project
-          conda activate new-env
+          unidep install -n new-env -e ./example/pyproject_toml_project
+          micromamba activate new-env
           python -c "import pyproject_toml_project"
         shell: bash -el {0}
 
@@ -125,7 +125,7 @@ jobs:
         shell: bash -el {0}
       - name: Install pyproject_toml_project in new environment
         run: |
-          unidep install -n new-env -e ./example/hatch_project
+          unidep install -n new-env -e ./example/pyproject_toml_project
           conda activate new-env
           python -c "import pyproject_toml_project"
         shell: bash -el {0}
