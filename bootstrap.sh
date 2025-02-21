@@ -1,4 +1,7 @@
 #!/bin/bash
+# Run this script with:
+# curl -LsSf https://raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh | sh
+
 echo "Downloading and installing micromamba to ~/.local/bin/micromamba and uv to ~/.local/bin/uv"
 
 # micromamba install command from https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html
