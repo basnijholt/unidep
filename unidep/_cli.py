@@ -803,7 +803,9 @@ def _conda_env_dirs(
 def _conda_env_name_to_prefix(
     conda_executable: CondaExecutable,
     conda_env_name: str,
-) -> Path:  # pragma: no cover
+    *,
+    raise_if_not_found: bool = True,
+) -> Path | None:  # pragma: no cover
     """Get the prefix of a conda environment."""
     # Based on `conda.base.context.locate_prefix_by_name`
     # https://github.com/conda/conda/blob/72fe69dac8b2fef351c511c813493fef17f295e1/conda/base/context.py#L1976-L1977
@@ -815,7 +817,8 @@ def _conda_env_name_to_prefix(
         prefix = envs_dir / conda_env_name
         if prefix.exists():
             return prefix
-
+    if not raise_if_not_found:
+        return None
     envs = _conda_env_list(conda_executable)
     envs_str = "\n👉 ".join(envs)
     msg = (
@@ -823,6 +826,37 @@ def _conda_env_name_to_prefix(
         f" Available prefixes:\n👉 {envs_str}"
     )
     raise ValueError(msg)
+
+
+def _maybe_create_conda_env_args(
+    conda_executable: CondaExecutable,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> list[str]:
+    if not conda_env_name and not conda_env_prefix:
+        return []
+    conda_env_args = []
+    if conda_env_name:
+        conda_env_args = ["--name", conda_env_name]
+        prefix = _conda_env_name_to_prefix(
+            conda_executable,
+            conda_env_name,
+            raise_if_not_found=False,
+        )
+        if prefix is None:
+            _create_conda_environment(conda_executable, *conda_env_args)
+    elif conda_env_prefix:
+        conda_env_args = ["--prefix", str(conda_env_prefix)]
+        if not conda_env_prefix.exists():
+            _create_conda_environment(conda_executable, *conda_env_args)
+    return conda_env_args
+
+
+def _create_conda_environment(conda_executable: CondaExecutable, *args: str) -> None:
+    """Create an empty conda environment."""
+    conda_command = [_maybe_exe(conda_executable), "create", "--yes", *args]
+    print(f"📦 Creating empty conda environment with `{' '.join(conda_command)}`\n")
+    subprocess.run(conda_command, check=True)
 
 
 def _python_executable(
@@ -958,13 +992,11 @@ def _install_command(  # noqa: PLR0912, PLR0915
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
-        conda_env_args = []
-        if conda_env_name:
-            conda_env_args = ["--name", conda_env_name]
-            # Check if the environment exists
-            _conda_env_name_to_prefix(conda_executable, conda_env_name)
-        elif conda_env_prefix:
-            conda_env_args = ["--prefix", str(conda_env_prefix)]
+        conda_env_args = _maybe_create_conda_env_args(
+            conda_executable,
+            conda_env_name,
+            conda_env_prefix,
+        )
         conda_command = [
             _maybe_exe(conda_executable),
             "install",
