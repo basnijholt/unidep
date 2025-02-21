@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from unidep._cli import (
+    CondaExecutable,
     _capitalize_dir,
     _conda_env_list,
     _conda_root_prefix,
@@ -616,3 +617,62 @@ def test_maybe_conda_run() -> None:
     with set_env_var("MAMBA_EXE", "mamba"):
         result = _maybe_conda_run("mamba", "my_env", None)
         assert result == ["mamba", "run", "--name", "my_env"]
+
+
+def test_maybe_create_conda_env_args_creates_env(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Test that _maybe_create_conda_env_args creates the environment if it doesn't exist.
+
+    This simulates running:
+      unidep install --conda-env-name non-existing-env .
+    and checks that the function to create a conda environment is called.
+    """
+    # Create a flag to record if _create_conda_environment is called
+    created = []
+
+    # Define a fake _create_conda_environment that records its call
+    def fake_create(
+        conda_executable: CondaExecutable,  # noqa: ARG001
+        *args: str,
+    ) -> None:
+        created.append(args)
+        print("Fake create called with", args)
+
+    # Patch the _create_conda_environment function
+    monkeypatch.setattr(
+        "unidep._cli._create_conda_environment",
+        fake_create,
+    )
+
+    # Patch _conda_env_name_to_prefix to simulate that the environment is missing.
+    def fake_env_name_to_prefix(
+        conda_executable: CondaExecutable,  # noqa: ARG001
+        env_name: str,  # noqa: ARG001
+        *,
+        raise_if_not_found: bool = True,  # noqa: ARG001
+    ) -> Path | None:
+        # Simulate that for "non-existing-env" no environment exists.
+        return None
+
+    monkeypatch.setattr(
+        "unidep._cli._conda_env_name_to_prefix",
+        fake_env_name_to_prefix,
+    )
+
+    # Now call _maybe_create_conda_env_args with a non-existing environment name.
+    from unidep._cli import _maybe_create_conda_env_args
+
+    args = _maybe_create_conda_env_args("conda", "non-existing-env", None)
+
+    # Check that our fake_create was called (i.e. the environment creation was triggered)
+    assert created, (
+        "Expected environment creation to be triggered for non-existing env."
+    )
+    # Also, the returned arguments should be the standard ones for a named env.
+    assert args == ["--name", "non-existing-env"]
+
+    # Optionally, verify that our fake function printed the expected message.
+    output = capsys.readouterr().out
+    assert "Fake create called with" in output
