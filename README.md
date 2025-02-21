@@ -38,7 +38,7 @@ Try it now and streamline your development process!
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [:rocket: Quick Start](#rocket-quick-start)
+- [:rocket: Bootstrap from Scratch](#rocket-bootstrap-from-scratch)
 - [:package: Installation](#package-installation)
 - [:memo: `requirements.yaml` and `pyproject.toml` structure](#memo-requirementsyaml-and-pyprojecttoml-structure)
   - [Example](#example)
@@ -83,7 +83,7 @@ Try it now and streamline your development process!
 
 <!-- toc-end -->
 
-## :rocket: Quick Start
+## :rocket: Bootstrap from Scratch
 
 To get started quickly with UniDep, run the following command. This will download and install [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html) (recommended for fast Conda environment management), [uv](https://docs.astral.sh/uv/getting-started/installation/) (recommended for faster pip installations), and then install UniDep:
 
