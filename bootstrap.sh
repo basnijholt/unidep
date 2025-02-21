@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this script with:
-#   curl -LsSf https://raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh | bash
+#   curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh | bash
 #
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 #
