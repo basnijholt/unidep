@@ -22,7 +22,14 @@
 Write-Host "Downloading and installing micromamba and uv..."
 
 # Install micromamba
-powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "irm 'https://micro.mamba.pm/install.ps1' | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "
+    Function Read-Host {
+      param([string]\$Prompt = '')
+      # Always return 'Y' (or 'n') so the script won't fail on Read-Host
+      return 'Y'
+    }
+    iwr 'https://micro.mamba.pm/install.ps1' | iex
+"
 
 # Install uv
 powershell -NoProfile -NonInteractive -ExecutionPolicy ByPass -Command "irm https://astral.sh/uv/install.ps1 | iex"
