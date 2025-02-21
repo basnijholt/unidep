@@ -82,6 +82,17 @@ Try it now and streamline your development process!
 
 <!-- toc-end -->
 
+## :rocket: Quick Start
+
+To get started quickly with UniDep, run the following command. This will download and install [micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html) (recommended for fast Conda environment management), [uv](https://docs.astral.sh/uv/getting-started/installation/) (recommended for faster pip installations), and then install UniDep:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh | bash
+```
+
+> [!NOTE]
+> Micromamba and uv are recommended to optimize your installation experience, but they are not required if you prefer to use your existing Conda and pip setup.
+
 ## :package: Installation
 
 To install `unidep`, run one of the following commands that use [`pipx`](https://pipx.pypa.io/) (recommended), `pip`, or `conda`:
