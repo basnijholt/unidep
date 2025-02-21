@@ -32,6 +32,6 @@ rm "$TMP_MAMBA"
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install unidep using uv
-~/.local/bin/uv tool install unidep
+~/.local/bin/uv tool install -U unidep[all]
 
 echo "Done installing micromamba, uv, and unidep"
