@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this script with:
-#   curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh | bash
+#   "${SHELL}" <(curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
 #
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 #
@@ -14,24 +14,17 @@
 # https://github.com/basnijholt/unidep
 #
 # If you prefer to run the commands manually, you can execute each section one by one.
-# Otherwise, piping this script directly to bash ensures everything is installed in one go.
-
-if [ -z "$BASH_VERSION" ]; then
-  exec bash "$0" "$@"
-fi
+# Otherwise, piping this script directly to your default shell ensures everything is installed in one go.
 
 echo "Downloading and installing micromamba to ~/.local/bin/micromamba and uv to ~/.local/bin/uv"
 
-# Download the micromamba installer to a temporary file and execute it
-TMP_MAMBA=$(mktemp)
-curl -LsSf micro.mamba.pm/install.sh -o "$TMP_MAMBA"
-VERSION="1.5.12-0" "${SHELL}" "$TMP_MAMBA" < /dev/null
-rm "$TMP_MAMBA"
+# Install micromamba (https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+VERSION="1.5.12-0" "${SHELL}" <(curl -LsSf micro.mamba.pm/install.sh) < /dev/null
 
-# Install uv
+# Install uv (https://docs.astral.sh/uv/getting-started/installation/)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install unidep using uv
-~/.local/bin/uv tool install --quiet -U unidep[all]
+~/.local/bin/uv tool install --quiet -U "unidep[all]"
 
 echo "Done installing micromamba, uv, and unidep"
