@@ -310,7 +310,9 @@ def _channel_url_to_name(url: str) -> str:
     return url.replace("https://conda.anaconda.org/", "").rstrip("/")
 
 
-def extract_channels_from_pixi(pixi_data: dict[str, Any]) -> list[dict[str, str]]:
+def extract_channels_from_pixi(
+    pixi_data: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Extract channel information from pixi.lock data."""
     logging.debug("Extracting channels from pixi.lock data")
     channels_data = (
@@ -355,6 +357,7 @@ def process_conda_packages(
     logging.info("Processing conda packages from pixi.lock")
     package_entries = []
     conda_packages = [p for p in pixi_data.get("packages", []) if "conda" in p]
+    platforms = extract_platforms_from_pixi(pixi_data)
     logging.debug("Found %d conda packages to process", len(conda_packages))
 
     for package_info in conda_packages:
@@ -364,17 +367,24 @@ def process_conda_packages(
         # Try to find package in repodata
         repodata_info = find_package_in_repodata(repodata, url)
 
+        # Create a base package entry, either using repodata or fallback.
         if repodata_info:
             # Use the information from repodata
             logging.debug("Using repodata information for package")
-            package_entry = create_conda_package_entry(url, repodata_info)
+            base_entry = create_conda_package_entry(url, repodata_info)
         else:
             # Fallback to parsing the URL if repodata doesn't have the package
-            # TODO: Is this needed?
             logging.debug("Repodata not found, using fallback method")
-            package_entry = create_conda_package_entry_fallback(url, package_info)
+            base_entry = create_conda_package_entry_fallback(url, package_info)
 
-        package_entries.append(package_entry)
+        # If the package is noarch, replicate it for each platform.
+        if "noarch" in url:
+            for plat in platforms:
+                entry = base_entry.copy()
+                entry["platform"] = plat
+                package_entries.append(entry)
+        else:
+            package_entries.append(base_entry)
 
     logging.info("Processed %d conda packages", len(package_entries))
     return package_entries

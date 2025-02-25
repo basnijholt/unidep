@@ -297,3 +297,70 @@ def test_create_conda_package_entry_fallback() -> None:
         result["hash"]["sha256"]
         == "a64466b8f65b77604c3c87092c65d9e51e7db44b11eaa6c469894f0b88b1af5a"
     )
+
+
+def test_noarch_package_expansion(sample_pixi_lock: dict[str, Any]) -> None:
+    """Test that a noarch package is expanded into entries for each platform."""
+    # Modify sample_pixi_lock to include a noarch package and specific platforms
+    sample_pixi_lock["packages"] = [
+        {
+            "conda": "https://conda.anaconda.org/conda-forge/noarch/cached-property-1.5.2-hd8ed1ab_1.tar.bz2",
+        },
+    ]
+    sample_pixi_lock["environments"] = {
+        "default": {
+            "channels": [{"url": "https://conda.anaconda.org/conda-forge/"}],
+            "indexes": ["https://pypi.org/simple"],
+            # Define two platforms for testing
+            "packages": {"linux-64": [], "osx-arm64": []},
+        },
+    }
+
+    # Create a sample repodata that contains info for the noarch package.
+    repodata = {
+        "repo1": {
+            "info": {"subdir": "noarch"},
+            "packages": {
+                "cached-property-1.5.2-hd8ed1ab_1.tar.bz2": {
+                    "name": "cached-property",
+                    "version": "1.5.2",
+                    "build": "hd8ed1ab_1",
+                    "build_number": 1,
+                    "depends": ["cached_property >=1.5.2,<1.5.3.0a0"],
+                    "md5": "9b347a7ec10940d3f7941ff6c460b551",
+                    "sha256": "561e6660f26c35d137ee150187d89767c988413c978e1b712d53f27ddf70ea17",
+                },
+            },
+        },
+    }
+
+    # Import the module under test.
+    from unidep import pixi_to_conda_lock as ptcl
+
+    # Process the conda packages.
+    result = ptcl.process_conda_packages(sample_pixi_lock, repodata)
+
+    # Expect an entry per platform (linux-64 and osx-arm64)
+    assert len(result) == 2, "Expected two package entries, one per platform"
+
+    # Check that each entry has the expected properties.
+    for entry in result:
+        assert entry["name"] == "cached-property"
+        assert entry["version"] == "1.5.2"
+        assert entry["manager"] == "conda"
+        # Even though the URL is noarch, the entry should have the platform set to the target environment.
+        assert (
+            entry["url"]
+            == "https://conda.anaconda.org/conda-forge/noarch/cached-property-1.5.2-hd8ed1ab_1.tar.bz2"
+        )
+        assert entry["hash"]["md5"] == "9b347a7ec10940d3f7941ff6c460b551"
+        assert (
+            entry["hash"]["sha256"]
+            == "561e6660f26c35d137ee150187d89767c988413c978e1b712d53f27ddf70ea17"
+        )
+
+    # Verify that the packages were duplicated for each of the two platforms.
+    platforms = {entry["platform"] for entry in result}
+    assert platforms == {"linux-64", "osx-arm64"}, (
+        "Expected platforms to be linux-64 and osx-arm64"
+    )
