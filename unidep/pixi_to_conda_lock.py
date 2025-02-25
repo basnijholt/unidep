@@ -293,7 +293,8 @@ def extract_platforms_from_pixi(pixi_data: Any) -> list[str]:
     """Extract platform information from pixi.lock data."""
     logging.debug("Extracting platforms from pixi.lock data")
     platforms = []
-    for env_name, env_data in pixi_data.get("environments", {}).items():
+    environments = pixi_data.get("environments", {})
+    for env_name, env_data in environments.items():
         logging.debug("Processing environment: %s", env_name)
         for platform in env_data.get("packages", {}):
             if platform not in platforms and platform != "noarch":
@@ -304,19 +305,20 @@ def extract_platforms_from_pixi(pixi_data: Any) -> list[str]:
     return platforms
 
 
+def _channel_url_to_name(url: str) -> str:
+    """Convert a channel URL to a channel name."""
+    return url.replace("https://conda.anaconda.org/", "").rstrip("/")
+
+
 def extract_channels_from_pixi(pixi_data: dict[str, Any]) -> list[dict[str, str]]:
     """Extract channel information from pixi.lock data."""
     logging.debug("Extracting channels from pixi.lock data")
+    channels_data = (
+        pixi_data.get("environments", {}).get("default", {}).get("channels", [])
+    )
     channels = [
-        {
-            "url": channel["url"]
-            .replace("https://conda.anaconda.org/", "")
-            .rstrip("/"),
-            "used_env_vars": [],
-        }
-        for channel in pixi_data.get("environments", {})
-        .get("default", {})
-        .get("channels", [])
+        {"url": _channel_url_to_name(channel["url"]), "used_env_vars": []}
+        for channel in channels_data
     ]
 
     logging.info(
@@ -368,6 +370,7 @@ def process_conda_packages(
             package_entry = create_conda_package_entry(url, repodata_info)
         else:
             # Fallback to parsing the URL if repodata doesn't have the package
+            # TODO: Is this needed?
             logging.debug("Repodata not found, using fallback method")
             package_entry = create_conda_package_entry_fallback(url, package_info)
 
@@ -483,14 +486,8 @@ def main() -> int:
     repodata_dir = args.repodata_dir
     if repodata_dir is None:
         repodata_dir = find_repodata_cache_dir()
-        if repodata_dir is None:
-            logging.warning(
-                "Could not find repodata cache directory. Using fallback URL parsing.",
-            )
-            repodata = {}
-        else:
-            logging.info("Using repodata from: %s", repodata_dir)
-            repodata = load_repodata_files(repodata_dir)
+        logging.info("Using repodata from: %s", repodata_dir)
+        repodata = load_repodata_files(repodata_dir)
     else:
         if not repodata_dir.exists():
             logging.error(
