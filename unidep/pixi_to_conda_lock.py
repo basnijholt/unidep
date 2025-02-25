@@ -216,8 +216,8 @@ def create_conda_package_entry(
         ),
         "url": url,
         "hash": {
-            "md5": repodata_info.get("md5", ""),
-            "sha256": repodata_info.get("sha256", ""),
+            "md5": repodata_info["md5"],
+            "sha256": repodata_info["sha256"],
         },
         "category": "main",
         "optional": False,
@@ -365,10 +365,7 @@ def process_conda_packages(
         if repodata_info:
             # Use the information from repodata
             logging.debug("Using repodata information for package")
-            package_entry = create_conda_package_entry(
-                url,
-                repodata_info,
-            )
+            package_entry = create_conda_package_entry(url, repodata_info)
         else:
             # Fallback to parsing the URL if repodata doesn't have the package
             logging.debug("Repodata not found, using fallback method")

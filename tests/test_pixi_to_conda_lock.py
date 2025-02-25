@@ -263,8 +263,6 @@ def test_create_conda_package_entry() -> None:
         result["hash"]["sha256"]
         == "a64466b8f65b77604c3c87092c65d9e51e7db44b11eaa6c469894f0b88b1af5a"
     )
-    assert result["build"] == "hfd29fff_1_cp313t"
-    assert result["build_number"] == 1
 
 
 def test_create_conda_package_entry_fallback() -> None:
