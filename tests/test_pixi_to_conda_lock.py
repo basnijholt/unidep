@@ -93,19 +93,26 @@ def test_write_yaml_file() -> None:
 
 def test_find_repodata_cache_dir() -> None:
     """Test finding the repodata cache directory."""
-    with patch("pathlib.Path.exists") as mock_exists, patch(
-        "pathlib.Path.is_dir",
-    ) as mock_is_dir:
-        # Test when directory exists
-        mock_exists.return_value = True
-        mock_is_dir.return_value = True
+    # Simulate a valid repodata directory exists
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("pathlib.Path.is_dir", return_value=True),
+        patch("subprocess.check_output", return_value='{"cache_dir": "/dummy/path"}'),
+        patch("json.loads", return_value={"cache_dir": "/dummy/path"}),
+        # Create a dummy Path object that behaves like it exists
+        patch("unidep.pixi_to_conda_lock.Path", wraps=Path),
+    ):
         result = ptcl.find_repodata_cache_dir()
         assert result is not None
 
-        # Test when directory doesn't exist
-        mock_exists.return_value = False
-        result = ptcl.find_repodata_cache_dir()
-        assert result is None
+    # Simulate the repodata directory does not exist, and expect a ValueError
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("subprocess.check_output", return_value='{"cache_dir": "/dummy/path"}'),
+        patch("json.loads", return_value={"cache_dir": "/dummy/path"}),
+        pytest.raises(ValueError, match="Could not find repodata cache directory"),
+    ):
+        ptcl.find_repodata_cache_dir()
 
 
 def test_load_json_file() -> None:

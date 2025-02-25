@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -50,23 +51,22 @@ def write_yaml_file(file_path: Path, data: dict[str, Any]) -> None:
 
 
 def find_repodata_cache_dir() -> Path | None:
-    """Find the repodata cache directory based on common locations."""
-    logging.debug("Searching for repodata cache directory")
-    # Try to find the cache directory in common locations
-    possible_paths = [
-        Path.home() / "Library" / "Caches" / "rattler" / "cache" / "repodata",  # macOS
-        Path.home() / ".cache" / "rattler" / "cache" / "repodata",  # Linux
-        Path.home() / "AppData" / "Local" / "rattler" / "cache" / "repodata",  # Windows
-    ]
+    """Find the repodata cache directory using 'pixi info --json' output.
 
-    for path in possible_paths:
-        logging.debug("Checking path: %s", path)
-        if path.exists() and path.is_dir():
-            logging.debug("Found repodata cache directory: %s", path)
-            return path
-
-    logging.debug("No repodata cache directory found")
-    return None
+    This function runs 'pixi info --json' and extract the 'cache_dir'
+    field, appending 'repodata' to it.
+    """
+    cmd = ["pixi", "info", "--json"]
+    result = subprocess.check_output(cmd, text=True)
+    info = json.loads(result)
+    cache_dir = info.get("cache_dir")
+    if cache_dir:
+        repodata_path = Path(cache_dir) / "repodata"
+        logging.debug("Using cache_dir from pixi info: %s", repodata_path)
+        if repodata_path.exists() and repodata_path.is_dir():
+            return repodata_path
+    msg = "Could not find repodata cache directory"
+    raise ValueError(msg)
 
 
 def load_json_file(file_path: Path) -> dict[str, Any]:
