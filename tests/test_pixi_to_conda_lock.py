@@ -364,3 +364,35 @@ def test_noarch_package_expansion(sample_pixi_lock: dict[str, Any]) -> None:
     assert platforms == {"linux-64", "osx-arm64"}, (
         "Expected platforms to be linux-64 and osx-arm64"
     )
+
+
+def test_missing_pip_exception() -> None:
+    """Test that convert_pixi_to_conda_lock raises a ValueError
+    when there are PyPI packages but no pip package in conda packages.
+    """  # noqa: D205
+    # Create a pixi_data sample with a PyPI package and no pip package.
+    pixi_data = {
+        "environments": {
+            "default": {
+                "channels": [{"url": "https://conda.anaconda.org/conda-forge/"}],
+                # Define two target platforms.
+                "packages": {"linux-64": [], "osx-arm64": []},
+            },
+        },
+        "packages": [
+            {
+                # Only a PyPI package entry, no conda package for pip.
+                "pypi": "https://files.pythonhosted.org/packages/example/somepypi-1.0.0-py3-none-any.whl",
+                "name": "somepypi",
+                "version": "1.0.0",
+            },
+        ],
+    }
+    # For this test, repodata can be empty since it's only used for conda packages.
+    repodata: dict[str, dict[str, Any]] = {}
+
+    with pytest.raises(
+        ValueError,
+        match="PyPI packages are present but no pip package found in conda packages",
+    ):
+        ptcl.convert_pixi_to_conda_lock(pixi_data, repodata)
