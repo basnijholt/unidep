@@ -203,12 +203,10 @@ def test_extract_platform_from_url() -> None:
         )
         == "win-64"
     )
-    assert (
+    with pytest.raises(ValueError, match="Unknown platform"):
         ptcl.extract_platform_from_url(
             "https://conda.anaconda.org/conda-forge/unknown/pkg-1.0.0.conda",
         )
-        == "unknown"
-    )
 
 
 def test_extract_name_version_from_url() -> None:

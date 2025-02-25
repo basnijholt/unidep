@@ -123,15 +123,6 @@ def find_package_in_repodata(
             logging.debug("Found package '%s' in repository '%s'", filename, repo_name)
             return repo_data["packages"][filename]
 
-        # Check in packages.conda (for newer conda formats)
-        if "packages.conda" in repo_data and filename in repo_data["packages.conda"]:
-            logging.debug(
-                "Found package '%s' in repository '%s' (packages.conda)",
-                filename,
-                repo_name,
-            )
-            return repo_data["packages.conda"][filename]
-
     logging.debug("Package not found in repo")
     return None
 
@@ -152,8 +143,8 @@ def extract_platform_from_url(url: str) -> str:
     elif "/win-64/" in url:
         platform = "win-64"
     else:
-        # Default fallback
-        platform = "unknown"
+        msg = f"Unknown platform in URL: {url}"
+        raise ValueError(msg)
 
     logging.debug("Extracted platform: %s", platform)
     return platform
