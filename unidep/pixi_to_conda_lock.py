@@ -446,6 +446,9 @@ def convert_pixi_to_conda_lock(
     # Process PyPI packages
     logging.info("Processing PyPI packages")
     pypi_packages = process_pypi_packages(pixi_data, platforms)
+    if pypi_packages:
+        _validate_pip_in_conda_packages(conda_packages)
+
     conda_lock_data["package"].extend(pypi_packages)  # type: ignore[attr-defined]
     logging.info("Added %d PyPI package entries to conda-lock data", len(pypi_packages))
 
@@ -454,6 +457,19 @@ def convert_pixi_to_conda_lock(
         len(conda_lock_data["package"]),  # type: ignore[arg-type]
     )  # type: ignore[attr-defined]
     return conda_lock_data
+
+
+def _validate_pip_in_conda_packages(conda_packages: list[dict[str, Any]]) -> None:
+    pip_included = any(
+        pkg.get("name") == "pip" and pkg.get("manager") == "conda"
+        for pkg in conda_packages
+    )
+    if not pip_included:
+        msg = (
+            "PyPI packages are present but no pip package found in conda packages. "
+            "Please ensure that pip is included in your pixi.lock file."
+        )
+        raise ValueError(msg)
 
 
 def main() -> int:
