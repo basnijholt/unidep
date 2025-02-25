@@ -6,7 +6,10 @@ Types and definitions for platforms, selectors, and markers.
 from __future__ import annotations
 
 import sys
-from typing import NamedTuple, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
@@ -120,6 +123,7 @@ class Spec(NamedTuple):
     identifier: str | None = None
     # can be of type `Selector` but also space separated string of `Selector`s
     selector: str | None = None
+    origin: tuple[Path, ...] = ()
 
     def platforms(self) -> list[Platform] | None:
         """Return the platforms for this dependency."""

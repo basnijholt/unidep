@@ -88,5 +88,6 @@ ENV/
 # Rope project settings
 .ropeproject
 
-# other
+# pixi environments
 .pixi
+*.egg-info
