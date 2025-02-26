@@ -223,13 +223,13 @@ def test_extract_name_version_from_url() -> None:
     assert name_tar == "python"
     assert version_tar == "3.13.2"
 
-    # Test package with no version
-    url_no_version = "https://conda.anaconda.org/conda-forge/osx-arm64/python.conda"
-    name_no_version, version_no_version = ptcl.extract_name_version_from_url(
-        url_no_version,
+    # Test with dash
+    url_with_dash = "https://conda.anaconda.org/conda-forge/osx-arm64/ca-certificates-2025.1.31-hf0a4a13_0.conda"
+    name_with_dash, version_with_dash = ptcl.extract_name_version_from_url(
+        url_with_dash,
     )
-    assert name_no_version == "python"
-    assert version_no_version == ""
+    assert name_with_dash == "ca-certificates"
+    assert version_with_dash == "2025.1.31"
 
 
 def test_parse_dependencies_from_repodata() -> None:
@@ -274,7 +274,7 @@ def test_create_conda_package_entry_fallback() -> None:
     """Test creating a conda package entry using fallback."""
     url = "https://conda.anaconda.org/conda-forge/osx-arm64/python-3.13.2-hfd29fff_1_cp313t.conda"
     package_info = {
-        "depends": {"bzip2": ">=1.0.8,<2.0a0", "libexpat": ">=2.6.4,<3.0a0"},
+        "depends": ["bzip2 >=1.0.8,<2.0a0", "libexpat >=2.6.4,<3.0a0"],
         "md5": "9d0ae3f3e43c192a992827c0abffe284",
         "sha256": "a64466b8f65b77604c3c87092c65d9e51e7db44b11eaa6c469894f0b88b1af5a",
     }

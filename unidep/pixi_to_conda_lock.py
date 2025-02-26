@@ -164,12 +164,7 @@ def extract_name_version_from_url(url: str) -> tuple[str, str]:
         filename_no_ext = filename
 
     # Split by hyphens to separate name, version, and build
-    parts = filename_no_ext.split("-")
-
-    # For simplicity in the fallback, assume the first part is the name
-    # and the second part is the version
-    name = parts[0]
-    version = parts[1] if len(parts) > 1 else ""
+    name, version, _build_string = filename_no_ext.rsplit("-", 2)
 
     logging.debug("Extracted name: %s, version: %s", name, version)
     return name, version
@@ -230,13 +225,15 @@ def create_conda_package_entry_fallback(
     logging.debug("Creating conda package entry using fallback for: %s", url)
     platform = extract_platform_from_url(url)
     name, version = extract_name_version_from_url(url)
-
+    print(package_info)
     package_entry = {
         "name": name,
         "version": version,
         "manager": "conda",
         "platform": platform,
-        "dependencies": dict(package_info.get("depends", {}).items()),
+        "dependencies": parse_dependencies_from_repodata(
+            package_info.get("depends", []),
+        ),
         "url": url,
         "hash": {
             "md5": package_info.get("md5", ""),
@@ -365,7 +362,7 @@ def process_conda_packages(
             base_entry = create_conda_package_entry(url, repodata_info)
         else:
             # Fallback to parsing the URL if repodata doesn't have the package
-            logging.debug("Repodata not found, using fallback method")
+            logging.warning("Repodata not found, using fallback method")
             base_entry = create_conda_package_entry_fallback(url, package_info)
 
         # If the package is noarch, replicate it for each platform.
