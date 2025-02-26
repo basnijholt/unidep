@@ -126,10 +126,23 @@ def find_package_in_repodata(
 
     # Check all repodata files
     for repo_name, repo_data in repodata.items():
-        # Check in packages
+        # Check in packages (.tar.bz2)
         if "packages" in repo_data and filename in repo_data["packages"]:
-            logging.debug("Found package '%s' in repository '%s'", filename, repo_name)
+            logging.debug(
+                "🔍 Found package '%s' in repository '%s'",
+                filename,
+                repo_name,
+            )
             return repo_data["packages"][filename]
+
+        # Check in packages.conda (.conda)
+        if "packages.conda" in repo_data and filename in repo_data["packages.conda"]:
+            logging.debug(
+                "🔍 Found package '%s' in repository '%s' (packages.conda)",
+                filename,
+                repo_name,
+            )
+            return repo_data["packages.conda"][filename]
 
     logging.debug("Package not found in repo")
     return None
@@ -366,11 +379,11 @@ def process_conda_packages(
         # Create a base package entry, either using repodata or fallback.
         if repodata_info:
             # Use the information from repodata
-            logging.debug("Using repodata information for package")
+            logging.debug("✅ Using repodata information for package")
             base_entry = create_conda_package_entry(url, repodata_info)
         else:
             # Fallback to parsing the URL if repodata doesn't have the package
-            logging.warning("Repodata not found, using fallback method")
+            logging.warning("❌ Repodata not found, using fallback method")
             base_entry = create_conda_package_entry_fallback(url, package_info)
 
         # If the package is noarch, replicate it for each platform.
