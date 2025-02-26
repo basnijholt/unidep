@@ -25,11 +25,19 @@ def setup_logging(verbose: bool = False) -> None:  # noqa: FBT001, FBT002
         verbose: Whether to enable debug logging
 
     """
+    try:
+        from rich.logging import RichHandler
+
+        handlers = [RichHandler(rich_tracebacks=True)]
+    except ImportError:
+        handlers = [logging.StreamHandler()]
+
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=handlers,
     )
 
 
