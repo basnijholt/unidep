@@ -55,7 +55,7 @@ def sample_repodata() -> dict[str, Any]:
     return {
         "repo1": {
             "info": {"subdir": "osx-arm64"},
-            "packages": {
+            "packages.conda": {
                 "python-3.13.2-hfd29fff_1_cp313t.conda": {
                     "name": "python",
                     "version": "3.13.2",
