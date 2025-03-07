@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 import pytest
 
-from unidep import parse_local_dependencies
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
@@ -756,7 +755,7 @@ def test_local_dependency_with_extras(
     # Run the unidep install command
     _install_command(
         package1_dir / "requirements.yaml",
-        conda_executable="",
+        conda_executable="micromamba",
         conda_env_name=None,
         conda_env_prefix=None,
         conda_lock_file=None,
@@ -775,7 +774,7 @@ def test_local_dependency_with_extras(
 
     # We expect both my_package and my_package2 to be installed
     assert "../my_package" in captured
-    assert f"pip install --no-deps --verbose {my_package_dir.resolve()}" in captured
-    assert f"pip install --no-deps --verbose {my_package2_dir.resolve()}" in captured
-
-    parse_local_dependencies()
+    assert (
+        f"pip install --no-deps --verbose {my_package_dir.resolve()} {my_package2_dir.resolve()}"
+        in captured
+    )

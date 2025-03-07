@@ -574,7 +574,170 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(  # noqa: PLR0912
+def _resolve_local_path(dep_path: str, parent_path: Path) -> tuple[Path, list[str]]:
+    """Resolve a local dependency path and extract extras.
+
+    Parameters
+    ----------
+    dep_path
+        Path to the dependency, possibly with extras like '../pkg[extra]'
+    parent_path
+        Parent directory to resolve relative paths from
+
+    Returns
+    -------
+    tuple[Path, list[str]]
+        Resolved absolute path and list of extras
+
+    """
+    local_path, dep_extras = split_path_and_extras(dep_path)
+    abs_path = (parent_path / local_path).resolve()
+    return abs_path, dep_extras
+
+
+def _process_extras(
+    req_path: Path,
+    extras_list: list[str],
+    base_path: Path,
+    dependencies: dict[str, set[str]],
+    yaml: YAML,
+    processed: set[Path],
+    *,
+    check_pip_installable: bool = True,
+    verbose: bool = False,
+) -> None:
+    dep_data = _load(req_path, yaml)
+    opt_deps = dep_data.get("optional_dependencies", {})
+
+    for extra in extras_list:
+        # Handle the "*" special case for all extras
+        extra_sections = list(opt_deps.keys()) if extra == "*" else [extra]
+
+        for section in extra_sections:
+            if section not in opt_deps:
+                continue
+
+            for extra_dep in opt_deps[section]:
+                if isinstance(extra_dep, str) and _str_is_path_like(extra_dep):
+                    # Process local dependency from the optional section
+                    extra_abs_path, nested_extras = _resolve_local_path(
+                        extra_dep,
+                        req_path.parent,
+                    )
+                    if verbose:
+                        print(
+                            f"🔗 Adding `{extra_abs_path}` from optional dependency"
+                            f" section `{section}`",
+                        )
+                    _add_dependency(
+                        dep_path=extra_abs_path,
+                        base_path=base_path,
+                        dependencies=dependencies,
+                        yaml=yaml,
+                        processed=processed,
+                        with_extras=nested_extras,
+                        check_pip_installable=check_pip_installable,
+                        verbose=verbose,
+                        # Avoid excessive warnings for nested deps
+                        warn_non_managed=False,
+                    )
+
+
+def _add_dependency(  # noqa: PLR0912
+    dep_path: Path,
+    base_path: Path,
+    dependencies: dict[str, set[str]],
+    yaml: YAML,
+    processed: set[Path],
+    *,
+    with_extras: list[str] | None = None,
+    check_pip_installable: bool = True,
+    verbose: bool = False,
+    raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
+) -> None:
+    if dep_path.suffix in (".whl", ".zip"):
+        dependencies[str(base_path)].add(str(dep_path))
+        return
+
+    if not dep_path.exists():
+        if raise_if_missing:
+            msg = f"File `{dep_path}` not found."
+            raise FileNotFoundError(msg)
+        return
+
+    try:
+        requirements_path = parse_folder_or_filename(dep_path).path
+    except FileNotFoundError:
+        # Means that this is a local package that is not managed by unidep
+        if is_pip_installable(dep_path):
+            dependencies[str(base_path)].add(str(dep_path))
+            if warn_non_managed:
+                warn(
+                    f"⚠️ Installing a local dependency (`{dep_path.name}`) which"
+                    " is not managed by unidep, this will skip all of its"
+                    " dependencies, i.e., it will call `pip install` with"
+                    "  `--no-deps`. To properly manage this dependency,"
+                    " add a `requirements.yaml` or `pyproject.toml` file with"
+                    " `[tool.unidep]` in its directory.",
+                )
+        elif _is_empty_folder(dep_path):
+            msg = (
+                f"`{dep_path}` in `local_dependencies` is not pip installable"
+                " because it is an empty folder."
+            )
+            raise RuntimeError(msg) from None
+        elif _is_empty_git_submodule(dep_path):
+            msg = (
+                f"`{dep_path}` in `local_dependencies` is not installable by"
+                " pip because it is an empty Git submodule."
+            )
+            raise RuntimeError(msg) from None
+        else:
+            msg = (
+                f"`{dep_path}` in `local_dependencies` is not pip installable"
+                " nor is it managed by unidep."
+            )
+            raise RuntimeError(msg) from None
+        return
+
+    # It's a valid requirements file
+    project_path = requirements_path.parent
+    if str(project_path) == str(base_path):
+        return  # Skip circular reference
+
+    if not check_pip_installable or is_pip_installable(project_path):
+        dependencies[str(base_path)].add(str(project_path))
+
+        # Process extras if specified
+        if with_extras:
+            _process_extras(
+                req_path=requirements_path,
+                extras_list=with_extras,
+                base_path=base_path,
+                dependencies=dependencies,
+                yaml=yaml,
+                processed=processed,
+                check_pip_installable=check_pip_installable,
+                verbose=verbose,
+            )
+
+    # Continue recursive processing
+    if verbose:
+        print(f"🔗 Processing dependencies in `{requirements_path}`")
+    _extract_local_dependencies(
+        path=requirements_path,
+        base_path=base_path,
+        processed=processed,
+        dependencies=dependencies,
+        check_pip_installable=check_pip_installable,
+        verbose=verbose,
+        raise_if_missing=raise_if_missing,
+        warn_non_managed=warn_non_managed,
+    )
+
+
+def _extract_local_dependencies(
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -596,123 +759,24 @@ def _extract_local_dependencies(  # noqa: PLR0912
         path_with_extras=PathWithExtras(path, extras),
         verbose=verbose,
     )
-    # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
+
+    # Process local dependencies
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        local_path, dep_extras = split_path_and_extras(local_dependency)
-        abs_local = (path.parent / local_path).resolve()
-        if abs_local.suffix in (".whl", ".zip"):
-            if verbose:
-                print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
-            dependencies[str(base_path)].add(str(abs_local))
-            continue
-        if not abs_local.exists():
-            if raise_if_missing:
-                msg = f"File `{abs_local}` not found."
-                raise FileNotFoundError(msg)
-            continue
-
-        try:
-            requirements_path = parse_folder_or_filename(abs_local).path
-        except FileNotFoundError:
-            # Means that this is a local package that is not managed by unidep.
-            if is_pip_installable(abs_local):
-                dependencies[str(base_path)].add(str(abs_local))
-                if warn_non_managed:
-                    # We do not need to emit this warning when `pip install` is called
-                    warn(
-                        f"⚠️ Installing a local dependency (`{abs_local.name}`) which"
-                        " is not managed by unidep, this will skip all of its"
-                        " dependencies, i.e., it will call `pip install` with"
-                        "  `--no-deps`. To properly manage this dependency,"
-                        " add a `requirements.yaml` or `pyproject.toml` file with"
-                        " `[tool.unidep]` in its directory.",
-                    )
-            elif _is_empty_folder(abs_local):
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not pip"
-                    " installable because it is an empty folder. Is it perhaps"
-                    " an uninitialized Git submodule? If so, initialize it with"
-                    " `git submodule update --init --recursive`. Otherwise,"
-                    " remove it from `local_dependencies`."
-                )
-                raise RuntimeError(msg) from None
-            elif _is_empty_git_submodule(abs_local):
-                # Extra check for empty Git submodules (common problem folks run into)
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not installable"
-                    " by pip because it is an empty Git submodule. Either remove it"
-                    " from `local_dependencies` or fetch the submodule with"
-                    " `git submodule update --init --recursive`."
-                )
-                raise RuntimeError(msg) from None
-            else:
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not pip"
-                    " installable nor is it managed by unidep. Remove it"
-                    " from `local_dependencies`."
-                )
-                raise RuntimeError(msg) from None
-            continue
-
-        project_path = str(requirements_path.parent)
-        if project_path == str(base_path):
-            continue
-        if not check_pip_installable or is_pip_installable(requirements_path.parent):
-            dependencies[str(base_path)].add(project_path)
-
-            # NEW CODE: If extras were specified, process them
-            if dep_extras:
-                # Load the requirements file to check for optional dependencies
-                dep_data = _load(requirements_path, yaml)
-                opt_deps = dep_data.get("optional_dependencies", {})
-
-                # For each extra, add its optional dependencies to the base package
-                for extra in dep_extras:
-                    if extra == "*":
-                        # All extras
-                        for extra_deps in opt_deps.values():
-                            for extra_dep in extra_deps:
-                                if isinstance(extra_dep, str) and _str_is_path_like(
-                                    extra_dep,
-                                ):
-                                    # This is a local dependency path
-                                    abs_extra_dep = (
-                                        requirements_path.parent / extra_dep
-                                    ).resolve()
-                                    if verbose:
-                                        print(
-                                            f"🔗 Adding `{abs_extra_dep}` from optional dependency `{extra}`",
-                                        )
-                                    if is_pip_installable(abs_extra_dep):
-                                        dependencies[str(base_path)].add(
-                                            str(abs_extra_dep),
-                                        )
-                    elif extra in opt_deps:
-                        for extra_dep in opt_deps[extra]:
-                            if isinstance(extra_dep, str) and _str_is_path_like(
-                                extra_dep,
-                            ):
-                                # This is a local dependency path
-                                abs_extra_dep = (
-                                    requirements_path.parent / extra_dep
-                                ).resolve()
-                                if verbose:
-                                    print(
-                                        f"🔗 Adding `{abs_extra_dep}` from optional dependency `{extra}`",
-                                    )
-                                if is_pip_installable(abs_extra_dep):
-                                    dependencies[str(base_path)].add(str(abs_extra_dep))
-
+        abs_path, extras = _resolve_local_path(local_dependency, path.parent)
         if verbose:
-            print(f"🔗 Adding `{requirements_path}` from `local_dependencies`")
-        _extract_local_dependencies(
-            requirements_path,
-            base_path,
-            processed,
-            dependencies,
+            print(f"🔗 Processing `{local_dependency}` from `local_dependencies`")
+        _add_dependency(
+            dep_path=abs_path,
+            base_path=base_path,
+            dependencies=dependencies,
+            yaml=yaml,
+            processed=processed,
+            with_extras=extras,
             check_pip_installable=check_pip_installable,
             verbose=verbose,
+            raise_if_missing=raise_if_missing,
+            warn_non_managed=warn_non_managed,
         )
 
 
