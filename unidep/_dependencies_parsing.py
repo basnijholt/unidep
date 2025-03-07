@@ -575,21 +575,6 @@ parse_yaml_requirements = parse_requirements
 
 
 def _resolve_local_path(dep_path: str, parent_path: Path) -> tuple[Path, list[str]]:
-    """Resolve a local dependency path and extract extras.
-
-    Parameters
-    ----------
-    dep_path
-        Path to the dependency, possibly with extras like '../pkg[extra]'
-    parent_path
-        Parent directory to resolve relative paths from
-
-    Returns
-    -------
-    tuple[Path, list[str]]
-        Resolved absolute path and list of extras
-
-    """
     local_path, dep_extras = split_path_and_extras(dep_path)
     abs_path = (parent_path / local_path).resolve()
     return abs_path, dep_extras
@@ -641,6 +626,49 @@ def _process_extras(
                         # Avoid excessive warnings for nested deps
                         warn_non_managed=False,
                     )
+
+
+def _extract_local_dependencies(
+    path: Path,
+    base_path: Path,
+    processed: set[Path],
+    dependencies: dict[str, set[str]],
+    *,
+    check_pip_installable: bool = True,
+    verbose: bool = False,
+    raise_if_missing: bool = True,
+    warn_non_managed: bool = True,
+) -> None:
+    path, extras = parse_folder_or_filename(path)
+    if path in processed:
+        return
+    processed.add(path)
+    yaml = YAML(typ="safe")
+    data = _load(path, yaml)
+    _move_local_optional_dependencies_to_local_dependencies(
+        data=data,  # modified in place
+        path_with_extras=PathWithExtras(path, extras),
+        verbose=verbose,
+    )
+
+    # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
+    for local_dependency in _get_local_dependencies(data):
+        assert not os.path.isabs(local_dependency)  # noqa: PTH117
+        abs_path, extras = _resolve_local_path(local_dependency, path.parent)
+        if verbose:
+            print(f"🔗 Processing `{local_dependency}` from `local_dependencies`")
+        _add_dependency(
+            dep_path=abs_path,
+            base_path=base_path,
+            dependencies=dependencies,
+            yaml=yaml,
+            processed=processed,
+            with_extras=extras,
+            check_pip_installable=check_pip_installable,
+            verbose=verbose,
+            raise_if_missing=raise_if_missing,
+            warn_non_managed=warn_non_managed,
+        )
 
 
 def _add_dependency(  # noqa: PLR0912
@@ -735,49 +763,6 @@ def _add_dependency(  # noqa: PLR0912
         raise_if_missing=raise_if_missing,
         warn_non_managed=warn_non_managed,
     )
-
-
-def _extract_local_dependencies(
-    path: Path,
-    base_path: Path,
-    processed: set[Path],
-    dependencies: dict[str, set[str]],
-    *,
-    check_pip_installable: bool = True,
-    verbose: bool = False,
-    raise_if_missing: bool = True,
-    warn_non_managed: bool = True,
-) -> None:
-    path, extras = parse_folder_or_filename(path)
-    if path in processed:
-        return
-    processed.add(path)
-    yaml = YAML(typ="safe")
-    data = _load(path, yaml)
-    _move_local_optional_dependencies_to_local_dependencies(
-        data=data,  # modified in place
-        path_with_extras=PathWithExtras(path, extras),
-        verbose=verbose,
-    )
-
-    # Process local dependencies
-    for local_dependency in _get_local_dependencies(data):
-        assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        abs_path, extras = _resolve_local_path(local_dependency, path.parent)
-        if verbose:
-            print(f"🔗 Processing `{local_dependency}` from `local_dependencies`")
-        _add_dependency(
-            dep_path=abs_path,
-            base_path=base_path,
-            dependencies=dependencies,
-            yaml=yaml,
-            processed=processed,
-            with_extras=extras,
-            check_pip_installable=check_pip_installable,
-            verbose=verbose,
-            raise_if_missing=raise_if_missing,
-            warn_non_managed=warn_non_managed,
-        )
 
 
 def parse_local_dependencies(
