@@ -654,11 +654,11 @@ def _extract_local_dependencies(
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        abs_path, extras = _resolve_local_path(local_dependency, path.parent)
+        abs_local, extras = _resolve_local_path(local_dependency, path.parent)
         if verbose:
             print(f"🔗 Processing `{local_dependency}` from `local_dependencies`")
         _add_dependency(
-            dep_path=abs_path,
+            dep_path=abs_local,
             base_path=base_path,
             dependencies=dependencies,
             yaml=yaml,
@@ -697,10 +697,11 @@ def _add_dependency(  # noqa: PLR0912
     try:
         requirements_path = parse_folder_or_filename(dep_path).path
     except FileNotFoundError:
-        # Means that this is a local package that is not managed by unidep
+        # Means that this is a local package that is not managed by unidep.
         if is_pip_installable(dep_path):
             dependencies[str(base_path)].add(str(dep_path))
             if warn_non_managed:
+                # We do not need to emit this warning when `pip install` is called
                 warn(
                     f"⚠️ Installing a local dependency (`{dep_path.name}`) which"
                     " is not managed by unidep, this will skip all of its"
@@ -711,31 +712,37 @@ def _add_dependency(  # noqa: PLR0912
                 )
         elif _is_empty_folder(dep_path):
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not pip installable"
-                " because it is an empty folder."
+                f"`{dep_path}` in `local_dependencies` is not pip"
+                " installable because it is an empty folder. Is it perhaps"
+                " an uninitialized Git submodule? If so, initialize it with"
+                " `git submodule update --init --recursive`. Otherwise,"
+                " remove it from `local_dependencies`."
             )
             raise RuntimeError(msg) from None
         elif _is_empty_git_submodule(dep_path):
+            # Extra check for empty Git submodules (common problem folks run into)
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not installable by"
-                " pip because it is an empty Git submodule."
+                f"`{dep_path}` in `local_dependencies` is not installable"
+                " by pip because it is an empty Git submodule. Either remove it"
+                " from `local_dependencies` or fetch the submodule with"
+                " `git submodule update --init --recursive`."
             )
             raise RuntimeError(msg) from None
         else:
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not pip installable"
-                " nor is it managed by unidep."
+                f"`{dep_path}` in `local_dependencies` is not pip"
+                " installable nor is it managed by unidep. Remove it"
+                " from `local_dependencies`."
             )
             raise RuntimeError(msg) from None
         return
 
     # It's a valid requirements file
-    project_path = requirements_path.parent
-    if str(project_path) == str(base_path):
-        return  # Skip circular reference
-
+    project_path = str(requirements_path.parent)
+    if project_path == str(base_path):
+        return
     if not check_pip_installable or is_pip_installable(project_path):
-        dependencies[str(base_path)].add(str(project_path))
+        dependencies[str(base_path)].add(project_path)
 
         # Process extras if specified
         if with_extras:
@@ -754,10 +761,10 @@ def _add_dependency(  # noqa: PLR0912
     if verbose:
         print(f"🔗 Processing dependencies in `{requirements_path}`")
     _extract_local_dependencies(
-        path=requirements_path,
-        base_path=base_path,
-        processed=processed,
-        dependencies=dependencies,
+        requirements_path,
+        base_path,
+        processed,
+        dependencies,
         check_pip_installable=check_pip_installable,
         verbose=verbose,
         raise_if_missing=raise_if_missing,
