@@ -24,7 +24,6 @@ from unidep.utils import (
     parse_folder_or_filename,
     parse_package_str,
     selector_from_comment,
-    split_path_and_extras,
     unidep_configured_in_toml,
     warn,
 )
@@ -578,14 +577,15 @@ def _extract_local_dependencies(  # noqa: PLR0912
     path: Path,
     base_path: Path,
     processed: set[Path],
-    dependencies: dict[str, set[str]],
+    dependencies: dict[str, set[PathWithExtras]],  # Changed from set[str]
     *,
     check_pip_installable: bool = True,
     verbose: bool = False,
     raise_if_missing: bool = True,
     warn_non_managed: bool = True,
 ) -> None:
-    path, extras = parse_folder_or_filename(path)
+    path_with_extras = parse_folder_or_filename(path)
+    path, extras = path_with_extras.path, path_with_extras.extras
     if path in processed:
         return
     processed.add(path)
@@ -599,13 +599,20 @@ def _extract_local_dependencies(  # noqa: PLR0912
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        local_path, extras = split_path_and_extras(local_dependency)
+        dep_path_with_extras = parse_folder_or_filename(local_dependency)
+        local_path = dep_path_with_extras.path
         abs_local = (path.parent / local_path).resolve()
+
         if abs_local.suffix in (".whl", ".zip"):
             if verbose:
                 print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
-            dependencies[str(base_path)].add(str(abs_local))
+            # For wheel/zip files, we need to preserve the original path string
+            # because extras might be important
+            dependencies[str(base_path)].add(
+                PathWithExtras(abs_local, dep_path_with_extras.extras),
+            )
             continue
+
         if not abs_local.exists():
             if raise_if_missing:
                 msg = f"File `{abs_local}` not found."
@@ -613,11 +620,14 @@ def _extract_local_dependencies(  # noqa: PLR0912
             continue
 
         try:
-            requirements_path = parse_folder_or_filename(abs_local).path
+            abs_requirements_path = parse_folder_or_filename(abs_local).path
         except FileNotFoundError:
             # Means that this is a local package that is not managed by unidep.
             if is_pip_installable(abs_local):
-                dependencies[str(base_path)].add(str(abs_local))
+                # Add the path with extras
+                dependencies[str(base_path)].add(
+                    PathWithExtras(abs_local, dep_path_with_extras.extras),
+                )
                 if warn_non_managed:
                     # We do not need to emit this warning when `pip install` is called
                     warn(
@@ -655,18 +665,25 @@ def _extract_local_dependencies(  # noqa: PLR0912
                 raise RuntimeError(msg) from None
             continue
 
-        project_path = str(requirements_path.parent)
-        if project_path == str(base_path):
+        project_path = abs_requirements_path.parent
+        if str(project_path) == str(base_path):
             continue
-        if not check_pip_installable or is_pip_installable(requirements_path.parent):
-            dependencies[str(base_path)].add(project_path)
+
+        if not check_pip_installable or is_pip_installable(project_path):
+            # Add the path with extras
+            dependencies[str(base_path)].add(
+                PathWithExtras(project_path, dep_path_with_extras.extras),
+            )
+
         if verbose:
-            print(f"🔗 Adding `{requirements_path}` from `local_dependencies`")
+            print(f"🔗 Adding `{abs_requirements_path}` from `local_dependencies`")
+
+        # Recursively process this dependency's requirements file
         _extract_local_dependencies(
-            requirements_path,
-            base_path,
-            processed,
-            dependencies,
+            path=abs_requirements_path,
+            base_path=base_path,
+            processed=processed,
+            dependencies=dependencies,
             check_pip_installable=check_pip_installable,
             verbose=verbose,
         )
@@ -678,15 +695,15 @@ def parse_local_dependencies(
     verbose: bool = False,
     raise_if_missing: bool = True,
     warn_non_managed: bool = True,
-) -> dict[Path, list[Path]]:
+) -> dict[Path, list[PathWithExtras]]:  # Changed return type
     """Extract local project dependencies from a list of `requirements.yaml` or `pyproject.toml` files.
 
     Works by loading the specified `local_dependencies` list.
 
     Returns a dictionary with the:
-    name of the project folder => list of `Path`s of local dependencies folders.
-    """  # noqa: E501
-    dependencies: dict[str, set[str]] = defaultdict(set)
+    name of the project folder => list of `PathWithExtras` of local dependencies folders.
+    """
+    dependencies: dict[str, set[PathWithExtras]] = defaultdict(set)  # Changed set type
 
     for p in paths:
         if verbose:
@@ -704,7 +721,7 @@ def parse_local_dependencies(
         )
 
     return {
-        Path(k): sorted({Path(v) for v in v_set})
+        Path(k): sorted(v_set, key=lambda x: str(x.path))
         for k, v_set in sorted(dependencies.items())
     }
 
