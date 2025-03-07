@@ -37,6 +37,7 @@ from unidep._setuptools_integration import (
 from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
+    PathWithExtras,
     add_comment_to_file,
     escape_unicode,
     get_package_version,
@@ -891,7 +892,7 @@ def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
 
 
 def _pip_install_local(
-    *folders: str | Path,
+    *folders: str | Path | PathWithExtras,
     editable: bool,
     dry_run: bool,
     python_executable: str,
@@ -914,19 +915,29 @@ def _pip_install_local(
     if flags:
         pip_command.extend(flags)
 
-    for folder in sorted(folders):
-        if not os.path.isabs(folder):  # noqa: PTH117
+    for folder in sorted(folders, key=lambda x: str(x)):
+        if isinstance(folder, PathWithExtras):
+            path = str(folder.path)
+            extras = folder.extras_str
+            install_path = path + extras  # Includes any extras
+        else:
+            path = str(folder)
+            extras = ""
+            install_path = path
+
+        if not os.path.isabs(path):  # noqa: PTH117
             relative_prefix = ".\\" if os.name == "nt" else "./"
-            folder = f"{relative_prefix}{folder}"  # noqa: PLW2901
+            install_path = f"{relative_prefix}{install_path}"
 
         if (
             editable
-            and not str(folder).endswith(".whl")
-            and not str(folder).endswith(".zip")
+            and not str(path).endswith(".whl")
+            and not str(path).endswith(".zip")
+            and extras == ""  # Can't use -e with extras
         ):
-            pip_command.extend(["-e", str(folder)])
+            pip_command.extend(["-e", install_path])
         else:
-            pip_command.append(str(folder))
+            pip_command.append(install_path)
 
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
@@ -1049,7 +1060,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
     if not skip_local:
         for file in paths_with_extras:
             if is_pip_installable(file.path.parent):
-                installable.append(file.path.parent)
+                installable.append(file.path_with_extras)  # Keep extras information
             else:  # pragma: no cover
                 print(
                     f"⚠️  Project {file.path.parent} is not pip installable. "
@@ -1062,15 +1073,23 @@ def _install_command(  # noqa: PLR0912, PLR0915
             check_pip_installable=True,
             verbose=verbose,
         )
-        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
+
+        # Get names with extras preserved for verbose output
+        names = {
+            k.name: [f"{dep.path.name}{dep.extras_str}" for dep in v]
+            for k, v in local_dependencies.items()
+        }
         print(f"📝 Found local dependencies: {names}\n")
-        installable_set = {p.resolve() for p in installable}
-        installable += [
-            dep
-            for deps in local_dependencies.values()
-            for dep in deps
-            if dep.resolve() not in installable_set
-        ]
+
+        # Track which paths we've already added to avoid duplicates
+        installable_set = {p.resolve() for p in [Path(p) for p in installable]}
+        for deps in local_dependencies.values():
+            for dep in deps:
+                # Check if we already have this path (ignoring extras)
+                if dep.path.resolve() not in installable_set:
+                    installable.append(dep.path_with_extras)  # Keep extras information
+                    installable_set.add(dep.path.resolve())
+
         if installable:
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
