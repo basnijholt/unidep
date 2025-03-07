@@ -599,7 +599,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dependency in _get_local_dependencies(data):
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
-        local_path, extras = split_path_and_extras(local_dependency)
+        local_path, dep_extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
         if abs_local.suffix in (".whl", ".zip"):
             if verbose:
@@ -660,6 +660,50 @@ def _extract_local_dependencies(  # noqa: PLR0912
             continue
         if not check_pip_installable or is_pip_installable(requirements_path.parent):
             dependencies[str(base_path)].add(project_path)
+
+            # NEW CODE: If extras were specified, process them
+            if dep_extras:
+                # Load the requirements file to check for optional dependencies
+                dep_data = _load(requirements_path, yaml)
+                opt_deps = dep_data.get("optional_dependencies", {})
+
+                # For each extra, add its optional dependencies to the base package
+                for extra in dep_extras:
+                    if extra == "*":
+                        # All extras
+                        for extra_deps in opt_deps.values():
+                            for extra_dep in extra_deps:
+                                if isinstance(extra_dep, str) and _str_is_path_like(
+                                    extra_dep,
+                                ):
+                                    # This is a local dependency path
+                                    abs_extra_dep = (
+                                        requirements_path.parent / extra_dep
+                                    ).resolve()
+                                    if verbose:
+                                        print(
+                                            f"🔗 Adding `{abs_extra_dep}` from optional dependency `{extra}`",
+                                        )
+                                    if is_pip_installable(abs_extra_dep):
+                                        dependencies[str(base_path)].add(
+                                            str(abs_extra_dep),
+                                        )
+                    elif extra in opt_deps:
+                        for extra_dep in opt_deps[extra]:
+                            if isinstance(extra_dep, str) and _str_is_path_like(
+                                extra_dep,
+                            ):
+                                # This is a local dependency path
+                                abs_extra_dep = (
+                                    requirements_path.parent / extra_dep
+                                ).resolve()
+                                if verbose:
+                                    print(
+                                        f"🔗 Adding `{abs_extra_dep}` from optional dependency `{extra}`",
+                                    )
+                                if is_pip_installable(abs_extra_dep):
+                                    dependencies[str(base_path)].add(str(abs_extra_dep))
+
         if verbose:
             print(f"🔗 Adding `{requirements_path}` from `local_dependencies`")
         _extract_local_dependencies(
@@ -687,7 +731,6 @@ def parse_local_dependencies(
     name of the project folder => list of `Path`s of local dependencies folders.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
-
     for p in paths:
         if verbose:
             print(f"🔗 Analyzing dependencies in `{p}`")
