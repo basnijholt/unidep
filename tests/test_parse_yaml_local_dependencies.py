@@ -728,3 +728,51 @@ def test_nested_extras_in_local_dependencies(
     # Should include dependencies from both extra1 and another-extra
     assert len(all_extras_deps) == 1  # Only one is a path
     assert all_extras_deps[0][0].name == "utility_package"
+
+
+def test_wildcard_extras_processing(tmp_path: Path) -> None:
+    """Test handling of wildcard extras."""
+    package_dir = tmp_path / "package"
+    package_dir.mkdir()
+
+    # Create a requirements file with multiple extras
+    (package_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - main-dep
+        optional_dependencies:
+          extra1:
+            - ../dep1
+          extra2:
+            - ../dep2
+          extra3:
+            - not-a-path
+        """,
+    )
+
+    yaml = YAML(typ="safe")
+
+    # Test with wildcard
+    wildcard_deps = _get_local_deps_from_optional_section(
+        req_path=package_dir / "requirements.yaml",
+        extras_list=["*"],
+        yaml=yaml,
+        verbose=True,
+    )
+
+    # Should find both path dependencies from all extras
+    assert len(wildcard_deps) == 2
+    paths = {dep[0].name for dep in wildcard_deps}
+    assert paths == {"dep1", "dep2"}
+
+    # Test with specific extras
+    specific_deps = _get_local_deps_from_optional_section(
+        req_path=package_dir / "requirements.yaml",
+        extras_list=["extra1"],
+        yaml=yaml,
+        verbose=True,
+    )
+
+    # Should only find the dependency from extra1
+    assert len(specific_deps) == 1
+    assert specific_deps[0][0].name == "dep1"
