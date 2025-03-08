@@ -580,54 +580,6 @@ def _resolve_local_path(dep_path: str, parent_path: Path) -> tuple[Path, list[st
     return abs_path, dep_extras
 
 
-def _process_extras(
-    req_path: Path,
-    extras_list: list[str],
-    base_path: Path,
-    dependencies: dict[str, set[str]],
-    yaml: YAML,
-    processed: set[Path],
-    *,
-    check_pip_installable: bool = True,
-    verbose: bool = False,
-) -> None:
-    dep_data = _load(req_path, yaml)
-    opt_deps = dep_data.get("optional_dependencies", {})
-
-    for extra in extras_list:
-        # Handle the "*" special case for all extras
-        extra_sections = list(opt_deps.keys()) if extra == "*" else [extra]
-
-        for section in extra_sections:
-            if section not in opt_deps:
-                continue
-
-            for extra_dep in opt_deps[section]:
-                if isinstance(extra_dep, str) and _str_is_path_like(extra_dep):
-                    # Process local dependency from the optional section
-                    extra_abs_path, nested_extras = _resolve_local_path(
-                        extra_dep,
-                        req_path.parent,
-                    )
-                    if verbose:
-                        print(
-                            f"🔗 Adding `{extra_abs_path}` from optional dependency"
-                            f" section `{section}`",
-                        )
-                    _add_dependency(
-                        dep_path=extra_abs_path,
-                        base_path=base_path,
-                        dependencies=dependencies,
-                        yaml=yaml,
-                        processed=processed,
-                        with_extras=nested_extras,
-                        check_pip_installable=check_pip_installable,
-                        verbose=verbose,
-                        # Avoid excessive warnings for nested deps
-                        warn_non_managed=False,
-                    )
-
-
 def _extract_local_dependencies(
     path: Path,
     base_path: Path,
@@ -746,16 +698,27 @@ def _add_dependency(  # noqa: PLR0912
 
         # Process extras if specified
         if with_extras:
-            _process_extras(
+            local_deps_from_extras = _get_local_deps_from_optional_section(
                 req_path=requirements_path,
                 extras_list=with_extras,
-                base_path=base_path,
-                dependencies=dependencies,
                 yaml=yaml,
-                processed=processed,
-                check_pip_installable=check_pip_installable,
                 verbose=verbose,
             )
+
+            for extra_path, nested_extras in local_deps_from_extras:
+                if verbose:
+                    print(f"🔗 Processing `{extra_path}` from optional dependencies")
+                _add_dependency(
+                    dep_path=extra_path,
+                    base_path=base_path,
+                    dependencies=dependencies,
+                    yaml=yaml,
+                    processed=processed,
+                    with_extras=nested_extras,
+                    check_pip_installable=check_pip_installable,
+                    verbose=verbose,
+                    warn_non_managed=False,  # Avoid excessive warnings
+                )
 
     # Continue recursive processing
     if verbose:
@@ -770,6 +733,41 @@ def _add_dependency(  # noqa: PLR0912
         raise_if_missing=raise_if_missing,
         warn_non_managed=warn_non_managed,
     )
+
+
+def _get_local_deps_from_optional_section(
+    req_path: Path,
+    extras_list: list[str],
+    yaml: YAML,
+    verbose: bool,  # noqa: FBT001
+) -> list[tuple[Path, list[str]]]:
+    """Extract local dependencies from optional dependency sections.
+
+    Returns a list of tuples (dependency_path, nested_extras)
+    """
+    result = []
+    dep_data = _load(req_path, yaml)
+    opt_deps = dep_data.get("optional_dependencies", {})
+
+    # Determine which sections to process
+    sections_to_process = set()
+    for extra in extras_list:
+        if extra == "*":
+            sections_to_process.update(opt_deps)
+        elif extra in opt_deps:
+            sections_to_process.add(extra)
+
+    # Process each section
+    for section in sections_to_process:
+        for dep in opt_deps[section]:
+            if isinstance(dep, str) and _str_is_path_like(dep):
+                abs_path, nested_extras = _resolve_local_path(dep, req_path.parent)
+                if verbose:
+                    msg = f"🔗 Found local dependency `{abs_path}` in optional section `{section}`"  # noqa: E501
+                    print(msg)
+                result.append((abs_path, nested_extras))
+
+    return result
 
 
 def parse_local_dependencies(

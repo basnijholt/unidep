@@ -531,3 +531,70 @@ def test_parse_local_dependencies_without_local_deps_themselves(
     r2.write_text("")
     with pytest.raises(RuntimeError, match="is not pip installable"):
         parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
+
+
+def test_local_dependency_with_extras(tmp_path: Path) -> None:
+    """Test that local dependencies with extras are properly installed."""
+    # Set up the directory structure
+    package1_dir = tmp_path / "package1"
+    my_package_dir = tmp_path / "my_package"
+    my_package2_dir = tmp_path / "my_package2"
+
+    package1_dir.mkdir()
+    my_package_dir.mkdir()
+    my_package2_dir.mkdir()
+
+    # Create requirements.yaml for package1
+    (package1_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - common-dep
+        local_dependencies:
+          - ../my_package[my-extra]
+        """,
+    )
+
+    # Create requirements.yaml for my_package
+    (my_package_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - my-package-dep
+        optional_dependencies:
+          my-extra:
+            - ../my_package2
+        """,
+    )
+
+    # Make my_package pip installable
+    (my_package_dir / "setup.py").write_text(
+        """
+        from setuptools import setup
+        setup(name="my_package", version="0.1.0")
+        """,
+    )
+
+    # Create requirements.yaml for my_package2
+    (my_package2_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - my-package2-dep
+        """,
+    )
+
+    # Make my_package2 pip installable
+    (my_package2_dir / "setup.py").write_text(
+        """
+        from setuptools import setup
+        setup(name="my_package2", version="0.1.0")
+        """,
+    )
+    local_dependencies = parse_local_dependencies(
+        package1_dir / "requirements.yaml",
+        verbose=True,
+    )
+    assert local_dependencies == {
+        package1_dir.absolute(): [
+            my_package_dir.absolute(),
+            my_package2_dir.absolute(),
+        ],
+    }
