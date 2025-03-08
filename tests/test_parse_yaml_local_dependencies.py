@@ -713,7 +713,8 @@ def test_nested_extras_in_local_dependencies(
 
     # We expect a tuple with utility_package path and ["extra2"] as nested extras
     assert len(deps_from_extras) == 1
-    path, nested_extras = deps_from_extras[0]
+    path, extra, nested_extras = deps_from_extras[0]
+    assert extra == "../utility_package[extra2]"
     assert path.name == "utility_package"
     assert nested_extras == ["extra2"]
 

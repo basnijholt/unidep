@@ -611,6 +611,7 @@ def _extract_local_dependencies(
             print(f"🔗 Processing `{local_dependency}` from `local_dependencies`")
         _add_dependency(
             dep_path=abs_local,
+            dep_unresolved=local_dependency,
             base_path=base_path,
             dependencies=dependencies,
             yaml=yaml,
@@ -625,6 +626,7 @@ def _extract_local_dependencies(
 
 def _add_dependency(  # noqa: PLR0912
     dep_path: Path,
+    dep_unresolved: str,  # only for printing
     base_path: Path,
     dependencies: dict[str, set[str]],
     yaml: YAML,
@@ -637,6 +639,8 @@ def _add_dependency(  # noqa: PLR0912
     warn_non_managed: bool = True,
 ) -> None:
     if dep_path.suffix in (".whl", ".zip"):
+        if verbose:
+            print(f"🔗 Adding `{dep_unresolved}` from `local_dependencies`")
         dependencies[str(base_path)].add(str(dep_path))
         return
 
@@ -664,7 +668,7 @@ def _add_dependency(  # noqa: PLR0912
                 )
         elif _is_empty_folder(dep_path):
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not pip"
+                f"`{dep_unresolved}` in `local_dependencies` is not pip"
                 " installable because it is an empty folder. Is it perhaps"
                 " an uninitialized Git submodule? If so, initialize it with"
                 " `git submodule update --init --recursive`. Otherwise,"
@@ -674,7 +678,7 @@ def _add_dependency(  # noqa: PLR0912
         elif _is_empty_git_submodule(dep_path):
             # Extra check for empty Git submodules (common problem folks run into)
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not installable"
+                f"`{dep_unresolved}` in `local_dependencies` is not installable"
                 " by pip because it is an empty Git submodule. Either remove it"
                 " from `local_dependencies` or fetch the submodule with"
                 " `git submodule update --init --recursive`."
@@ -682,7 +686,7 @@ def _add_dependency(  # noqa: PLR0912
             raise RuntimeError(msg) from None
         else:
             msg = (
-                f"`{dep_path}` in `local_dependencies` is not pip"
+                f"`{dep_unresolved}` in `local_dependencies` is not pip"
                 " installable nor is it managed by unidep. Remove it"
                 " from `local_dependencies`."
             )
@@ -705,11 +709,12 @@ def _add_dependency(  # noqa: PLR0912
                 verbose=verbose,
             )
 
-            for extra_path, nested_extras in local_deps_from_extras:
+            for extra_path, extra_unresolved, nested_extras in local_deps_from_extras:
                 if verbose:
                     print(f"🔗 Processing `{extra_path}` from optional dependencies")
                 _add_dependency(
                     dep_path=extra_path,
+                    dep_unresolved=extra_unresolved,
                     base_path=base_path,
                     dependencies=dependencies,
                     yaml=yaml,
@@ -740,10 +745,10 @@ def _get_local_deps_from_optional_section(
     extras_list: list[str],
     yaml: YAML,
     verbose: bool,  # noqa: FBT001
-) -> list[tuple[Path, list[str]]]:
+) -> list[tuple[Path, str, list[str]]]:
     """Extract local dependencies from optional dependency sections.
 
-    Returns a list of tuples (dependency_path, nested_extras)
+    Returns a list of tuples (dependency_path, dependency_unresolved, nested_extras)
     """
     result = []
     dep_data = _load(req_path, yaml)
@@ -765,7 +770,7 @@ def _get_local_deps_from_optional_section(
                 if verbose:
                     msg = f"🔗 Found local dependency `{abs_path}` in optional section `{section}`"  # noqa: E501
                     print(msg)
-                result.append((abs_path, nested_extras))
+                result.append((abs_path, dep, nested_extras))
 
     return result
 
