@@ -17,6 +17,7 @@ from unidep import (
     parse_requirements,
     resolve_conflicts,
 )
+from unidep._dependencies_parsing import _get_local_deps_from_optional_section
 
 from .helpers import maybe_as_toml
 
@@ -598,3 +599,132 @@ def test_local_dependency_with_extras(tmp_path: Path) -> None:
             my_package2_dir.absolute(),
         ],
     }
+
+
+def test_nested_extras_in_local_dependencies(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Test local dependencies with nested extras chains.
+
+    main_package
+    -> lib_package[extra1,another-extra]
+        -> utility_package[extra2] (from extra1)
+            -> base_package (from extra2)
+    """
+    # Create a complex dependency structure:
+    # main_package -> lib_package[extra1] -> utility_package[extra2] -> base_package
+
+    main_dir = tmp_path / "main_package"
+    lib_dir = tmp_path / "lib_package"
+    utility_dir = tmp_path / "utility_package"
+    base_dir = tmp_path / "base_package"
+
+    for dir_path in [main_dir, lib_dir, utility_dir, base_dir]:
+        dir_path.mkdir()
+        # Make all packages pip-installable
+        (dir_path / "setup.py").write_text(
+            f"""
+            from setuptools import setup
+            setup(name="{dir_path.name}", version="0.1.0")
+            """,
+        )
+
+    # Main package depends on lib_package with extra1
+    (main_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - main-dependency
+        local_dependencies:
+          - ../lib_package[extra1,another-extra]
+        """,
+    )
+
+    # Lib package has optional dependency on utility_package with extra2
+    (lib_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - lib-dependency
+        optional_dependencies:
+          extra1:
+            - lib-extra1-dependency
+            - ../utility_package[extra2]
+          another-extra:
+            - another-extra-dependency
+        """,
+    )
+
+    # Utility package has optional dependency on base_package
+    (utility_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - utility-dependency
+        optional_dependencies:
+          extra2:
+            - utility-extra2-dependency
+            - ../base_package
+          other-extra:
+            - not-included-dependency
+        """,
+    )
+
+    # Base package has standard dependencies
+    (base_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - base-dependency
+        """,
+    )
+
+    # Parse dependencies with verbose output to capture logs
+    local_dependencies = parse_local_dependencies(
+        main_dir / "requirements.yaml",
+        verbose=True,
+    )
+
+    # Capture and print the output to help with debugging
+    output = capsys.readouterr().out
+    print(output)
+
+    # Check that all packages are correctly included in dependencies
+    assert local_dependencies == {
+        main_dir.absolute(): sorted(
+            [
+                lib_dir.absolute(),
+                utility_dir.absolute(),
+                base_dir.absolute(),
+            ],
+        ),
+    }
+
+    # Verify that extras were processed correctly through verbose output
+    assert "Processing `../lib_package[extra1,another-extra]`" in output
+
+    yaml = YAML(typ="safe")
+    extras = ["extra1"]
+
+    # Test the function directly to verify non-empty nested extras
+    deps_from_extras = _get_local_deps_from_optional_section(
+        req_path=lib_dir / "requirements.yaml",
+        extras_list=extras,
+        yaml=yaml,
+        verbose=True,
+    )
+
+    # We expect a tuple with utility_package path and ["extra2"] as nested extras
+    assert len(deps_from_extras) == 1
+    path, nested_extras = deps_from_extras[0]
+    assert path.name == "utility_package"
+    assert nested_extras == ["extra2"]
+
+    # Also test with "*" to ensure it handles all extras
+    all_extras_deps = _get_local_deps_from_optional_section(
+        req_path=lib_dir / "requirements.yaml",
+        extras_list=["*"],
+        yaml=yaml,
+        verbose=True,
+    )
+
+    # Should include dependencies from both extra1 and another-extra
+    assert len(all_extras_deps) == 1  # Only one is a path
+    assert all_extras_deps[0][0].name == "utility_package"
