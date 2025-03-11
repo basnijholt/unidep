@@ -345,7 +345,13 @@ def _conda_lock_subpackage(
         locked=locked,
     )
 
+    # Sort locked packages by manager, name, platform
     locked = sorted(locked, key=lambda p: (p["manager"], p["name"], p["platform"]))
+
+    # Sort dependencies within each package
+    for package in locked:
+        if package["dependencies"]:
+            package["dependencies"] = sorted(package["dependencies"])
 
     if yaml is None:  # pragma: no cover
         # When passing the same YAML instance that is used to load the file,
