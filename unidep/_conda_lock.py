@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -350,8 +350,9 @@ def _conda_lock_subpackage(
 
     # Sort dependencies within each package
     for package in locked:
-        if package["dependencies"]:
-            package["dependencies"] = sorted(package["dependencies"])
+        deps = package["dependencies"]
+        if deps:
+            package["dependencies"] = OrderedDict(sorted(deps.items()))
 
     if yaml is None:  # pragma: no cover
         # When passing the same YAML instance that is used to load the file,
