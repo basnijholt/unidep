@@ -94,6 +94,9 @@ To get started quickly with UniDep, run the following command. This will downloa
 > [!NOTE]
 > Micromamba and uv are recommended to optimize your installation experience, but they are not required if you prefer to use your existing Conda and pip setup.
 
+> [!WARNING]
+> NEVER! run scripts from the internet without understanding what they do. Always inspect the script first!
+
 ## :package: Installation
 
 To install `unidep`, run one of the following commands that use [`pipx`](https://pipx.pypa.io/) (recommended), `pip`, or `conda`:
