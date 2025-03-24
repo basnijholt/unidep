@@ -19,7 +19,7 @@
 echo "Downloading and installing micromamba to ~/.local/bin/micromamba and uv to ~/.local/bin/uv"
 
 # Install micromamba (https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
-VERSION="1.5.12-0" "${SHELL}" <(curl -LsSf micro.mamba.pm/install.sh) < /dev/null
+"${SHELL}" <(curl -LsSf micro.mamba.pm/install.sh) < /dev/null
 
 # Install uv (https://docs.astral.sh/uv/getting-started/installation/)
 curl -LsSf https://astral.sh/uv/install.sh | sh
