@@ -176,7 +176,7 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
 
         if selector is not None:
             for s in selector.split():
-                validate_selector(cast(Selector, s))
+                validate_selector(cast("Selector", s))
 
         return ParsedPackageStr(
             package_name,
@@ -232,7 +232,7 @@ def selector_from_comment(comment: str) -> str | None:
         return None
     selectors = m.group(1).strip().split()
     for s in selectors:
-        validate_selector(cast(Selector, s))
+        validate_selector(cast("Selector", s))
     return " ".join(selectors)
 
 
