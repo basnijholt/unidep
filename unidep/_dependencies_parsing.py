@@ -36,14 +36,10 @@ if TYPE_CHECKING:
         from typing_extensions import Literal
 
 
-try:  # pragma: no cover
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 
 def find_requirements_files(
@@ -166,15 +162,6 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
 @functools.lru_cache
 def _load(p: Path, yaml: YAML) -> dict[str, Any]:
     if p.suffix == ".toml":
-        if not HAS_TOML:  # pragma: no cover
-            msg = (
-                "❌ No toml support found in your Python installation."
-                " If you are using unidep from `pyproject.toml` and this"
-                " error occurs during installation, make sure you add"
-                '\n\n[build-system]\nrequires = [..., "unidep[toml]"]\n\n'
-                " Otherwise, please install it with `pip install tomli`."
-            )
-            raise ImportError(msg)
         with p.open("rb") as f:
             pyproject = tomllib.load(f)
             project_dependencies = pyproject.get("project", {}).get("dependencies", [])

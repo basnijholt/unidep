@@ -24,14 +24,10 @@ from unidep.utils import (
     warn,
 )
 
-try:  # pragma: no cover
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 
 if TYPE_CHECKING:
@@ -195,9 +191,6 @@ def _package_name_from_setup_py(file_path: Path) -> str:
 
 
 def _package_name_from_pyproject_toml(file_path: Path) -> str:
-    if not HAS_TOML:  # pragma: no cover
-        msg = "toml is required to parse pyproject.toml files."
-        raise ImportError(msg)
     with file_path.open("rb") as f:
         data = tomllib.load(f)
     with contextlib.suppress(KeyError):
