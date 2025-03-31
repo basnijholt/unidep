@@ -12,14 +12,20 @@ print(
 
 for project_dir in PROJECT_DIRS:
     # find the line with `requires = [` in `pyproject.toml` in each project
-    # directory and replace `"unidep"` with
-    # `"unidep @ file://<abs-path-to-repo-root>"``
+    # directory and replace `"unidep"` or `"unidep[toml]"` with
+    # `"unidep @ file://<abs-path-to-repo-root>"`` or
+    # `"unidep[toml] @ file://<abs-path-to-repo-root>"` respectively
     pyproject_toml = project_dir / "pyproject.toml"
     lines = pyproject_toml.read_text().splitlines()
     repo_root = REPO_ROOT.as_posix()  # convert to posix path for windows
     for i, line in enumerate(lines):
         if "requires = [" in line:
-            if "unidep" in line:
+            if "unidep[toml]" in line:
+                lines[i] = line.replace(
+                    "unidep[toml]",
+                    f"unidep[toml] @ file://{repo_root}",
+                )
+            elif "unidep" in line:
                 lines[i] = line.replace("unidep", f"unidep @ file://{repo_root}")
             break
     pyproject_toml.write_text("\n".join(lines))
