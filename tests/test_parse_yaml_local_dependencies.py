@@ -82,6 +82,66 @@ def test_circular_local_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_circular_local_dependencies_with_common(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    project2 = tmp_path / "project2"
+    project2.mkdir(exist_ok=True, parents=True)
+
+    r1 = project1 / "requirements.yaml"
+    r2 = project2 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive-scheduler
+            local_dependencies:
+                - ../project2
+                - ../project2  # duplicate include (shouldn't affect the result)
+            """,
+        ),
+    )
+    # Test with old `includes` name
+    r2.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - adaptive
+            includes:  # `local_dependencies` was called `includes` in <=0.41.0
+                - ../project1
+                - ../common-requirements.yaml
+            """,
+        ),
+    )
+
+    # Add a common requirements file
+    common_requirements = tmp_path / "common-requirements.yaml"
+    common_requirements.write_text("dependencies: [unidep]")
+
+    r1 = maybe_as_toml(toml_or_yaml, r1)
+    # Only convert r1 to toml, not r2, because we want to test that
+    with pytest.warns(DeprecationWarning, match="is deprecated since 0.42.0"):
+        requirements = parse_requirements(r1, r2, verbose=False)
+    # Both will be duplicated because of the circular dependency
+    # but `resolve_conflicts` will remove the duplicates
+    assert len(requirements.requirements["adaptive"]) == 4
+    assert len(requirements.requirements["adaptive-scheduler"]) == 2
+    unidep = requirements.requirements["unidep"]
+    assert len(unidep) == 4
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert len(resolved["adaptive"]) == 1
+    assert len(resolved["adaptive"][None]) == 2
+    assert len(resolved["adaptive-scheduler"]) == 1
+    assert len(resolved["adaptive-scheduler"][None]) == 2
+    unidep_origin = resolved["unidep"][None]["conda"].origin
+    # Should have all 3 files in its origin
+    assert len(unidep_origin) == 3
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_parse_local_dependencies(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,

@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING
 from packaging import version
 
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import defaultdict_to_dict, warn
+from unidep.utils import (
+    PathWithExtras,
+    defaultdict_to_dict,
+    unique_path_with_extras,
+    warn,
+)
 
 if sys.version_info >= (3, 8):
     from typing import get_args
@@ -78,12 +83,33 @@ def _pop_unused_platforms_and_maybe_expand_none(
         platform_data.pop(_platform)
 
 
-def _maybe_new_spec_with_combined_pinnings(
+def _path_sort_key(path: PathWithExtras) -> str:
+    return str(path.resolved().path_with_extras)
+
+
+def _maybe_new_spec_with_combined_pinnings_and_origins(
     specs: list[Spec],
 ) -> Spec:
     pinned_specs = [m for m in specs if m.pin is not None]
+    combined_origin = tuple(
+        sorted(
+            # Only check the last one, which is the real origin
+            # Alternatively, bin by "real origin" (the last) and choose the
+            # shortest path to it.
+            # Or do: `unique_path_with_extras(*(p for s in specs for p in s.origin))`
+            # Still need to think about the best approach here
+            unique_path_with_extras(*(s.origin[-1] for s in specs)),
+            key=_path_sort_key,
+        ),
+    )
+
     if len(pinned_specs) == 1:
-        return pinned_specs[0]
+        if len(combined_origin) == 1:
+            return pinned_specs[0]
+        # If there is only one pinned spec, but the origins are different,
+        # we need to create a new spec with the combined origin.
+        return pinned_specs[0]._replace(origin=combined_origin)
+
     if len(pinned_specs) > 1:
         first = pinned_specs[0]
         pins = [m.pin for m in pinned_specs]
@@ -93,9 +119,15 @@ def _maybe_new_spec_with_combined_pinnings(
             which=first.which,
             pin=pin,
             identifier=first.identifier,  # should I create a new one?
+            origin=combined_origin,
         )
 
     # Flatten the list
+    assert len(pinned_specs) == 0
+    if len(combined_origin) > 1:
+        # If there are no pinned specs, but the origins are different,
+        # we need to create a new spec with the combined origin.
+        return specs[0]._replace(origin=combined_origin)
     return specs[0]
 
 
@@ -106,7 +138,7 @@ def _combine_pinning_within_platform(
     for _platform, packages in data.items():
         reduced_data[_platform] = {}
         for which, specs in packages.items():
-            spec = _maybe_new_spec_with_combined_pinnings(specs)
+            spec = _maybe_new_spec_with_combined_pinnings_and_origins(specs)
             reduced_data[_platform][which] = spec
     return reduced_data
 
