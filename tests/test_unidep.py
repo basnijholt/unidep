@@ -22,7 +22,7 @@ from unidep import (
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import is_pip_installable
+from unidep.utils import PathWithExtras, is_pip_installable
 
 from .helpers import maybe_as_toml
 
@@ -121,6 +121,7 @@ def test_parse_requirements(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -130,6 +131,7 @@ def test_parse_requirements(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -137,18 +139,21 @@ def test_parse_requirements(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="conda",
                 selector="unix",
                 identifier="530d9eaa",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 selector="unix",
                 identifier="530d9eaa",
+                origin=ori,
             ),
         ],
         "bar": [
@@ -157,22 +162,26 @@ def test_parse_requirements(
                 which="conda",
                 pin=">1",
                 identifier="08fd8713",
+                origin=ori,
             ),
             Spec(
                 name="bar",
                 which="pip",
                 pin=">1",
                 identifier="08fd8713",
+                origin=ori,
             ),
             Spec(
                 name="bar",
                 which="conda",
                 identifier="9e467fa1",
+                origin=ori,
             ),
             Spec(
                 name="bar",
                 which="pip",
                 identifier="9e467fa1",
+                origin=ori,
             ),
         ],
     }
@@ -413,6 +422,7 @@ def test_surrounding_comments(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "yolo": [
@@ -421,12 +431,14 @@ def test_surrounding_comments(
                 which="conda",
                 selector="osx",
                 identifier="8b0c4c31",
+                origin=ori,
             ),
             Spec(
                 name="yolo",
                 which="pip",
                 selector="osx",
                 identifier="8b0c4c31",
+                origin=ori,
             ),
         ],
         "foo": [
@@ -435,12 +447,14 @@ def test_surrounding_comments(
                 which="conda",
                 selector="linux",
                 identifier="ecd4baa6",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 selector="linux",
                 identifier="ecd4baa6",
+                origin=ori,
             ),
         ],
         "bar": [
@@ -449,12 +463,14 @@ def test_surrounding_comments(
                 which="conda",
                 selector="win",
                 identifier="8528de75",
+                origin=ori,
             ),
             Spec(
                 name="bar",
                 which="pip",
                 selector="win",
                 identifier="8528de75",
+                origin=ori,
             ),
         ],
         "baz": [
@@ -462,14 +478,21 @@ def test_surrounding_comments(
                 name="baz",
                 which="conda",
                 identifier="9e467fa1",
+                origin=ori,
             ),
-            Spec(name="baz", which="pip", identifier="9e467fa1"),
+            Spec(
+                name="baz",
+                which="pip",
+                identifier="9e467fa1",
+                origin=ori,
+            ),
         ],
         "pip-package": [
             Spec(
                 name="pip-package",
                 which="pip",
                 identifier="5813b64a",
+                origin=ori,
             ),
         ],
         "pip-package2": [
@@ -478,6 +501,7 @@ def test_surrounding_comments(
                 which="pip",
                 selector="osx",
                 identifier="1c0fa4c4",
+                origin=ori,
             ),
         ],
     }
@@ -505,6 +529,7 @@ def test_filter_pip_and_conda(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "package1": [
@@ -513,6 +538,7 @@ def test_filter_pip_and_conda(
                 which="conda",
                 selector="linux64",
                 identifier="c292b98a",
+                origin=ori,
             ),
         ],
         "package2": [
@@ -521,6 +547,7 @@ def test_filter_pip_and_conda(
                 which="conda",
                 selector="osx64",
                 identifier="b2ac468f",
+                origin=ori,
             ),
         ],
         "package3": [
@@ -528,6 +555,7 @@ def test_filter_pip_and_conda(
                 name="package3",
                 which="pip",
                 identifier="08fd8713",
+                origin=ori,
             ),
         ],
         "package4": [
@@ -536,6 +564,7 @@ def test_filter_pip_and_conda(
                 which="pip",
                 selector="unix",
                 identifier="1d5d7757",
+                origin=ori,
             ),
         ],
         "common_package": [
@@ -544,12 +573,14 @@ def test_filter_pip_and_conda(
                 which="conda",
                 selector="unix",
                 identifier="f78244dc",
+                origin=ori,
             ),
             Spec(
                 name="common_package",
                 which="pip",
                 selector="unix",
                 identifier="f78244dc",
+                origin=ori,
             ),
         ],
         "shared_package": [
@@ -558,12 +589,14 @@ def test_filter_pip_and_conda(
                 which="conda",
                 selector="linux64",
                 identifier="1599d575",
+                origin=ori,
             ),
             Spec(
                 name="shared_package",
                 which="pip",
                 selector="win64",
                 identifier="46630b59",
+                origin=ori,
             ),
         ],
     }
@@ -580,6 +613,7 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="linux64",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
         },
@@ -590,6 +624,7 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="osx64",
                     identifier="b2ac468f",
+                    origin=ori,
                 ),
             },
         },
@@ -599,6 +634,7 @@ def test_filter_pip_and_conda(
                     name="package3",
                     which="pip",
                     identifier="08fd8713",
+                    origin=ori,
                 ),
             },
         },
@@ -609,6 +645,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="unix",
                     identifier="1d5d7757",
+                    origin=ori,
                 ),
             },
             "linux-aarch64": {
@@ -617,6 +654,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="unix",
                     identifier="1d5d7757",
+                    origin=ori,
                 ),
             },
             "linux-ppc64le": {
@@ -625,6 +663,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="unix",
                     identifier="1d5d7757",
+                    origin=ori,
                 ),
             },
             "osx-64": {
@@ -633,6 +672,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="unix",
                     identifier="1d5d7757",
+                    origin=ori,
                 ),
             },
             "osx-arm64": {
@@ -641,6 +681,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="unix",
                     identifier="1d5d7757",
+                    origin=ori,
                 ),
             },
         },
@@ -651,12 +692,14 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
             },
             "linux-aarch64": {
@@ -665,12 +708,14 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
             },
             "linux-ppc64le": {
@@ -679,12 +724,14 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
             },
             "osx-64": {
@@ -693,12 +740,14 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
             },
             "osx-arm64": {
@@ -707,12 +756,14 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="common_package",
                     which="pip",
                     selector="unix",
                     identifier="f78244dc",
+                    origin=ori,
                 ),
             },
         },
@@ -723,6 +774,7 @@ def test_filter_pip_and_conda(
                     which="conda",
                     selector="linux64",
                     identifier="1599d575",
+                    origin=ori,
                 ),
             },
             "win-64": {
@@ -731,6 +783,7 @@ def test_filter_pip_and_conda(
                     which="pip",
                     selector="win64",
                     identifier="46630b59",
+                    origin=ori,
                 ),
             },
         },
@@ -787,7 +840,9 @@ def test_duplicates_with_version(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
+    ori = (PathWithExtras(p, []),)
     assert requirements.requirements == {
         "foo": [
             Spec(
@@ -796,6 +851,7 @@ def test_duplicates_with_version(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -803,18 +859,21 @@ def test_duplicates_with_version(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="conda",
                 selector="linux64",
                 identifier="dd6a8aaf",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 selector="linux64",
                 identifier="dd6a8aaf",
+                origin=ori,
             ),
         ],
         "bar": [
@@ -822,11 +881,13 @@ def test_duplicates_with_version(
                 name="bar",
                 which="conda",
                 identifier="08fd8713",
+                origin=ori,
             ),
             Spec(
                 name="bar",
                 which="pip",
                 identifier="08fd8713",
+                origin=ori,
             ),
         ],
     }
@@ -840,6 +901,7 @@ def test_duplicates_with_version(
                     selector="linux64",
                     pin=">1",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
@@ -847,6 +909,7 @@ def test_duplicates_with_version(
                     selector="linux64",
                     pin=">1",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
         },
@@ -856,11 +919,13 @@ def test_duplicates_with_version(
                     name="bar",
                     which="conda",
                     identifier="08fd8713",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="bar",
                     which="pip",
                     identifier="08fd8713",
+                    origin=ori,
                 ),
             },
         },
@@ -896,6 +961,8 @@ def test_duplicates_different_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -905,6 +972,7 @@ def test_duplicates_different_platforms(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -912,6 +980,7 @@ def test_duplicates_different_platforms(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -919,6 +988,7 @@ def test_duplicates_different_platforms(
                 selector="linux",
                 pin="<=2",
                 identifier="ecd4baa6",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -926,6 +996,7 @@ def test_duplicates_different_platforms(
                 selector="linux",
                 pin="<=2",
                 identifier="ecd4baa6",
+                origin=ori,
             ),
         ],
     }
@@ -938,12 +1009,14 @@ def test_duplicates_different_platforms(
                     which="conda",
                     pin=">1,<=2",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin=">1,<=2",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
             "linux-aarch64": {
@@ -953,6 +1026,7 @@ def test_duplicates_different_platforms(
                     selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
@@ -960,6 +1034,7 @@ def test_duplicates_different_platforms(
                     selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
+                    origin=ori,
                 ),
             },
             "linux-ppc64le": {
@@ -969,6 +1044,7 @@ def test_duplicates_different_platforms(
                     selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
@@ -976,6 +1052,7 @@ def test_duplicates_different_platforms(
                     selector="linux",
                     pin="<=2",
                     identifier="ecd4baa6",
+                    origin=ori,
                 ),
             },
         },
@@ -1023,6 +1100,7 @@ def test_expand_none_with_different_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -1032,6 +1110,7 @@ def test_expand_none_with_different_platforms(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
@@ -1039,18 +1118,21 @@ def test_expand_none_with_different_platforms(
                 selector="linux64",
                 pin=">1",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="conda",
                 pin="<3",
                 identifier="5eb93b8c",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 pin="<3",
                 identifier="5eb93b8c",
+                origin=ori,
             ),
         ],
     }
@@ -1063,12 +1145,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin=">1,<3",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin=">1,<3",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
             "linux-aarch64": {
@@ -1077,12 +1161,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
             },
             "linux-ppc64le": {
@@ -1091,12 +1177,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
             },
             "osx-64": {
@@ -1105,12 +1193,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
             },
             "osx-arm64": {
@@ -1119,12 +1209,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
             },
             "win-64": {
@@ -1133,12 +1225,14 @@ def test_expand_none_with_different_platforms(
                     which="conda",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin="<3",
                     identifier="5eb93b8c",
+                    origin=ori,
                 ),
             },
         },
@@ -1183,6 +1277,7 @@ def test_different_pins_on_conda_and_pip(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -1191,12 +1286,14 @@ def test_different_pins_on_conda_and_pip(
                 which="conda",
                 pin="<1",
                 identifier="17e5d607",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 pin=">1",
                 identifier="17e5d607",
+                origin=ori,
             ),
         ],
     }
@@ -1210,12 +1307,14 @@ def test_different_pins_on_conda_and_pip(
                     which="conda",
                     pin="<1",
                     identifier="17e5d607",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
                     pin=">1",
                     identifier="17e5d607",
+                    origin=ori,
                 ),
             },
         },
@@ -1612,6 +1711,7 @@ def test_pip_and_conda_different_name_on_linux64(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, verbose=True)
     expected = {
         "cuquantum-python": [
@@ -1620,6 +1720,7 @@ def test_pip_and_conda_different_name_on_linux64(
                 which="conda",
                 selector="linux64",
                 identifier="c292b98a",
+                origin=ori,
             ),
         ],
         "cuquantum": [
@@ -1628,6 +1729,7 @@ def test_pip_and_conda_different_name_on_linux64(
                 which="pip",
                 selector="linux64",
                 identifier="c292b98a",
+                origin=ori,
             ),
         ],
     }
@@ -1641,6 +1743,7 @@ def test_pip_and_conda_different_name_on_linux64(
                     which="conda",
                     selector="linux64",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
         },
@@ -1651,6 +1754,7 @@ def test_pip_and_conda_different_name_on_linux64(
                     which="pip",
                     selector="linux64",
                     identifier="c292b98a",
+                    origin=ori,
                 ),
             },
         },
@@ -1680,6 +1784,7 @@ def test_parse_requirements_with_ignore_pin(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p, ignore_pins=["foo"], verbose=False)
     assert requirements.requirements == {
         "foo": [
@@ -1687,11 +1792,13 @@ def test_parse_requirements_with_ignore_pin(
                 name="foo",
                 which="conda",
                 identifier="17e5d607",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 identifier="17e5d607",
+                origin=ori,
             ),
         ],
     }
@@ -1714,6 +1821,7 @@ def test_parse_requirements_with_skip_dependency(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(
         p,
         skip_dependencies=["foo", "bar"],
@@ -1725,11 +1833,13 @@ def test_parse_requirements_with_skip_dependency(
                 name="baz",
                 which="conda",
                 identifier="08fd8713",
+                origin=ori,
             ),
             Spec(
                 name="baz",
                 which="pip",
                 identifier="08fd8713",
+                origin=ori,
             ),
         ],
     }
@@ -1748,6 +1858,7 @@ def test_pin_star_cuda(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) ->
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(p)
     assert requirements.requirements == {
         "qsimcirq": [
@@ -1757,6 +1868,7 @@ def test_pin_star_cuda(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) ->
                 selector="linux64",
                 pin="* cuda*",
                 identifier="c292b98a",
+                origin=ori,
             ),
             Spec(
                 name="qsimcirq",
@@ -1764,6 +1876,7 @@ def test_pin_star_cuda(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) ->
                 selector="arm64",
                 pin="* cpu*",
                 identifier="489f33e0",
+                origin=ori,
             ),
         ],
     }
@@ -1785,6 +1898,7 @@ def test_parse_requirements_with_overwrite_pins(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
@@ -1797,12 +1911,14 @@ def test_parse_requirements_with_overwrite_pins(
                 which="conda",
                 pin="=1",
                 identifier="17e5d607",
+                origin=ori,
             ),
             Spec(
                 name="foo",
                 which="pip",
                 pin="=1",
                 identifier="17e5d607",
+                origin=ori,
             ),
         ],
         "bar": [
@@ -1811,6 +1927,7 @@ def test_parse_requirements_with_overwrite_pins(
                 which="conda",
                 pin="* cpu*",
                 identifier="5eb93b8c",
+                origin=ori,
             ),
         ],
     }
@@ -1833,11 +1950,13 @@ def test_duplicate_names_different_platforms(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
     requirements = parse_requirements(
         p,
         overwrite_pins=["foo=1", "bar * cpu*"],
         verbose=False,
     )
+    ori = (PathWithExtras(p, []),)
     assert requirements.requirements == {
         "ray": [
             Spec(
@@ -1845,12 +1964,14 @@ def test_duplicate_names_different_platforms(
                 which="pip",
                 selector="arm64",
                 identifier="1b26c5b2",
+                origin=ori,
             ),
             Spec(
                 name="ray",
                 which="pip",
                 selector="linux64",
                 identifier="dd6a8aaf",
+                origin=ori,
             ),
         ],
         "ray-core": [
@@ -1859,6 +1980,7 @@ def test_duplicate_names_different_platforms(
                 which="conda",
                 selector="linux64",
                 identifier="dd6a8aaf",
+                origin=ori,
             ),
         ],
     }
@@ -1980,6 +2102,7 @@ def test_pip_with_pinning_special_case_wildcard(
         ),
     )
     p1 = maybe_as_toml(toml_or_yaml, p1)
+    ori1 = (PathWithExtras(p1, []),)
     requirements = parse_requirements(p1, verbose=False)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
@@ -1991,6 +2114,7 @@ def test_pip_with_pinning_special_case_wildcard(
                     which="pip",
                     pin="* cuda*",
                     identifier="17e5d607",
+                    origin=ori1,
                 ),
             },
         },
@@ -2023,9 +2147,9 @@ def test_pip_with_pinning_special_case_git_repo(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
 ) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -2034,10 +2158,10 @@ def test_pip_with_pinning_special_case_git_repo(
             """,
         ),
     )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
+    p = maybe_as_toml(toml_or_yaml, p)
 
-    requirements = parse_requirements(p1, verbose=False)
-
+    requirements = parse_requirements(p, verbose=False)
+    ori = (PathWithExtras(p, []),)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "adaptive": {
@@ -2047,6 +2171,7 @@ def test_pip_with_pinning_special_case_git_repo(
                     which="pip",
                     pin="@ git+https://github.com/python-adaptive/adaptive.git@main",
                     identifier="17e5d607",
+                    origin=ori,
                 ),
             },
         },
@@ -2058,9 +2183,9 @@ def test_not_equal(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
 ) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -2069,9 +2194,10 @@ def test_not_equal(
             """,
         ),
     )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
+    p = maybe_as_toml(toml_or_yaml, p)
 
-    requirements = parse_requirements(p1, verbose=False)
+    requirements = parse_requirements(p, verbose=False)
+    ori = (PathWithExtras(p, []),)
 
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
@@ -2082,12 +2208,14 @@ def test_not_equal(
                     which="conda",
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
+                    origin=ori,
                 ),
                 "pip": Spec(
                     name="adaptive",
                     which="pip",
                     pin="!=1.0.0,<2",
                     identifier="17e5d607",
+                    origin=ori,
                 ),
             },
         },
@@ -2099,9 +2227,9 @@ def test_dot_in_package_name(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
+    p = tmp_path / "p" / "requirements.yaml"
+    p.parent.mkdir()
+    p.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -2109,13 +2237,18 @@ def test_dot_in_package_name(
             """,
         ),
     )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
-
-    requirements = parse_requirements(p1, verbose=False)
+    p = maybe_as_toml(toml_or_yaml, p)
+    ori = (PathWithExtras(p, []),)
+    requirements = parse_requirements(p, verbose=False)
     assert requirements.requirements == {
         "ruamel.yaml": [
-            Spec(name="ruamel.yaml", which="conda", identifier="17e5d607"),
-            Spec(name="ruamel.yaml", which="pip", identifier="17e5d607"),
+            Spec(
+                name="ruamel.yaml",
+                which="conda",
+                identifier="17e5d607",
+                origin=ori,
+            ),
+            Spec(name="ruamel.yaml", which="pip", identifier="17e5d607", origin=ori),
         ],
     }
 
@@ -2240,6 +2373,7 @@ def test_pip_dep_with_extras(
         requirements.platforms,
         optional_dependencies=requirements.optional_dependencies,
     )
+    path_with_extras = PathWithExtras(p, extras=["*"])
     assert resolved == {
         "adaptive": {
             None: {
@@ -2249,6 +2383,7 @@ def test_pip_dep_with_extras(
                     pin=None,
                     identifier="17e5d607",
                     selector=None,
+                    origin=(path_with_extras,),
                 ),
             },
         },
@@ -2260,6 +2395,7 @@ def test_pip_dep_with_extras(
                     pin=None,
                     identifier="17e5d607",
                     selector=None,
+                    origin=(path_with_extras,),
                 ),
             },
         },
@@ -2396,9 +2532,8 @@ def test_optional_dependencies_with_dicts(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
 ) -> None:
-    p1 = tmp_path / "p1" / "requirements.yaml"
-    p1.parent.mkdir()
-    p1.write_text(
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
         textwrap.dedent(
             """\
             dependencies:
@@ -2410,9 +2545,9 @@ def test_optional_dependencies_with_dicts(
             """,
         ),
     )
-    p1 = maybe_as_toml(toml_or_yaml, p1)
+    p = maybe_as_toml(toml_or_yaml, p)
 
-    requirements = parse_requirements(p1, verbose=True, extras="*")
+    requirements = parse_requirements(p, verbose=True, extras="*")
     assert requirements.optional_dependencies.keys() == {"flat"}
     assert requirements.optional_dependencies["flat"].keys() == {
         "python-flatbuffers",
@@ -2446,7 +2581,6 @@ def test_optional_dependencies_with_version_specifier(
         ),
     )
     p = maybe_as_toml(toml_or_yaml, p)
-
     requirements = parse_requirements(p, verbose=False, extras="*")
     assert requirements.optional_dependencies.keys() == {"specific"}
     assert requirements.optional_dependencies["specific"].keys() == {"adaptive"}
@@ -2464,3 +2598,132 @@ def test_optional_dependencies_with_version_specifier(
     )
     assert resolved.keys() == {"adaptive"}
     assert resolved["adaptive"][None]["conda"].pin == "=0.13.2"
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_origin_in_spec(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    d1 = tmp_path / "dir1"
+    d1.mkdir()
+    f1 = d1 / "requirements.yaml"
+    f1.write_text("dependencies:\n  - numpy\n  - conda: mumps")
+
+    d2 = tmp_path / "dir2"
+    d2.mkdir()
+    f2 = d2 / "requirements.yaml"
+    f2.write_text("dependencies:\n  - pip: pandas\n  - numpy")
+    f1 = maybe_as_toml(toml_or_yaml, f1)
+    f2 = maybe_as_toml(toml_or_yaml, f2)
+    o1 = PathWithExtras(f1, [])
+    o2 = PathWithExtras(f2, [])
+
+    requirements = parse_requirements(f1, f2, verbose=False)
+    assert requirements.requirements == {
+        "numpy": [
+            Spec(
+                name="numpy",
+                which="conda",
+                pin=None,
+                identifier="17e5d607",
+                selector=None,
+                origin=(o1,),
+            ),
+            Spec(
+                name="numpy",
+                which="pip",
+                pin=None,
+                identifier="17e5d607",
+                selector=None,
+                origin=(o1,),
+            ),
+            Spec(
+                name="numpy",
+                which="conda",
+                pin=None,
+                identifier="9e467fa1",
+                selector=None,
+                origin=(o2,),
+            ),
+            Spec(
+                name="numpy",
+                which="pip",
+                pin=None,
+                identifier="9e467fa1",
+                selector=None,
+                origin=(o2,),
+            ),
+        ],
+        "mumps": [
+            Spec(
+                name="mumps",
+                which="conda",
+                pin=None,
+                identifier="5eb93b8c",
+                selector=None,
+                origin=(o1,),
+            ),
+        ],
+        "pandas": [
+            Spec(
+                name="pandas",
+                which="pip",
+                pin=None,
+                identifier="08fd8713",
+                selector=None,
+                origin=(o2,),
+            ),
+        ],
+    }
+
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        requirements.platforms,
+    )
+    assert resolved == {
+        "numpy": {
+            None: {
+                "conda": Spec(
+                    name="numpy",
+                    which="conda",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                    origin=(o1, o2),
+                ),
+                "pip": Spec(
+                    name="numpy",
+                    which="pip",
+                    pin=None,
+                    identifier="17e5d607",
+                    selector=None,
+                    origin=(o1, o2),
+                ),
+            },
+        },
+        "mumps": {
+            None: {
+                "conda": Spec(
+                    name="mumps",
+                    which="conda",
+                    pin=None,
+                    identifier="5eb93b8c",
+                    selector=None,
+                    origin=(o1,),
+                ),
+            },
+        },
+        "pandas": {
+            None: {
+                "pip": Spec(
+                    name="pandas",
+                    which="pip",
+                    pin=None,
+                    identifier="08fd8713",
+                    selector=None,
+                    origin=(o2,),
+                ),
+            },
+        },
+    }

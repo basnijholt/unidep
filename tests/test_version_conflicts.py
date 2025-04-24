@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from unidep._conflicts import (
@@ -13,21 +15,23 @@ from unidep._conflicts import (
     combine_version_pinnings,
 )
 from unidep.platform_definitions import Spec
+from unidep.utils import PathWithExtras
 
 
 def test_combining_versions() -> None:
+    origin = (PathWithExtras(Path("requirements.yaml"), []),)
     data = {
         None: {
             "conda": [
-                Spec(name="numpy", which="conda", pin=">1"),
-                Spec(name="numpy", which="conda", pin="<2"),
+                Spec(name="numpy", which="conda", pin=">1", origin=origin),
+                Spec(name="numpy", which="conda", pin="<2", origin=origin),
             ],
         },
     }
     resolved = _combine_pinning_within_platform(data)  # type: ignore[arg-type]
     assert resolved == {
         None: {
-            "conda": Spec(name="numpy", which="conda", pin=">1,<2"),
+            "conda": Spec(name="numpy", which="conda", pin=">1,<2", origin=origin),
         },
     }
 
