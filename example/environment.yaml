@@ -18,7 +18,8 @@ dependencies:
   - pytest
   - pytest-cov
   - pip:
-    - unidep
+    - unidep; sys_platform == 'linux' and platform_machine == 'x86_64'
+    - unidep; sys_platform == 'darwin'
     - markdown-code-runner
     - numthreads
     - yaml2bib; sys_platform == 'linux' and platform_machine == 'x86_64'
