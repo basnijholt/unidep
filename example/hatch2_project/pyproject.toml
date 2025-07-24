@@ -14,6 +14,10 @@ version = "0.1.0"
 
 [tool.hatch]
 
+# Allow direct references (e.g., VCS URLs, local paths) in dependencies
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.metadata.hooks.unidep]
 
 [tool.unidep]

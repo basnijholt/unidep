@@ -23,6 +23,9 @@ dynamic = ["dependencies"]  # add "dependencies" here
 [tool.hatch]
 # Additional Hatch configurations
 
+[tool.hatch.metadata]
+allow-direct-references = true  # allow VCS URLs, local paths, etc.
+
 [tool.hatch.metadata.hooks.unidep]  # add this to enable the hook
 ```
 

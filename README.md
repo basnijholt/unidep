@@ -438,6 +438,9 @@ dynamic = ["dependencies"]
 [tool.hatch]
 # Additional Hatch configurations
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.metadata.hooks.unidep]
 ```
 
