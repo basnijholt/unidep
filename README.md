@@ -396,7 +396,11 @@ dependencies = [
 
 #### `UNIDEP_SKIP_LOCAL_DEPS`
 
-Local dependencies are useful for monorepos, shared configuration files, and local development workflows where you're developing multiple related packages. However, when building wheels for distribution (e.g., for PyPI), including local dependencies creates hardcoded `file://` paths in the wheel metadata, making wheels non-portable.
+Local dependencies are useful for monorepos, shared configuration files, and local development workflows where you're developing multiple related packages. However, when building wheels for distribution (e.g., for PyPI), including local dependencies can create hardcoded `file://` paths in the wheel metadata, making wheels non-portable.
+
+**Build backend behavior differs:**
+- **Setuptools**: Automatically filters out invalid `file://` URLs during wheel building (this environment variable not needed)
+- **Hatchling**: Includes all dependencies as specified, requiring explicit filtering for distribution
 
 Set this environment variable to skip including local dependencies as `file://` URLs when building distributable artifacts:
 
@@ -413,6 +417,8 @@ UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
 
 > [!NOTE]
 > When this variable is set, local dependencies are skipped but their actual dependencies (extracted from `requirements.yaml` or `pyproject.toml`) are still included in the built wheel. This ensures the wheel remains functional while avoiding non-portable absolute paths.
+>
+> **Backend-specific workaround**: This environment variable is primarily needed for Hatchling-based projects. Setuptools automatically handles this filtering, making wheels portable by default.
 >
 > **Two contexts, same codebase**: Local dependencies are included by default (great for `unidep install` during development), but this environment variable provides the context switch needed when building for distribution.
 
