@@ -390,6 +390,26 @@ dependencies = [
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
+### Environment Variables
+
+#### `UNIDEP_SKIP_LOCAL_DEPS`
+
+When building wheels for distribution (e.g., for PyPI), you may want to exclude local dependencies to avoid hardcoded file paths in the wheel metadata. Set this environment variable to skip including local dependencies as `file://` URLs:
+
+```bash
+# For hatch projects
+UNIDEP_SKIP_LOCAL_DEPS=1 hatch build
+
+# For uv build
+UNIDEP_SKIP_LOCAL_DEPS=1 uv build
+
+# For python -m build
+UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
+```
+
+> [!NOTE]
+> When this variable is set, local dependencies are skipped but their actual dependencies (extracted from `requirements.yaml` or `pyproject.toml`) are still included in the built wheel. This ensures the wheel remains functional while avoiding non-portable absolute paths.
+
 ### Example packages
 
 Explore these installable [example](example/) packages to understand how `unidep` integrates with different build tools and configurations:
