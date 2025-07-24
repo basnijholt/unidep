@@ -54,6 +54,8 @@ Try it now and streamline your development process!
     - [Implementation](#implementation)
   - [`[project.dependencies]` in `pyproject.toml` handling](#projectdependencies-in-pyprojecttoml-handling)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
+  - [Environment Variables](#environment-variables)
+    - [`UNIDEP_SKIP_LOCAL_DEPS`](#unidep_skip_local_deps)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
