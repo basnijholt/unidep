@@ -396,7 +396,8 @@ dependencies = [
 
 #### `UNIDEP_SKIP_LOCAL_DEPS`
 
-Local dependencies are useful for monorepos, shared configuration files, and local development workflows where you're developing multiple related packages. However, when building wheels for distribution (e.g., for PyPI), including local dependencies can create hardcoded `file://` paths in the wheel metadata, making wheels non-portable.
+Local dependencies are useful for monorepos, shared configuration files, and local development workflows where you're developing multiple related packages.
+However, when building wheels for distribution (e.g., for PyPI), including local dependencies can create hardcoded `file://` paths in the wheel metadata, making wheels non-portable.
 
 **Build backend behavior differs:**
 - **Setuptools**: Automatically filters out invalid `file://` URLs during wheel building (this environment variable not needed)
