@@ -56,6 +56,7 @@ Try it now and streamline your development process!
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Environment Variables](#environment-variables)
     - [`UNIDEP_SKIP_LOCAL_DEPS`](#unidep_skip_local_deps)
+  - [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
@@ -239,7 +240,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `pip:` to specify packages that are only available through Pip.
 - Use `conda:` to specify packages that are only available through Conda.
 - Use `# [selector]` (YAML only) or `package:selector` to specify platform-specific dependencies.
-- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies!
+- Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies! Can specify PyPI alternatives for monorepo setups (see [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)).
 - Use `optional_dependencies:` to specify optional dependencies. Can be installed like `unidep install ".[test]"` or `pip install ".[test]"`.
 - Use `platforms:` to specify the platforms that are supported. If omitted, all platforms are assumed to be supported.
 
@@ -422,6 +423,62 @@ UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
 > **Backend-specific workaround**: This environment variable is primarily needed for Hatchling-based projects. Setuptools automatically handles this filtering, making wheels portable by default.
 >
 > **Two contexts, same codebase**: Local dependencies are included by default (great for `unidep install` during development), but this environment variable provides the context switch needed when building for distribution.
+
+### PyPI Alternatives for Local Dependencies
+
+When working with monorepos, you often want to use local paths during development but PyPI packages when building wheels for distribution.
+UniDep supports specifying PyPI alternatives for local dependencies using a dictionary syntax:
+
+```yaml
+# requirements.yaml
+dependencies:
+  - numpy
+  - pandas
+
+local_dependencies:
+  # Traditional string format (backwards compatible)
+  - ../shared-lib
+
+  # Dictionary format with PyPI alternative
+  - local: ../auth-lib
+    pypi: company-auth-lib>=1.0
+
+  - local: ../utils
+    pypi: company-utils~=2.0
+```
+
+Or in `pyproject.toml`:
+
+```toml
+[tool.unidep]
+dependencies = ["numpy", "pandas"]
+
+local_dependencies = [
+    # Traditional string format
+    "../shared-lib",
+
+    # Dictionary format with PyPI alternative
+    {local = "../auth-lib", pypi = "company-auth-lib>=1.0"},
+    {local = "../utils", pypi = "company-utils~=2.0"},
+]
+```
+
+**How it works:**
+- **During development** (e.g., `unidep install` or `pip install -e .`): Local paths are used when they exist, ensuring you always work with your local code
+- **When building wheels** (e.g., `pip wheel .` or `python -m build`): If local paths don't exist (typical in CI/build environments), PyPI alternatives are automatically used
+- This makes wheels portable and suitable for upload to PyPI or private package indexes
+- Fully backwards compatible - existing string format continues to work
+
+**Use cases:**
+- **Monorepos**: Share code between packages while maintaining separate releases
+- **Private packages**: Build wheels that depend on private PyPI packages instead of local paths
+- **CI/CD**: Create portable wheels in CI that can be deployed anywhere
+
+> [!NOTE]
+> The system automatically detects whether to use local paths or PyPI alternatives:
+> - If the local path exists → use local path (development mode)
+> - If the local path doesn't exist AND a PyPI alternative is specified → use PyPI package (built wheel)
+> - No need to set environment variables or change configurations!
 
 ### Example packages
 

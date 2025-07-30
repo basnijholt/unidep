@@ -295,6 +295,13 @@ class PathWithExtras(NamedTuple):
         return self.path == other.path and set(self.extras) == set(other.extras)
 
 
+class LocalDependency(NamedTuple):
+    """A local dependency with optional PyPI alternative."""
+
+    local: str
+    pypi: str | None = None
+
+
 def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     """Get the path to `requirements.yaml` or `pyproject.toml` file."""
     folder_or_file, extras = split_path_and_extras(folder_or_file)
