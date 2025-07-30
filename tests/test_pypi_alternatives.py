@@ -465,3 +465,293 @@ def test_recursive_local_dependencies_with_pypi_alternatives(tmp_path: Path) -> 
     assert "scipy" in requirements.requirements
     assert "numpy" in requirements.requirements  # From dep1
     assert "pandas" in requirements.requirements  # From dep2
+
+
+def test_empty_local_dependencies_list(tmp_path: Path) -> None:
+    """Test handling of empty local_dependencies list."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies: []
+            """,
+        ),
+    )
+
+    # Test get_pypi_alternatives with empty list
+    from ruamel.yaml import YAML
+
+    from unidep._dependencies_parsing import _load, get_pypi_alternatives
+
+    yaml = YAML(typ="rt")
+    data = _load(req_file, yaml)
+    pypi_alts = get_pypi_alternatives(data, project)
+    assert pypi_alts == {}
+
+    # Test setuptools integration
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert len([d for d in deps.dependencies if "file://" in d]) == 0
+
+
+def test_local_dependencies_with_extras(tmp_path: Path) -> None:
+    """Test local dependencies with extras notation work with PyPI alternatives."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create a local dependency with optional dependencies
+    dep = tmp_path / "dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "unidep"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "my-dep"
+            version = "0.1.0"
+            dynamic = ["dependencies"]
+
+            [tool.unidep]
+            dependencies = ["requests"]
+            optional_dependencies = {test = ["pytest"], dev = ["black"]}
+            """,
+        ),
+    )
+    # Make it a valid package
+    (dep / "my_dep").mkdir(exist_ok=True)
+    (dep / "my_dep" / "__init__.py").write_text("")
+
+    # Main project references the local dependency with extras
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: ../dep[test,dev]
+                  pypi: company-dep[test,dev]
+            """,
+        ),
+    )
+
+    # Test get_pypi_alternatives - should preserve extras
+    from ruamel.yaml import YAML
+
+    from unidep._dependencies_parsing import _load, get_pypi_alternatives
+
+    yaml = YAML(typ="rt")
+    data = _load(req_file, yaml)
+    pypi_alts = get_pypi_alternatives(data, project)
+
+    # The key should be the resolved path without extras
+    dep_path = str((tmp_path / "dep").resolve())
+    assert dep_path in pypi_alts
+    assert pypi_alts[dep_path] == "company-dep[test,dev]"
+
+    # Test setuptools integration
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert "company-dep[test,dev]" in deps.dependencies
+
+
+def test_complex_path_structures(tmp_path: Path) -> None:
+    """Test complex path structures including nested dirs and parent refs."""
+    # Create complex directory structure
+    root = tmp_path / "workspace"
+    root.mkdir(exist_ok=True)
+
+    project = root / "apps" / "main"
+    project.mkdir(exist_ok=True, parents=True)
+
+    shared = root / "libs" / "shared"
+    shared.mkdir(exist_ok=True, parents=True)
+
+    utils = root / "libs" / "utils"
+    utils.mkdir(exist_ok=True, parents=True)
+
+    # Create valid packages
+    for pkg_dir, name in [(shared, "shared"), (utils, "utils")]:
+        (pkg_dir / "setup.py").write_text(
+            f'from setuptools import setup; setup(name="{name}", version="1.0")',
+        )
+        (pkg_dir / name).mkdir(exist_ok=True)
+        (pkg_dir / name / "__init__.py").write_text("")
+
+    # Project with complex relative paths
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pandas
+            local_dependencies:
+                - local: ../../libs/shared
+                  pypi: company-shared>=1.0
+                - local: ../../libs/utils
+                  pypi: company-utils~=2.0
+            """,
+        ),
+    )
+
+    # Test path resolution
+    from ruamel.yaml import YAML
+
+    from unidep._dependencies_parsing import _load, get_pypi_alternatives
+
+    yaml = YAML(typ="rt")
+    data = _load(req_file, yaml)
+    pypi_alts = get_pypi_alternatives(data, project)
+
+    # Check paths are correctly resolved
+    shared_path = str(shared.resolve())
+    utils_path = str(utils.resolve())
+    assert shared_path in pypi_alts
+    assert utils_path in pypi_alts
+    assert pypi_alts[shared_path] == "company-shared>=1.0"
+    assert pypi_alts[utils_path] == "company-utils~=2.0"
+
+    # Test setuptools integration
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "pandas" in deps.dependencies
+    assert "company-shared>=1.0" in deps.dependencies
+    assert "company-utils~=2.0" in deps.dependencies
+
+
+def test_invalid_yaml_handling(tmp_path: Path) -> None:
+    """Test handling of invalid YAML in requirements file."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        """\
+dependencies:
+  - numpy
+local_dependencies:
+  - local: ../foo
+    pypi: company-foo
+  this is invalid yaml
+    - more invalid
+        """,
+    )
+
+    # Should raise an error when parsing
+    from ruamel.yaml import YAMLError
+
+    with pytest.raises((YAMLError, ValueError)):
+        parse_requirements(req_file)
+
+
+def test_pypi_alternatives_with_absolute_paths(tmp_path: Path) -> None:
+    """Test that absolute paths in local dependencies are handled correctly."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create a dependency with absolute path
+    dep = tmp_path / "absolute_dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="abs-dep", version="1.0")',
+    )
+    (dep / "abs_dep").mkdir(exist_ok=True)
+    (dep / "abs_dep" / "__init__.py").write_text("")
+
+    req_file = project / "requirements.yaml"
+    # Note: Using string format to bypass the assertion in parse_local_dependencies
+    req_file.write_text(
+        textwrap.dedent(
+            f"""\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: {dep!s}
+                  pypi: company-abs-dep
+            """,
+        ),
+    )
+
+    # This should fail because absolute paths are not allowed
+    with pytest.raises(AssertionError):
+        parse_requirements(req_file)
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_mixed_string_and_dict_in_toml(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    """Test that mixed string and dict formats work in TOML."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create dependencies
+    for name in ["dep1", "dep2", "dep3"]:
+        dep = tmp_path / name
+        dep.mkdir(exist_ok=True)
+        (dep / "setup.py").write_text(
+            f'from setuptools import setup; setup(name="{name}", version="1.0")',
+        )
+        (dep / name).mkdir(exist_ok=True)
+        (dep / name / "__init__.py").write_text("")
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - ../dep1
+                - local: ../dep2
+                  pypi: company-dep2
+                - local: ../dep3
+            """,
+        ),
+    )
+    req_file = maybe_as_toml(toml_or_yaml, req_file)
+
+    # Test parsing
+    requirements = parse_requirements(req_file)
+    assert "numpy" in requirements.requirements
+
+    # Test get_pypi_alternatives
+    from ruamel.yaml import YAML
+
+    from unidep._dependencies_parsing import get_pypi_alternatives
+
+    yaml = YAML(typ="rt")
+    with req_file.open() as f:
+        if req_file.suffix == ".toml":
+            import tomllib
+
+            with req_file.open("rb") as fb:
+                pyproject = tomllib.load(fb)
+                data = pyproject["tool"]["unidep"]
+        else:
+            data = yaml.load(f)
+
+    pypi_alts = get_pypi_alternatives(data, project)
+
+    # Only dep2 should have PyPI alternative
+    dep2_path = str((tmp_path / "dep2").resolve())
+    assert dep2_path in pypi_alts
+    assert pypi_alts[dep2_path] == "company-dep2"
+    assert len(pypi_alts) == 1

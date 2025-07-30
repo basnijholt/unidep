@@ -217,3 +217,164 @@ def test_circular_dependencies_with_pypi_alternatives(tmp_path: Path) -> None:
     )
     assert "pandas" in requirements.requirements
     assert "numpy" in requirements.requirements
+
+
+def test_file_permission_error_handling(tmp_path: Path) -> None:
+    """Test handling of file permission errors when collecting PyPI alternatives."""
+    import os
+
+    from unidep._setuptools_integration import _collect_pypi_alternatives
+
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: ../dep
+                  pypi: company-dep
+            """,
+        ),
+    )
+
+    # Make file unreadable (on Unix systems)
+    if os.name != "nt":  # Not Windows
+        req_file.chmod(0o000)
+        try:
+            # Should handle permission error gracefully
+            with pytest.raises(PermissionError):
+                _collect_pypi_alternatives(req_file)
+        finally:
+            # Restore permissions for cleanup
+            req_file.chmod(0o644)
+
+
+def test_very_long_pypi_alternative_names(tmp_path: Path) -> None:
+    """Test handling of very long PyPI package names in alternatives."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create a local dependency
+    dep = tmp_path / "dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="dep", version="1.0")',
+    )
+    (dep / "dep").mkdir(exist_ok=True)
+    (dep / "dep" / "__init__.py").write_text("")
+
+    # Very long PyPI alternative name
+    long_name = "company-" + "x" * 200 + "-package>=1.0.0"
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            f"""\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: ../dep
+                  pypi: {long_name}
+            """,
+        ),
+    )
+
+    # Should handle long names without issues
+    from unidep._setuptools_integration import get_python_dependencies
+
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert long_name in deps.dependencies
+
+
+def test_special_characters_in_paths(tmp_path: Path) -> None:
+    """Test handling of special characters in local dependency paths."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create a dependency with special characters in name
+    special_dir = tmp_path / "dep with spaces & special-chars"
+    special_dir.mkdir(exist_ok=True)
+    (special_dir / "setup.py").write_text(
+        'from setuptools import setup; setup(name="special-dep", version="1.0")',
+    )
+    (special_dir / "special_dep").mkdir(exist_ok=True)
+    (special_dir / "special_dep" / "__init__.py").write_text("")
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: "../dep with spaces & special-chars"
+                  pypi: company-special-dep
+            """,
+        ),
+    )
+
+    # Should handle special characters correctly
+    from unidep._setuptools_integration import get_python_dependencies
+
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert "company-special-dep" in deps.dependencies
+
+
+def test_symlink_local_dependencies(tmp_path: Path) -> None:
+    """Test handling of symlinked local dependencies."""
+    import os
+
+    # Skip on Windows where symlinks require admin privileges
+    if os.name == "nt":
+        pytest.skip("Symlink test skipped on Windows")
+
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    # Create actual dependency
+    actual_dep = tmp_path / "actual_dep"
+    actual_dep.mkdir(exist_ok=True)
+    (actual_dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="actual", version="1.0")',
+    )
+    (actual_dep / "actual").mkdir(exist_ok=True)
+    (actual_dep / "actual" / "__init__.py").write_text("")
+
+    # Create symlink
+    symlink_dep = tmp_path / "symlink_dep"
+    symlink_dep.symlink_to(actual_dep)
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: ../symlink_dep
+                  pypi: company-symlink-dep
+            """,
+        ),
+    )
+
+    # Should resolve symlinks correctly
+    from unidep._setuptools_integration import get_python_dependencies
+
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert "company-symlink-dep" in deps.dependencies
