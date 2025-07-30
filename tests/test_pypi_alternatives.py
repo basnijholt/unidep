@@ -180,7 +180,7 @@ def test_setuptools_integration_with_pypi_alternatives(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,  # noqa: ARG001
 ) -> None:
-    """Test setuptools integration uses PyPI alternatives when available."""
+    """Test setuptools integration uses local paths when they exist."""
     project = tmp_path / "project"
     project.mkdir(exist_ok=True, parents=True)
 

@@ -15,7 +15,7 @@ def test_build_with_pypi_alternatives(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that building a wheel uses PyPI alternatives when UNIDEP_SKIP_LOCAL_DEPS is set."""
+    """Test that building a wheel uses PyPI alternatives when local paths don't exist."""
     # Create main project
     project = tmp_path / "main_project"
     project.mkdir(exist_ok=True)
