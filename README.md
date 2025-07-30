@@ -426,7 +426,8 @@ UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
 
 ### PyPI Alternatives for Local Dependencies
 
-When working with monorepos, you often want to use local paths during development but PyPI packages when building wheels for distribution. UniDep supports specifying PyPI alternatives for local dependencies using a dictionary syntax:
+When working with monorepos, you often want to use local paths during development but PyPI packages when building wheels for distribution.
+UniDep supports specifying PyPI alternatives for local dependencies using a dictionary syntax:
 
 ```yaml
 # requirements.yaml

@@ -190,12 +190,19 @@ def test_setuptools_integration_with_pypi_alternatives(
     (foo / "pyproject.toml").write_text(
         textwrap.dedent(
             """\
+            [build-system]
+            requires = ["setuptools"]
+            build-backend = "setuptools.build_meta"
+
             [project]
             name = "foo-pkg"
             version = "0.1.0"
             """,
         ),
     )
+    # Create a Python module to make it a valid package
+    (foo / "foo_pkg").mkdir(exist_ok=True)
+    (foo / "foo_pkg" / "__init__.py").write_text("")
 
     bar = tmp_path / "bar"
     bar.mkdir(exist_ok=True)
@@ -207,6 +214,9 @@ def test_setuptools_integration_with_pypi_alternatives(
             """,
         ),
     )
+    # Create a Python module to make it a valid package
+    (bar / "bar_pkg").mkdir(exist_ok=True)
+    (bar / "bar_pkg" / "__init__.py").write_text("")
 
     req_file = project / "requirements.yaml"
     req_file.write_text(
@@ -301,7 +311,7 @@ def test_yaml_to_toml_with_pypi_alternatives(
     # Check that the structure is preserved
     assert "[tool.unidep]" in toml_content
     assert '"../foo"' in toml_content
-    assert '{local = "../bar", pypi = "company-bar"}' in toml_content
+    assert '{ local = "../bar", pypi = "company-bar" }' in toml_content
 
 
 def test_collect_pypi_alternatives_function(tmp_path: Path) -> None:
