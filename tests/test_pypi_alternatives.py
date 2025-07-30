@@ -530,7 +530,9 @@ def test_local_dependencies_with_extras(tmp_path: Path) -> None:
         include_local_dependencies=True,
     )
     assert "numpy" in deps.dependencies
-    assert "company-dep[test,dev]" in deps.dependencies
+    # Should use file:// URL since local path exists
+    assert any("my-dep[test,dev] @ file://" in dep for dep in deps.dependencies)
+    assert not any("company-dep" in dep for dep in deps.dependencies)
 
 
 def test_complex_path_structures(tmp_path: Path) -> None:
@@ -595,8 +597,11 @@ def test_complex_path_structures(tmp_path: Path) -> None:
         include_local_dependencies=True,
     )
     assert "pandas" in deps.dependencies
-    assert "company-shared>=1.0" in deps.dependencies
-    assert "company-utils~=2.0" in deps.dependencies
+    # Should use file:// URLs since local paths exist
+    assert any("shared @ file://" in dep for dep in deps.dependencies)
+    assert any("utils @ file://" in dep for dep in deps.dependencies)
+    assert not any("company-shared" in dep for dep in deps.dependencies)
+    assert not any("company-utils" in dep for dep in deps.dependencies)
 
 
 def test_invalid_yaml_handling(tmp_path: Path) -> None:
@@ -694,6 +699,7 @@ def test_pypi_alternatives_when_local_missing(tmp_path: Path) -> None:
     assert not any("file://" in dep for dep in deps.dependencies)
 
 
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_mixed_string_and_dict_in_toml(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
