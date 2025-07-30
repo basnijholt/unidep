@@ -601,12 +601,13 @@ def _extract_local_dependencies(  # noqa: PLR0912
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dep_obj in _get_local_dependencies(data):
-        assert not os.path.isabs(local_dep_obj.local)  # noqa: PTH117
-        local_path, extras = split_path_and_extras(local_dep_obj.local)
+        local_dependency = local_dep_obj.local
+        assert not os.path.isabs(local_dependency)  # noqa: PTH117
+        local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
         if abs_local.suffix in (".whl", ".zip"):
             if verbose:
-                print(f"🔗 Adding `{local_dep_obj.local}` from `local_dependencies`")
+                print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
             dependencies[str(base_path)].add(str(abs_local))
             continue
         if not abs_local.exists():
@@ -633,7 +634,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
                     )
             elif _is_empty_folder(abs_local):
                 msg = (
-                    f"`{local_dep_obj.local}` in `local_dependencies` is not pip"
+                    f"`{local_dependency}` in `local_dependencies` is not pip"
                     " installable because it is an empty folder. Is it perhaps"
                     " an uninitialized Git submodule? If so, initialize it with"
                     " `git submodule update --init --recursive`. Otherwise,"
@@ -643,7 +644,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
             elif _is_empty_git_submodule(abs_local):
                 # Extra check for empty Git submodules (common problem folks run into)
                 msg = (
-                    f"`{local_dep_obj.local}` in `local_dependencies` is not"
+                    f"`{local_dependency}` in `local_dependencies` is not"
                     " installable by pip because it is an empty Git submodule. Either"
                     " remove it"
                     " from `local_dependencies` or fetch the submodule with"
@@ -652,7 +653,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
                 raise RuntimeError(msg) from None
             else:
                 msg = (
-                    f"`{local_dep_obj.local}` in `local_dependencies` is not pip"
+                    f"`{local_dependency}` in `local_dependencies` is not pip"
                     " installable nor is it managed by unidep. Remove it"
                     " from `local_dependencies`."
                 )
