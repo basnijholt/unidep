@@ -675,14 +675,15 @@ def test_pypi_alternatives_with_absolute_paths(tmp_path: Path) -> None:
     (dep / "abs_dep" / "__init__.py").write_text("")
 
     req_file = project / "requirements.yaml"
-    # Note: Using string format to bypass the assertion in parse_local_dependencies
+    # Note: Using absolute path to trigger the assertion
+    abs_path = str(dep.resolve())
     req_file.write_text(
         textwrap.dedent(
             f"""\
             dependencies:
                 - numpy
             local_dependencies:
-                - local: {dep!s}
+                - local: {abs_path}
                   pypi: company-abs-dep
             """,
         ),
