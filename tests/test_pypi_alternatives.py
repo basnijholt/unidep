@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,9 +20,12 @@ from unidep._setuptools_integration import get_python_dependencies
 
 from .helpers import maybe_as_toml
 
-if TYPE_CHECKING:
-    import sys
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
+if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
         from typing import Literal
     else:  # pragma: no cover
@@ -99,8 +103,6 @@ def test_get_local_dependencies_mixed_format(
     yaml = YAML(typ="rt")
     with req_file.open() as f:
         if req_file.suffix == ".toml":
-            import tomllib
-
             with req_file.open("rb") as fb:
                 pyproject = tomllib.load(fb)
                 data = pyproject["tool"]["unidep"]
@@ -153,8 +155,6 @@ def test_get_pypi_alternatives(
     yaml = YAML(typ="rt")
     with req_file.open() as f:
         if req_file.suffix == ".toml":
-            import tomllib
-
             with req_file.open("rb") as fb:
                 pyproject = tomllib.load(fb)
                 data = pyproject["tool"]["unidep"]
@@ -743,8 +743,6 @@ def test_mixed_string_and_dict_in_toml(
     yaml = YAML(typ="rt")
     with req_file.open() as f:
         if req_file.suffix == ".toml":
-            import tomllib
-
             with req_file.open("rb") as fb:
                 pyproject = tomllib.load(fb)
                 data = pyproject["tool"]["unidep"]
