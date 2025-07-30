@@ -690,8 +690,10 @@ def test_pypi_alternatives_with_absolute_paths(tmp_path: Path) -> None:
     )
 
     # This should fail because absolute paths are not allowed
+    from unidep import parse_local_dependencies
+
     with pytest.raises(AssertionError):
-        parse_requirements(req_file)
+        parse_local_dependencies(req_file)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
