@@ -18,6 +18,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
+    LocalDependency,
     PathWithExtras,
     defaultdict_to_dict,
     is_pip_installable,
@@ -201,11 +202,25 @@ def _add_project_dependencies(
         raise ValueError(msg)
 
 
-def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
+def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
+    """Parse a single local dependency item into a LocalDependency object."""
+    if isinstance(item, str):
+        return LocalDependency(local=item, pypi=None)
+    if isinstance(item, dict):
+        if "local" not in item:
+            msg = "Dictionary-style local dependency must have a 'local' key"
+            raise ValueError(msg)
+        return LocalDependency(local=item["local"], pypi=item.get("pypi"))
+    msg = f"Invalid local dependency format: {item}"
+    raise TypeError(msg)
+
+
+def _get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
     """Get `local_dependencies` from a `requirements.yaml` or `pyproject.toml` file."""
+    raw_deps = []
     if "local_dependencies" in data:
-        return data["local_dependencies"]
-    if "includes" in data:
+        raw_deps = data["local_dependencies"]
+    elif "includes" in data:
         warn(
             "⚠️ You are using `includes` in `requirements.yaml` or `pyproject.toml`"
             " `[unidep.tool]` which is deprecated since 0.42.0 and has been renamed to"
@@ -213,8 +228,9 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
             category=DeprecationWarning,
             stacklevel=2,
         )
-        return data["includes"]
-    return []
+        raw_deps = data["includes"]
+
+    return [_parse_local_dependency_item(item) for item in raw_deps]
 
 
 def _to_path_with_extras(
@@ -281,11 +297,11 @@ def _update_data_structures(
     seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dependency in _get_local_dependencies(data):
+    for local_dep_obj in _get_local_dependencies(data):
         # NOTE: The current function calls _add_local_dependencies,
         # which calls the current function recursively
         _add_local_dependencies(
-            local_dependency=local_dependency,
+            local_dependency=local_dep_obj.local,
             path_with_extras=path_with_extras,
             datas=datas,  # modified in place
             all_extras=all_extras,  # modified in place
@@ -584,7 +600,8 @@ def _extract_local_dependencies(  # noqa: PLR0912
         verbose=verbose,
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dependency in _get_local_dependencies(data):
+    for local_dep_obj in _get_local_dependencies(data):
+        local_dependency = local_dep_obj.local
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
@@ -627,8 +644,9 @@ def _extract_local_dependencies(  # noqa: PLR0912
             elif _is_empty_git_submodule(abs_local):
                 # Extra check for empty Git submodules (common problem folks run into)
                 msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not installable"
-                    " by pip because it is an empty Git submodule. Either remove it"
+                    f"`{local_dependency}` in `local_dependencies` is not"
+                    " installable by pip because it is an empty Git submodule. Either"
+                    " remove it"
                     " from `local_dependencies` or fetch the submodule with"
                     " `git submodule update --init --recursive`."
                 )
@@ -657,6 +675,24 @@ def _extract_local_dependencies(  # noqa: PLR0912
             check_pip_installable=check_pip_installable,
             verbose=verbose,
         )
+
+
+def get_pypi_alternatives(
+    data: dict[str, Any],
+    base_path: Path,
+) -> dict[str, str]:
+    """Extract PyPI alternatives for local dependencies.
+
+    Returns a mapping from local path to PyPI package name.
+    """
+    pypi_alternatives = {}
+    for local_dep_obj in _get_local_dependencies(data):
+        if local_dep_obj.pypi:
+            # Resolve the local path relative to the base path
+            local_path, _ = split_path_and_extras(local_dep_obj.local)
+            abs_local = (base_path / local_path).resolve()
+            pypi_alternatives[str(abs_local)] = local_dep_obj.pypi
+    return pypi_alternatives
 
 
 def parse_local_dependencies(
