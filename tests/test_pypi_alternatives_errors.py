@@ -46,7 +46,11 @@ def test_local_dependency_wheel_with_pypi_alternative(tmp_path: Path) -> None:
 
     deps = parse_local_dependencies(req_file, verbose=True)
     assert len(deps) == 1
-    assert str(wheel_file) in str(next(iter(deps.values())))
+    # Get the first (and only) list of paths
+    paths = next(iter(deps.values()))
+    assert len(paths) == 1
+    # Compare resolved paths to handle Windows path differences
+    assert paths[0].resolve() == wheel_file.resolve()
 
 
 def test_missing_local_dependency_with_pypi_alternative(tmp_path: Path) -> None:
