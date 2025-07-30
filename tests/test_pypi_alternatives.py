@@ -233,17 +233,18 @@ def test_setuptools_integration_with_pypi_alternatives(
     )
     req_file = maybe_as_toml(toml_or_yaml, req_file)
 
-    # Test without UNIDEP_SKIP_LOCAL_DEPS (should use file:// URLs but with PyPI for bar)
+    # Test with local paths existing (development mode) - should use file:// URLs
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
     )
 
     assert "numpy" in deps.dependencies
-    # Check that bar uses PyPI alternative
-    assert any("company-bar" in dep for dep in deps.dependencies)
-    # Check that foo uses file:// URL
+    # Both should use file:// URLs since local paths exist
     assert any("foo-pkg @ file://" in dep for dep in deps.dependencies)
+    assert any("bar-pkg @ file://" in dep for dep in deps.dependencies)
+    # Should NOT use PyPI alternative when local exists
+    assert not any("company-bar" in dep for dep in deps.dependencies)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -312,43 +313,6 @@ def test_yaml_to_toml_with_pypi_alternatives(
     assert "[tool.unidep]" in toml_content
     assert '"../foo"' in toml_content
     assert '{ local = "../bar", pypi = "company-bar" }' in toml_content
-
-
-def test_collect_pypi_alternatives_function(tmp_path: Path) -> None:
-    """Test the _collect_pypi_alternatives function."""
-    from unidep._setuptools_integration import _collect_pypi_alternatives
-
-    project = tmp_path / "project"
-    project.mkdir(exist_ok=True, parents=True)
-
-    # Create local deps
-    (tmp_path / "foo").mkdir(exist_ok=True)
-    (tmp_path / "bar").mkdir(exist_ok=True)
-
-    req_file = project / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            dependencies:
-                - numpy
-            local_dependencies:
-                - ../foo
-                - local: ../bar
-                  pypi: company-bar==1.0.0
-            """,
-        ),
-    )
-
-    pypi_alts = _collect_pypi_alternatives(req_file)
-
-    # Check the mapping
-    bar_path = str((tmp_path / "bar").resolve())
-    assert bar_path in pypi_alts
-    assert pypi_alts[bar_path] == "company-bar==1.0.0"
-
-    # foo should not be in the mapping
-    foo_path = str((tmp_path / "foo").resolve())
-    assert foo_path not in pypi_alts
 
 
 def test_edge_cases(tmp_path: Path) -> None:  # noqa: ARG001
@@ -696,7 +660,40 @@ def test_pypi_alternatives_with_absolute_paths(tmp_path: Path) -> None:
         parse_local_dependencies(req_file)
 
 
-@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pypi_alternatives_when_local_missing(tmp_path: Path) -> None:
+    """Test that PyPI alternatives are used when local paths don't exist."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - ../missing1
+                - local: ../missing2
+                  pypi: company-missing2
+            """,
+        ),
+    )
+
+    # Test with missing local paths - should use PyPI alternatives when available
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+
+    assert "numpy" in deps.dependencies
+    # missing1 has no PyPI alternative and doesn't exist - should be skipped
+    assert not any("missing1" in dep for dep in deps.dependencies)
+    # missing2 should use PyPI alternative since local doesn't exist
+    assert any("company-missing2" in dep for dep in deps.dependencies)
+    # Should NOT have file:// URLs for missing paths
+    assert not any("file://" in dep for dep in deps.dependencies)
+
+
 def test_mixed_string_and_dict_in_toml(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,

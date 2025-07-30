@@ -464,9 +464,9 @@ local_dependencies = [
 ```
 
 **How it works:**
-- When building wheels (e.g., `pip wheel .` or `python -m build`), the PyPI package names are used in the wheel metadata instead of `file://` URLs
+- **During development** (e.g., `unidep install` or `pip install -e .`): Local paths are used when they exist, ensuring you always work with your local code
+- **When building wheels** (e.g., `pip wheel .` or `python -m build`): If local paths don't exist (typical in CI/build environments), PyPI alternatives are automatically used
 - This makes wheels portable and suitable for upload to PyPI or private package indexes
-- The local paths are still used during development (e.g., `unidep install` or `pip install -e .`)
 - Fully backwards compatible - existing string format continues to work
 
 **Use cases:**
@@ -475,7 +475,10 @@ local_dependencies = [
 - **CI/CD**: Create portable wheels in CI that can be deployed anywhere
 
 > [!NOTE]
-> PyPI alternatives are always used when specified, regardless of build context. This simplifies the behavior and ensures consistent dependency resolution.
+> The system automatically detects whether to use local paths or PyPI alternatives:
+> - If the local path exists → use local path (development mode)
+> - If the local path doesn't exist AND a PyPI alternative is specified → use PyPI package (built wheel)
+> - No need to set environment variables or change configurations!
 
 ### Example packages
 

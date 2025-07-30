@@ -223,40 +223,6 @@ def test_circular_dependencies_with_pypi_alternatives(tmp_path: Path) -> None:
     assert "numpy" in requirements.requirements
 
 
-def test_file_permission_error_handling(tmp_path: Path) -> None:
-    """Test handling of file permission errors when collecting PyPI alternatives."""
-    import os
-
-    from unidep._setuptools_integration import _collect_pypi_alternatives
-
-    project = tmp_path / "project"
-    project.mkdir(exist_ok=True)
-
-    req_file = project / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            dependencies:
-                - numpy
-            local_dependencies:
-                - local: ../dep
-                  pypi: company-dep
-            """,
-        ),
-    )
-
-    # Make file unreadable (on Unix systems)
-    if os.name != "nt":  # Not Windows
-        req_file.chmod(0o000)
-        try:
-            # Should handle permission error gracefully
-            with pytest.raises(PermissionError):
-                _collect_pypi_alternatives(req_file)
-        finally:
-            # Restore permissions for cleanup
-            req_file.chmod(0o644)
-
-
 def test_very_long_pypi_alternative_names(tmp_path: Path) -> None:
     """Test handling of very long PyPI package names in alternatives."""
     project = tmp_path / "project"
@@ -289,6 +255,19 @@ def test_very_long_pypi_alternative_names(tmp_path: Path) -> None:
 
     # Should handle long names without issues
     from unidep._setuptools_integration import get_python_dependencies
+
+    # Test with local path existing - should use file:// URL
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+    assert "numpy" in deps.dependencies
+    assert any("dep @ file://" in d for d in deps.dependencies)
+
+    # Test with local path missing - should use PyPI alternative
+    import shutil
+
+    shutil.rmtree(dep)
 
     deps = get_python_dependencies(
         req_file,
@@ -328,12 +307,14 @@ def test_special_characters_in_paths(tmp_path: Path) -> None:
     # Should handle special characters correctly
     from unidep._setuptools_integration import get_python_dependencies
 
+    # With local path existing - should use file:// URL
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
     )
     assert "numpy" in deps.dependencies
-    assert "company-special-dep" in deps.dependencies
+    assert any("special-dep @ file://" in d for d in deps.dependencies)
+    assert not any("company-special-dep" in d for d in deps.dependencies)
 
 
 def test_symlink_local_dependencies(tmp_path: Path) -> None:
@@ -376,9 +357,11 @@ def test_symlink_local_dependencies(tmp_path: Path) -> None:
     # Should resolve symlinks correctly
     from unidep._setuptools_integration import get_python_dependencies
 
+    # With symlink existing - should use file:// URL
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
     )
     assert "numpy" in deps.dependencies
-    assert "company-symlink-dep" in deps.dependencies
+    assert any("actual @ file://" in d for d in deps.dependencies)
+    assert not any("company-symlink-dep" in d for d in deps.dependencies)

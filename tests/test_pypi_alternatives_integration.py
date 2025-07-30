@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import textwrap
 from typing import TYPE_CHECKING
 
@@ -68,21 +67,7 @@ def test_build_with_pypi_alternatives(
     # Change to project directory
     monkeypatch.chdir(project)
 
-    # Test 1: Normal pip install should use file:// URL (but we have PyPI alternative)
-    subprocess.run(
-        ["pip", "install", "--dry-run", "-e", "."],  # noqa: S607
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    # With the new implementation, PyPI alternatives are always used when defined
-    # This is the behavior you mentioned you prefer
-
-    # Test 2: Build with UNIDEP_SKIP_LOCAL_DEPS should definitely use PyPI alternative
-    monkeypatch.setenv("UNIDEP_SKIP_LOCAL_DEPS", "1")
-
-    # We can't easily test the actual build process in a unit test,
-    # but we can test the dependency resolution
+    # Test 1: Normal development with local paths existing - should use file:// URLs
     from unidep._setuptools_integration import get_python_dependencies
 
     deps = get_python_dependencies(
@@ -91,8 +76,25 @@ def test_build_with_pypi_alternatives(
     )
 
     assert "numpy" in deps.dependencies
+    # Should use file:// URL since local path exists
+    assert any("local-dep @ file://" in dep for dep in deps.dependencies)
+    assert not any("company-local-dep" in dep for dep in deps.dependencies)
+
+    # Test 2: Simulate wheel build where local paths don't exist
+    # Move the local dependency to simulate it not being available
+    import shutil
+
+    local_dep_backup = tmp_path / "local_dep_backup"
+    shutil.move(str(local_dep), str(local_dep_backup))
+
+    deps = get_python_dependencies(
+        project / "pyproject.toml",
+        include_local_dependencies=True,
+    )
+
+    assert "numpy" in deps.dependencies
+    # Should use PyPI alternative since local path doesn't exist
     assert "company-local-dep==1.0.0" in deps.dependencies
-    # Should NOT have file:// URL since we have a PyPI alternative
     assert not any("file://" in dep for dep in deps.dependencies)
 
 
@@ -133,13 +135,13 @@ def test_mixed_local_deps_with_and_without_pypi(tmp_path: Path) -> None:
     )
 
     assert "pandas" in deps.dependencies
-    assert "company-dep2>=2.0" in deps.dependencies
-    assert "company-dep3~=3.0" in deps.dependencies
-    # dep1 should use file:// since no PyPI alternative
+    # All should use file:// since local paths exist
     assert any("dep1 @ file://" in dep for dep in deps.dependencies)
-    # dep2 and dep3 should NOT use file://
-    assert not any("dep2 @ file://" in dep for dep in deps.dependencies)
-    assert not any("dep3 @ file://" in dep for dep in deps.dependencies)
+    assert any("dep2 @ file://" in dep for dep in deps.dependencies)
+    assert any("dep3 @ file://" in dep for dep in deps.dependencies)
+    # Should NOT use PyPI alternatives when local exists
+    assert not any("company-dep2" in dep for dep in deps.dependencies)
+    assert not any("company-dep3" in dep for dep in deps.dependencies)
 
 
 def test_setuptools_with_skip_local_deps_env_var(
