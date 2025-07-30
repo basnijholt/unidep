@@ -644,9 +644,8 @@ def _extract_local_dependencies(  # noqa: PLR0912
             elif _is_empty_git_submodule(abs_local):
                 # Extra check for empty Git submodules (common problem folks run into)
                 msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not"
-                    " installable by pip because it is an empty Git submodule. Either"
-                    " remove it"
+                    f"`{local_dependency}` in `local_dependencies` is not installable"
+                    " by pip because it is an empty Git submodule. Either remove it"
                     " from `local_dependencies` or fetch the submodule with"
                     " `git submodule update --init --recursive`."
                 )
