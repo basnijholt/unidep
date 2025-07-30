@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from unidep._conflicts import resolve_conflicts
-from unidep._dependencies_parsing import parse_local_dependencies, parse_requirements
+from unidep._dependencies_parsing import (
+    _load,
+    get_pypi_alternatives,
+    parse_local_dependencies,
+    parse_requirements,
+)
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
@@ -134,6 +139,9 @@ def get_python_dependencies(
         for section, reqs in requirements.optional_dependencies.items()
     }
     if include_local_dependencies:
+        # Get PyPI alternatives mapping
+        pypi_alternatives = _collect_pypi_alternatives(p.path)
+
         local_dependencies = parse_local_dependencies(
             p.path_with_extras,
             check_pip_installable=True,
@@ -146,11 +154,18 @@ def get_python_dependencies(
         )
         for paths in local_dependencies.values():
             for path in paths:
-                name = _package_name_from_path(path)
-                # TODO: Consider doing this properly using pathname2url  # noqa: FIX002
-                # https://github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
-                uri = path.as_posix().replace(" ", "%20")
-                dependencies.append(f"{name} @ file://{uri}")
+                path_str = str(path.resolve())
+                # Check if there's a PyPI alternative for this path
+                if path_str in pypi_alternatives:
+                    # Use the PyPI package name
+                    dependencies.append(pypi_alternatives[path_str])
+                else:
+                    # Fallback to file:// URL
+                    name = _package_name_from_path(path)
+                    # TODO: Consider doing this properly using pathname2url  # noqa: TD003, FIX002, E501
+                    # github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
+                    uri = path.as_posix().replace(" ", "%20")
+                    dependencies.append(f"{name} @ file://{uri}")
 
     return Dependencies(dependencies=dependencies, extras=extras)
 
@@ -222,6 +237,24 @@ def _package_name_from_path(path: Path) -> str:
 
     # Best guess for the package name is folder name.
     return path.name
+
+
+def _collect_pypi_alternatives(requirements_file: Path) -> dict[str, str]:
+    """Collect all PyPI alternatives from the requirements file and its dependencies."""
+    # Need to import here to avoid circular import
+    from ruamel.yaml import YAML
+
+    pypi_alternatives = {}
+    yaml = YAML(typ="rt")
+
+    # Get PyPI alternatives from the main file
+    data = _load(requirements_file, yaml)
+    base_path = requirements_file.parent
+    pypi_alternatives.update(get_pypi_alternatives(data, base_path))
+
+    # TODO: Consider recursively collecting from local dependencies  # noqa: TD003, FIX002, E501
+    # For now, just return the top-level alternatives
+    return pypi_alternatives
 
 
 def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
