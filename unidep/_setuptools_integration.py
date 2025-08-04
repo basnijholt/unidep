@@ -144,10 +144,9 @@ def get_python_dependencies(
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")
     data = _load(p.path, yaml)
-    local_dep_objs = _get_local_dependencies(data)
 
     # Process each local dependency
-    for local_dep_obj in local_dep_objs:
+    for local_dep_obj in _get_local_dependencies(data):
         local_path, extras_list = split_path_and_extras(local_dep_obj.local)
         abs_local = (p.path.parent / local_path).resolve()
 

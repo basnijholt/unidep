@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from unidep._dependencies_parsing import (
-    parse_requirements,
-)
+from unidep import parse_local_dependencies
+from unidep._dependencies_parsing import parse_requirements
+from unidep._setuptools_integration import get_python_dependencies
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -42,7 +42,6 @@ def test_local_dependency_wheel_with_pypi_alternative(tmp_path: Path) -> None:
     assert "numpy" in requirements.requirements
 
     # The wheel should be handled in parse_local_dependencies
-    from unidep import parse_local_dependencies
 
     deps = parse_local_dependencies(req_file, verbose=True)
     assert len(deps) == 1
@@ -72,7 +71,6 @@ def test_missing_local_dependency_with_pypi_alternative(tmp_path: Path) -> None:
     )
 
     # Should not raise when raise_if_missing=False
-    from unidep import parse_local_dependencies
 
     deps = parse_local_dependencies(req_file, raise_if_missing=False)
     assert len(deps) == 0
@@ -105,7 +103,6 @@ def test_empty_folder_with_pypi_alternative(tmp_path: Path) -> None:
     )
 
     # Should raise RuntimeError for empty folder
-    from unidep import parse_local_dependencies
 
     with pytest.raises(
         RuntimeError,
@@ -138,7 +135,6 @@ def test_empty_git_submodule_with_pypi_alternative(tmp_path: Path) -> None:
     )
 
     # Should raise RuntimeError for empty git submodule
-    from unidep import parse_local_dependencies
 
     with pytest.raises(
         RuntimeError,
@@ -171,7 +167,6 @@ def test_non_pip_installable_with_pypi_alternative(tmp_path: Path) -> None:
     )
 
     # Should raise RuntimeError
-    from unidep import parse_local_dependencies
 
     with pytest.raises(
         RuntimeError,
@@ -254,7 +249,6 @@ def test_very_long_pypi_alternative_names(tmp_path: Path) -> None:
     )
 
     # Should handle long names without issues
-    from unidep._setuptools_integration import get_python_dependencies
 
     # Test with local path existing - should use file:// URL
     deps = get_python_dependencies(
@@ -305,7 +299,6 @@ def test_special_characters_in_paths(tmp_path: Path) -> None:
     )
 
     # Should handle special characters correctly
-    from unidep._setuptools_integration import get_python_dependencies
 
     # With local path existing - should use file:// URL
     deps = get_python_dependencies(
@@ -355,7 +348,6 @@ def test_symlink_local_dependencies(tmp_path: Path) -> None:
     )
 
     # Should resolve symlinks correctly
-    from unidep._setuptools_integration import get_python_dependencies
 
     # With symlink existing - should use file:// URL
     deps = get_python_dependencies(
