@@ -18,6 +18,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
+    LocalDependency,
     PathWithExtras,
     defaultdict_to_dict,
     is_pip_installable,
@@ -201,11 +202,25 @@ def _add_project_dependencies(
         raise ValueError(msg)
 
 
-def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
+def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
+    """Parse a single local dependency item into a LocalDependency object."""
+    if isinstance(item, str):
+        return LocalDependency(local=item, pypi=None)
+    if isinstance(item, dict):
+        if "local" not in item:
+            msg = "Dictionary-style local dependency must have a 'local' key"
+            raise ValueError(msg)
+        return LocalDependency(local=item["local"], pypi=item.get("pypi"))
+    msg = f"Invalid local dependency format: {item}"
+    raise TypeError(msg)
+
+
+def get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
     """Get `local_dependencies` from a `requirements.yaml` or `pyproject.toml` file."""
+    raw_deps = []
     if "local_dependencies" in data:
-        return data["local_dependencies"]
-    if "includes" in data:
+        raw_deps = data["local_dependencies"]
+    elif "includes" in data:
         warn(
             "⚠️ You are using `includes` in `requirements.yaml` or `pyproject.toml`"
             " `[unidep.tool]` which is deprecated since 0.42.0 and has been renamed to"
@@ -213,8 +228,9 @@ def _get_local_dependencies(data: dict[str, Any]) -> list[str]:
             category=DeprecationWarning,
             stacklevel=2,
         )
-        return data["includes"]
-    return []
+        raw_deps = data["includes"]
+
+    return [_parse_local_dependency_item(item) for item in raw_deps]
 
 
 def _to_path_with_extras(
@@ -281,11 +297,11 @@ def _update_data_structures(
     seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dependency in _get_local_dependencies(data):
+    for local_dep_obj in get_local_dependencies(data):
         # NOTE: The current function calls _add_local_dependencies,
         # which calls the current function recursively
         _add_local_dependencies(
-            local_dependency=local_dependency,
+            local_dependency=local_dep_obj.local,
             path_with_extras=path_with_extras,
             datas=datas,  # modified in place
             all_extras=all_extras,  # modified in place
@@ -584,7 +600,8 @@ def _extract_local_dependencies(  # noqa: PLR0912
         verbose=verbose,
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dependency in _get_local_dependencies(data):
+    for local_dep_obj in get_local_dependencies(data):
+        local_dependency = local_dep_obj.local
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()

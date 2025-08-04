@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling", "unidep @ file:///Users/bas.nijholt/Work/unidep"]
+build-backend = "hatchling.build"
+
+[project]
+name = "test-main-app"
+version = "0.1.0"
+description = "Main app testing PyPI alternatives"
+dynamic = ["dependencies"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.metadata.hooks.unidep]
+
+[tool.hatch.build.targets.wheel]
+packages = ["main_app"]
+
+[tool.unidep]
+dependencies = ["numpy"]
+local_dependencies = [
+    {local = "../shared_lib", pypi = "pipefunc"}
+]
