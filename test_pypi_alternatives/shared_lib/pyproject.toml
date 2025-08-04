@@ -1,0 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "test-shared-lib"
+version = "1.0.0"
+description = "Shared library for testing PyPI alternatives"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shared_lib"]

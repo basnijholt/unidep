@@ -8,13 +8,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from ruamel.yaml import YAML, YAMLError
 
-from unidep import parse_requirements
+from unidep import parse_local_dependencies, parse_requirements
 from unidep._dependencies_parsing import (
     LocalDependency,
     _get_local_dependencies,
+    _load,
     _parse_local_dependency_item,
     get_pypi_alternatives,
+    yaml_to_toml,
 )
 from unidep._setuptools_integration import get_python_dependencies
 
@@ -98,7 +101,6 @@ def test_get_local_dependencies_mixed_format(
     req_file = maybe_as_toml(toml_or_yaml, req_file)
 
     # Load the file to get the data dict
-    from ruamel.yaml import YAML
 
     yaml = YAML(typ="rt")
     with req_file.open() as f:
@@ -150,7 +152,6 @@ def test_get_pypi_alternatives(
     req_file = maybe_as_toml(toml_or_yaml, req_file)
 
     # Load the file to get the data dict
-    from ruamel.yaml import YAML
 
     yaml = YAML(typ="rt")
     with req_file.open() as f:
@@ -286,8 +287,6 @@ def test_yaml_to_toml_with_pypi_alternatives(
         # Skip for TOML as yaml_to_toml only works on YAML files
         return
 
-    from unidep._dependencies_parsing import yaml_to_toml
-
     project = tmp_path / "project"
     project.mkdir(exist_ok=True, parents=True)
 
@@ -317,8 +316,6 @@ def test_yaml_to_toml_with_pypi_alternatives(
 
 def test_edge_cases(tmp_path: Path) -> None:  # noqa: ARG001
     """Test edge cases and error conditions."""
-    from unidep._dependencies_parsing import _parse_local_dependency_item
-
     # Test empty dict
     with pytest.raises(
         ValueError,
@@ -448,9 +445,6 @@ def test_empty_local_dependencies_list(tmp_path: Path) -> None:
     )
 
     # Test get_pypi_alternatives with empty list
-    from ruamel.yaml import YAML
-
-    from unidep._dependencies_parsing import _load, get_pypi_alternatives
 
     yaml = YAML(typ="rt")
     data = _load(req_file, yaml)
@@ -511,9 +505,6 @@ def test_local_dependencies_with_extras(tmp_path: Path) -> None:
     )
 
     # Test get_pypi_alternatives - should preserve extras
-    from ruamel.yaml import YAML
-
-    from unidep._dependencies_parsing import _load, get_pypi_alternatives
 
     yaml = YAML(typ="rt")
     data = _load(req_file, yaml)
@@ -575,9 +566,6 @@ def test_complex_path_structures(tmp_path: Path) -> None:
     )
 
     # Test path resolution
-    from ruamel.yaml import YAML
-
-    from unidep._dependencies_parsing import _load, get_pypi_alternatives
 
     yaml = YAML(typ="rt")
     data = _load(req_file, yaml)
@@ -623,7 +611,6 @@ local_dependencies:
     )
 
     # Should raise an error when parsing
-    from ruamel.yaml import YAMLError
 
     with pytest.raises((YAMLError, ValueError)):
         parse_requirements(req_file)
@@ -659,7 +646,6 @@ def test_pypi_alternatives_with_absolute_paths(tmp_path: Path) -> None:
     )
 
     # This should fail because absolute paths are not allowed
-    from unidep import parse_local_dependencies
 
     with pytest.raises(AssertionError):
         parse_local_dependencies(req_file)
@@ -739,9 +725,6 @@ def test_mixed_string_and_dict_in_toml(
     assert "numpy" in requirements.requirements
 
     # Test get_pypi_alternatives
-    from ruamel.yaml import YAML
-
-    from unidep._dependencies_parsing import get_pypi_alternatives
 
     yaml = YAML(typ="rt")
     with req_file.open() as f:
