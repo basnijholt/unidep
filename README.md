@@ -54,9 +54,9 @@ Try it now and streamline your development process!
     - [Implementation](#implementation)
   - [`[project.dependencies]` in `pyproject.toml` handling](#projectdependencies-in-pyprojecttoml-handling)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
-  - [Environment Variables](#environment-variables)
-    - [`UNIDEP_SKIP_LOCAL_DEPS`](#unidep_skip_local_deps)
+  - [Local Dependencies in Monorepos](#local-dependencies-in-monorepos)
   - [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)
+  - [Build System Behavior](#build-system-behavior)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
   - [Hatchling Integration](#hatchling-integration)
@@ -393,41 +393,18 @@ dependencies = [
 
 `unidep` seamlessly integrates with popular Python build systems to simplify dependency management in your projects.
 
-### Environment Variables
+### Local Dependencies in Monorepos
 
-#### `UNIDEP_SKIP_LOCAL_DEPS`
+Local dependencies are essential for monorepos and multi-package projects, allowing you to:
+- Share code between packages during development
+- Maintain separate releases for each package
+- Test changes across multiple packages simultaneously
 
-Local dependencies are useful for monorepos, shared configuration files, and local development workflows where you're developing multiple related packages.
-However, when building wheels for distribution (e.g., for PyPI), including local dependencies can create hardcoded `file://` paths in the wheel metadata, making wheels non-portable.
-
-**Build backend behavior differs:**
-- **Setuptools**: Automatically filters out invalid `file://` URLs during wheel building (this environment variable not needed)
-- **Hatchling**: Includes all dependencies as specified, requiring explicit filtering for distribution
-
-Set this environment variable to skip including local dependencies as `file://` URLs when building distributable artifacts:
-
-```bash
-# For hatch projects
-UNIDEP_SKIP_LOCAL_DEPS=1 hatch build
-
-# For uv build
-UNIDEP_SKIP_LOCAL_DEPS=1 uv build
-
-# For python -m build
-UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
-```
-
-> [!NOTE]
-> When this variable is set, local dependencies are skipped but their actual dependencies (extracted from `requirements.yaml` or `pyproject.toml`) are still included in the built wheel. This ensures the wheel remains functional while avoiding non-portable absolute paths.
->
-> **Backend-specific workaround**: This environment variable is primarily needed for Hatchling-based projects. Setuptools automatically handles this filtering, making wheels portable by default.
->
-> **Two contexts, same codebase**: Local dependencies are included by default (great for `unidep install` during development), but this environment variable provides the context switch needed when building for distribution.
+However, when building wheels for distribution, local paths create non-portable packages that only work on the original system.
 
 ### PyPI Alternatives for Local Dependencies
 
-When working with monorepos, you often want to use local paths during development but PyPI packages when building wheels for distribution.
-UniDep supports specifying PyPI alternatives for local dependencies using a dictionary syntax:
+UniDep solves this problem by letting you specify both local paths (for development) and PyPI packages (for distribution):
 
 ```yaml
 # requirements.yaml
@@ -464,21 +441,37 @@ local_dependencies = [
 ```
 
 **How it works:**
-- **During development** (e.g., `unidep install` or `pip install -e .`): Local paths are used when they exist, ensuring you always work with your local code
-- **When building wheels** (e.g., `pip wheel .` or `python -m build`): If local paths don't exist (typical in CI/build environments), PyPI alternatives are automatically used
-- This makes wheels portable and suitable for upload to PyPI or private package indexes
+- **During development** (e.g., `unidep install` or `pip install -e .`): Uses local paths when they exist
+- **When building wheels**: PyPI alternatives are used to create portable packages
 - Fully backwards compatible - existing string format continues to work
 
-**Use cases:**
-- **Monorepos**: Share code between packages while maintaining separate releases
-- **Private packages**: Build wheels that depend on private PyPI packages instead of local paths
-- **CI/CD**: Create portable wheels in CI that can be deployed anywhere
+> [!TIP]
+> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system.
+
+### Build System Behavior
+
+**Important differences between build backends:**
+- **Setuptools**: Builds wheels containing `file://` URLs with absolute paths. These wheels only work on the original system.
+- **Hatchling**: Rejects `file://` URLs by default, preventing non-portable wheels.
+
+To ensure portable wheels, you can use the `UNIDEP_SKIP_LOCAL_DEPS` environment variable:
+
+```bash
+# Force use of PyPI alternatives even when local paths exist
+UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
+
+# For hatch projects
+UNIDEP_SKIP_LOCAL_DEPS=1 hatch build
+
+# For uv build
+UNIDEP_SKIP_LOCAL_DEPS=1 uv build
+```
 
 > [!NOTE]
-> The system automatically detects whether to use local paths or PyPI alternatives:
-> - If the local path exists → use local path (development mode)
-> - If the local path doesn't exist AND a PyPI alternative is specified → use PyPI package (built wheel)
-> - No need to set environment variables or change configurations!
+> **When `UNIDEP_SKIP_LOCAL_DEPS=1` is set:**
+> - Local dependencies with PyPI alternatives → use PyPI package
+> - Local dependencies without PyPI alternatives → skipped entirely
+> - Dependencies from local packages are still included (from their `requirements.yaml`/`pyproject.toml`)
 
 ### Example packages
 
@@ -525,15 +518,14 @@ build-backend = "hatchling.build"
 dynamic = ["dependencies"]
 # Additional project configurations
 
-[tool.hatch]
-# Additional Hatch configurations
+[tool.hatch.metadata.hooks.unidep]
+# Enable the unidep plugin
 
-# Allow VCS URLs, local paths, and other direct references in dependencies
 [tool.hatch.metadata]
 allow-direct-references = true
 
-# Register UniDep as a metadata hook to process dependencies
-[tool.hatch.metadata.hooks.unidep]
+[tool.unidep]
+# Your dependencies configuration
 ```
 
 ## :desktop_computer: As a CLI
