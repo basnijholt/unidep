@@ -215,7 +215,7 @@ def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
     raise TypeError(msg)
 
 
-def _get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
+def get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
     """Get `local_dependencies` from a `requirements.yaml` or `pyproject.toml` file."""
     raw_deps = []
     if "local_dependencies" in data:
@@ -297,7 +297,7 @@ def _update_data_structures(
     seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dep_obj in _get_local_dependencies(data):
+    for local_dep_obj in get_local_dependencies(data):
         # NOTE: The current function calls _add_local_dependencies,
         # which calls the current function recursively
         _add_local_dependencies(
@@ -600,7 +600,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
         verbose=verbose,
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dep_obj in _get_local_dependencies(data):
+    for local_dep_obj in get_local_dependencies(data):
         local_dependency = local_dep_obj.local
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)

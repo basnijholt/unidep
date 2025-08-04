@@ -12,8 +12,8 @@ from ruamel.yaml import YAML, YAMLError
 from unidep import parse_local_dependencies, parse_requirements
 from unidep._dependencies_parsing import (
     LocalDependency,
-    _get_local_dependencies,
     _parse_local_dependency_item,
+    get_local_dependencies,
     yaml_to_toml,
 )
 from unidep._setuptools_integration import get_python_dependencies
@@ -110,7 +110,7 @@ def test_get_local_dependencies_mixed_format(
         else:
             data = yaml.load(f)
 
-    local_deps = _get_local_dependencies(data)
+    local_deps = get_local_dependencies(data)
 
     assert len(local_deps) == 4
     assert local_deps[0] == LocalDependency(local="../foo", pypi=None)

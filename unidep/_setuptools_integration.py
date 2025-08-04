@@ -18,8 +18,8 @@ from ruamel.yaml import YAML
 
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
-    _get_local_dependencies,
     _load,
+    get_local_dependencies,
     parse_requirements,
 )
 from unidep.utils import (
@@ -146,7 +146,7 @@ def get_python_dependencies(
     data = _load(p.path, yaml)
 
     # Process each local dependency
-    for local_dep_obj in _get_local_dependencies(data):
+    for local_dep_obj in get_local_dependencies(data):
         local_path, extras_list = split_path_and_extras(local_dep_obj.local)
         abs_local = (p.path.parent / local_path).resolve()
 
