@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from unidep._setuptools_integration import (
+from unidep._build_system_integration import (
     _package_name_from_path,
     _package_name_from_pyproject_toml,
     _package_name_from_setup_cfg,

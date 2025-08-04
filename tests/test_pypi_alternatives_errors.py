@@ -254,7 +254,7 @@ def test_very_long_pypi_alternative_names(tmp_path: Path) -> None:
     )
 
     # Should handle long names without issues
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     # Test with local path existing - should use file:// URL
     deps = get_python_dependencies(
@@ -305,7 +305,7 @@ def test_special_characters_in_paths(tmp_path: Path) -> None:
     )
 
     # Should handle special characters correctly
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     # With local path existing - should use file:// URL
     deps = get_python_dependencies(
@@ -355,7 +355,7 @@ def test_symlink_local_dependencies(tmp_path: Path) -> None:
     )
 
     # Should resolve symlinks correctly
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     # With symlink existing - should use file:// URL
     deps = get_python_dependencies(

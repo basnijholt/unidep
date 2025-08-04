@@ -68,7 +68,7 @@ def test_build_with_pypi_alternatives(
     monkeypatch.chdir(project)
 
     # Test 1: Normal development with local paths existing - should use file:// URLs
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     deps = get_python_dependencies(
         project / "pyproject.toml",
@@ -127,7 +127,7 @@ def test_mixed_local_deps_with_and_without_pypi(tmp_path: Path) -> None:
         ),
     )
 
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     deps = get_python_dependencies(
         project / "requirements.yaml",
@@ -172,7 +172,7 @@ def test_setuptools_with_skip_local_deps_env_var(
     )
 
     # Test without UNIDEP_SKIP_LOCAL_DEPS
-    from unidep._setuptools_integration import get_python_dependencies
+    from unidep._build_system_integration import get_python_dependencies
 
     deps = get_python_dependencies(
         project / "requirements.yaml",

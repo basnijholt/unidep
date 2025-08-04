@@ -10,13 +10,13 @@ import pytest
 from ruamel.yaml import YAML, YAMLError
 
 from unidep import parse_local_dependencies, parse_requirements
+from unidep._build_system_integration import get_python_dependencies
 from unidep._dependencies_parsing import (
     LocalDependency,
     _get_local_dependencies,
     _parse_local_dependency_item,
     yaml_to_toml,
 )
-from unidep._setuptools_integration import get_python_dependencies
 
 from .helpers import maybe_as_toml
 
