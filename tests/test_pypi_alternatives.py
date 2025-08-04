@@ -193,11 +193,11 @@ def test_setuptools_integration_with_pypi_alternatives(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_backwards_compatibility(
+def test_standard_string_format(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
-    """Test that pure string format still works."""
+    """Test that standard string format for local dependencies works."""
     project = tmp_path / "project"
     project.mkdir(exist_ok=True, parents=True)
 

@@ -413,10 +413,10 @@ dependencies:
   - pandas
 
 local_dependencies:
-  # Traditional string format (backwards compatible)
+  # Standard string format for local dependencies
   - ../shared-lib
 
-  # Dictionary format with PyPI alternative
+  # Dictionary format with optional PyPI alternative for build-time
   - local: ../auth-lib
     pypi: company-auth-lib>=1.0
 
@@ -431,10 +431,10 @@ Or in `pyproject.toml`:
 dependencies = ["numpy", "pandas"]
 
 local_dependencies = [
-    # Traditional string format
+    # Standard string format for local dependencies
     "../shared-lib",
 
-    # Dictionary format with PyPI alternative
+    # Dictionary format with optional PyPI alternative for build-time
     {local = "../auth-lib", pypi = "company-auth-lib>=1.0"},
     {local = "../utils", pypi = "company-utils~=2.0"},
 ]
@@ -442,8 +442,8 @@ local_dependencies = [
 
 **How it works:**
 - **During development** (e.g., `unidep install` or `pip install -e .`): Uses local paths when they exist
-- **When building wheels**: PyPI alternatives are used to create portable packages
-- Fully backwards compatible - existing string format continues to work
+- **When building wheels**: PyPI alternatives (if specified) are used to create portable packages
+- The standard string format continues to work as always for local dependencies
 
 > [!TIP]
 > PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system.
