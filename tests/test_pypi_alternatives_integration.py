@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import shutil
 import textwrap
 from typing import TYPE_CHECKING
+
+from unidep._setuptools_integration import get_python_dependencies
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -68,7 +71,6 @@ def test_build_with_pypi_alternatives(
     monkeypatch.chdir(project)
 
     # Test 1: Normal development with local paths existing - should use file:// URLs
-    from unidep._setuptools_integration import get_python_dependencies
 
     deps = get_python_dependencies(
         project / "pyproject.toml",
@@ -82,7 +84,6 @@ def test_build_with_pypi_alternatives(
 
     # Test 2: Simulate wheel build where local paths don't exist
     # Move the local dependency to simulate it not being available
-    import shutil
 
     local_dep_backup = tmp_path / "local_dep_backup"
     shutil.move(str(local_dep), str(local_dep_backup))
@@ -127,8 +128,6 @@ def test_mixed_local_deps_with_and_without_pypi(tmp_path: Path) -> None:
         ),
     )
 
-    from unidep._setuptools_integration import get_python_dependencies
-
     deps = get_python_dependencies(
         project / "requirements.yaml",
         include_local_dependencies=True,
@@ -172,7 +171,6 @@ def test_setuptools_with_skip_local_deps_env_var(
     )
 
     # Test without UNIDEP_SKIP_LOCAL_DEPS
-    from unidep._setuptools_integration import get_python_dependencies
 
     deps = get_python_dependencies(
         project / "requirements.yaml",
