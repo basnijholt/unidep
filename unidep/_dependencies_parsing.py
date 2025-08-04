@@ -676,24 +676,6 @@ def _extract_local_dependencies(  # noqa: PLR0912
         )
 
 
-def get_pypi_alternatives(
-    data: dict[str, Any],
-    base_path: Path,
-) -> dict[str, str]:
-    """Extract PyPI alternatives for local dependencies.
-
-    Returns a mapping from local path to PyPI package name.
-    """
-    pypi_alternatives = {}
-    for local_dep_obj in _get_local_dependencies(data):
-        if local_dep_obj.pypi:
-            # Resolve the local path relative to the base path
-            local_path, _ = split_path_and_extras(local_dep_obj.local)
-            abs_local = (base_path / local_path).resolve()
-            pypi_alternatives[str(abs_local)] = local_dep_obj.pypi
-    return pypi_alternatives
-
-
 def parse_local_dependencies(
     *paths: Path,
     check_pip_installable: bool = True,
