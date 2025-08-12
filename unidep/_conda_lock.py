@@ -116,8 +116,9 @@ def _conda_lock_global(
         selector="comment",
         platforms=platforms,
         ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
+        pixi=False,
         verbose=verbose,
     )
     _run_conda_lock(
