@@ -691,3 +691,134 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> None:
+    """Test that local dependencies are not duplicated in the pip install command.
+    
+    This test reproduces the issue where the same local dependency appears
+    multiple times in the pip install command when it's referenced by multiple
+    projects.
+    """
+    # Create a shared local dependency that will be referenced multiple times
+    shared_dep = tmp_path / "shared_dependency"
+    shared_dep.mkdir()
+    (shared_dep / "setup.py").write_text(
+        textwrap.dedent(
+            """\
+            from setuptools import setup
+            setup(name="shared_dep", version="0.1.0")
+            """
+        )
+    )
+    
+    # Create multiple projects that all reference the same shared dependency
+    projects = []
+    for i in range(3):
+        project = tmp_path / f"project_{i}"
+        project.mkdir()
+        
+        # Create a requirements.yaml that references the shared dependency
+        (project / "requirements.yaml").write_text(
+            textwrap.dedent(
+                f"""\
+                name: project_{i}
+                dependencies:
+                    - numpy
+                local_dependencies:
+                    - ../shared_dependency
+                """
+            )
+        )
+        
+        # Create a minimal setup.py to make it pip installable
+        (project / "setup.py").write_text(
+            textwrap.dedent(
+                f"""\
+                from setuptools import setup
+                setup(name="project_{i}", version="0.1.0")
+                """
+            )
+        )
+        
+        projects.append(project / "requirements.yaml")
+    
+    # Mock subprocess.run to capture the pip install commands
+    pip_install_commands = []
+    
+    def mock_run(cmd, *args, **kwargs):
+        # Capture pip install commands with -e flags
+        if isinstance(cmd, list) and "pip" in str(cmd) and "install" in cmd:
+            # Look for -e flags in the command
+            editable_packages = []
+            i = 0
+            while i < len(cmd):
+                if cmd[i] == "-e" and i + 1 < len(cmd):
+                    editable_packages.append(cmd[i + 1])
+                    i += 2
+                else:
+                    i += 1
+            if editable_packages:
+                pip_install_commands.append(editable_packages)
+        
+        # Don't actually run the command in tests
+        from unittest.mock import MagicMock
+        result = MagicMock()
+        result.returncode = 0
+        return result
+    
+    import warnings
+    
+    with patch("subprocess.run", side_effect=mock_run):
+        # Run the install command with all projects
+        # Expect a warning about unmanaged local dependency
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            _install_command(
+                *projects,
+                conda_executable=None,
+                conda_env_name=None,
+                conda_env_prefix=None,
+                conda_lock_file=None,
+                dry_run=False,
+                editable=True,
+                skip_local=False,
+                skip_pip=True,  # Skip regular pip deps to focus on local deps
+                skip_conda=True,  # Skip conda deps
+                no_dependencies=False,
+                ignore_pins=None,
+                overwrite_pins=None,
+                skip_dependencies=None,
+                no_uv=True,
+                verbose=False,
+            )
+    
+    # Check that the shared dependency appears only once in pip install commands
+    all_editable_packages = []
+    for packages in pip_install_commands:
+        all_editable_packages.extend(packages)
+    
+    # Count how many times the shared_dependency appears
+    shared_dep_str = str(shared_dep.resolve())
+    shared_dep_count = sum(
+        1 for pkg in all_editable_packages 
+        if str(Path(pkg).resolve()) == shared_dep_str
+    )
+    
+    # The shared dependency should appear exactly once, not multiple times
+    assert shared_dep_count == 1, (
+        f"Expected shared_dependency to appear once in pip install command, "
+        f"but it appeared {shared_dep_count} times. "
+        f"All editable packages: {all_editable_packages}"
+    )
+    
+    # Also check that each project appears exactly once
+    for i in range(3):
+        project_path = str((tmp_path / f"project_{i}").resolve())
+        project_count = sum(
+            1 for pkg in all_editable_packages
+            if str(Path(pkg).resolve()) == project_path
+        )
+        assert project_count == 1, (
+            f"Expected project_{i} to appear once, but it appeared {project_count} times"
+        )
