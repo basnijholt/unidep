@@ -695,7 +695,7 @@ def test_maybe_create_conda_env_args_creates_env(
 
 def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> None:
     """Test that local dependencies are not duplicated in the pip install command.
-    
+
     This test reproduces the issue where the same local dependency appears
     multiple times in the pip install command when it's referenced by multiple
     projects.
@@ -708,16 +708,16 @@ def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> N
             """\
             from setuptools import setup
             setup(name="shared_dep", version="0.1.0")
-            """
-        )
+            """,
+        ),
     )
-    
+
     # Create multiple projects that all reference the same shared dependency
     projects = []
     for i in range(3):
         project = tmp_path / f"project_{i}"
         project.mkdir()
-        
+
         # Create a requirements.yaml that references the shared dependency
         (project / "requirements.yaml").write_text(
             textwrap.dedent(
@@ -727,25 +727,25 @@ def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> N
                     - numpy
                 local_dependencies:
                     - ../shared_dependency
-                """
-            )
+                """,
+            ),
         )
-        
+
         # Create a minimal setup.py to make it pip installable
         (project / "setup.py").write_text(
             textwrap.dedent(
                 f"""\
                 from setuptools import setup
                 setup(name="project_{i}", version="0.1.0")
-                """
-            )
+                """,
+            ),
         )
-        
+
         projects.append(project / "requirements.yaml")
-    
+
     # Mock subprocess.run to capture the pip install commands
     pip_install_commands = []
-    
+
     def mock_run(cmd, *args, **kwargs):
         # Capture pip install commands with -e flags
         if isinstance(cmd, list) and "pip" in str(cmd) and "install" in cmd:
@@ -760,15 +760,16 @@ def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> N
                     i += 1
             if editable_packages:
                 pip_install_commands.append(editable_packages)
-        
+
         # Don't actually run the command in tests
         from unittest.mock import MagicMock
+
         result = MagicMock()
         result.returncode = 0
         return result
-    
+
     import warnings
-    
+
     with patch("subprocess.run", side_effect=mock_run):
         # Run the install command with all projects
         # Expect a warning about unmanaged local dependency
@@ -792,31 +793,31 @@ def test_no_duplicate_local_dependencies_in_install_command(tmp_path: Path) -> N
                 no_uv=True,
                 verbose=False,
             )
-    
+
     # Check that the shared dependency appears only once in pip install commands
     all_editable_packages = []
     for packages in pip_install_commands:
         all_editable_packages.extend(packages)
-    
+
     # Count how many times the shared_dependency appears
     shared_dep_str = str(shared_dep.resolve())
     shared_dep_count = sum(
-        1 for pkg in all_editable_packages 
-        if str(Path(pkg).resolve()) == shared_dep_str
+        1 for pkg in all_editable_packages if str(Path(pkg).resolve()) == shared_dep_str
     )
-    
+
     # The shared dependency should appear exactly once, not multiple times
     assert shared_dep_count == 1, (
         f"Expected shared_dependency to appear once in pip install command, "
         f"but it appeared {shared_dep_count} times. "
         f"All editable packages: {all_editable_packages}"
     )
-    
+
     # Also check that each project appears exactly once
     for i in range(3):
         project_path = str((tmp_path / f"project_{i}").resolve())
         project_count = sum(
-            1 for pkg in all_editable_packages
+            1
+            for pkg in all_editable_packages
             if str(Path(pkg).resolve()) == project_path
         )
         assert project_count == 1, (
