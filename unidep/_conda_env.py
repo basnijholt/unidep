@@ -59,8 +59,6 @@ def _conda_sel(sel: str) -> CondaPlatform:
     _platform = sel.split("-", 1)[0]
     assert _platform in get_args(CondaPlatform), f"Invalid platform: {_platform}"
     return cast("CondaPlatform", _platform)
-
-
 def _as_dependency_entries(
     entries: Sequence[DependencyEntry],
 ) -> list[DependencyEntry]:
