@@ -201,7 +201,7 @@ class TestEnvironmentGeneration:
         env_file = tmp_path / "environment.yaml"
         write_conda_environment_file(env_spec, env_file)
 
-        with open(env_file) as f:
+        with env_file.open() as f:
             env_dict = yaml.safe_load(f)
 
         # Check that pip_repositories is included
@@ -239,7 +239,7 @@ class TestEnvironmentGeneration:
         env_file = tmp_path / "environment.yaml"
         write_conda_environment_file(env_spec, env_file)
 
-        with open(env_file) as f:
+        with env_file.open() as f:
             env_dict = yaml.safe_load(f)
 
         # pip_repositories should not be included if empty
@@ -261,7 +261,7 @@ class TestEnvironmentGeneration:
         env_file = tmp_path / "environment.yaml"
         write_conda_environment_file(env_spec, env_file)
 
-        with open(env_file) as f:
+        with env_file.open() as f:
             content = f.read()
             env_dict = yaml.safe_load(content)
 
@@ -281,16 +281,16 @@ class TestPipCommandConstruction:
             "https://pypi.org/simple/",
             "https://private.company.com/simple/",
         ]
-        packages = ["numpy", "private-package"]
+        # packages = ["numpy", "private-package"]  # Not used in test
 
         # Expected command structure
         # First index is --index-url, rest are --extra-index-url
-        expected_args = [
-            "--index-url",
-            "https://pypi.org/simple/",
-            "--extra-index-url",
-            "https://private.company.com/simple/",
-        ]
+        # expected_args = [
+        #     "--index-url",
+        #     "https://pypi.org/simple/",
+        #     "--extra-index-url",
+        #     "https://private.company.com/simple/",
+        # ]
 
         # This will be implemented in the actual code
         # For now, just verify the logic
@@ -299,24 +299,24 @@ class TestPipCommandConstruction:
 
     def test_build_pip_command_without_indices(self) -> None:
         """Test building pip install command without custom indices."""
-        pip_indices = []
-        packages = ["numpy", "pandas"]
+        pip_indices: list[str] = []
+        # packages = ["numpy", "pandas"]  # Not used in test
 
         # No index flags should be added
-        expected_args = []
+        # expected_args = []  # Not used in test
 
         assert len(pip_indices) == 0
 
     def test_build_pip_command_single_index(self) -> None:
         """Test building pip install command with single index."""
         pip_indices = ["https://custom.pypi.org/simple/"]
-        packages = ["custom-package"]
+        # packages = ["custom-package"]  # Not used in test
 
         # Single index should use --index-url only
-        expected_args = [
-            "--index-url",
-            "https://custom.pypi.org/simple/",
-        ]
+        # expected_args = [
+        #     "--index-url",
+        #     "https://custom.pypi.org/simple/",
+        # ]  # Not used in test
 
         assert len(pip_indices) == 1
         assert pip_indices[0] == "https://custom.pypi.org/simple/"
