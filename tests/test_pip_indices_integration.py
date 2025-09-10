@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +13,7 @@ class TestUnidepInstallIntegration:
     """Integration tests for unidep install with pip_indices."""
 
     @pytest.fixture
-    def mock_project(self, tmp_path: Path):
+    def mock_project(self, tmp_path: Path) -> Path:
         """Create a mock project with pip_indices configuration."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -58,7 +59,7 @@ class TestUnidepInstallIntegration:
         return project_dir
 
     @patch("subprocess.run")
-    def test_install_with_pip_indices(self, mock_run, mock_project):
+    def test_install_with_pip_indices(self, mock_run: Any, mock_project: Path) -> None:
         """Test that unidep install uses pip_indices correctly."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -82,7 +83,7 @@ class TestUnidepInstallIntegration:
             assert expected_pip_args[2] == "--extra-index-url"
 
     @patch("subprocess.run")
-    def test_install_with_env_var_indices(self, mock_run, tmp_path):
+    def test_install_with_env_var_indices(self, mock_run: Any, tmp_path: Path) -> None:
         """Test that environment variables in pip_indices are expanded."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -120,7 +121,7 @@ class TestUnidepInstallIntegration:
         del os.environ["PIP_USER"]
         del os.environ["PIP_PASSWORD"]
 
-    def test_install_with_uv_backend(self, mock_project):
+    def test_install_with_uv_backend(self, mock_project: Path) -> None:
         """Test that pip_indices work with uv backend."""
         # uv uses the same --index-url and --extra-index-url flags
         with patch("shutil.which", return_value="/path/to/uv"):
@@ -142,7 +143,7 @@ class TestUnidepInstallIntegration:
                 assert "--index-url" in expected_args
                 assert "--extra-index-url" in expected_args
 
-    def test_install_without_pip_indices(self, tmp_path):
+    def test_install_without_pip_indices(self, tmp_path: Path) -> None:
         """Test that unidep install works without pip_indices."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -173,7 +174,7 @@ class TestUnidepCondaLockIntegration:
     """Integration tests for unidep conda-lock with pip_indices."""
 
     @pytest.fixture
-    def mock_monorepo(self, tmp_path: Path):
+    def mock_monorepo(self, tmp_path: Path) -> Path:
         """Create a mock monorepo with multiple projects using pip_indices."""
         monorepo = tmp_path / "monorepo"
         monorepo.mkdir()
@@ -218,8 +219,9 @@ class TestUnidepCondaLockIntegration:
 
         return monorepo
 
-    def test_conda_lock_generates_pip_repositories(self, mock_monorepo):
+    def test_conda_lock_generates_pip_repositories(self, mock_monorepo: Path) -> None:
         """Test that conda-lock generates environment.yaml with pip_repositories."""
+        _ = mock_monorepo  # Used to ensure fixture is called
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
 
@@ -243,10 +245,10 @@ class TestUnidepCondaLockIntegration:
             assert "pip_repositories" in expected_env
             assert len(expected_env["pip_repositories"]) == 3
 
-    def test_conda_lock_with_merged_indices(self, mock_monorepo):
+    def test_conda_lock_with_merged_indices(self, mock_monorepo: Path) -> None:
         """Test that conda-lock merges pip_indices from multiple projects."""
         # Create temporary environment.yaml
-        env_file = mock_monorepo / "environment.yaml"
+        # env_file = mock_monorepo / "environment.yaml"  # Not used in test
 
         with patch("unidep._conda_lock.generate_conda_lock") as mock_generate:
             mock_generate.return_value = None
@@ -268,7 +270,7 @@ class TestUnidepCondaLockIntegration:
             deduplicated = list(dict.fromkeys(all_indices))  # Preserve order
             assert deduplicated == expected_indices
 
-    def test_conda_lock_creates_valid_lockfile(self, tmp_path):
+    def test_conda_lock_creates_valid_lockfile(self, tmp_path: Path) -> None:
         """Test that conda-lock creates a valid lock file with pip_repositories."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -297,7 +299,7 @@ class TestUnidepCondaLockIntegration:
             mock_run.return_value = MagicMock(returncode=0)
 
             # Verify that the generated environment.yaml includes pip_repositories
-            env_file = project_dir / "environment.yaml"
+            # env_file = project_dir / "environment.yaml"  # Not used in test
 
             # Simulate what would be written
             env_content = {
@@ -321,7 +323,7 @@ class TestUnidepCondaLockIntegration:
 class TestErrorHandling:
     """Test error handling and edge cases in integration."""
 
-    def test_install_with_unreachable_index(self, tmp_path):
+    def test_install_with_unreachable_index(self, tmp_path: Path) -> None:
         """Test behavior when a pip index is unreachable."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -348,7 +350,7 @@ class TestErrorHandling:
             # Installation should succeed using the second index
             assert True  # Placeholder
 
-    def test_install_with_conflicting_packages(self, tmp_path):
+    def test_install_with_conflicting_packages(self, tmp_path: Path) -> None:
         """Test handling of conflicting packages across indices."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -374,7 +376,7 @@ class TestErrorHandling:
             # Verify that first index is primary
             assert True  # Placeholder
 
-    def test_merge_with_circular_dependencies(self, tmp_path):
+    def test_merge_with_circular_dependencies(self, tmp_path: Path) -> None:
         """Test handling of circular local dependencies with pip_indices."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -415,7 +417,7 @@ class TestErrorHandling:
 
         # Should handle circular dependencies gracefully
         # pip_indices should be merged without infinite loop
-        with patch("unidep._dependencies_parsing.parse_requirements") as mock_parse:
+        with patch("unidep._dependencies_parsing.parse_requirements"):
             # Implementation should detect and break circular dependencies
             assert True  # Placeholder
 
@@ -423,7 +425,7 @@ class TestErrorHandling:
 class TestCompatibility:
     """Test compatibility with existing unidep features."""
 
-    def test_pip_indices_with_platforms(self, tmp_path):
+    def test_pip_indices_with_platforms(self, tmp_path: Path) -> None:
         """Test that pip_indices work with platform selectors."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -455,7 +457,7 @@ class TestCompatibility:
             # Verify platform-specific handling
             assert True  # Placeholder
 
-    def test_pip_indices_with_optional_dependencies(self, tmp_path):
+    def test_pip_indices_with_optional_dependencies(self, tmp_path: Path) -> None:
         """Test that pip_indices work with optional dependencies."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -488,7 +490,7 @@ class TestCompatibility:
             # When installing with [test], should use pip_indices
             assert True  # Placeholder
 
-    def test_coexistence_with_uv_index_config(self, tmp_path):
+    def test_coexistence_with_uv_index_config(self, tmp_path: Path) -> None:
         """Test that pip_indices can coexist with [[tool.uv.index]] config."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
