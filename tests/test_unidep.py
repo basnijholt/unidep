@@ -319,7 +319,13 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     write_conda_environment_file(
-        CondaEnvironmentSpec(channels=[], platforms=[], conda=[], pip=[]),
+        CondaEnvironmentSpec(
+            channels=[],
+            pip_indices=[],
+            platforms=[],
+            conda=[],
+            pip=[],
+        ),
         verbose=True,
     )
     captured = capsys.readouterr()

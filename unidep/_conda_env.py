@@ -43,6 +43,7 @@ class CondaEnvironmentSpec(NamedTuple):
     """A conda environment."""
 
     channels: list[str]
+    pip_indices: list[str]
     platforms: list[Platform]
     conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
@@ -141,6 +142,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
 def create_conda_env_specification(  # noqa: PLR0912
     resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
     channels: list[str],
+    pip_indices: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
@@ -200,7 +202,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             else:
                 pip_deps.append(dep_str)
 
-    return CondaEnvironmentSpec(channels, platforms, conda_deps, pip_deps)
+    return CondaEnvironmentSpec(channels, pip_indices, platforms, conda_deps, pip_deps)
 
 
 def write_conda_environment_file(
@@ -217,6 +219,9 @@ def write_conda_environment_file(
     env_data = CommentedMap({"name": name})
     if env_spec.channels:
         env_data["channels"] = env_spec.channels
+    # Add pip_repositories for conda-lock compatibility
+    if env_spec.pip_indices:
+        env_data["pip_repositories"] = env_spec.pip_indices
     if resolved_dependencies:
         env_data["dependencies"] = resolved_dependencies
     if env_spec.platforms:
