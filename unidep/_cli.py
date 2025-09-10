@@ -972,6 +972,28 @@ def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
     return shutil.which("uv") is not None
 
 
+def _build_pip_index_arguments(pip_indices: list[str]) -> list[str]:
+    """Build pip/uv index arguments from pip_indices list.
+
+    First index becomes --index-url (primary),
+    remaining indices become --extra-index-url (supplementary).
+    """
+    args = []
+    if pip_indices:
+        # Expand environment variables in URLs
+        expanded_indices = []
+        for index in pip_indices:
+            expanded = os.path.expandvars(index)
+            expanded_indices.append(expanded)
+
+        # First index is primary
+        args.extend(["--index-url", expanded_indices[0]])
+        # Additional indices are extra
+        for index in expanded_indices[1:]:
+            args.extend(["--extra-index-url", index])
+    return args
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
@@ -979,8 +1001,10 @@ def _pip_install_local(
     python_executable: str,
     conda_run: list[str],
     no_uv: bool,
+    pip_indices: list[str] | None = None,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
+    index_args = _build_pip_index_arguments(pip_indices or [])
     if _use_uv(no_uv):
         pip_command = [
             *conda_run,
@@ -989,9 +1013,17 @@ def _pip_install_local(
             "install",
             "--python",
             python_executable,
+            *index_args,
         ]
     else:
-        pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
+        pip_command = [
+            *conda_run,
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            *index_args,
+        ]
 
     if flags:
         pip_command.extend(flags)
@@ -1052,6 +1084,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
     env_spec = create_conda_env_specification(
         env_entries,
         requirements.channels,
+        requirements.pip_indices,
         platforms=platforms,
     )
     if not conda_executable:  # None or empty string
@@ -1103,6 +1136,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
     )
     if env_spec.pip and not skip_pip:
         conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
+        index_args = _build_pip_index_arguments(env_spec.pip_indices)
         if _use_uv(no_uv):
             pip_command = [
                 *conda_run,
@@ -1111,6 +1145,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
                 "install",
                 "--python",
                 python_executable,
+                *index_args,
                 *env_spec.pip,
             ]
         else:
@@ -1120,6 +1155,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
                 "-m",
                 "pip",
                 "install",
+                *index_args,
                 *env_spec.pip,
             ]
         print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
@@ -1169,6 +1205,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
                 python_executable=python_executable,
                 flags=pip_flags,
                 no_uv=no_uv,
+                pip_indices=env_spec.pip_indices,
                 conda_run=conda_run,
             )
 
@@ -1395,6 +1432,7 @@ def _merge_command(
     env_spec = create_conda_env_specification(
         env_entries,
         requirements.channels,
+        requirements.pip_indices,
         platforms,
         selector=selector,
     )
@@ -1665,6 +1703,7 @@ def main() -> None:  # noqa: PLR0912
         env_spec = create_conda_env_specification(
             env_entries,
             requirements.channels,
+            requirements.pip_indices,
             platforms=platforms,
         )
 
