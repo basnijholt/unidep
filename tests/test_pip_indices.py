@@ -357,8 +357,12 @@ class TestEdgeCases:
         )
 
         parsed = parse_requirements(requirements_file)
-        # Duplicates might be preserved or deduplicated based on implementation
-        assert len(parsed.pip_indices) == 3  # Or 2 if deduplicating
+        # The implementation deduplicates indices
+        assert len(parsed.pip_indices) == 2
+        assert parsed.pip_indices == [
+            "https://pypi.org/simple/",
+            "https://private.com/simple/",
+        ]
 
     def test_empty_string_in_indices(self, tmp_path: Path) -> None:
         """Test handling of empty strings in pip_indices."""
