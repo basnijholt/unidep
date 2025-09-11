@@ -59,7 +59,7 @@ class TestUnidepInstallIntegration:
         return project_dir
 
     @patch("subprocess.run")
-    def test_install_with_pip_indices(self, mock_run: Any, mock_project: Path) -> None:
+    def test_install_with_pip_indices(self, mock_run: Any, mock_project: Path) -> None:  # noqa: ARG002
         """Test that unidep install uses pip_indices correctly."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
@@ -90,7 +90,7 @@ class TestUnidepInstallIntegration:
 
         # Set environment variables
         os.environ["PIP_USER"] = "testuser"
-        os.environ["PIP_PASSWORD"] = "testpass"
+        os.environ["PIP_PASSWORD"] = "testpass"  # noqa: S105
 
         requirements_file = project_dir / "requirements.yaml"
         requirements_file.write_text(
@@ -121,27 +121,28 @@ class TestUnidepInstallIntegration:
         del os.environ["PIP_USER"]
         del os.environ["PIP_PASSWORD"]
 
-    def test_install_with_uv_backend(self, mock_project: Path) -> None:
+    def test_install_with_uv_backend(self, mock_project: Path) -> None:  # noqa: ARG002
         """Test that pip_indices work with uv backend."""
         # uv uses the same --index-url and --extra-index-url flags
-        with patch("shutil.which", return_value="/path/to/uv"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0)
+        with patch("shutil.which", return_value="/path/to/uv"), patch(
+            "subprocess.run",
+        ) as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
 
-                # Expected uv command structure
-                expected_args = [
-                    "uv",
-                    "pip",
-                    "install",
-                    "--index-url",
-                    "https://pypi.org/simple/",
-                    "--extra-index-url",
-                    "https://test.pypi.org/simple/",
-                ]
+            # Expected uv command structure
+            expected_args = [
+                "uv",
+                "pip",
+                "install",
+                "--index-url",
+                "https://pypi.org/simple/",
+                "--extra-index-url",
+                "https://test.pypi.org/simple/",
+            ]
 
-                # Verify uv compatibility
-                assert "--index-url" in expected_args
-                assert "--extra-index-url" in expected_args
+            # Verify uv compatibility
+            assert "--index-url" in expected_args
+            assert "--extra-index-url" in expected_args
 
     def test_install_without_pip_indices(self, tmp_path: Path) -> None:
         """Test that unidep install works without pip_indices."""
@@ -245,11 +246,8 @@ class TestUnidepCondaLockIntegration:
             assert "pip_repositories" in expected_env
             assert len(expected_env["pip_repositories"]) == 3
 
-    def test_conda_lock_with_merged_indices(self, mock_monorepo: Path) -> None:
+    def test_conda_lock_with_merged_indices(self, mock_monorepo: Path) -> None:  # noqa: ARG002
         """Test that conda-lock merges pip_indices from multiple projects."""
-        # Create temporary environment.yaml
-        # env_file = mock_monorepo / "environment.yaml"  # Not used in test
-
         with patch("unidep._conda_lock.generate_conda_lock") as mock_generate:
             mock_generate.return_value = None
 
@@ -299,9 +297,7 @@ class TestUnidepCondaLockIntegration:
             mock_run.return_value = MagicMock(returncode=0)
 
             # Verify that the generated environment.yaml includes pip_repositories
-            # env_file = project_dir / "environment.yaml"  # Not used in test
 
-            # Simulate what would be written
             env_content = {
                 "name": "test_project",
                 "channels": ["conda-forge"],

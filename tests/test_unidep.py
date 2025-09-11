@@ -189,6 +189,7 @@ def test_generate_conda_env_file(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
 
@@ -209,6 +210,7 @@ def test_generate_conda_env_stdout(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     write_conda_environment_file(env_spec, output_file=None)
@@ -241,6 +243,7 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [
@@ -260,7 +263,8 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms,
+        requirements.pip_indices,
+        platforms,  # type: ignore[arg-type]
     )
     assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
     assert sorted(env_spec.pip) == sorted(expected_pip)
@@ -269,7 +273,8 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms,
+        requirements.pip_indices,
+        platforms,  # type: ignore[arg-type]
         selector="comment",
     )
     assert env_spec.conda == ["yolo", "bar"]
@@ -755,6 +760,7 @@ def test_filter_pip_and_conda(
     conda_env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         channels=requirements.channels,
+        pip_indices=requirements.pip_indices,
         platforms=requirements.platforms,
     )
 
@@ -877,6 +883,7 @@ def test_duplicates_with_version(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["bar", {"sel(linux)": "foo >1"}]
@@ -995,6 +1002,7 @@ def test_duplicates_different_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [{"sel(linux)": "foo <=2,>1"}]
@@ -1011,12 +1019,13 @@ def test_duplicates_different_platforms(
     ]
 
     # now only use linux-64
-    platforms: list[Platform] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms)
+    platforms: list[str] = ["linux-64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms,
+        requirements.pip_indices,
+        platforms,  # type: ignore[arg-type]
     )
     assert env_spec.conda == ["foo <=2,>1"]
     assert env_spec.pip == []
@@ -1161,6 +1170,7 @@ def test_expand_none_with_different_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [
@@ -1240,6 +1250,7 @@ def test_different_pins_on_conda_and_pip(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["foo <1"]
@@ -1291,6 +1302,7 @@ def test_pip_pinned_conda_not(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == []
@@ -1342,6 +1354,7 @@ def test_conda_pinned_pip_not(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["foo >1"]
@@ -1428,6 +1441,7 @@ def test_conda_with_comments(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1458,6 +1472,7 @@ def test_duplicate_names(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
@@ -1490,6 +1505,7 @@ def test_conflicts_when_selector_comment(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1520,6 +1536,7 @@ def test_conflicts_when_selector_comment(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1568,6 +1585,7 @@ def test_platforms_section_in_yaml(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="sel",
     )
@@ -1612,6 +1630,7 @@ def test_platforms_section_in_yaml_similar_platforms(
         create_conda_env_specification(
             requirements.dependency_entries,
             requirements.channels,
+            requirements.pip_indices,
             requirements.platforms,
             selector="sel",
         )
@@ -1629,6 +1648,7 @@ def test_platforms_section_in_yaml_similar_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1668,6 +1688,7 @@ def test_conda_with_non_platform_comment(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1752,6 +1773,7 @@ def test_pip_and_conda_different_name_on_linux64(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["cuquantum-python"]
@@ -1959,7 +1981,8 @@ def test_duplicate_names_different_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms_arm64,
+        requirements.pip_indices,
+        platforms_arm64,  # type: ignore[arg-type]
     )
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
@@ -1968,7 +1991,8 @@ def test_duplicate_names_different_platforms(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms_linux64,
+        requirements.pip_indices,
+        platforms_linux64,  # type: ignore[arg-type]
     )
     assert env_spec.conda == ["ray-core"]
     assert env_spec.pip == []
@@ -1997,7 +2021,8 @@ def test_with_unused_platform(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
-        platforms,
+        requirements.pip_indices,
+        platforms,  # type: ignore[arg-type]
         selector="comment",
     )
     assert env_spec.conda == ["adaptive", "rsync-time-machine >1,<3"]
@@ -2102,6 +2127,7 @@ def test_pip_with_pinning(
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == []
