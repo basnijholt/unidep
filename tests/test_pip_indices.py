@@ -6,7 +6,6 @@ import os
 from pathlib import Path  # noqa: TC003
 from textwrap import dedent
 
-import pytest
 import yaml
 
 from unidep._conda_env import CondaEnvironmentSpec, write_conda_environment_file
@@ -406,7 +405,3 @@ class TestEdgeCases:
         parsed = parse_requirements(requirements_file)
         # Should preserve the ${MISSING_VAR} syntax for later expansion
         assert "${MISSING_VAR}" in parsed.pip_indices[0]
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
