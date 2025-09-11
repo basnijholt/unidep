@@ -273,14 +273,14 @@ def test_create_conda_env_specification_platforms(
     platforms: list[Platform] = ["osx-arm64", "win-64"]
     resolved = resolve_conflicts(
         requirements.requirements,
-        platforms,  # type: ignore[arg-type]
+        platforms,
     )
 
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
     )
     assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
     assert env_spec.pip == expected_pip
@@ -290,7 +290,7 @@ def test_create_conda_env_specification_platforms(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
         selector="comment",
     )
     assert env_spec.conda == ["yolo", "bar"]
@@ -1011,12 +1011,12 @@ def test_duplicates_different_platforms(
 
     # now only use linux-64
     platforms: list[Platform] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
+    resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
     )
     assert env_spec.conda == ["foo >1,<=2"]
     assert env_spec.pip == []
@@ -1890,24 +1890,24 @@ def test_duplicate_names_different_platforms(
             ),
         ],
     }
-    platforms_arm64: list[str] = ["osx-arm64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms_arm64)  # type: ignore[arg-type]
+    platforms_arm64: list[Platform] = ["osx-arm64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms_arm64)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms_arm64,  # type: ignore[arg-type]
+        platforms_arm64,
     )
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
 
-    platforms_linux64: list[str] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms_linux64)  # type: ignore[arg-type]
+    platforms_linux64: list[Platform] = ["linux-64"]
+    resolved = resolve_conflicts(requirements.requirements, platforms_linux64)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms_linux64,  # type: ignore[arg-type]
+        platforms_linux64,
     )
     assert env_spec.conda == ["ray-core"]
     assert env_spec.pip == []
@@ -1933,12 +1933,12 @@ def test_with_unused_platform(
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
     platforms: list[Platform] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
+    resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
         selector="comment",
     )
     assert env_spec.conda == ["adaptive", "rsync-time-machine >1,<3"]
