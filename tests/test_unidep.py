@@ -21,7 +21,7 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
-from unidep.platform_definitions import Spec
+from unidep.platform_definitions import Platform, Spec
 from unidep.utils import is_pip_installable
 
 from .helpers import maybe_as_toml
@@ -270,7 +270,7 @@ def test_create_conda_env_specification_platforms(
     assert env_spec.pip == expected_pip
 
     # Test on two platforms
-    platforms: list[str] = ["osx-arm64", "win-64"]
+    platforms: list[Platform] = ["osx-arm64", "win-64"]
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,  # type: ignore[arg-type]
@@ -1010,7 +1010,7 @@ def test_duplicates_different_platforms(
     ]
 
     # now only use linux-64
-    platforms: list[str] = ["linux-64"]
+    platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
     env_spec = create_conda_env_specification(
         resolved,
@@ -1932,7 +1932,7 @@ def test_with_unused_platform(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    platforms: list[str] = ["linux-64"]
+    platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
     env_spec = create_conda_env_specification(
         resolved,

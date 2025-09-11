@@ -53,7 +53,7 @@ def _conda_sel(sel: str) -> CondaPlatform:
     """Return the allowed `sel(platform)` string."""
     _platform = sel.split("-", 1)[0]
     assert _platform in get_args(CondaPlatform), f"Invalid platform: {_platform}"
-    return cast("CondaPlatform", _platform)
+    return cast(CondaPlatform, _platform)
 
 
 def _extract_conda_pip_dependencies(
@@ -198,7 +198,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                     # other with [win].
                     for _platform in _platforms:
                         pip_deps.append(dep_str)
-                        _add_comment(pip_deps, cast("Platform", _platform))
+                        _add_comment(pip_deps, cast(Platform, _platform))
             else:
                 pip_deps.append(dep_str)
 
