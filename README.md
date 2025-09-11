@@ -52,6 +52,10 @@ Try it now and streamline your development process!
     - [Supported Selectors](#supported-selectors)
     - [Usage](#usage)
     - [Implementation](#implementation)
+  - [Custom Pip Index URLs](#custom-pip-index-urls)
+    - [How It Works](#how-it-works)
+    - [Example Usage](#example-usage)
+    - [Generated Output](#generated-output)
   - [`[project.dependencies]` in `pyproject.toml` handling](#projectdependencies-in-pyprojecttoml-handling)
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Local Dependencies in Monorepos](#local-dependencies-in-monorepos)
@@ -153,6 +157,7 @@ Both files contain the following keys:
 - **local_dependencies** (Optional): List of paths to other `requirements.yaml` or `pyproject.toml` files to include.
 - **optional_dependencies** (Optional): Dictionary with lists of optional dependencies.
 - **platforms** (Optional): List of platforms that are supported (used in `conda-lock`).
+- **pip_indices** (Optional): List of custom pip index URLs for private or alternative package repositories.
 
 Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
 Choose the format that works best for your project.
@@ -187,6 +192,10 @@ optional_dependencies:
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
+pip_indices:  # (Optional) additional pip index URLs for private packages
+  - https://pypi.org/simple/  # Main PyPI index (automatically included if not specified)
+  - https://private.company.com/simple/  # Private company index
+  - https://${PIP_USER}:${PIP_PASSWORD}@private.pypi.org/simple/  # Authenticated index with env vars
 ```
 
 > [!IMPORTANT]
@@ -222,6 +231,11 @@ platforms = [ # (Optional) specify platforms that are supported (used in conda-l
     "linux-64",
     "osx-arm64"
 ]
+pip_indices = [ # (Optional) additional pip index URLs for private packages
+    "https://pypi.org/simple/",  # Main PyPI index (automatically included if not specified)
+    "https://private.company.com/simple/",  # Private company index
+    "https://${PIP_USER}:${PIP_PASSWORD}@private.pypi.org/simple/"  # Authenticated index with env vars
+]
 ```
 
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
@@ -243,6 +257,7 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 - Use `local_dependencies:` to include other `requirements.yaml` or `pyproject.toml` files and merge them into one. Also allows projects that are not managed by `unidep` to be included, but be aware that this skips their dependencies! Can specify PyPI alternatives for monorepo setups (see [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)).
 - Use `optional_dependencies:` to specify optional dependencies. Can be installed like `unidep install ".[test]"` or `pip install ".[test]"`.
 - Use `platforms:` to specify the platforms that are supported. If omitted, all platforms are assumed to be supported.
+- Use `pip_indices:` to specify additional pip index URLs for installing packages from private or alternative package repositories (see [Custom Pip Index URLs](#custom-pip-index-urls) below).
 
 > *We use the YAML notation here, but the same information can be specified in `pyproject.toml` as well.*
 
@@ -347,6 +362,67 @@ Note that the `package-name:unix` syntax can also be used in the `requirements.y
 
 `unidep` parses these selectors and filters dependencies according to the platform where it's being installed.
 It is also used for creating environment and lock files that are portable across different platforms, ensuring that each environment has the appropriate dependencies installed.
+
+### Custom Pip Index URLs
+
+The `pip_indices` field allows you to specify additional pip index URLs for installing packages from private or alternative package repositories. This is particularly useful for:
+
+- **Private Company Packages**: Access internal packages hosted on private PyPI servers
+- **Alternative Package Repositories**: Use mirrors or alternative package sources
+- **Authenticated Repositories**: Access protected repositories using environment variables for credentials
+
+#### How It Works
+
+When `pip_indices` is specified:
+
+1. **First index is primary**: The first URL in the list is used as `--index-url` (primary index)
+2. **Additional indices are extra**: Subsequent URLs are passed as `--extra-index-url` flags
+3. **Environment variable expansion**: Variables like `${PIP_USER}` and `${PIP_PASSWORD}` are automatically expanded from environment variables
+4. **Automatic deduplication**: Duplicate URLs are automatically removed while preserving order
+5. **Integration with all tools**: Works with `unidep install`, `pip install`, and when using `uv` as the installer
+
+#### Example Usage
+
+```yaml
+# requirements.yaml
+pip_indices:
+  - https://pypi.org/simple/  # Primary index (optional, used by default)
+  - https://test.pypi.org/simple/  # Test PyPI for pre-release packages
+  - https://${GITLAB_USER}:${GITLAB_TOKEN}@gitlab.company.com/api/v4/projects/123/packages/pypi/simple  # Private GitLab
+```
+
+```toml
+# pyproject.toml
+[tool.unidep]
+pip_indices = [
+    "https://download.pytorch.org/whl/cpu",  # PyTorch CPU-only builds
+    "https://${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}@artifactory.company.com/pypi/simple"  # Artifactory
+]
+```
+
+#### Generated Output
+
+When generating `environment.yaml` files, `pip_indices` are included as `pip_repositories`:
+
+```yaml
+# Generated environment.yaml
+name: myproject
+channels:
+  - conda-forge
+pip_repositories:
+  - https://pypi.org/simple/
+  - https://private.company.com/simple/
+dependencies:
+  - python
+  - pip:
+    - private-package  # Will be installed from the private index
+```
+
+> [!NOTE]
+> The `pip_repositories` field in the generated `environment.yaml` follows the proposed Conda [CEP-8](https://github.com/conda/ceps/pull/8) specification for pip index URL support.
+
+> [!TIP]
+> Store sensitive credentials in environment variables rather than hardcoding them in configuration files. UniDep automatically expands `${VAR_NAME}` patterns.
 
 ### `[project.dependencies]` in `pyproject.toml` handling
 
