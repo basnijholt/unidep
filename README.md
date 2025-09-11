@@ -53,7 +53,7 @@ Try it now and streamline your development process!
     - [Usage](#usage)
     - [Implementation](#implementation)
   - [Custom Pip Index URLs](#custom-pip-index-urls)
-    - [How It Works](#how-it-works)
+    - [How It Works](#how-it-works-1)
     - [Example Usage](#example-usage)
     - [Generated Output](#generated-output)
   - [`[project.dependencies]` in `pyproject.toml` handling](#projectdependencies-in-pyprojecttoml-handling)
