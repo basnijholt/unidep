@@ -1,7 +1,9 @@
 """Unit tests for pip_indices support in unidep."""
 
+from __future__ import annotations
+
 import os
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from textwrap import dedent
 
 import pytest
@@ -281,42 +283,20 @@ class TestPipCommandConstruction:
             "https://pypi.org/simple/",
             "https://private.company.com/simple/",
         ]
-        # packages = ["numpy", "private-package"]  # Not used in test
 
-        # Expected command structure
-        # First index is --index-url, rest are --extra-index-url
-        # expected_args = [
-        #     "--index-url",
-        #     "https://pypi.org/simple/",
-        #     "--extra-index-url",
-        #     "https://private.company.com/simple/",
-        # ]
-
-        # This will be implemented in the actual code
-        # For now, just verify the logic
+        # Verify the logic: first index is primary, rest are extra
         assert pip_indices[0] == "https://pypi.org/simple/"  # Primary
         assert pip_indices[1] == "https://private.company.com/simple/"  # Extra
 
     def test_build_pip_command_without_indices(self) -> None:
         """Test building pip install command without custom indices."""
         pip_indices: list[str] = []
-        # packages = ["numpy", "pandas"]  # Not used in test
-
-        # No index flags should be added
-        # expected_args = []  # Not used in test
 
         assert len(pip_indices) == 0
 
     def test_build_pip_command_single_index(self) -> None:
         """Test building pip install command with single index."""
         pip_indices = ["https://custom.pypi.org/simple/"]
-        # packages = ["custom-package"]  # Not used in test
-
-        # Single index should use --index-url only
-        # expected_args = [
-        #     "--index-url",
-        #     "https://custom.pypi.org/simple/",
-        # ]  # Not used in test
 
         assert len(pip_indices) == 1
         assert pip_indices[0] == "https://custom.pypi.org/simple/"
