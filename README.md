@@ -418,8 +418,6 @@ dependencies:
     - private-package  # Will be installed from the private index
 ```
 
-> [!NOTE]
-> The `pip_repositories` field in the generated `environment.yaml` follows the proposed Conda [CEP-8](https://github.com/conda/ceps/pull/8) specification for pip index URL support.
 
 > [!TIP]
 > Store sensitive credentials in environment variables rather than hardcoding them in configuration files. UniDep automatically expands `${VAR_NAME}` patterns.
