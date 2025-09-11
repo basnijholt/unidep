@@ -66,7 +66,7 @@ class TestUnidepInstallIntegration:
         # Simulate running unidep install
 
         # Mock the install command execution
-        with patch("unidep._cli._pip_install") as mock_pip_install:
+        with patch("unidep._cli._pip_install_local") as mock_pip_install:
             mock_pip_install.return_value = None
 
             # This would be the actual command execution
@@ -248,8 +248,8 @@ class TestUnidepCondaLockIntegration:
 
     def test_conda_lock_with_merged_indices(self, mock_monorepo: Path) -> None:  # noqa: ARG002
         """Test that conda-lock merges pip_indices from multiple projects."""
-        with patch("unidep._conda_lock.generate_conda_lock") as mock_generate:
-            mock_generate.return_value = None
+        with patch("unidep._conda_lock.conda_lock_command") as mock_conda_lock:
+            mock_conda_lock.return_value = None
 
             # Expected merged pip_indices (deduplicated)
             expected_indices = [
