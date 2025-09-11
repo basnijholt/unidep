@@ -264,7 +264,7 @@ def test_create_conda_env_specification_platforms(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
     )
     assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
     assert sorted(env_spec.pip) == sorted(expected_pip)
@@ -274,7 +274,7 @@ def test_create_conda_env_specification_platforms(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
         selector="comment",
     )
     assert env_spec.conda == ["yolo", "bar"]
@@ -1019,13 +1019,12 @@ def test_duplicates_different_platforms(
     ]
 
     # now only use linux-64
-    platforms: list[str] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms)  # type: ignore[arg-type]
+    platforms: list[Platform] = ["linux-64"]
     env_spec = create_conda_env_specification(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
     )
     assert env_spec.conda == ["foo <=2,>1"]
     assert env_spec.pip == []
@@ -1982,7 +1981,7 @@ def test_duplicate_names_different_platforms(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms_arm64,  # type: ignore[arg-type]
+        platforms_arm64,
     )
     assert env_spec.conda == []
     assert env_spec.pip == ["ray"]
@@ -1992,7 +1991,7 @@ def test_duplicate_names_different_platforms(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms_linux64,  # type: ignore[arg-type]
+        platforms_linux64,
     )
     assert env_spec.conda == ["ray-core"]
     assert env_spec.pip == []
@@ -2022,7 +2021,7 @@ def test_with_unused_platform(
         requirements.dependency_entries,
         requirements.channels,
         requirements.pip_indices,
-        platforms,  # type: ignore[arg-type]
+        platforms,
         selector="comment",
     )
     assert env_spec.conda == ["adaptive", "rsync-time-machine >1,<3"]
