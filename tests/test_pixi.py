@@ -161,6 +161,57 @@ def test_pixi_with_version_pins(tmp_path: Path) -> None:
     assert 'sympy = ">=1.11"' in content  # Space should be removed
 
 
+def test_pixi_with_local_package(tmp_path: Path) -> None:
+    """Test that local packages are added as editable dependencies."""
+    # Create a directory with requirements.yaml and pyproject.toml
+    project_dir = tmp_path / "my_package"
+    project_dir.mkdir()
+
+    req_file = project_dir / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    # Create a pyproject.toml with build-system to simulate a local package
+    pyproject_file = project_dir / "pyproject.toml"
+    pyproject_file.write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "my-package"
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        project_dir,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    assert output_file.exists()
+    content = output_file.read_text()
+
+    # Check that the local package is added as an editable dependency
+    # TOML can format this as either inline or table format
+    assert "pypi-dependencies" in content
+    assert "my_package" in content
+    assert 'path = "."' in content
+    assert "editable = true" in content
+    assert 'numpy = "*"' in content
+
+
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:
     """Test handling of requirements file with no dependencies."""
     req_file = tmp_path / "requirements.yaml"
