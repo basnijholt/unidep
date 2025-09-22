@@ -140,6 +140,7 @@ def test_pixi_with_version_pins(tmp_path: Path) -> None:
               - numpy >=1.20,<2.0
               - conda: scipy =1.9.0
               - pip: requests >2.20
+              - sympy >= 1.11
             """,
         ),
     )
@@ -153,10 +154,11 @@ def test_pixi_with_version_pins(tmp_path: Path) -> None:
 
     content = output_file.read_text()
 
-    # Check that pins are preserved exactly
+    # Check that pins are preserved exactly (spaces removed)
     assert 'numpy = ">=1.20,<2.0"' in content
     assert 'scipy = "=1.9.0"' in content
     assert 'requests = ">2.20"' in content
+    assert 'sympy = ">=1.11"' in content  # Space should be removed
 
 
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:

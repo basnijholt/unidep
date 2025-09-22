@@ -131,7 +131,7 @@ def _extract_dependencies(
 
         for spec in specs:
             # Format the version pin or use "*" if no pin
-            version = spec.pin if spec.pin else "*"
+            version = spec.pin.replace(" ", "") if spec.pin else "*"
 
             # Add platform selector if present
             if spec.selector:
