@@ -109,6 +109,7 @@ def _parse_dependency(
     ignore_pins: list[str],
     overwrite_pins: dict[str, str | None],
     skip_dependencies: list[str],
+    origin: Path,
 ) -> list[Spec]:
     name, pin, selector = parse_package_str(dependency)
     if name in ignore_pins:
@@ -127,10 +128,10 @@ def _parse_dependency(
     identifier_hash = _identifier(identifier, selector)
     if which == "both":
         return [
-            Spec(name, "conda", pin, identifier_hash, selector),
-            Spec(name, "pip", pin, identifier_hash, selector),
+            Spec(name, "conda", pin, identifier_hash, selector, origin=(origin,)),
+            Spec(name, "pip", pin, identifier_hash, selector, origin=(origin,)),
         ]
-    return [Spec(name, which, pin, identifier_hash, selector)]
+    return [Spec(name, which, pin, identifier_hash, selector, origin=(origin,))]
 
 
 class ParsedRequirements(NamedTuple):
@@ -269,11 +270,13 @@ def _update_data_structures(
     seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
     is_nested: bool,
+    origin: Path,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
+    data["_origin"] = origin
     datas.append(data)
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
@@ -307,6 +310,7 @@ def _update_data_structures(
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
+            origin=origin,
             verbose=verbose,
         )
 
@@ -383,6 +387,7 @@ def _add_local_dependencies(
     all_extras: list[list[str]],
     seen: set[PathWithExtras],
     yaml: YAML,
+    origin: Path,
     verbose: bool = False,
 ) -> None:
     try:
@@ -414,6 +419,7 @@ def _add_local_dependencies(
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
+        origin=origin,
     )
 
 
@@ -465,6 +471,7 @@ def parse_requirements(
             yaml=yaml,
             verbose=verbose,
             is_nested=False,
+            origin=path_with_extras.path,
         )
 
     assert len(datas) == len(all_extras)
@@ -489,6 +496,7 @@ def parse_requirements(
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
+                origin=data["_origin"],
             )
         for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
             if opt_name in _extras or "*" in _extras:
@@ -500,6 +508,7 @@ def parse_requirements(
                     overwrite_pins_map,
                     skip_dependencies,
                     is_optional=True,
+                    origin=data["_origin"],
                 )
 
     return ParsedRequirements(
@@ -536,6 +545,7 @@ def _add_dependencies(
     skip_dependencies: list[str],
     *,
     is_optional: bool = False,
+    origin: Path,
 ) -> int:
     for i, dep in enumerate(dependencies):
         identifier += 1
@@ -549,6 +559,7 @@ def _add_dependencies(
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
+                origin,
             )
             for spec in specs:
                 _check_allowed_local_dependency(spec.name, is_optional)
@@ -566,6 +577,7 @@ def _add_dependencies(
                     ignore_pins,
                     overwrite_pins_map,
                     skip_dependencies,
+                    origin,
                 )
                 for spec in specs:
                     _check_allowed_local_dependency(spec.name, is_optional)

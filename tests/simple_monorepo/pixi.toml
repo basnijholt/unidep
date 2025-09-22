@@ -1,0 +1,40 @@
+[project]
+name = "myenv"
+platforms = [
+    "osx-64",
+    "osx-arm64",
+]
+channels = [
+    "conda-forge",
+]
+
+[dependencies]
+
+[pypi-dependencies]
+
+[target]
+
+[feature.project1.dependencies]
+bzip2 = "*"
+
+[feature.project2.target.osx-arm64.dependencies]
+tzdata = "*"
+
+[feature.simple_monorepo.dependencies]
+python_abi = "*"
+
+[environments]
+default = [
+    "project1",
+    "project2",
+    "simple_monorepo",
+]
+project1 = [
+    "project1",
+]
+project2 = [
+    "project2",
+]
+simple-monorepo = [
+    "simple_monorepo",
+]
