@@ -17,10 +17,28 @@ try:
     if sys.version_info >= (3, 11):
         import tomllib
     else:
-        import tomli as tomllib  # noqa: F401
+        import tomli as tomllib
     HAS_TOML = True
 except ImportError:
     HAS_TOML = False
+
+
+def _get_package_name(project_dir: Path) -> str | None:
+    """Get the package name from pyproject.toml or setup.py."""
+    pyproject_path = project_dir / "pyproject.toml"
+    if pyproject_path.exists() and HAS_TOML:
+        try:
+            with pyproject_path.open("rb") as f:
+                data = tomllib.load(f)
+                if "project" in data and "name" in data["project"]:
+                    # Normalize package name for use in dependencies
+                    # Replace dots and hyphens with underscores
+                    name = data["project"]["name"]
+                    return name.replace("-", "_").replace(".", "_")
+        except Exception:  # noqa: S110, BLE001
+            pass
+    # Fallback to directory name
+    return project_dir.name
 
 
 def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
@@ -69,8 +87,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             # Add the local package as an editable dependency
             if "pypi-dependencies" not in pixi_data:
                 pixi_data["pypi-dependencies"] = {}
-            # For single package, use current directory
-            package_name = req_dir.name
+            # Get the actual package name from pyproject.toml
+            package_name = _get_package_name(req_dir) or req_dir.name
             pixi_data["pypi-dependencies"][package_name] = {
                 "path": ".",
                 "editable": True,
@@ -104,9 +122,11 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 # Add the local package as an editable dependency
                 if "pypi-dependencies" not in feature:
                     feature["pypi-dependencies"] = {}
+                # Get the actual package name from pyproject.toml
+                package_name = _get_package_name(req_dir) or feature_name
                 # Use relative path from the output file location
                 rel_path = f"./{feature_name}"
-                feature["pypi-dependencies"][feature_name] = {
+                feature["pypi-dependencies"][package_name] = {
                     "path": rel_path,
                     "editable": True,
                 }
