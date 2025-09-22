@@ -11,6 +11,7 @@ dependencies = [
     "packaging",
     "ruamel.yaml",
     "typing_extensions; python_version < '3.8'",
+    "tomli; python_version < '3.11'",
 ]
 requires-python = ">=3.7"
 
@@ -132,7 +133,7 @@ python_version = "3.8"  # 3.7 is no longer supported by mypy
 
 # Use bump-my-version, e.g., call `bump-my-version bump minor`
 [tool.bumpversion]
-current_version = "0.67.3"
+current_version = "1.1.0b0"
 commit = true
 commit_args = "--no-verify"
 tag = true

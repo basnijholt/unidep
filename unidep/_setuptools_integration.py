@@ -14,24 +14,28 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
+from ruamel.yaml import YAML
+
 from unidep._conflicts import resolve_conflicts
-from unidep._dependencies_parsing import parse_local_dependencies, parse_requirements
+from unidep._dependencies_parsing import (
+    _load,
+    get_local_dependencies,
+    parse_requirements,
+)
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     identify_current_platform,
+    is_pip_installable,
     parse_folder_or_filename,
+    split_path_and_extras,
     warn,
 )
 
-try:  # pragma: no cover
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 
 if TYPE_CHECKING:
@@ -137,24 +141,49 @@ def get_python_dependencies(
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
         for section, reqs in requirements.optional_dependencies.items()
     }
-    if include_local_dependencies:
-        local_dependencies = parse_local_dependencies(
-            p.path_with_extras,
-            check_pip_installable=True,
-            verbose=verbose,
-            raise_if_missing=False,  # skip if local dep is not found
-            # We don't need to warn about skipping the dependencies of
-            # the local dependencies. That is only relevant for the
-            # `unidep install` commands.
-            warn_non_managed=False,
-        )
-        for paths in local_dependencies.values():
-            for path in paths:
-                name = _package_name_from_path(path)
-                # TODO: Consider doing this properly using pathname2url  # noqa: FIX002
-                # https://github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
-                uri = path.as_posix().replace(" ", "%20")
-                dependencies.append(f"{name} @ file://{uri}")
+    # Always process local dependencies to handle PyPI alternatives
+    yaml = YAML(typ="rt")
+    data = _load(p.path, yaml)
+
+    # Process each local dependency
+    for local_dep_obj in get_local_dependencies(data):
+        local_path, extras_list = split_path_and_extras(local_dep_obj.local)
+        abs_local = (p.path.parent / local_path).resolve()
+
+        # If include_local_dependencies is False (UNIDEP_SKIP_LOCAL_DEPS=1),
+        # always use PyPI alternative if available, skip otherwise
+        if not include_local_dependencies:
+            if local_dep_obj.pypi:
+                dependencies.append(local_dep_obj.pypi)
+            continue
+
+        # Original behavior when include_local_dependencies is True
+        # Handle wheel and zip files
+        if abs_local.suffix in (".whl", ".zip"):
+            if abs_local.exists():
+                # Local wheel exists - use it
+                uri = abs_local.as_posix().replace(" ", "%20")
+                dependencies.append(f"{abs_local.name} @ file://{uri}")
+            elif local_dep_obj.pypi:
+                # Wheel doesn't exist - use PyPI alternative
+                dependencies.append(local_dep_obj.pypi)
+            continue
+
+        # Check if local path exists
+        if abs_local.exists() and is_pip_installable(abs_local):
+            # Local development - use file:// URL
+            name = _package_name_from_path(abs_local)
+            # TODO: Consider doing this properly using pathname2url  # noqa: TD003, FIX002, E501
+            # github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
+            uri = abs_local.as_posix().replace(" ", "%20")
+            dep_str = f"{name} @ file://{uri}"
+            if extras_list:
+                dep_str = f"{name}[{','.join(extras_list)}] @ file://{uri}"
+            dependencies.append(dep_str)
+        elif local_dep_obj.pypi:
+            # Built wheel - local path doesn't exist, use PyPI alternative
+            dependencies.append(local_dep_obj.pypi)
+        # else: path doesn't exist and no PyPI alternative - skip
 
     return Dependencies(dependencies=dependencies, extras=extras)
 
@@ -195,9 +224,6 @@ def _package_name_from_setup_py(file_path: Path) -> str:
 
 
 def _package_name_from_pyproject_toml(file_path: Path) -> str:
-    if not HAS_TOML:  # pragma: no cover
-        msg = "toml is required to parse pyproject.toml files."
-        raise ImportError(msg)
     with file_path.open("rb") as f:
         data = tomllib.load(f)
     with contextlib.suppress(KeyError):

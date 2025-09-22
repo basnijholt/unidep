@@ -25,14 +25,10 @@ from unidep.platform_definitions import (
     validate_selector,
 )
 
-try:  # pragma: no cover
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 
 def add_comment_to_file(
@@ -90,15 +86,9 @@ def is_pip_installable(folder: str | Path) -> bool:  # pragma: no cover
 
     pyproject_path = path / "pyproject.toml"
     if pyproject_path.exists():
-        if HAS_TOML:
-            with pyproject_path.open("rb") as file:
-                pyproject_data = tomllib.load(file)
-                return "build-system" in pyproject_data
-        else:
-            with pyproject_path.open("r") as file:
-                for line in file:
-                    if line.strip().startswith("[build-system]"):
-                        return True
+        with pyproject_path.open("rb") as file:
+            pyproject_data = tomllib.load(file)
+            return "build-system" in pyproject_data
     return False
 
 
@@ -247,21 +237,10 @@ def extract_matching_platforms(comment: str) -> list[Platform]:
 
 
 def unidep_configured_in_toml(path: Path) -> bool:
-    """Check if dependencies are specified in pyproject.toml.
-
-    If a TOML parser is not available it finds `[tool.unidep]` in `pyproject.toml`.
-    """
-    if HAS_TOML:
-        with path.open("rb") as f:
-            data = tomllib.load(f)
-        return bool(data.get("tool", {}).get("unidep", {}))
-    # TODO[Bas]: will fail if defining dict in  # noqa: TD004, TD003, FIX002
-    # pyproject.toml directly e.g., it contains:
-    # `tool = {unidep = {dependencies = ...}}`
-    return any(  # pragma: no cover
-        line.lstrip().startswith("[tool.unidep")
-        for line in path.read_text().splitlines()
-    )
+    """Check if dependencies are specified in pyproject.toml."""
+    with path.open("rb") as f:
+        data = tomllib.load(f)
+    return bool(data.get("tool", {}).get("unidep", {}))
 
 
 def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
@@ -316,6 +295,13 @@ class PathWithExtras(NamedTuple):
         if not isinstance(other, PathWithExtras):
             return NotImplemented
         return self.path == other.path and set(self.extras) == set(other.extras)
+
+
+class LocalDependency(NamedTuple):
+    """A local dependency with optional PyPI alternative."""
+
+    local: str
+    pypi: str | None = None
 
 
 def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:

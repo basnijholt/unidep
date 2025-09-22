@@ -63,8 +63,7 @@ jobs:
           pip install -e ".[toml]"
         shell: bash -el {0}
       - name: Update pyproject.toml
-        run: |
-          python .github/use-local-unidep.py
+        run: python .github/use-local-unidep.py
         shell: bash -el {0}
       - name: Install example packages
         run: |
@@ -77,6 +76,13 @@ jobs:
             micromamba list
           done
         shell: bash -el {0}
+      - name: Install pyproject_toml_project in new environment
+        run: |
+          unidep install -n new-env -e ./example/pyproject_toml_project
+          micromamba activate new-env
+          python -c "import pyproject_toml_project"
+        shell: bash -el {0}
+
 
   miniconda-install:
     strategy:
@@ -104,8 +110,7 @@ jobs:
           pip install -e ".[toml]"
         shell: bash -el {0}
       - name: Update pyproject.toml
-        run: |
-          python .github/use-local-unidep.py
+        run: python .github/use-local-unidep.py
         shell: bash -el {0}
       - name: Install example packages
         run: |
@@ -117,4 +122,10 @@ jobs:
             python -c "import $pkg"
             conda list
           done
+        shell: bash -el {0}
+      - name: Install pyproject_toml_project in new environment
+        run: |
+          unidep install -n new-env -e ./example/pyproject_toml_project
+          conda activate new-env
+          python -c "import pyproject_toml_project"
         shell: bash -el {0}
