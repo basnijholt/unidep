@@ -119,6 +119,7 @@ def _conda_lock_global(
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        pixi=False,
     )
     _run_conda_lock(
         tmp_env,

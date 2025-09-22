@@ -286,7 +286,8 @@ def _parse_args() -> argparse.Namespace:
     merge_help = (
         f"Combine multiple (or a single) {_DEP_FILES}"
         " files into a"
-        " single Conda installable `environment.yaml` file."
+        " single Conda installable `environment.yaml` file"
+        " or Pixi installable `pixi.toml` file."
     )
     merge_example = (
         " Example usage: `unidep merge --directory . --depth 1 --output environment.yaml`"  # noqa: E501
@@ -305,8 +306,9 @@ def _parse_args() -> argparse.Namespace:
         "-o",
         "--output",
         type=Path,
-        default="environment.yaml",
-        help="Output file for the conda environment, by default `environment.yaml`",
+        default=None,
+        help="Output file for the conda environment, by default `environment.yaml`"
+        " or `pixi.toml` if `--pixi` is used",
     )
     parser_merge.add_argument(
         "-n",
@@ -328,6 +330,11 @@ def _parse_args() -> argparse.Namespace:
         help="The selector to use for the environment markers, if `sel` then"
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
+    )
+    parser_merge.add_argument(
+        "--pixi",
+        action="store_true",
+        help="Generate a `pixi.toml` file instead of `environment.yaml`",
     )
     _add_common_args(
         parser_merge,
@@ -1268,17 +1275,20 @@ def _merge_command(
     directory: Path,
     files: list[Path] | None,
     name: str,
-    output: Path,
+    output: Path | None,
     stdout: bool,
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
+    pixi: bool,
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
+    if output is None:
+        output = Path("pixi.toml") if pixi else Path("environment.yaml")
 
     if files:  # ignores depth and directory!
         found_files = files
@@ -1292,33 +1302,56 @@ def _merge_command(
             print(f"❌ No {_DEP_FILES} files found in {directory}")
             sys.exit(1)
 
-    requirements = parse_requirements(
-        *found_files,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
-    )
-    if not platforms:
-        platforms = requirements.platforms or [identify_current_platform()]
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms,
-        optional_dependencies=requirements.optional_dependencies,
-    )
-    env_spec = create_conda_env_specification(
-        resolved,
-        requirements.channels,
-        platforms,
-        selector=selector,
-    )
-    output_file = None if stdout else output
-    write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
-    if output_file:
-        found_files_str = ", ".join(f"`{f}`" for f in found_files)
-        print(
-            f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+    if pixi:
+        # Use the new simple Pixi generation
+        from unidep._pixi import generate_pixi_toml
+
+        requirements = parse_requirements(
+            *found_files,
+            ignore_pins=ignore_pins,
+            overwrite_pins=overwrite_pins,
+            skip_dependencies=skip_dependencies,
+            verbose=verbose,
         )
+        output_file = None if stdout else output
+        generate_pixi_toml(
+            *found_files,
+            project_name=name,
+            channels=requirements.channels,
+            platforms=requirements.platforms or platforms,
+            output_file=output_file,
+            verbose=verbose,
+        )
+    else:
+        # Original conda environment generation
+        requirements = parse_requirements(
+            *found_files,
+            ignore_pins=ignore_pins,
+            overwrite_pins=overwrite_pins,
+            skip_dependencies=skip_dependencies,
+            verbose=verbose,
+        )
+        if not platforms:
+            platforms = requirements.platforms or [identify_current_platform()]
+        resolved = resolve_conflicts(
+            requirements.requirements,
+            platforms,
+            optional_dependencies=requirements.optional_dependencies,
+        )
+        env_spec = create_conda_env_specification(
+            resolved,
+            requirements.channels,
+            platforms,
+            selector=selector,
+        )
+        output_file = None if stdout else output
+        write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
+        if output_file:
+            found_files_str = ", ".join(f"`{f}`" for f in found_files)
+            print(
+                f"✅ Generated environment file at `{output_file}` "
+                f"from {found_files_str}",
+            )
 
 
 def _pip_compile_command(
@@ -1497,6 +1530,7 @@ def main() -> None:
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
+            pixi=args.pixi,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
