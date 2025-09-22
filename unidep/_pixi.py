@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from unidep._dependencies_parsing import parse_requirements
-from unidep.utils import identify_current_platform
+from unidep.utils import identify_current_platform, is_pip_installable
 
 if TYPE_CHECKING:
     from unidep._dependencies_parsing import ParsedRequirements
@@ -23,7 +23,7 @@ except ImportError:
     HAS_TOML = False
 
 
-def generate_pixi_toml(  # noqa: PLR0912
+def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     *requirements_files: Path,
     project_name: str | None = None,
     channels: list[str] | None = None,
@@ -61,6 +61,20 @@ def generate_pixi_toml(  # noqa: PLR0912
             pixi_data["dependencies"] = conda_deps
         if pip_deps:
             pixi_data["pypi-dependencies"] = pip_deps
+
+        # Check if there's a local package in the same directory
+        req_file = requirements_files[0]
+        req_dir = req_file.parent if req_file.is_file() else req_file
+        if is_pip_installable(req_dir):
+            # Add the local package as an editable dependency
+            if "pypi-dependencies" not in pixi_data:
+                pixi_data["pypi-dependencies"] = {}
+            # For single package, use current directory
+            package_name = req_dir.name
+            pixi_data["pypi-dependencies"][package_name] = {
+                "path": ".",
+                "editable": True,
+            }
     else:
         # Multiple files: create features
         pixi_data["feature"] = {}
@@ -83,6 +97,19 @@ def generate_pixi_toml(  # noqa: PLR0912
                 feature["dependencies"] = conda_deps
             if pip_deps:
                 feature["pypi-dependencies"] = pip_deps
+
+            # Check if there's a local package in the same directory
+            req_dir = req_file.parent if req_file.is_file() else req_file
+            if is_pip_installable(req_dir):
+                # Add the local package as an editable dependency
+                if "pypi-dependencies" not in feature:
+                    feature["pypi-dependencies"] = {}
+                # Use relative path from the output file location
+                rel_path = f"./{feature_name}"
+                feature["pypi-dependencies"][feature_name] = {
+                    "path": rel_path,
+                    "editable": True,
+                }
 
             if feature:  # Only add non-empty features
                 pixi_data["feature"][feature_name] = feature
