@@ -691,3 +691,90 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_local_dependency_with_extras(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Test that local dependencies with extras are properly installed."""
+    # Set up the directory structure
+    package1_dir = tmp_path / "package1"
+    my_package_dir = tmp_path / "my_package"
+    my_package2_dir = tmp_path / "my_package2"
+
+    package1_dir.mkdir()
+    my_package_dir.mkdir()
+    my_package2_dir.mkdir()
+
+    # Create requirements.yaml for package1
+    (package1_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - common-dep
+        local_dependencies:
+          - ../my_package[my-extra]
+        """,
+    )
+
+    # Create requirements.yaml for my_package
+    (my_package_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - my-package-dep
+        optional_dependencies:
+          my-extra:
+            - ../my_package2
+        """,
+    )
+
+    # Make my_package pip installable
+    (my_package_dir / "setup.py").write_text(
+        """
+        from setuptools import setup
+        setup(name="my_package", version="0.1.0")
+        """,
+    )
+
+    # Create requirements.yaml for my_package2
+    (my_package2_dir / "requirements.yaml").write_text(
+        """
+        dependencies:
+          - my-package2-dep
+        """,
+    )
+
+    # Make my_package2 pip installable
+    (my_package2_dir / "setup.py").write_text(
+        """
+        from setuptools import setup
+        setup(name="my_package2", version="0.1.0")
+        """,
+    )
+
+    # Run the unidep install command
+    _install_command(
+        package1_dir / "requirements.yaml",
+        conda_executable="micromamba",
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,  # Just print, don't execute
+        editable=False,
+        verbose=True,
+    )
+
+    # Check the output
+    captured = capsys.readouterr().out
+
+    # Expect the dependencies to be installed
+    assert "common-dep" in captured
+    assert "my-package-dep" in captured
+    assert "my-package2-dep" in captured
+
+    # We expect both my_package and my_package2 to be installed
+    assert "../my_package" in captured
+    assert (
+        f"pip install --no-deps --verbose {my_package_dir.resolve()} {my_package2_dir.resolve()}"
+        in captured
+    )
