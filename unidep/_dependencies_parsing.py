@@ -466,7 +466,7 @@ def _append_pip_dependency_from_local(
 
 def _add_local_dependencies(
     *,
-    local_dependency: str,
+    local_dependency: str | LocalDependency | CommentedMap,
     path_with_extras: PathWithExtras,
     datas: list[dict[str, Any]],
     all_extras: list[list[str]],
@@ -475,9 +475,20 @@ def _add_local_dependencies(
     local_dependency_overrides: dict[Path, LocalDependency],
     verbose: bool = False,
 ) -> None:
+    if isinstance(local_dependency, LocalDependency):
+        local_value = local_dependency.local
+    elif isinstance(local_dependency, dict):  # Handles CommentedMap from ruamel
+        local_value_obj = local_dependency.get("local")
+        if not isinstance(local_value_obj, (str, Path)):
+            msg = "Local dependency dictionary must contain a string `local` key."
+            raise TypeError(msg)
+        local_value = str(local_value_obj)
+    else:
+        local_value = local_dependency
+
     try:
         requirements_dep_file = parse_folder_or_filename(
-            path_with_extras.path.parent / local_dependency,
+            path_with_extras.path.parent / local_value,
         )
     except FileNotFoundError:
         # Means that this is a local package that is not managed by unidep.
