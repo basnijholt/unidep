@@ -125,6 +125,51 @@ def test_parse_local_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_local_dependencies_respects_use(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir(parents=True, exist_ok=True)
+    for name in ["dep-local", "dep-skip", "dep-pypi"]:
+        dep_dir = project / name
+        dep_dir.mkdir()
+        (dep_dir / "setup.py").write_text(
+            "from setuptools import setup\nsetup(name='dep', version='0.0.1')\n",
+        )
+        (dep_dir / "requirements.yaml").write_text("dependencies: []\n")
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - local: ./dep-local
+              - local: ./dep-skip
+                use: skip
+              - local: ./dep-pypi
+                pypi: company-dep>=1.0
+                use: pypi
+            """,
+        ),
+    )
+
+    req_file = maybe_as_toml(toml_or_yaml, req_file)
+
+    local_dependencies = parse_local_dependencies(
+        req_file,
+        verbose=False,
+        check_pip_installable=False,
+    )
+
+    assert local_dependencies == {
+        project.resolve(): [
+            (project / "dep-local").resolve(),
+        ],
+    }
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_nested_local_dependencies(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,

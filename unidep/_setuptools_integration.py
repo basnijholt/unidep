@@ -102,7 +102,7 @@ class Dependencies(NamedTuple):
     extras: dict[str, list[str]]
 
 
-def get_python_dependencies(
+def get_python_dependencies(  # noqa: PLR0912
     filename: str
     | Path
     | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
@@ -147,6 +147,11 @@ def get_python_dependencies(
 
     # Process each local dependency
     for local_dep_obj in get_local_dependencies(data):
+        if local_dep_obj.use == "skip":
+            continue
+        if local_dep_obj.use == "pypi":
+            # Already added to pip dependencies when parsing requirements.
+            continue
         local_path, extras_list = split_path_and_extras(local_dep_obj.local)
         abs_local = (p.path.parent / local_path).resolve()
 

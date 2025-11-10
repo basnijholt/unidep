@@ -422,6 +422,7 @@ local_dependencies:
 
   - local: ../utils
     pypi: company-utils~=2.0
+    use: pypi  # or "skip" to ignore this local dependency entirely
 ```
 
 Or in `pyproject.toml`:
@@ -436,9 +437,13 @@ local_dependencies = [
 
     # Dictionary format with optional PyPI alternative for build-time
     {local = "../auth-lib", pypi = "company-auth-lib>=1.0"},
-    {local = "../utils", pypi = "company-utils~=2.0"},
+    {local = "../utils", pypi = "company-utils~=2.0", use = "pypi"},
 ]
 ```
+
+Set `use = "local"` (default) to install from the local path and recurse into its
+`local_dependencies`. Use `use = "pypi"` to always install the PyPI alternative
+and `use = "skip"` to ignore that entry entirely.
 
 **How it works:**
 - **During development** (e.g., `unidep install` or `pip install -e .`): Uses local paths when they exist

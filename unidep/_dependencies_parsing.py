@@ -11,7 +11,7 @@ import os
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -19,6 +19,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from unidep.platform_definitions import Platform, Spec, platforms_from_selector
 from unidep.utils import (
     LocalDependency,
+    LocalDependencyUse,
     PathWithExtras,
     defaultdict_to_dict,
     is_pip_installable,
@@ -210,9 +211,30 @@ def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
         if "local" not in item:
             msg = "Dictionary-style local dependency must have a 'local' key"
             raise ValueError(msg)
-        return LocalDependency(local=item["local"], pypi=item.get("pypi"))
+        use = _normalize_local_dependency_use(item.get("use"))
+        pypi_value = item.get("pypi")
+        if use == "pypi" and not pypi_value:
+            msg = "Local dependency with `use: pypi` must specify a `pypi` alternative."
+            raise ValueError(msg)
+        return LocalDependency(
+            local=item["local"],
+            pypi=pypi_value,
+            use=use,
+        )
     msg = f"Invalid local dependency format: {item}"
     raise TypeError(msg)
+
+
+def _normalize_local_dependency_use(use_value: str | None) -> LocalDependencyUse:
+    if use_value is None:
+        return "local"
+    normalized = use_value.strip().lower()
+    valid = {"local", "pypi", "skip"}
+    if normalized not in valid:
+        options = ", ".join(sorted(valid))
+        msg = f"Invalid `use` value `{use_value}`. Supported values: {options}."
+        raise ValueError(msg)
+    return cast(LocalDependencyUse, normalized)
 
 
 def get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
@@ -298,6 +320,14 @@ def _update_data_structures(
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dep_obj in get_local_dependencies(data):
+        if local_dep_obj.use == "skip":
+            continue
+        if local_dep_obj.use == "pypi":
+            _append_pip_dependency_from_local(
+                data=data,
+                local_dependency=local_dep_obj,
+            )
+            continue
         # NOTE: The current function calls _add_local_dependencies,
         # which calls the current function recursively
         _add_local_dependencies(
@@ -373,6 +403,17 @@ def _move_local_optional_dependencies_to_local_dependencies(
         if verbose:
             print(f"📄 Removing empty `{extra}` section from `optional_dependencies`")
         optional_dependencies.pop(extra)
+
+
+def _append_pip_dependency_from_local(
+    *,
+    data: dict[str, Any],
+    local_dependency: LocalDependency,
+) -> None:
+    assert local_dependency.pypi is not None
+    dependency_entry: str | dict[str, str]
+    dependency_entry = {"pip": local_dependency.pypi}
+    data.setdefault("dependencies", []).append(dependency_entry)
 
 
 def _add_local_dependencies(
@@ -601,6 +642,8 @@ def _extract_local_dependencies(  # noqa: PLR0912
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
     for local_dep_obj in get_local_dependencies(data):
+        if local_dep_obj.use != "local":
+            continue
         local_dependency = local_dep_obj.local
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
