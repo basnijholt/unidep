@@ -291,6 +291,7 @@ def _update_data_structures(
     seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
     is_nested: bool,
+    local_dependency_overrides: dict[Path, LocalDependency],
     verbose: bool = False,
 ) -> None:
     if verbose:
@@ -319,24 +320,39 @@ def _update_data_structures(
     seen.add(path_with_extras.resolved())
 
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dep_obj in get_local_dependencies(data):
-        if local_dep_obj.use == "skip":
+    local_dependencies = get_local_dependencies(data)
+    for local_dep_obj in local_dependencies:
+        if local_dep_obj.use != "local":
+            _apply_local_dependency_override(
+                local_dependency=local_dep_obj,
+                base_dir=path_with_extras.path.parent,
+                overrides=local_dependency_overrides,
+            )
+
+    for local_dep_obj in local_dependencies:
+        effective_local_dep = _apply_local_dependency_override(
+            local_dependency=local_dep_obj,
+            base_dir=path_with_extras.path.parent,
+            overrides=local_dependency_overrides,
+        )
+        if effective_local_dep.use == "skip":
             continue
-        if local_dep_obj.use == "pypi":
+        if effective_local_dep.use == "pypi":
             _append_pip_dependency_from_local(
                 data=data,
-                local_dependency=local_dep_obj,
+                local_dependency=effective_local_dep,
             )
             continue
         # NOTE: The current function calls _add_local_dependencies,
         # which calls the current function recursively
         _add_local_dependencies(
-            local_dependency=local_dep_obj.local,
+            local_dependency=effective_local_dep.local,
             path_with_extras=path_with_extras,
             datas=datas,  # modified in place
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
+            local_dependency_overrides=local_dependency_overrides,
             verbose=verbose,
         )
 
@@ -405,6 +421,38 @@ def _move_local_optional_dependencies_to_local_dependencies(
         optional_dependencies.pop(extra)
 
 
+def _resolve_local_dependency_path(base_dir: Path, local: str) -> Path:
+    local_path, _ = split_path_and_extras(local)
+    return (base_dir / local_path).resolve()
+
+
+def _apply_local_dependency_override(
+    *,
+    local_dependency: LocalDependency,
+    base_dir: Path,
+    overrides: dict[Path, LocalDependency],
+) -> LocalDependency:
+    try:
+        resolved_path = _resolve_local_dependency_path(base_dir, local_dependency.local)
+    except (OSError, RuntimeError, ValueError):  # pragma: no cover
+        resolved_path = None
+    if local_dependency.use != "local" and resolved_path is not None:
+        overrides[resolved_path] = local_dependency
+        return local_dependency
+    if (
+        local_dependency.use == "local"
+        and resolved_path is not None
+        and resolved_path in overrides
+    ):
+        override = overrides[resolved_path]
+        return LocalDependency(
+            local=local_dependency.local,
+            pypi=local_dependency.pypi or override.pypi,
+            use=override.use,
+        )
+    return local_dependency
+
+
 def _append_pip_dependency_from_local(
     *,
     data: dict[str, Any],
@@ -424,6 +472,7 @@ def _add_local_dependencies(
     all_extras: list[list[str]],
     seen: set[PathWithExtras],
     yaml: YAML,
+    local_dependency_overrides: dict[Path, LocalDependency],
     verbose: bool = False,
 ) -> None:
     try:
@@ -455,6 +504,7 @@ def _add_local_dependencies(
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
+        local_dependency_overrides=local_dependency_overrides,
     )
 
 
@@ -496,6 +546,7 @@ def parse_requirements(
     datas: list[dict[str, Any]] = []
     all_extras: list[list[str]] = []
     seen: set[PathWithExtras] = set()
+    local_dependency_overrides: dict[Path, LocalDependency] = {}
     yaml = YAML(typ="rt")  # Might be unused if all are TOML files
     for path_with_extras in paths_with_extras:
         _update_data_structures(
@@ -506,6 +557,7 @@ def parse_requirements(
             yaml=yaml,
             verbose=verbose,
             is_nested=False,
+            local_dependency_overrides=local_dependency_overrides,
         )
 
     assert len(datas) == len(all_extras)
@@ -618,7 +670,7 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(  # noqa: PLR0912
+def _extract_local_dependencies(  # noqa: PLR0912, PLR0915
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -628,6 +680,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
     verbose: bool = False,
     raise_if_missing: bool = True,
     warn_non_managed: bool = True,
+    local_dependency_overrides: dict[Path, LocalDependency],
 ) -> None:
     path, extras = parse_folder_or_filename(path)
     if path in processed:
@@ -641,10 +694,24 @@ def _extract_local_dependencies(  # noqa: PLR0912
         verbose=verbose,
     )
     # Handle "local_dependencies" (or old name "includes", changed in 0.42.0)
-    for local_dep_obj in get_local_dependencies(data):
+    local_dependencies = get_local_dependencies(data)
+    for local_dep_obj in local_dependencies:
         if local_dep_obj.use != "local":
+            _apply_local_dependency_override(
+                local_dependency=local_dep_obj,
+                base_dir=path.parent,
+                overrides=local_dependency_overrides,
+            )
+
+    for local_dep_obj in local_dependencies:
+        effective_local_dep = _apply_local_dependency_override(
+            local_dependency=local_dep_obj,
+            base_dir=path.parent,
+            overrides=local_dependency_overrides,
+        )
+        if effective_local_dep.use != "local":
             continue
-        local_dependency = local_dep_obj.local
+        local_dependency = effective_local_dep.local
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
@@ -716,6 +783,9 @@ def _extract_local_dependencies(  # noqa: PLR0912
             dependencies,
             check_pip_installable=check_pip_installable,
             verbose=verbose,
+            raise_if_missing=raise_if_missing,
+            warn_non_managed=warn_non_managed,
+            local_dependency_overrides=local_dependency_overrides,
         )
 
 
@@ -734,6 +804,7 @@ def parse_local_dependencies(
     name of the project folder => list of `Path`s of local dependencies folders.
     """  # noqa: E501
     dependencies: dict[str, set[str]] = defaultdict(set)
+    local_dependency_overrides: dict[Path, LocalDependency] = {}
 
     for p in paths:
         if verbose:
@@ -748,6 +819,7 @@ def parse_local_dependencies(
             verbose=verbose,
             raise_if_missing=raise_if_missing,
             warn_non_managed=warn_non_managed,
+            local_dependency_overrides=local_dependency_overrides,
         )
 
     return {
