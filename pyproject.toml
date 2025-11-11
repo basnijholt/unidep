@@ -85,6 +85,7 @@ addopts = """
 
 [tool.coverage.run]
 omit = ["unidep/_pytest_plugin.py", "unidep/_hatch_integration.py"]
+patch = ["subprocess"]
 
 [tool.coverage.report]
 exclude_lines = [

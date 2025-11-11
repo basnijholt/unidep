@@ -11,7 +11,7 @@ import configparser
 import contextlib
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, NamedTuple
 
 from ruamel.yaml import YAML
@@ -102,6 +102,18 @@ class Dependencies(NamedTuple):
     extras: dict[str, list[str]]
 
 
+def _path_to_file_uri(path: PurePath) -> str:
+    """Return a RFC 8089 compliant file URI for an absolute path."""
+    # Keep in sync with CI helper and discussion in
+    # https://github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
+    if isinstance(path, Path):
+        target = path if path.is_absolute() else path.resolve()
+        return target.as_uri()
+
+    uri_path = path.as_posix().lstrip("/")
+    return f"file:///{uri_path.replace(' ', '%20')}"
+
+
 def get_python_dependencies(
     filename: str
     | Path
@@ -162,8 +174,8 @@ def get_python_dependencies(
         if abs_local.suffix in (".whl", ".zip"):
             if abs_local.exists():
                 # Local wheel exists - use it
-                uri = abs_local.as_posix().replace(" ", "%20")
-                dependencies.append(f"{abs_local.name} @ file://{uri}")
+                uri = _path_to_file_uri(abs_local)
+                dependencies.append(f"{abs_local.name} @ {uri}")
             elif local_dep_obj.pypi:
                 # Wheel doesn't exist - use PyPI alternative
                 dependencies.append(local_dep_obj.pypi)
@@ -173,12 +185,10 @@ def get_python_dependencies(
         if abs_local.exists() and is_pip_installable(abs_local):
             # Local development - use file:// URL
             name = _package_name_from_path(abs_local)
-            # TODO: Consider doing this properly using pathname2url  # noqa: TD003, FIX002, E501
-            # github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
-            uri = abs_local.as_posix().replace(" ", "%20")
-            dep_str = f"{name} @ file://{uri}"
+            uri = _path_to_file_uri(abs_local)
+            dep_str = f"{name} @ {uri}"
             if extras_list:
-                dep_str = f"{name}[{','.join(extras_list)}] @ file://{uri}"
+                dep_str = f"{name}[{','.join(extras_list)}] @ {uri}"
             dependencies.append(dep_str)
         elif local_dep_obj.pypi:
             # Built wheel - local path doesn't exist, use PyPI alternative

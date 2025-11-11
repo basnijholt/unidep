@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING
 
 import pytest
@@ -21,6 +21,7 @@ from unidep import (
 )
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError
+from unidep._setuptools_integration import _path_to_file_uri
 from unidep.platform_definitions import Platform, Spec
 from unidep.utils import is_pip_installable
 
@@ -373,8 +374,13 @@ def test_pip_install_local_dependencies(tmp_path: Path) -> None:
     deps = get_python_dependencies(p, include_local_dependencies=True)
     assert deps.dependencies == [
         "foo",
-        f"local_package @ file://{local_package.as_posix()}",
+        f"local_package @ {_path_to_file_uri(local_package)}",
     ]
+
+
+def test_path_to_file_uri_handles_windows_drive() -> None:
+    uri = _path_to_file_uri(PureWindowsPath("D:/projects/Uni Dep"))
+    assert uri == "file:///D:/projects/Uni%20Dep"
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
