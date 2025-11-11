@@ -108,10 +108,6 @@ def _path_to_file_uri(path: PurePath) -> str:
         target = path if path.is_absolute() else path.resolve()
         return target.as_uri()
 
-    if not path.is_absolute():
-        msg = "Path must be absolute to build a file URI."
-        raise ValueError(msg)
-
     uri_path = path.as_posix().lstrip("/")
     return f"file:///{uri_path.replace(' ', '%20')}"
 
