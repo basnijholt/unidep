@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           if [[ "${{ matrix.python-version }}" == "3.8" ]]; then
             # Python 3.8 coverage does not support the "patch" config option
-            sed -i '/patch/d' pyproject.toml
+            sed -i.bak '/patch/d' pyproject.toml && rm pyproject.toml.bak
           fi
           pip install -e ".[test]"
         shell: bash -el {0}
