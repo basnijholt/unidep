@@ -380,7 +380,7 @@ def test_pip_install_local_dependencies(tmp_path: Path) -> None:
 
 def test_path_to_file_uri_handles_windows_drive() -> None:
     uri = _path_to_file_uri(PureWindowsPath("D:/projects/Uni Dep"))
-    assert uri == "file://D:/projects/Uni%20Dep"
+    assert uri == "file:///D:/projects/Uni%20Dep"
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])

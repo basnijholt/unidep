@@ -2,30 +2,31 @@
 
 from pathlib import Path
 
+from unidep._setuptools_integration import _path_to_file_uri
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE_DIR = REPO_ROOT / "example"
 PROJECT_DIRS = [p for p in EXAMPLE_DIR.iterdir() if p.name.endswith("_project")]
+REPO_ROOT_URI = _path_to_file_uri(REPO_ROOT)
 
 print(
     f"REPO_ROOT: {REPO_ROOT}, EXAMPLE_DIR: {EXAMPLE_DIR}, PROJECT_DIRS: {PROJECT_DIRS}",
 )
 
 for project_dir in PROJECT_DIRS:
-    # find the line with `requires = [` in `pyproject.toml` in each project
-    # directory and replace `"unidep"` or `"unidep[toml]"` with
-    # `"unidep @ file://<abs-path-to-repo-root>"`` or
-    # `"unidep[toml] @ file://<abs-path-to-repo-root>"` respectively
+    # Find the line with `requires = [` in `pyproject.toml` and replace
+    # `unidep`/`unidep[toml]` entries with file:// references to the repo root.
     pyproject_toml = project_dir / "pyproject.toml"
     lines = pyproject_toml.read_text().splitlines()
-    repo_root = REPO_ROOT.as_posix()  # convert to posix path for windows
     for i, line in enumerate(lines):
-        if "requires = [" in line:
-            if "unidep[toml]" in line:
-                lines[i] = line.replace(
-                    "unidep[toml]",
-                    f"unidep[toml] @ file://{repo_root}",
-                )
-            elif "unidep" in line:
-                lines[i] = line.replace("unidep", f"unidep @ file://{repo_root}")
-            break
+        if "requires = [" not in line:
+            continue
+        if "unidep[toml]" in line:
+            lines[i] = line.replace(
+                "unidep[toml]",
+                f"unidep[toml] @ {REPO_ROOT_URI}",
+            )
+        elif "unidep" in line:
+            lines[i] = line.replace("unidep", f"unidep @ {REPO_ROOT_URI}")
+        break
     pyproject_toml.write_text("\n".join(lines))

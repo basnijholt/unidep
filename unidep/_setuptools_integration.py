@@ -114,6 +114,8 @@ def _path_to_file_uri(path: PurePath) -> str:
         target = path
 
     uri_path = target.as_posix()
+    if not uri_path.startswith("/"):
+        uri_path = f"/{uri_path}"
     return f"file://{uri_path.replace(' ', '%20')}"
 
 
