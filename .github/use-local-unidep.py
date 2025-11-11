@@ -2,12 +2,10 @@
 
 from pathlib import Path
 
-from unidep._setuptools_integration import _path_to_file_uri
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE_DIR = REPO_ROOT / "example"
 PROJECT_DIRS = [p for p in EXAMPLE_DIR.iterdir() if p.name.endswith("_project")]
-REPO_ROOT_URI = _path_to_file_uri(REPO_ROOT)
+REPO_ROOT_URI = REPO_ROOT.resolve().as_uri()
 
 print(
     f"REPO_ROOT: {REPO_ROOT}, EXAMPLE_DIR: {EXAMPLE_DIR}, PROJECT_DIRS: {PROJECT_DIRS}",

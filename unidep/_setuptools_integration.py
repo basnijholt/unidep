@@ -104,19 +104,16 @@ class Dependencies(NamedTuple):
 
 def _path_to_file_uri(path: PurePath) -> str:
     """Return a RFC 8089 compliant file URI for an absolute path."""
-    target: PurePath
     if isinstance(path, Path):
         target = path if path.is_absolute() else path.resolve()
-    else:  # PurePath (e.g., PureWindowsPath in tests)
-        if not path.is_absolute():
-            msg = "Path must be absolute to build a file URI."
-            raise ValueError(msg)
-        target = path
+        return target.as_uri()
 
-    uri_path = target.as_posix()
-    if not uri_path.startswith("/"):
-        uri_path = f"/{uri_path}"
-    return f"file://{uri_path.replace(' ', '%20')}"
+    if not path.is_absolute():
+        msg = "Path must be absolute to build a file URI."
+        raise ValueError(msg)
+
+    uri_path = path.as_posix().lstrip("/")
+    return f"file:///{uri_path.replace(' ', '%20')}"
 
 
 def get_python_dependencies(
