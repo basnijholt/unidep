@@ -216,11 +216,7 @@ def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
         if use == "pypi" and not pypi_value:
             msg = "Local dependency with `use: pypi` must specify a `pypi` alternative."
             raise ValueError(msg)
-        return LocalDependency(
-            local=item["local"],
-            pypi=pypi_value,
-            use=use,
-        )
+        return LocalDependency(local=item["local"], pypi=pypi_value, use=use)
     msg = f"Invalid local dependency format: {item}"
     raise TypeError(msg)
 
