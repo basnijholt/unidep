@@ -422,7 +422,7 @@ local_dependencies:
 
   - local: ../utils
     pypi: company-utils~=2.0
-    use: pypi  # or "skip" to ignore this local dependency entirely
+    use: pypi  # see [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)
 ```
 
 Or in `pyproject.toml`:
@@ -441,17 +441,55 @@ local_dependencies = [
 ]
 ```
 
-Set `use = "local"` (default) to install from the local path and recurse into its
-`local_dependencies`. Use `use = "pypi"` to always install the PyPI alternative
-and `use = "skip"` to ignore that entry entirely.
-
 **How it works:**
 - **During development** (e.g., `unidep install` or `pip install -e .`): Uses local paths when they exist
 - **When building wheels**: PyPI alternatives (if specified) are used to create portable packages
 - The standard string format continues to work as always for local dependencies
 
 > [!TIP]
-> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system.
+> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system. Pair them with the [`use` selector](#choosing-the-source-for-local-dependencies-use) to control whether UniDep installs the local path, the PyPI fallback, or nothing at all.
+
+### Choosing the source for local dependencies (`use`)
+
+Tell UniDep what to **use** for each entry in `local_dependencies`:
+
+- `use: local` *(default)* — install from the local path and recurse into its own `local_dependencies`.
+- `use: pypi` — skip the local folder entirely and install the `pypi:` spec (no recursion).
+- `use: skip` — ignore the entry completely (no recursion).
+
+**YAML**
+```yaml
+local_dependencies:
+  - ../shared-lib                         # same as {local: ../shared-lib, use: local}
+  - local: ../auth-lib
+    pypi: company-auth-lib>=1.0
+    use: pypi
+  - local: ../old-experiment
+    use: skip
+```
+
+**TOML**
+
+```toml
+[tool.unidep]
+local_dependencies = [
+  "../shared-lib",
+  { local = "../auth-lib", pypi = "company-auth-lib>=1.0", use = "pypi" },
+  { local = "../old-experiment", use = "skip" },
+]
+```
+
+| `use` value | Installs from | Recurses into its locals? |
+|------------:|:--------------|:---------------------------|
+| `local`     | local path    | ✅ Yes                     |
+| `pypi`      | `pypi:` spec  | ❌ No                      |
+| `skip`      | nothing       | ❌ No                      |
+
+> [!NOTE]
+> **Precedence:** The `use` flag on the entry itself always wins. Setting `UNIDEP_SKIP_LOCAL_DEPS=1` forces any effective `use: local` to behave like `pypi` (if a `pypi` spec exists) or `skip`, but it does **not** override explicit `use: pypi` or `use: skip`.
+
+> [!WARNING]
+> If `use: pypi` is set but no `pypi:` requirement is provided, UniDep exits with a clear error so you can supply the missing spec.
 
 ### Build System Behavior
 
@@ -474,8 +512,8 @@ UNIDEP_SKIP_LOCAL_DEPS=1 uv build
 
 > [!NOTE]
 > **When `UNIDEP_SKIP_LOCAL_DEPS=1` is set:**
-> - Local dependencies with PyPI alternatives → use PyPI package
-> - Local dependencies without PyPI alternatives → skipped entirely
+> - Any effective `use: local` behaves as `use: pypi` (if a `pypi` spec exists) or `use: skip`
+> - Explicit `use: pypi` and `use: skip` remain unchanged
 > - Dependencies from local packages are still included (from their `requirements.yaml`/`pyproject.toml`)
 
 ### Example packages
@@ -1170,6 +1208,18 @@ The 2 `Dockerfile`s show 2 different ways of using UniDep:
 
 1. [`Dockerfile.locked`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.locked): Installing `conda-lock.yml` (generated with `unidep conda-lock`) and then `pip install .` the local package.
 2. [`Dockerfile.latest`](https://github.com/basnijholt/home-assistant-streamdeck-yaml/blob/a1b9966398dfe748804f058f82d546e47cd7f722/Dockerfile.latest): Using `unidep install .` to install all dependencies, first with conda, then pip, then the local package.
+
+### **Q: How do I force PyPI instead of a local path for one dependency?**
+
+**A:** Add `use: pypi` to that entry in `local_dependencies` (see [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)). UniDep will skip the local folder and install the `pypi:` spec.
+
+### **Q: How do I ignore a local dependency entirely?**
+
+**A:** Set `use: skip` on that entry. It won’t be installed and UniDep won’t recurse into it.
+
+### **Q: A submodule brings its own copy of package X. How do I avoid conflicts?**
+
+**A:** Mark the path you care about with `use: skip`/`use: pypi` in your top-level file. UniDep now propagates that choice to **every** occurrence of the same path in nested `local_dependencies`, so the duplicate never gets installed.
 
 ### **Q: How is this different from conda/mamba/pip?**
 
