@@ -15,7 +15,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from unidep._conflicts import (
     VersionConflictError,
-    _maybe_new_spec_with_combined_pinnings,
+    _maybe_new_spec_with_combined_pinnings_and_origins,
 )
 from unidep.platform_definitions import (
     PLATFORM_SELECTOR_MAP,
@@ -111,7 +111,7 @@ def _resolve_multiple_platform_conflicts(
             specs, (first_platform, *_) = zip(*spec_to_platforms.items())
             first, *others = specs
             try:
-                spec = _maybe_new_spec_with_combined_pinnings(specs)  # type: ignore[arg-type]
+                spec = _maybe_new_spec_with_combined_pinnings_and_origins(specs)  # type: ignore[arg-type]
             except VersionConflictError:
                 # We have a conflict, select the first one.
                 msg = (

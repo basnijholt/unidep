@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - conda: adaptive-scheduler  # [linux64]
-  - pip: unidep
+  - pip: unidep  # [linux64]
   - numpy >=1.21
   - hpc05  # [linux64]
   - pandas >=1,<3
