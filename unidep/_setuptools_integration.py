@@ -104,6 +104,8 @@ class Dependencies(NamedTuple):
 
 def _path_to_file_uri(path: PurePath) -> str:
     """Return a RFC 8089 compliant file URI for an absolute path."""
+    # Keep in sync with CI helper and discussion in
+    # https://github.com/basnijholt/unidep/pull/214#issuecomment-2568663364
     if isinstance(path, Path):
         target = path if path.is_absolute() else path.resolve()
         return target.as_uri()
