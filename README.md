@@ -495,6 +495,33 @@ local_dependencies = [
 > [!WARNING]
 > If `use: pypi` is set but no `pypi:` requirement is provided, UniDep exits with a clear error so you can supply the missing spec.
 
+#### Skipping nested copies (foo/bar example)
+
+Consider a project layout where you vendor `foo` as a submodule, and `foo` itself vendors `bar` inside its own `third_party` folder:
+
+```
+project/
+  third_party/
+    foo/                 # git submodule
+      third_party/
+        bar/             # nested submodule pinned by foo
+  overrides/
+    bar/                 # your preferred bar checkout
+```
+
+If you want your project to use **your** copy of `bar` instead of the one bundled inside `foo`, add a `use: skip` entry for `foo`'s nested path and then list your replacement:
+
+```yaml
+local_dependencies:
+  - ./third_party/foo
+  - local: ./third_party/foo/third_party/bar
+    use: skip          # ignore foo's bundled bar
+  - local: ./overrides/bar
+    use: local         # recurse into your chosen bar revision
+```
+
+Because the `use` flag on the entry itself always wins, every time UniDep encounters `./third_party/foo/third_party/bar` it will honor the `skip`, even when that path appears in `foo`'s own `local_dependencies`. This lets you pin nested dependencies to whatever version you need without editing the upstream submodule.
+
 ### Build System Behavior
 
 **Important differences between build backends:**
