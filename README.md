@@ -57,6 +57,8 @@ Try it now and streamline your development process!
   - [Local Dependencies in Monorepos](#local-dependencies-in-monorepos)
   - [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)
   - [Overriding Nested Vendor Copies with `use`](#overriding-nested-vendor-copies-with-use)
+    - [Example: Override foo's bundled bar with your PyPI build](#example-override-foos-bundled-bar-with-your-pypi-build)
+  - [All `use` values](#all-use-values)
   - [Build System Behavior](#build-system-behavior)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
