@@ -486,10 +486,10 @@ local_dependencies:
 ```
 
 **What happens:**
-1. ✅ `foo` stays local (editable for development)
-2. ✅ `my-bar>=2.0` gets installed from PyPI (not foo's bundled v1.0)
-3. ✅ **Propagates**: Every nested reference to `bar` uses your PyPI package
-4. ✅ Works with `unidep install`, `unidep conda-lock`, all CLI commands
+1. `foo` stays local (editable for development)
+2. `my-bar>=2.0` gets installed from PyPI (not foo's bundled v1.0)
+3. **Propagates**: Every nested reference to `bar` uses your PyPI package
+4. Works with `unidep install`, `unidep conda-lock`, all CLI commands
 
 This is the **key difference** from just using `pypi:` as a build-time fallback - `use: pypi` **forces the PyPI package during development** while keeping other local dependencies editable.
 
@@ -502,8 +502,8 @@ Tell UniDep what to **use** for each entry in `local_dependencies`:
 | `use` value | When to use | Installs from | Propagates override? |
 |------------|-------------|---------------|---------------------|
 | `local` *(default)* | Normal local development | Local path | - |
-| `pypi` | **Force PyPI** even when local exists | `pypi:` spec | ✅ Yes |
-| `skip` | Ignore this path entirely | Nothing | ✅ Yes |
+| `pypi` | **Force PyPI** even when local exists | `pypi:` spec | Yes |
+| `skip` | Ignore this path entirely | Nothing | Yes |
 
 **Common patterns:**
 
@@ -1263,7 +1263,7 @@ local_dependencies:
 
 ### **Q: A submodule brings its own copy of package X. How do I avoid conflicts?**
 
-**A:** This is the **key use case** for `use: pypi`! See the complete example in [Overriding Nested Vendor Copies](#overriding-nested-vendor-copies-with-use). In short:
+**A:** Use `use: pypi` as shown in [Overriding Nested Vendor Copies](#overriding-nested-vendor-copies-with-use). In short:
 
 ```yaml
 local_dependencies:
