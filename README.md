@@ -426,7 +426,7 @@ local_dependencies:
 
   - local: ../utils
     pypi: company-utils~=2.0
-    use: pypi  # see [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)
+    use: pypi  # see [Overriding Nested Vendor Copies](#overriding-nested-vendor-copies-with-use)
 ```
 
 Or in `pyproject.toml`:
@@ -451,7 +451,7 @@ local_dependencies = [
 - The standard string format continues to work as always for local dependencies
 
 > [!TIP]
-> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system. Pair them with the [`use` selector](#choosing-the-source-for-local-dependencies-use) to control whether UniDep installs the local path, the PyPI fallback, or nothing at all.
+> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system. Use the `use` field (see [Overriding Nested Vendor Copies](#overriding-nested-vendor-copies-with-use)) to control whether UniDep installs the local path, forces PyPI, or skips the entry entirely.
 
 ### Overriding Nested Vendor Copies with `use`
 
