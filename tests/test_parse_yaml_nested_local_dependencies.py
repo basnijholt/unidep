@@ -229,6 +229,139 @@ def test_nested_local_dependencies_with_non_unidep_managed_project(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_skip_propagates_to_nested_local_dependency(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    system = root / "system"
+    shared = root / "shared"
+    system.mkdir(parents=True, exist_ok=True)
+    shared.mkdir(parents=True, exist_ok=True)
+
+    root_req = root / "requirements.yaml"
+    system_req = system / "requirements.yaml"
+
+    root_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - ./system
+              - local: ./shared
+                use: skip
+            """,
+        ),
+    )
+
+    system_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - ../shared
+            """,
+        ),
+    )
+
+    root_req = maybe_as_toml(toml_or_yaml, root_req)
+    system_req = maybe_as_toml(toml_or_yaml, system_req)
+
+    requirements = parse_requirements(root_req)
+    assert "shared" not in requirements.requirements
+
+    local_dependencies = parse_local_dependencies(root_req, check_pip_installable=False)
+    assert local_dependencies == {root.resolve(): [system.resolve()]}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pypi_override_propagates_to_nested_local_dependency(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    system = root / "system"
+    shared = root / "shared"
+    system.mkdir(parents=True, exist_ok=True)
+    shared.mkdir(parents=True, exist_ok=True)
+
+    root_req = root / "requirements.yaml"
+    system_req = system / "requirements.yaml"
+
+    root_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - ./system
+              - local: ./shared
+                pypi: company-shared>=1.0
+                use: pypi
+            """,
+        ),
+    )
+
+    system_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - ../shared
+            """,
+        ),
+    )
+
+    root_req = maybe_as_toml(toml_or_yaml, root_req)
+    system_req = maybe_as_toml(toml_or_yaml, system_req)
+
+    requirements = parse_requirements(root_req)
+    assert "company-shared" in requirements.requirements
+
+    local_dependencies = parse_local_dependencies(root_req, check_pip_installable=False)
+    assert local_dependencies == {root.resolve(): [system.resolve()]}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_skip_propagates_when_nested_entry_is_dict(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    system = root / "system"
+    shared = root / "shared"
+    system.mkdir(parents=True, exist_ok=True)
+    shared.mkdir(parents=True, exist_ok=True)
+
+    root_req = root / "requirements.yaml"
+    system_req = system / "requirements.yaml"
+
+    root_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - ./system
+              - local: ./shared
+                use: skip
+            """,
+        ),
+    )
+
+    system_req.write_text(
+        textwrap.dedent(
+            """
+            local_dependencies:
+              - local: ../shared
+            """,
+        ),
+    )
+
+    root_req = maybe_as_toml(toml_or_yaml, root_req)
+    system_req = maybe_as_toml(toml_or_yaml, system_req)
+
+    requirements = parse_requirements(root_req)
+    assert "shared" not in requirements.requirements
+
+    local_dependencies = parse_local_dependencies(root_req, check_pip_installable=False)
+    assert local_dependencies == {root.resolve(): [system.resolve()]}
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_nested_local_dependencies_with_extras(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,

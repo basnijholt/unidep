@@ -48,6 +48,17 @@ def test_parse_local_dependency_item_dict() -> None:
     assert result == LocalDependency(local="../foo", pypi="company-foo")
 
 
+def test_parse_local_dependency_item_dict_with_use() -> None:
+    """Test parsing dict format with explicit `use`."""
+    item = {"local": "../foo", "pypi": "company-foo", "use": "pypi"}
+    result = _parse_local_dependency_item(item)
+    assert result == LocalDependency(
+        local="../foo",
+        pypi="company-foo",
+        use="pypi",
+    )
+
+
 def test_parse_local_dependency_item_dict_no_pypi() -> None:
     """Test parsing dict format without pypi key."""
     item = {"local": "../foo"}
@@ -70,6 +81,20 @@ def test_parse_local_dependency_item_invalid_type() -> None:
     item = 123
     with pytest.raises(TypeError, match="Invalid local dependency format"):
         _parse_local_dependency_item(item)  # type: ignore[arg-type]
+
+
+def test_parse_local_dependency_item_invalid_use() -> None:
+    """Invalid `use` value raises an error."""
+    item = {"local": "../foo", "use": "invalid"}
+    with pytest.raises(ValueError, match="Invalid `use` value"):
+        _parse_local_dependency_item(item)
+
+
+def test_parse_local_dependency_item_use_pypi_requires_pypi() -> None:
+    """`use: pypi` must provide a PyPI alternative."""
+    item = {"local": "../foo", "use": "pypi"}
+    with pytest.raises(ValueError, match="must specify a `pypi` alternative"):
+        _parse_local_dependency_item(item)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -190,6 +215,29 @@ def test_setuptools_integration_with_pypi_alternatives(
     assert any("bar-pkg @ file://" in dep for dep in deps.dependencies)
     # Should NOT use PyPI alternative when local exists
     assert not any("company-bar" in dep for dep in deps.dependencies)
+
+
+def test_local_dependency_use_pypi_injects_dependency(tmp_path: Path) -> None:
+    """`use: pypi` should add the PyPI requirement as a normal dependency."""
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """
+            dependencies: []
+            local_dependencies:
+              - local: ./dep
+                pypi: company-dep>=1.0
+                use: pypi
+            """,
+        ),
+    )
+    (tmp_path / "project" / "dep").mkdir()
+
+    reqs = parse_requirements(project / "requirements.yaml")
+    assert "company-dep" in reqs.requirements
+    specs = reqs.requirements["company-dep"]
+    assert specs[0].which == "pip"
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
