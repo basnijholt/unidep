@@ -16,7 +16,7 @@ jobs:
     env:
       PYTHONIOENCODING: "utf8" # https://gist.github.com/NodeJSmith/e7e37f2d3f162456869f015f842bcf15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set up Python
@@ -48,7 +48,7 @@ jobs:
     env:
       PYTHONIOENCODING: "utf8" # https://gist.github.com/NodeJSmith/e7e37f2d3f162456869f015f842bcf15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Set up Python ${{ matrix.python-version }}
@@ -94,7 +94,7 @@ jobs:
     env:
       PYTHONIOENCODING: "utf8" # https://gist.github.com/NodeJSmith/e7e37f2d3f162456869f015f842bcf15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: conda-incubator/setup-miniconda@v3
