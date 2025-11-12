@@ -125,13 +125,13 @@ def test_parse_local_dependencies(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_parse_local_dependencies_respects_skip(
+def test_parse_local_dependencies_respects_use(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
     project.mkdir(parents=True, exist_ok=True)
-    for name in ["dep-local", "dep-skip"]:
+    for name in ["dep-local", "dep-skip", "dep-pypi"]:
         dep_dir = project / name
         dep_dir.mkdir()
         (dep_dir / "setup.py").write_text(
@@ -146,7 +146,10 @@ def test_parse_local_dependencies_respects_skip(
             local_dependencies:
               - local: ./dep-local
               - local: ./dep-skip
-                skip: true
+                use: skip
+              - local: ./dep-pypi
+                pypi: company-dep>=1.0
+                use: pypi
             """,
         ),
     )

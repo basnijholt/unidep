@@ -48,14 +48,14 @@ def test_parse_local_dependency_item_dict() -> None:
     assert result == LocalDependency(local="../foo", pypi="company-foo")
 
 
-def test_parse_local_dependency_item_dict_with_skip() -> None:
-    """Test parsing dict format with explicit `skip`."""
-    item = {"local": "../foo", "skip": True}
+def test_parse_local_dependency_item_dict_with_use() -> None:
+    """Test parsing dict format with explicit `use`."""
+    item = {"local": "../foo", "pypi": "company-foo", "use": "pypi"}
     result = _parse_local_dependency_item(item)
     assert result == LocalDependency(
         local="../foo",
-        pypi=None,
-        skip=True,
+        pypi="company-foo",
+        use="pypi",
     )
 
 
@@ -83,35 +83,18 @@ def test_parse_local_dependency_item_invalid_type() -> None:
         _parse_local_dependency_item(item)  # type: ignore[arg-type]
 
 
-def test_parse_local_dependency_item_invalid_skip() -> None:
-    """Invalid `skip` value raises an error."""
-    item = {"local": "../foo", "skip": "invalid"}
-    with pytest.raises(ValueError, match="Invalid `skip` value"):
+def test_parse_local_dependency_item_invalid_use() -> None:
+    """Invalid `use` value raises an error."""
+    item = {"local": "../foo", "use": "invalid"}
+    with pytest.raises(ValueError, match="Invalid `use` value"):
         _parse_local_dependency_item(item)
 
 
-@pytest.mark.parametrize("skip_value", ["true", "1", "yes", "True", "YES", " true "])
-def test_parse_local_dependency_item_skip_string_true(skip_value: str) -> None:
-    """Test parsing skip with string values that mean True."""
-    item = {"local": "../foo", "skip": skip_value}
-    result = _parse_local_dependency_item(item)
-    assert result == LocalDependency(
-        local="../foo",
-        pypi=None,
-        skip=True,
-    )
-
-
-@pytest.mark.parametrize("skip_value", ["false", "0", "no", "False", "NO", " false "])
-def test_parse_local_dependency_item_skip_string_false(skip_value: str) -> None:
-    """Test parsing skip with string values that mean False."""
-    item = {"local": "../foo", "skip": skip_value}
-    result = _parse_local_dependency_item(item)
-    assert result == LocalDependency(
-        local="../foo",
-        pypi=None,
-        skip=False,
-    )
+def test_parse_local_dependency_item_use_pypi_requires_pypi() -> None:
+    """`use: pypi` must provide a PyPI alternative."""
+    item = {"local": "../foo", "use": "pypi"}
+    with pytest.raises(ValueError, match="must specify a `pypi` alternative"):
+        _parse_local_dependency_item(item)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -234,46 +217,27 @@ def test_setuptools_integration_with_pypi_alternatives(
     assert not any("company-bar" in dep for dep in deps.dependencies)
 
 
-@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-@pytest.mark.parametrize("skip_string", ["yes", "1", "true"])
-def test_skip_with_yaml_string_values(
-    toml_or_yaml: Literal["toml", "yaml"],
-    skip_string: str,
-    tmp_path: Path,
-) -> None:
-    """Test that YAML string values for skip (yes, 1, true) work correctly."""
+def test_local_dependency_use_pypi_injects_dependency(tmp_path: Path) -> None:
+    """`use: pypi` should add the PyPI requirement as a normal dependency."""
     project = tmp_path / "project"
-    project.mkdir(exist_ok=True)
-    skip_dep = tmp_path / "skip_dep"
-    skip_dep.mkdir(exist_ok=True)
-    (skip_dep / "setup.py").write_text(
-        'from setuptools import setup; setup(name="skip-dep", version="0.1.0")',
-    )
-    (skip_dep / "requirements.yaml").write_text("dependencies: []\n")
-
-    req_file = project / "requirements.yaml"
-    req_file.write_text(
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
         textwrap.dedent(
-            f"""\
-            dependencies:
-                - numpy
+            """
+            dependencies: []
             local_dependencies:
-                - local: ../skip_dep
-                  skip: {skip_string}
+              - local: ./dep
+                pypi: company-dep>=1.0
+                use: pypi
             """,
         ),
     )
-    req_file = maybe_as_toml(toml_or_yaml, req_file)
+    (tmp_path / "project" / "dep").mkdir()
 
-    deps = get_python_dependencies(
-        req_file,
-        include_local_dependencies=True,
-    )
-
-    assert "numpy" in deps.dependencies
-    # skip_dep should NOT be included
-    assert not any("skip-dep" in dep for dep in deps.dependencies)
-    assert not any("file://" in dep for dep in deps.dependencies)
+    reqs = parse_requirements(project / "requirements.yaml")
+    assert "company-dep" in reqs.requirements
+    specs = reqs.requirements["company-dep"]
+    assert specs[0].which == "pip"
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
