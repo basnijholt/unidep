@@ -90,6 +90,30 @@ def test_parse_local_dependency_item_invalid_skip() -> None:
         _parse_local_dependency_item(item)
 
 
+@pytest.mark.parametrize("skip_value", ["true", "1", "yes", "True", "YES", " true "])
+def test_parse_local_dependency_item_skip_string_true(skip_value: str) -> None:
+    """Test parsing skip with string values that mean True."""
+    item = {"local": "../foo", "skip": skip_value}
+    result = _parse_local_dependency_item(item)
+    assert result == LocalDependency(
+        local="../foo",
+        pypi=None,
+        skip=True,
+    )
+
+
+@pytest.mark.parametrize("skip_value", ["false", "0", "no", "False", "NO", " false "])
+def test_parse_local_dependency_item_skip_string_false(skip_value: str) -> None:
+    """Test parsing skip with string values that mean False."""
+    item = {"local": "../foo", "skip": skip_value}
+    result = _parse_local_dependency_item(item)
+    assert result == LocalDependency(
+        local="../foo",
+        pypi=None,
+        skip=False,
+    )
+
+
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_get_local_dependencies_mixed_format(
     toml_or_yaml: Literal["toml", "yaml"],
@@ -208,6 +232,48 @@ def test_setuptools_integration_with_pypi_alternatives(
     assert any("bar-pkg @ file://" in dep for dep in deps.dependencies)
     # Should NOT use PyPI alternative when local exists
     assert not any("company-bar" in dep for dep in deps.dependencies)
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+@pytest.mark.parametrize("skip_string", ["yes", "1", "true"])
+def test_skip_with_yaml_string_values(
+    toml_or_yaml: Literal["toml", "yaml"],
+    skip_string: str,
+    tmp_path: Path,
+) -> None:
+    """Test that YAML string values for skip (yes, 1, true) work correctly."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+    skip_dep = tmp_path / "skip_dep"
+    skip_dep.mkdir(exist_ok=True)
+    (skip_dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="skip-dep", version="0.1.0")',
+    )
+    (skip_dep / "requirements.yaml").write_text("dependencies: []\n")
+
+    req_file = project / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            f"""\
+            dependencies:
+                - numpy
+            local_dependencies:
+                - local: ../skip_dep
+                  skip: {skip_string}
+            """,
+        ),
+    )
+    req_file = maybe_as_toml(toml_or_yaml, req_file)
+
+    deps = get_python_dependencies(
+        req_file,
+        include_local_dependencies=True,
+    )
+
+    assert "numpy" in deps.dependencies
+    # skip_dep should NOT be included
+    assert not any("skip-dep" in dep for dep in deps.dependencies)
+    assert not any("file://" in dep for dep in deps.dependencies)
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
