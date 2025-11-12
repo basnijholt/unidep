@@ -194,8 +194,8 @@ def test_setuptools_with_skip_local_deps_env_var(
     assert not any("file://" in dep for dep in deps.dependencies)
 
 
-def test_use_skip_entries_are_ignored(tmp_path: Path) -> None:
-    """Entries marked `use: skip` should never contribute dependencies."""
+def test_skip_entries_are_ignored(tmp_path: Path) -> None:
+    """Entries marked with `skip: true` should never contribute dependencies."""
     project = tmp_path / "project"
     project.mkdir(exist_ok=True)
     skip_dep = tmp_path / "skip_dep"
@@ -210,7 +210,7 @@ def test_use_skip_entries_are_ignored(tmp_path: Path) -> None:
                 - numpy
             local_dependencies:
                 - local: ../skip_dep
-                  use: skip
+                  skip: true
             """,
         ),
     )
@@ -223,37 +223,3 @@ def test_use_skip_entries_are_ignored(tmp_path: Path) -> None:
     assert "numpy" in deps.dependencies
     assert not any("skip-dep" in dep for dep in deps.dependencies)
     assert not any("file://" in dep for dep in deps.dependencies)
-
-
-def test_use_pypi_entries_not_readded(tmp_path: Path) -> None:
-    """Entries marked `use: pypi` rely solely on their PyPI alternative."""
-    project = tmp_path / "project"
-    project.mkdir(exist_ok=True)
-    local_dep = tmp_path / "pypi_dep"
-    local_dep.mkdir(exist_ok=True)
-    (local_dep / "setup.py").write_text(
-        'from setuptools import setup; setup(name="pypi-dep", version="0.1.0")',
-    )
-    (project / "requirements.yaml").write_text(
-        textwrap.dedent(
-            """\
-            dependencies:
-                - numpy
-            local_dependencies:
-                - local: ../pypi_dep
-                  use: pypi
-                  pypi: company-pypi-dep==2.0
-            """,
-        ),
-    )
-
-    deps = get_python_dependencies(
-        project / "requirements.yaml",
-        include_local_dependencies=True,
-    )
-
-    assert "numpy" in deps.dependencies
-    assert any(
-        dep.replace(" ", "") == "company-pypi-dep==2.0" for dep in deps.dependencies
-    )
-    assert not any("pypi-dep @ file://" in dep for dep in deps.dependencies)

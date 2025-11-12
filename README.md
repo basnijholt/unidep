@@ -56,7 +56,7 @@ Try it now and streamline your development process!
 - [:jigsaw: Build System Integration](#jigsaw-build-system-integration)
   - [Local Dependencies in Monorepos](#local-dependencies-in-monorepos)
   - [PyPI Alternatives for Local Dependencies](#pypi-alternatives-for-local-dependencies)
-  - [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)
+  - [Skipping Nested Vendor Copies (`skip`)](#skipping-nested-vendor-copies-skip)
   - [Build System Behavior](#build-system-behavior)
   - [Example packages](#example-packages)
   - [Setuptools Integration](#setuptools-integration)
@@ -426,7 +426,6 @@ local_dependencies:
 
   - local: ../utils
     pypi: company-utils~=2.0
-    use: pypi  # see [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)
 ```
 
 Or in `pyproject.toml`:
@@ -441,7 +440,7 @@ local_dependencies = [
 
     # Dictionary format with optional PyPI alternative for build-time
     {local = "../auth-lib", pypi = "company-auth-lib>=1.0"},
-    {local = "../utils", pypi = "company-utils~=2.0", use = "pypi"},
+    {local = "../utils", pypi = "company-utils~=2.0"},
 ]
 ```
 
@@ -451,76 +450,48 @@ local_dependencies = [
 - The standard string format continues to work as always for local dependencies
 
 > [!TIP]
-> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system. Pair them with the [`use` selector](#choosing-the-source-for-local-dependencies-use) to control whether UniDep installs the local path, the PyPI fallback, or nothing at all.
+> PyPI alternatives ensure your wheels are portable and can be installed anywhere, not just on the build system.
 
-### Choosing the source for local dependencies (`use`)
+### Skipping Nested Vendor Copies (`skip`)
 
-Tell UniDep what to **use** for each entry in `local_dependencies`:
+**Problem:** Git submodules often vendor their own dependencies. This creates conflicts when you want to use a different version.
 
-- `use: local` *(default)* — install from the local path and recurse into its own `local_dependencies`.
-- `use: pypi` — skip the local folder entirely and install the `pypi:` spec (no recursion).
-- `use: skip` — ignore the entry completely (no recursion).
-
-**YAML**
-```yaml
-local_dependencies:
-  - ../shared-lib                         # same as {local: ../shared-lib, use: local}
-  - local: ../auth-lib
-    pypi: company-auth-lib>=1.0
-    use: pypi
-  - local: ../old-experiment
-    use: skip
-```
-
-**TOML**
-
-```toml
-[tool.unidep]
-local_dependencies = [
-  "../shared-lib",
-  { local = "../auth-lib", pypi = "company-auth-lib>=1.0", use = "pypi" },
-  { local = "../old-experiment", use = "skip" },
-]
-```
-
-| `use` value | Installs from | Recurses into its locals? |
-|------------:|:--------------|:---------------------------|
-| `local`     | local path    | ✅ Yes                     |
-| `pypi`      | `pypi:` spec  | ❌ No                      |
-| `skip`      | nothing       | ❌ No                      |
-
-> [!NOTE]
-> **Precedence:** The `use` flag on the entry itself always wins. Setting `UNIDEP_SKIP_LOCAL_DEPS=1` forces any effective `use: local` to behave like `pypi` (if a `pypi` spec exists) or `skip`, but it does **not** override explicit `use: pypi` or `use: skip`.
-
-> [!WARNING]
-> If `use: pypi` is set but no `pypi:` requirement is provided, UniDep exits with a clear error so you can supply the missing spec.
-
-#### Skipping nested copies (foo/bar example)
-
-Consider a project layout where you vendor `foo` as a submodule, and `foo` itself vendors `bar` inside its own `third_party` folder:
+**Example:** You vendor `foo` as a submodule, and `foo` itself vendors `bar`:
 
 ```
 project/
   third_party/
-    foo/                 # git submodule
+    foo/                 # git submodule you don't control
       third_party/
-        bar/             # nested submodule pinned by foo
-  overrides/
-    bar/                 # your preferred bar checkout
+        bar/             # foo's pinned bar@1.0
+  my-dependencies/
+    bar/                 # you want bar@2.0
 ```
 
-If you want your project to use **your** copy of `bar` instead of the one bundled inside `foo`, add a `use: skip` entry for `foo`'s nested path and then list your replacement:
+**Without UniDep's help:** Both versions of `bar` get installed → conflicts.
+
+**Solution:** Use `skip: true` to override nested occurrences:
 
 ```yaml
 local_dependencies:
   - ./third_party/foo
+
+  # Override: skip foo's bundled bar
   - local: ./third_party/foo/third_party/bar
-    use: skip          # ignore foo's bundled bar
-  - local: ./overrides/bar
-    use: local         # recurse into your chosen bar revision
+    skip: true
+
+  # Use your preferred version instead
+  - ./my-dependencies/bar
 ```
 
-Because the `use` flag on the entry itself always wins, every time UniDep encounters `./third_party/foo/third_party/bar` it will honor the `skip`, even when that path appears in `foo`'s own `local_dependencies`. This lets you pin nested dependencies to whatever version you need without editing the upstream submodule.
+**How it works:**
+
+1. UniDep resolves all relative paths to absolute paths
+2. When it encounters the absolute path to `bar` anywhere in the dependency tree, it checks for overrides
+3. Your `skip: true` at the root level "wins" - that path gets skipped everywhere
+4. This works **regardless of how deeply nested** the reference is
+
+This lets you control which version of nested dependencies gets used without editing upstream submodules.
 
 ### Build System Behavior
 
@@ -543,8 +514,9 @@ UNIDEP_SKIP_LOCAL_DEPS=1 uv build
 
 > [!NOTE]
 > **When `UNIDEP_SKIP_LOCAL_DEPS=1` is set:**
-> - Any effective `use: local` behaves as `use: pypi` (if a `pypi` spec exists) or `use: skip`
-> - Explicit `use: pypi` and `use: skip` remain unchanged
+> - Local dependencies with PyPI alternatives → use PyPI package
+> - Local dependencies without PyPI alternatives → skipped entirely
+> - Explicit `skip: true` entries remain unchanged
 > - Dependencies from local packages are still included (from their `requirements.yaml`/`pyproject.toml`)
 
 ### Example packages
@@ -1242,15 +1214,24 @@ The 2 `Dockerfile`s show 2 different ways of using UniDep:
 
 ### **Q: How do I force PyPI instead of a local path for one dependency?**
 
-**A:** Add `use: pypi` to that entry in `local_dependencies` (see [Choosing the source for local dependencies (`use`)](#choosing-the-source-for-local-dependencies-use)). UniDep will skip the local folder and install the `pypi:` spec.
+**A:** Don't include it in `local_dependencies` - just add it to `dependencies` directly:
+
+```yaml
+dependencies:
+  - pip: company-foo>=1.0
+
+local_dependencies:
+  - local: ../foo
+    skip: true  # Skip the local copy
+```
 
 ### **Q: How do I ignore a local dependency entirely?**
 
-**A:** Set `use: skip` on that entry. It won’t be installed and UniDep won’t recurse into it.
+**A:** Set `skip: true` on that entry (see [Skipping Nested Vendor Copies](#skipping-nested-vendor-copies-skip)). It won't be installed and UniDep won't recurse into it.
 
 ### **Q: A submodule brings its own copy of package X. How do I avoid conflicts?**
 
-**A:** Mark the path you care about with `use: skip`/`use: pypi` in your top-level file. UniDep now propagates that choice to **every** occurrence of the same path in nested `local_dependencies`, so the duplicate never gets installed.
+**A:** Mark the path with `skip: true` in your top-level file (see [Skipping Nested Vendor Copies](#skipping-nested-vendor-copies-skip)). UniDep propagates that override to **every** occurrence of the same path in nested `local_dependencies`, so the duplicate never gets installed.
 
 ### **Q: How is this different from conda/mamba/pip?**
 
