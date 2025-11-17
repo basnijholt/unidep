@@ -223,7 +223,7 @@ def _package_name_from_setup_py(file_path: Path) -> str:
         def __init__(self) -> None:
             self.package_name = None
 
-        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        def visit_Call(self, node: ast.Call) -> None:
             if isinstance(node.func, ast.Name) and node.func.id == "setup":
                 for keyword in node.keywords:
                     if keyword.arg == "name":
