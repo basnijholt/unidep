@@ -138,6 +138,7 @@ class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
     channels: list[str]
+    pip_indices: list[str]
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
     optional_dependencies: dict[str, dict[str, list[Spec]]]
@@ -564,11 +565,16 @@ def parse_requirements(
         lambda: defaultdict(list),
     )
     channels: set[str] = set()
+    pip_indices: list[str] = []  # Preserve order, first is primary
     platforms: set[Platform] = set()
 
     identifier = -1
     for data, _extras in zip(datas, all_extras):
         channels.update(data.get("channels", []))
+        # Collect pip_indices, maintaining order and avoiding duplicates
+        for index in data.get("pip_indices", []):
+            if index and index not in pip_indices:
+                pip_indices.append(index)
         platforms.update(data.get("platforms", []))
         if "dependencies" in data:
             identifier = _add_dependencies(
@@ -593,6 +599,7 @@ def parse_requirements(
 
     return ParsedRequirements(
         sorted(channels),
+        pip_indices,  # Keep order, don't sort
         sorted(platforms),
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
