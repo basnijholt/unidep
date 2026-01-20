@@ -1065,12 +1065,12 @@ def _install_command(  # noqa: PLR0912, PLR0915
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
         installable_set = {p.resolve() for p in installable}
-        installable += [
-            dep
-            for deps in local_dependencies.values()
-            for dep in deps
-            if dep.resolve() not in installable_set
-        ]
+        for deps in local_dependencies.values():
+            for dep in deps:
+                dep_resolved = dep.resolve()
+                if dep_resolved not in installable_set:
+                    installable.append(dep)
+                    installable_set.add(dep_resolved)
         if installable:
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
