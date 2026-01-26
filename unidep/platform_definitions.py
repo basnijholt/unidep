@@ -106,7 +106,7 @@ def platforms_from_selector(selector: str) -> list[Platform]:
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
     platforms: set[Platform] = set()
     for s in selector.split():
-        s = cast(Selector, s)
+        s = cast("Selector", s)
         platforms |= set(PLATFORM_SELECTOR_MAP_REVERSE[s])
     return sorted(platforms)
 
