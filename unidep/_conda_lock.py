@@ -363,7 +363,7 @@ def _conda_lock_subpackage(
     yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
     conda_lock_output = file.parent / "conda-lock.yml"
     metadata = {
-        "content_hash": {p: "unidep-is-awesome" for p in platforms},
+        "content_hash": dict.fromkeys(platforms, "unidep-is-awesome"),
         "channels": [{"url": c, "used_env_vars": []} for c in channels],
         "platforms": platforms,
         "sources": [str(file)],

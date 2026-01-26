@@ -230,7 +230,7 @@ def _normalize_local_dependency_use(use_value: str | None) -> LocalDependencyUse
         options = ", ".join(sorted(valid))
         msg = f"Invalid `use` value `{use_value}`. Supported values: {options}."
         raise ValueError(msg)
-    return cast(LocalDependencyUse, normalized)
+    return cast("LocalDependencyUse", normalized)
 
 
 def get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
