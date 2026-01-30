@@ -1421,6 +1421,11 @@ def _pixi_command(
         verbose=verbose,
     )
 
+    if output_file:
+        found_files_str = ", ".join(f"`{f}`" for f in found_files)
+        print(f"✅ Generated `{output_file}` from {found_files_str}")
+        print("   Run `pixi install` to install dependencies.")
+
 
 def _pip_compile_command(
     *,
