@@ -756,3 +756,174 @@ def test_pixi_default_cwd(tmp_path: Path, monkeypatch: object) -> None:
     assert output_file.exists()
     content = output_file.read_text()
     assert 'numpy = "*"' in content
+
+
+def test_pixi_optional_dependencies_single_file(tmp_path: Path) -> None:
+    """Test optional dependencies with realistic user scenario.
+
+    A typical user would have a requirements.yaml with:
+    - Main dependencies
+    - Multiple optional dependency groups (dev, docs)
+    - Version pins, pip packages, and platform selectors in optional deps
+    """
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy >=1.20
+            optional_dependencies:
+              dev:
+                - pytest >=7.0
+                - pip: black
+                - pexpect  # [unix]
+                - wexpect  # [win64]
+              docs:
+                - sphinx
+                - sphinx-rtd-theme
+            platforms:
+              - linux-64
+              - win-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        project_name="test-project",
+        output_file=output_file,
+        verbose=False,
+    )
+
+    assert output_file.exists()
+    content = output_file.read_text()
+
+    # Check main dependencies are at root level
+    assert "[dependencies]" in content
+    assert 'numpy = ">=1.20"' in content
+
+    # Check dev feature with conda deps, pip deps, and platform-specific
+    assert "[feature.dev.dependencies]" in content
+    assert 'pytest = ">=7.0"' in content
+    assert "[feature.dev.pypi-dependencies]" in content
+    assert 'black = "*"' in content
+    assert "[feature.dev.target.linux-64.dependencies]" in content
+    assert "[feature.dev.target.win-64.dependencies]" in content
+
+    # Check docs feature
+    assert "[feature.docs.dependencies]" in content
+    assert 'sphinx = "*"' in content
+
+    # Check environments are created
+    assert "[environments]" in content
+    assert "default = []" in content
+    assert "dev = [" in content
+    assert "docs = [" in content
+    # "all" environment includes both features
+    assert "all = [" in content
+
+
+def test_pixi_optional_dependencies_single_group(tmp_path: Path) -> None:
+    """Test single optional group doesn't create 'all' environment."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              test:
+                - pytest
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        project_name="test-project",
+        output_file=output_file,
+        verbose=False,
+    )
+
+    content = output_file.read_text()
+
+    # Check feature is created
+    assert "[feature.test.dependencies]" in content
+    assert 'pytest = "*"' in content
+
+    # With only one group, there should be no "all" environment
+    assert "all = [" not in content
+
+
+def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
+    """Test optional dependencies in monorepo setup."""
+    # Create project1 with optional deps
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = project1_dir / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              test:
+                - pytest
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    # Create project2 with different optional deps
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = project2_dir / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            optional_dependencies:
+              lint:
+                - black
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req1,
+        req2,
+        project_name="monorepo",
+        output_file=output_file,
+        verbose=False,
+    )
+
+    content = output_file.read_text()
+
+    # Check main features
+    assert "[feature.project1.dependencies]" in content
+    assert 'numpy = "*"' in content
+    assert "[feature.project2.dependencies]" in content
+    assert 'pandas = "*"' in content
+
+    # Check optional dependencies become sub-features
+    assert "[feature.project1-test.dependencies]" in content
+    assert 'pytest = "*"' in content
+    assert "[feature.project2-lint.dependencies]" in content
+    assert 'black = "*"' in content

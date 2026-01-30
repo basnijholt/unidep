@@ -10,7 +10,7 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = [
     "packaging",
     "ruamel.yaml",
-    "typing_extensions; python_version < '3.8'",
+    "typing_extensions; python_version < '3.10'",
     "tomli; python_version < '3.11'",
 ]
 requires-python = ">=3.7"

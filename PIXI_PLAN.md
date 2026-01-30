@@ -36,11 +36,13 @@ Pixi handles all dependency resolution, conflict management, and lock file gener
 - [x] Handle platform-specific pip dependencies
 - [x] Add tests for platform-specific generation
 
-### Phase 3: Optional Dependencies → Features
+### Phase 3: Optional Dependencies → Features ✅
 
-- [ ] Map `optional_dependencies.dev` → `[feature.dev.dependencies]`
-- [ ] Create environment combinations (e.g., `dev = ["default", "dev"]`)
-- [ ] Support extras syntax in local dependencies
+- [x] Map `optional_dependencies.dev` → `[feature.dev.dependencies]`
+- [x] Create environment combinations (e.g., `dev = ["dev"]`, `all = ["dev", "docs"]`)
+- [x] Support platform-specific optional dependencies with target sections
+- [x] Handle pip vs conda optional dependencies
+- [x] Add comprehensive tests for optional dependencies
 
 ### Phase 4: Lock File Integration (via pixi-to-conda-lock)
 
@@ -171,6 +173,6 @@ unidep pixi-lock --directory ./monorepo --depth 2
 - [x] Work with single-file projects
 - [x] Work with monorepo (multiple requirements files)
 - [x] Support platform-specific dependencies
-- [ ] Support optional dependencies as features
+- [x] Support optional dependencies as features
 - [ ] Integrate with pixi-to-conda-lock for lock files
 - [ ] Document workflow in README

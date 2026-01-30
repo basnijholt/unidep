@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     else:
         from typing_extensions import TypeAlias
 
-    from unidep._dependencies_parsing import ParsedRequirements
     from unidep.platform_definitions import Platform
 
     # Type alias for the extracted dependencies structure
@@ -76,8 +75,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
-        req = parse_requirements(requirements_files[0], verbose=verbose)
-        platform_deps = _extract_dependencies(req)
+        req = parse_requirements(requirements_files[0], verbose=verbose, extras="*")
+        platform_deps = _extract_dependencies(req.requirements)
 
         # Use channels and platforms from the requirements file
         if req.channels:
@@ -109,6 +108,32 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 "path": ".",
                 "editable": True,
             }
+
+        # Handle optional dependencies as features
+        if req.optional_dependencies:
+            pixi_data["feature"] = {}
+            pixi_data["environments"] = {}
+            opt_features = []
+
+            for group_name, group_specs in req.optional_dependencies.items():
+                opt_platform_deps = _extract_dependencies(group_specs)
+                feature = _build_feature_dict(opt_platform_deps)
+                if feature:
+                    pixi_data["feature"][group_name] = feature
+                    opt_features.append(group_name)
+
+            # Create environments for optional dependencies
+            if opt_features:
+                # Default environment has no optional features
+                pixi_data["environments"]["default"] = []
+                for feat in opt_features:
+                    # Environment names can't have underscores
+                    env_name = feat.replace("_", "-")
+                    pixi_data["environments"][env_name] = [feat]
+                # "all" environment includes all optional features
+                if len(opt_features) > 1:
+                    pixi_data["environments"]["all"] = opt_features
+
     else:
         # Multiple files: create features
         pixi_data["feature"] = {}
@@ -117,8 +142,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
         for req_file in requirements_files:
             feature_name = req_file.parent.stem if req_file.is_file() else req_file.stem
-            req = parse_requirements(req_file, verbose=verbose)
-            platform_deps = _extract_dependencies(req)
+            req = parse_requirements(req_file, verbose=verbose, extras="*")
+            platform_deps = _extract_dependencies(req.requirements)
 
             # Collect channels and platforms
             if req.channels:
@@ -126,29 +151,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if req.platforms:
                 all_platforms.update(req.platforms)
 
-            # Get universal (non-platform-specific) dependencies
-            conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
-
-            feature: dict[str, Any] = {}
-            if conda_deps:
-                feature["dependencies"] = conda_deps
-            if pip_deps:
-                feature["pypi-dependencies"] = pip_deps
-
-            # Add platform-specific dependencies as target sections within the feature
-            for platform, (plat_conda, plat_pip) in platform_deps.items():
-                if platform is None:
-                    continue
-                # Note: platforms only exist in platform_deps if they have deps,
-                # so we don't need to check for empty plat_conda/plat_pip
-                if "target" not in feature:
-                    feature["target"] = {}
-                if platform not in feature["target"]:
-                    feature["target"][platform] = {}
-                if plat_conda:
-                    feature["target"][platform]["dependencies"] = plat_conda
-                if plat_pip:
-                    feature["target"][platform]["pypi-dependencies"] = plat_pip
+            # Build the feature dict from platform deps
+            feature = _build_feature_dict(platform_deps)
 
             # Check if there's a local package in the same directory
             req_dir = req_file.parent if req_file.is_file() else req_file
@@ -168,6 +172,15 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if feature:  # Only add non-empty features
                 pixi_data["feature"][feature_name] = feature
                 all_features.append(feature_name)
+
+            # Handle optional dependencies as sub-features
+            for group_name, group_specs in req.optional_dependencies.items():
+                opt_platform_deps = _extract_dependencies(group_specs)
+                opt_feature = _build_feature_dict(opt_platform_deps)
+                if opt_feature:
+                    opt_feature_name = f"{feature_name}-{group_name}"
+                    pixi_data["feature"][opt_feature_name] = opt_feature
+                    all_features.append(opt_feature_name)
 
         # Create environments
         if all_features:
@@ -199,9 +212,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
 
 def _extract_dependencies(  # noqa: PLR0912
-    requirements: ParsedRequirements,
+    specs_dict: dict[str, list[Any]],
 ) -> PlatformDeps:
-    """Extract conda and pip dependencies from parsed requirements.
+    """Extract conda and pip dependencies from a dict of package specs.
 
     Returns a dict mapping platform (or None for universal) to (conda_deps, pip_deps).
     Platform-specific dependencies are mapped to their respective platforms.
@@ -211,7 +224,7 @@ def _extract_dependencies(  # noqa: PLR0912
     platform_deps: PlatformDeps = {None: ({}, {})}
 
     # Process each package's specifications
-    for pkg_name, specs in requirements.requirements.items():
+    for pkg_name, specs in specs_dict.items():
         for spec in specs:
             # Format the version pin or use "*" if no pin
             version = spec.pin.replace(" ", "") if spec.pin else "*"
@@ -249,6 +262,33 @@ def _extract_dependencies(  # noqa: PLR0912
                         pip_deps[pkg_name] = version
 
     return platform_deps
+
+
+def _build_feature_dict(platform_deps: PlatformDeps) -> dict[str, Any]:
+    """Build a pixi feature dict from platform dependencies."""
+    feature: dict[str, Any] = {}
+
+    # Get universal (non-platform-specific) dependencies
+    conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
+    if conda_deps:
+        feature["dependencies"] = conda_deps
+    if pip_deps:
+        feature["pypi-dependencies"] = pip_deps
+
+    # Add platform-specific dependencies as target sections
+    for platform, (plat_conda, plat_pip) in platform_deps.items():
+        if platform is None:
+            continue
+        if "target" not in feature:
+            feature["target"] = {}
+        if platform not in feature["target"]:
+            feature["target"][platform] = {}
+        if plat_conda:
+            feature["target"][platform]["dependencies"] = plat_conda
+        if plat_pip:
+            feature["target"][platform]["pypi-dependencies"] = plat_pip
+
+    return feature
 
 
 def _add_target_sections(
