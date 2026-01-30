@@ -121,11 +121,11 @@ all = ["dev", "docs"]
 ```
 unidep/
 ├── _pixi.py              # Pixi.toml generation (✅ exists)
-├── _pixi_lock.py         # Lock file commands (Phase 4)
+├── _pixi_lock.py         # Lock file commands (✅ exists)
 └── _cli.py               # CLI with --pixi flag (✅ updated)
 
 tests/
-└── test_pixi.py          # Pixi tests (✅ exists)
+└── test_pixi.py          # Pixi tests (✅ exists, 42 tests)
 ```
 
 ## Optional Dependencies Configuration
@@ -133,21 +133,20 @@ tests/
 ```toml
 # pyproject.toml
 [project.optional-dependencies]
-pixi = ["pixi-to-conda-lock"]
-all = ["...", "pixi-to-conda-lock"]
+pixi = ["pixi-to-conda-lock; python_version >= '3.9'", "tomli_w"]
+all = ["...", "unidep[pixi]"]
 ```
 
 ## CLI Commands
 
-### Current (Phase 1)
+### Generate pixi.toml
 ```bash
-# Generate pixi.toml from requirements
 unidep merge --pixi
 unidep merge --pixi --output my-pixi.toml
 unidep merge --pixi --directory ./monorepo --depth 2
 ```
 
-### Planned (Phase 4)
+### Generate pixi.lock
 ```bash
 # Generate pixi.lock (requires pixi CLI)
 unidep pixi-lock
@@ -155,8 +154,12 @@ unidep pixi-lock
 # Generate pixi.lock + conda-lock.yml (requires pixi-to-conda-lock)
 unidep pixi-lock --conda-lock
 
-# Full workflow
+# Full workflow with options
 unidep pixi-lock --directory ./monorepo --depth 2
+unidep pixi-lock --regenerate              # Force regeneration
+unidep pixi-lock --check-input-hash        # Skip if up to date
+unidep pixi-lock --only-pixi-lock          # Skip pixi.toml generation
+unidep pixi-lock -o /path/to/pixi.toml     # Custom output path
 ```
 
 ## Testing Strategy
