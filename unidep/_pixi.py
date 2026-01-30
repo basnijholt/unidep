@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
 from unidep._conflicts import VersionConflictError, combine_version_pinnings
 from unidep._dependencies_parsing import parse_requirements
-from unidep.platform_definitions import platforms_from_selector
+from unidep.platform_definitions import Spec, platforms_from_selector
 from unidep.utils import identify_current_platform, is_pip_installable
 
 if TYPE_CHECKING:
@@ -326,16 +326,18 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 pixi_data["environments"][env_name] = [feat]
 
     # Set workspace metadata with collected channels and platforms
-    final_platforms = (
+    # Sort for deterministic output
+    final_platforms = sorted(
         list(all_platforms)
         if all_platforms
-        else (platforms or [identify_current_platform()])
+        else (platforms or [identify_current_platform()]),
+    )
+    final_channels = sorted(
+        list(all_channels) if all_channels else (channels or ["conda-forge"]),
     )
     pixi_data["workspace"] = {
         "name": project_name or Path.cwd().name,
-        "channels": (
-            list(all_channels) if all_channels else (channels or ["conda-forge"])
-        ),
+        "channels": final_channels,
         "platforms": final_platforms,
     }
 
@@ -372,7 +374,7 @@ def _add_dep(
 
 
 def _extract_dependencies(
-    specs_dict: dict[str, list[Any]],
+    specs_dict: dict[str, list[Spec]],
 ) -> PlatformDeps:
     """Extract conda and pip dependencies from a dict of package specs.
 
