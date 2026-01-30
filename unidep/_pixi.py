@@ -30,6 +30,15 @@ if TYPE_CHECKING:
         Tuple[Dict[str, VersionSpec], Dict[str, VersionSpec]],
     ]
 
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib  # pragma: no cover
+    HAS_TOML = True
+except ImportError:  # pragma: no cover
+    HAS_TOML = False
+
 
 def _parse_version_build(pin: str | None) -> str | dict[str, str]:
     """Parse a version pin that may contain a build string.
@@ -159,16 +168,6 @@ def _merge_version_specs(
     if merged_extras:
         return {"version": merged_version, "extras": merged_extras}
     return merged_version
-
-
-try:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib  # pragma: no cover
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
 
 
 def _get_package_name(project_dir: Path) -> str | None:
