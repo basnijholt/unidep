@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from unidep._pixi import generate_pixi_toml
+from unidep._pixi import (
+    _make_pip_version_spec,
+    _merge_version_specs,
+    _parse_package_extras,
+    _parse_version_build,
+    generate_pixi_toml,
+)
 from unidep._pixi_lock import (
     _check_pixi_installed,
     _convert_to_conda_lock,
@@ -943,6 +949,225 @@ def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
     assert 'pytest = "*"' in content
     assert "[feature.project2-lint.dependencies]" in content
     assert 'black = "*"' in content
+
+
+# Tests for build string parsing
+
+
+def test_parse_version_build_simple() -> None:
+    """Test _parse_version_build with simple version specs."""
+    assert _parse_version_build(None) == "*"
+    assert _parse_version_build("") == "*"
+    assert _parse_version_build(">=1.0") == ">=1.0"
+    assert _parse_version_build("=11") == "=11"
+    assert _parse_version_build("1.2.3") == "1.2.3"
+
+
+def test_parse_version_build_with_build_string() -> None:
+    """Test _parse_version_build with build strings."""
+    result = _parse_version_build(">=0.21.0 cuda*")
+    assert result == {"version": ">=0.21.0", "build": "cuda*"}
+
+    result = _parse_version_build("=11 h1234*")
+    assert result == {"version": "=11", "build": "h1234*"}
+
+    result = _parse_version_build("1.0 py310*")
+    assert result == {"version": "1.0", "build": "py310*"}
+
+
+def test_pixi_with_build_string(tmp_path: Path) -> None:
+    """Test pixi.toml generation with build strings in version specs."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: qsimcirq >=0.21.0 cuda*  # [linux64]
+              - gcc =11
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    content = output_file.read_text()
+
+    # Check that build string is properly formatted (tomli_w uses nested sections)
+    assert "[target.linux-64.dependencies.qsimcirq]" in content
+    assert 'version = ">=0.21.0"' in content
+    assert 'build = "cuda*"' in content
+    # Simple version without build string should still work
+    assert 'gcc = "=11"' in content
+
+
+def test_parse_package_extras_simple() -> None:
+    """Test _parse_package_extras with packages without extras."""
+    assert _parse_package_extras("numpy") == ("numpy", [])
+    assert _parse_package_extras("my-package") == ("my-package", [])
+    assert _parse_package_extras("pkg.name") == ("pkg.name", [])
+
+
+def test_parse_package_extras_with_extras() -> None:
+    """Test _parse_package_extras with packages that have extras."""
+    assert _parse_package_extras("pipefunc[extras]") == ("pipefunc", ["extras"])
+    assert _parse_package_extras("package[dev,test]") == ("package", ["dev", "test"])
+    assert _parse_package_extras("pkg[a, b, c]") == ("pkg", ["a", "b", "c"])
+
+
+def test_make_pip_version_spec_no_extras() -> None:
+    """Test _make_pip_version_spec without extras returns unchanged version."""
+    assert _make_pip_version_spec("*", []) == "*"
+    assert _make_pip_version_spec(">=1.0", []) == ">=1.0"
+    assert _make_pip_version_spec({"version": ">=1.0", "build": "py*"}, []) == {
+        "version": ">=1.0",
+        "build": "py*",
+    }
+
+
+def test_make_pip_version_spec_with_extras() -> None:
+    """Test _make_pip_version_spec with extras returns table format."""
+    result = _make_pip_version_spec("*", ["dev"])
+    assert result == {"version": "*", "extras": ["dev"]}
+
+    result = _make_pip_version_spec(">=1.0", ["dev", "test"])
+    assert result == {"version": ">=1.0", "extras": ["dev", "test"]}
+
+    # Also works with dict version (with build string)
+    result = _make_pip_version_spec({"version": ">=1.0", "build": "py*"}, ["extra"])
+    assert result == {"version": ">=1.0", "build": "py*", "extras": ["extra"]}
+
+
+def test_pixi_with_pip_extras(tmp_path: Path) -> None:
+    """Test pixi.toml generation with pip extras."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: pipefunc[extras]
+              - pip: package[dev,test] >=1.0
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    content = output_file.read_text()
+
+    # Check that extras are properly formatted as table sections
+    # tomli_w formats lists on separate lines
+    assert "[pypi-dependencies.pipefunc]" in content
+    assert 'version = "*"' in content
+    assert '"extras"' in content  # The extra name is in the extras list
+
+    assert "[pypi-dependencies.package]" in content
+    assert 'version = ">=1.0"' in content
+    assert '"dev"' in content
+    assert '"test"' in content
+
+
+def test_merge_version_specs_none_existing() -> None:
+    """Test _merge_version_specs when existing is None."""
+    assert _merge_version_specs(None, ">=1.0", "pkg") == ">=1.0"
+    assert _merge_version_specs(None, "*", "pkg") == "*"
+
+
+def test_merge_version_specs_simple_merge() -> None:
+    """Test _merge_version_specs merges compatible constraints."""
+    # >=1.7,<2 + <1.16 -> >=1.7,<1.16
+    result = _merge_version_specs(">=1.7,<2", "<1.16", "scipy")
+    assert result == ">=1.7,<1.16"
+
+    # >=1.0 + <2.0 -> >=1.0,<2.0
+    result = _merge_version_specs(">=1.0", "<2.0", "pkg")
+    assert result == ">=1.0,<2.0"
+
+
+def test_merge_version_specs_star_handling() -> None:
+    """Test _merge_version_specs handles * (no constraint) correctly."""
+    # * + >=1.0 -> >=1.0
+    assert _merge_version_specs("*", ">=1.0", "pkg") == ">=1.0"
+
+    # >=1.0 + * -> >=1.0
+    assert _merge_version_specs(">=1.0", "*", "pkg") == ">=1.0"
+
+    # * + * -> *
+    assert _merge_version_specs("*", "*", "pkg") == "*"
+
+
+def test_merge_version_specs_with_build_string() -> None:
+    """Test _merge_version_specs handles build strings correctly."""
+    # Can't merge build strings - prefer the one with build
+    existing_with_build = {"version": ">=1.0", "build": "cuda*"}
+    new_str = ">=2.0"
+    result = _merge_version_specs(existing_with_build, new_str, "pkg")
+    assert result == existing_with_build  # Keep existing with build
+
+    # If new has build, use new
+    existing_str = ">=1.0"
+    new_with_build = {"version": ">=2.0", "build": "py310*"}
+    result = _merge_version_specs(existing_str, new_with_build, "pkg")
+    assert result == new_with_build
+
+
+def test_merge_version_specs_with_extras() -> None:
+    """Test _merge_version_specs merges extras correctly."""
+    existing = {"version": ">=1.0", "extras": ["dev"]}
+    new = {"version": "<2.0", "extras": ["test"]}
+    result = _merge_version_specs(existing, new, "pkg")
+    assert isinstance(result, dict)
+    assert result["version"] == ">=1.0,<2.0"
+    assert set(result["extras"]) == {"dev", "test"}
+
+
+def test_merge_version_specs_conflict() -> None:
+    """Test _merge_version_specs handles conflicting constraints."""
+    # >=2.0 and <1.0 conflict - should prefer new
+    result = _merge_version_specs(">=2.0", "<1.0", "pkg")
+    assert result == "<1.0"  # Prefers new when conflict
+
+    # When new is *, keep existing
+    result = _merge_version_specs(">=2.0", "*", "pkg")
+    assert result == ">=2.0"
+
+
+def test_pixi_with_merged_constraints(tmp_path: Path) -> None:
+    """Test pixi.toml generation merges version constraints."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - scipy >=1.7,<2
+              - scipy <1.16
+              - numpy >=1.20
+              - numpy <2.0
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    content = output_file.read_text()
+
+    # Check that constraints are merged
+    assert 'scipy = ">=1.7,<1.16"' in content
+    assert 'numpy = ">=1.20,<2.0"' in content
 
 
 # Tests for pixi-lock command

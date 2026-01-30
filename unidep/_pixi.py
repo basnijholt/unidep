@@ -1,11 +1,13 @@
-"""Simple Pixi.toml generation without conflict resolution."""
+"""Pixi.toml generation with version constraint merging."""
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
+from unidep._conflicts import VersionConflictError, combine_version_pinnings
 from unidep._dependencies_parsing import parse_requirements
 from unidep.platform_definitions import platforms_from_selector
 from unidep.utils import identify_current_platform, is_pip_installable
@@ -18,12 +20,146 @@ if TYPE_CHECKING:
 
     from unidep.platform_definitions import Platform
 
+    # Version spec can be a string or dict with version/build/extras
+    VersionSpec: TypeAlias = Union[str, Dict[str, Any]]
+
     # Type alias for the extracted dependencies structure
     # Maps platform (or None for universal) to (conda_deps, pip_deps)
     PlatformDeps: TypeAlias = Dict[
         Optional[str],
-        Tuple[Dict[str, str], Dict[str, str]],
+        Tuple[Dict[str, VersionSpec], Dict[str, VersionSpec]],
     ]
+
+
+def _parse_version_build(pin: str | None) -> str | dict[str, str]:
+    """Parse a version pin that may contain a build string.
+
+    Conda matchspecs can have format: ">=1.0 build_string*"
+    where the build string comes after a space following the version.
+
+    Returns:
+        str: Simple version string like ">=1.0" or "*"
+        dict: {"version": ">=1.0", "build": "build_string*"} when build present
+
+    """
+    if not pin:
+        return "*"
+
+    # Pattern to match version spec followed by optional build string
+    # Version spec: starts with optional operator (>=, <=, ==, =, <, >, ~=)
+    # followed by version number (digits, dots, letters)
+    # Build string: anything after a space that's not an operator
+    match = re.match(
+        r"^([><=!~]*\s*[\d\w.*]+(?:[.,][\d\w.*]+)*)\s+(\S+)$",
+        pin.strip(),
+    )
+
+    if match:
+        version = match.group(1).replace(" ", "")
+        build = match.group(2)
+        return {"version": version, "build": build}
+
+    # No build string, just return the version without spaces
+    return pin.replace(" ", "")
+
+
+def _parse_package_extras(pkg_name: str) -> tuple[str, list[str]]:
+    """Parse a package name that may contain extras.
+
+    Pip packages can have format: "package[extra1,extra2]"
+
+    Returns:
+        tuple: (base_name, extras_list) where extras_list is empty if no extras
+
+    """
+    match = re.match(r"^([a-zA-Z0-9_.\-]+)\[([^\]]+)\]$", pkg_name)
+    if match:
+        base_name = match.group(1)
+        extras = [e.strip() for e in match.group(2).split(",")]
+        return base_name, extras
+    return pkg_name, []
+
+
+def _make_pip_version_spec(
+    version: str | dict[str, str],
+    extras: list[str],
+) -> str | dict[str, Any]:
+    """Create a pip version spec, handling extras if present.
+
+    Pixi requires extras in table format:
+        package = { version = "*", extras = ["extra1", "extra2"] }
+
+    Returns:
+        str: Simple version string if no extras
+        dict: Table with version and extras if extras present
+
+    """
+    if not extras:
+        return version
+
+    # When we have extras, we need table format
+    if isinstance(version, str):
+        return {"version": version, "extras": extras}
+    # version is already a dict (has build string), add extras
+    return {**version, "extras": extras}
+
+
+def _merge_version_specs(
+    existing: str | dict[str, Any] | None,
+    new: str | dict[str, Any],
+    pkg_name: str,
+) -> str | dict[str, Any]:
+    """Merge two version specs, combining version constraints.
+
+    Uses combine_version_pinnings from _conflicts.py to properly merge
+    constraints like ">=1.7,<2" + "<1.16" -> ">=1.7,<1.16".
+
+    If either spec has a build string, we can't merge and prefer the new one
+    if it has a pin, otherwise keep existing.
+
+    """
+    if existing is None:
+        return new
+
+    # If either is a dict with build string, we can't merge version constraints
+    existing_has_build = isinstance(existing, dict) and "build" in existing
+    new_has_build = isinstance(new, dict) and "build" in new
+
+    if existing_has_build or new_has_build:
+        # Can't merge build strings - prefer the one with build, or new if both have
+        if new_has_build:
+            return new
+        return existing
+
+    # Extract version strings
+    existing_version = existing["version"] if isinstance(existing, dict) else existing
+    new_version = new["version"] if isinstance(new, dict) else new
+
+    # Handle "*" (no constraint)
+    if existing_version == "*":
+        merged_version = new_version
+    elif new_version == "*":
+        merged_version = existing_version
+    else:
+        # Merge the version constraints
+        try:
+            merged_version = combine_version_pinnings(
+                [existing_version, new_version],
+                name=pkg_name,
+            )
+        except VersionConflictError:
+            # If constraints conflict, prefer the more specific one (new if pinned)
+            merged_version = new_version if new_version != "*" else existing_version
+
+    # Handle extras (for pip packages)
+    existing_extras = existing.get("extras", []) if isinstance(existing, dict) else []
+    new_extras = new.get("extras", []) if isinstance(new, dict) else []
+    merged_extras = list(set(existing_extras) | set(new_extras))
+
+    if merged_extras:
+        return {"version": merged_version, "extras": merged_extras}
+    return merged_version
+
 
 try:
     if sys.version_info >= (3, 11):
@@ -211,55 +347,76 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
 
-def _extract_dependencies(  # noqa: PLR0912
+def _add_dep(
+    conda_deps: dict[str, VersionSpec],
+    pip_deps: dict[str, VersionSpec],
+    spec_which: str,
+    pkg_name: str,
+    base_name: str,
+    version: VersionSpec,
+    pip_version: VersionSpec,
+) -> None:
+    """Add a dependency to the appropriate dict, merging version constraints."""
+    if spec_which == "conda":
+        conda_deps[pkg_name] = _merge_version_specs(
+            conda_deps.get(pkg_name),
+            version,
+            pkg_name,
+        )
+    elif spec_which == "pip" and base_name not in conda_deps:
+        # Only add to pip if not already in conda
+        pip_deps[base_name] = _merge_version_specs(
+            pip_deps.get(base_name),
+            pip_version,
+            base_name,
+        )
+
+
+def _extract_dependencies(
     specs_dict: dict[str, list[Any]],
 ) -> PlatformDeps:
     """Extract conda and pip dependencies from a dict of package specs.
 
     Returns a dict mapping platform (or None for universal) to (conda_deps, pip_deps).
     Platform-specific dependencies are mapped to their respective platforms.
-    No conflict resolution - just pass through what's specified.
+    Version constraints are merged using combine_version_pinnings to ensure
+    consistency with pip package metadata generated by unidep's setuptools hook.
+
     """
-    # Initialize with universal deps (None key)
     platform_deps: PlatformDeps = {None: ({}, {})}
 
-    # Process each package's specifications
     for pkg_name, specs in specs_dict.items():
         for spec in specs:
-            # Format the version pin or use "*" if no pin
-            version = spec.pin.replace(" ", "") if spec.pin else "*"
+            version = _parse_version_build(spec.pin)
 
-            if spec.selector:
-                # Platform-specific dependency
-                # Get list of platforms this selector maps to
-                target_platforms = platforms_from_selector(spec.selector)
-                for platform in target_platforms:
-                    if platform not in platform_deps:
-                        platform_deps[platform] = ({}, {})
-                    conda_deps, pip_deps = platform_deps[platform]
-                    if spec.which == "conda":
-                        # Prefer pinned versions
-                        if pkg_name not in conda_deps or spec.pin:
-                            conda_deps[pkg_name] = version
-                    elif spec.which == "pip":  # noqa: SIM102
-                        # Only add to pip if not already in conda for this platform
-                        if pkg_name not in conda_deps and (
-                            pkg_name not in pip_deps or spec.pin
-                        ):
-                            pip_deps[pkg_name] = version
+            # For pip packages, parse extras from package name
+            if spec.which == "pip":
+                base_name, extras = _parse_package_extras(pkg_name)
+                pip_version = _make_pip_version_spec(version, extras)
             else:
-                # Universal dependency (no platform selector)
-                conda_deps, pip_deps = platform_deps[None]
-                if spec.which == "conda":
-                    # Prefer pinned versions
-                    if pkg_name not in conda_deps or spec.pin:
-                        conda_deps[pkg_name] = version
-                elif spec.which == "pip":  # noqa: SIM102
-                    # Only add to pip if not already in conda
-                    if pkg_name not in conda_deps and (
-                        pkg_name not in pip_deps or spec.pin
-                    ):
-                        pip_deps[pkg_name] = version
+                base_name = pkg_name
+                pip_version = version
+
+            # Get target platforms (list of one platform, or [None] for universal)
+            targets: Sequence[Platform | None]
+            if spec.selector:
+                targets = platforms_from_selector(spec.selector)
+            else:
+                targets = [None]
+
+            for platform in targets:
+                if platform not in platform_deps:
+                    platform_deps[platform] = ({}, {})
+                conda_deps, pip_deps = platform_deps[platform]
+                _add_dep(
+                    conda_deps,
+                    pip_deps,
+                    spec.which,
+                    pkg_name,
+                    base_name,
+                    version,
+                    pip_version,
+                )
 
     return platform_deps
 

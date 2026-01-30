@@ -55,7 +55,28 @@ Pixi handles all dependency resolution, conflict management, and lock file gener
 - [x] Add `--check-input-hash` equivalent (file timestamp-based)
 - [ ] Support monorepo per-package lock files (future enhancement)
 
-### Phase 5: Pixi as Install Backend (Optional)
+### Phase 5: Version Constraint Merging ✅
+
+**Problem discovered**: When editable pip packages are used, unidep's setuptools hook
+merges version constraints (e.g., `scipy >=1.7,<2` + `scipy <1.16` → `scipy >=1.7,<1.16`),
+but the pixi.toml generation was NOT merging constraints. This caused conflicts:
+
+1. pixi.toml has `scipy = ">=1.7,<2"` (not merged with `<1.16` from another package)
+2. Conda picks `scipy 1.16.3` (satisfies `>=1.7,<2`)
+3. But editable pip package has merged constraint `scipy >=1.7,<1.16` in its metadata
+4. **Conflict!** pip can't install because conda pinned scipy 1.16.3
+
+**Solution**: Reuse `combine_version_pinnings` from `_conflicts.py` to merge constraints
+in pixi.toml generation, ensuring consistency with setuptools hook behavior.
+
+- [x] Identify the bug (constraints not merged in pixi generation)
+- [x] Import and use `combine_version_pinnings` in `_pixi.py`
+- [x] Collect all version pins for each package before writing
+- [x] Merge compatible constraints (e.g., `>=1.7,<2` + `<1.16` → `>=1.7,<1.16`)
+- [x] Add tests for constraint merging
+- [x] Handle build strings during merge (skip merging if build strings present)
+
+### Phase 6: Pixi as Install Backend (Optional)
 
 - [ ] Add `--pixi` flag to `unidep install`
 - [ ] Use `pixi run` for command execution
@@ -63,8 +84,12 @@ Pixi handles all dependency resolution, conflict management, and lock file gener
 
 ## Key Design Decisions
 
-### 1. No Conflict Resolution
-Pixi handles all dependency resolution. UniDep just translates the specification format.
+### 1. Version Constraint Merging (Updated)
+Originally, the philosophy was "let pixi resolve" without merging constraints. However,
+this causes issues with editable pip packages because unidep's setuptools integration
+DOES merge constraints when generating pip package metadata. To ensure consistency,
+pixi.toml generation now also merges constraints using the same `combine_version_pinnings`
+function used elsewhere in unidep.
 
 ### 2. Platform Mapping
 
