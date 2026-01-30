@@ -4,22 +4,35 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 from unidep._dependencies_parsing import parse_requirements
+from unidep.platform_definitions import platforms_from_selector
 from unidep.utils import identify_current_platform, is_pip_installable
 
 if TYPE_CHECKING:
+    if sys.version_info >= (3, 10):
+        from typing import TypeAlias
+    else:
+        from typing_extensions import TypeAlias
+
     from unidep._dependencies_parsing import ParsedRequirements
     from unidep.platform_definitions import Platform
+
+    # Type alias for the extracted dependencies structure
+    # Maps platform (or None for universal) to (conda_deps, pip_deps)
+    PlatformDeps: TypeAlias = Dict[
+        Optional[str],
+        Tuple[Dict[str, str], Dict[str, str]],
+    ]
 
 try:
     if sys.version_info >= (3, 11):
         import tomllib
     else:
-        import tomli as tomllib
+        import tomli as tomllib  # pragma: no cover
     HAS_TOML = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAS_TOML = False
 
 
@@ -27,16 +40,13 @@ def _get_package_name(project_dir: Path) -> str | None:
     """Get the package name from pyproject.toml or setup.py."""
     pyproject_path = project_dir / "pyproject.toml"
     if pyproject_path.exists() and HAS_TOML:
-        try:
-            with pyproject_path.open("rb") as f:
-                data = tomllib.load(f)
-                if "project" in data and "name" in data["project"]:
-                    # Normalize package name for use in dependencies
-                    # Replace dots and hyphens with underscores
-                    name = data["project"]["name"]
-                    return name.replace("-", "_").replace(".", "_")
-        except Exception:  # noqa: S110, BLE001
-            pass
+        with pyproject_path.open("rb") as f:
+            data = tomllib.load(f)
+            if "project" in data and "name" in data["project"]:
+                # Normalize package name for use in dependencies
+                # Replace dots and hyphens with underscores
+                name = data["project"]["name"]
+                return name.replace("-", "_").replace(".", "_")
     # Fallback to directory name
     return project_dir.name
 
@@ -67,7 +77,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
         req = parse_requirements(requirements_files[0], verbose=verbose)
-        conda_deps, pip_deps = _extract_dependencies(req)
+        platform_deps = _extract_dependencies(req)
 
         # Use channels and platforms from the requirements file
         if req.channels:
@@ -75,10 +85,16 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         if req.platforms:
             all_platforms.update(req.platforms)
 
+        # Get universal (non-platform-specific) dependencies
+        conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
+
         if conda_deps:
             pixi_data["dependencies"] = conda_deps
         if pip_deps:
             pixi_data["pypi-dependencies"] = pip_deps
+
+        # Add platform-specific dependencies as target sections
+        _add_target_sections(pixi_data, platform_deps)
 
         # Check if there's a local package in the same directory
         req_file = requirements_files[0]
@@ -102,7 +118,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         for req_file in requirements_files:
             feature_name = req_file.parent.stem if req_file.is_file() else req_file.stem
             req = parse_requirements(req_file, verbose=verbose)
-            conda_deps, pip_deps = _extract_dependencies(req)
+            platform_deps = _extract_dependencies(req)
 
             # Collect channels and platforms
             if req.channels:
@@ -110,11 +126,29 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if req.platforms:
                 all_platforms.update(req.platforms)
 
+            # Get universal (non-platform-specific) dependencies
+            conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
+
             feature: dict[str, Any] = {}
             if conda_deps:
                 feature["dependencies"] = conda_deps
             if pip_deps:
                 feature["pypi-dependencies"] = pip_deps
+
+            # Add platform-specific dependencies as target sections within the feature
+            for platform, (plat_conda, plat_pip) in platform_deps.items():
+                if platform is None:
+                    continue
+                # Note: platforms only exist in platform_deps if they have deps,
+                # so we don't need to check for empty plat_conda/plat_pip
+                if "target" not in feature:
+                    feature["target"] = {}
+                if platform not in feature["target"]:
+                    feature["target"][platform] = {}
+                if plat_conda:
+                    feature["target"][platform]["dependencies"] = plat_conda
+                if plat_pip:
+                    feature["target"][platform]["pypi-dependencies"] = plat_pip
 
             # Check if there's a local package in the same directory
             req_dir = req_file.parent if req_file.is_file() else req_file
@@ -144,64 +178,136 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 pixi_data["environments"][env_name] = [feat]
 
     # Set project metadata with collected channels and platforms
+    final_platforms = (
+        list(all_platforms)
+        if all_platforms
+        else (platforms or [identify_current_platform()])
+    )
     pixi_data["project"] = {
         "name": project_name or Path.cwd().name,
         "channels": (
             list(all_channels) if all_channels else (channels or ["conda-forge"])
         ),
-        "platforms": (
-            list(all_platforms)
-            if all_platforms
-            else (platforms or [identify_current_platform()])
-        ),
+        "platforms": final_platforms,
     }
+
+    # Filter target sections to only include platforms in the project's platforms list
+    _filter_targets_by_platforms(pixi_data, set(final_platforms))
 
     # Write the pixi.toml file
     _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
 
-def _extract_dependencies(
+def _extract_dependencies(  # noqa: PLR0912
     requirements: ParsedRequirements,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> PlatformDeps:
     """Extract conda and pip dependencies from parsed requirements.
 
-    Returns a tuple of (conda_deps, pip_deps) as simple name->version dicts.
+    Returns a dict mapping platform (or None for universal) to (conda_deps, pip_deps).
+    Platform-specific dependencies are mapped to their respective platforms.
     No conflict resolution - just pass through what's specified.
     """
-    conda_deps = {}
-    pip_deps = {}
+    # Initialize with universal deps (None key)
+    platform_deps: PlatformDeps = {None: ({}, {})}
 
     # Process each package's specifications
     for pkg_name, specs in requirements.requirements.items():
-        conda_spec = None
-        pip_spec = None
-
         for spec in specs:
             # Format the version pin or use "*" if no pin
             version = spec.pin.replace(" ", "") if spec.pin else "*"
 
-            # Add platform selector if present
             if spec.selector:
-                # In pixi.toml, platform selectors go in target section
-                # For now, we'll skip platform-specific deps for simplicity
-                # This can be enhanced later if needed
-                continue
+                # Platform-specific dependency
+                # Get list of platforms this selector maps to
+                target_platforms = platforms_from_selector(spec.selector)
+                for platform in target_platforms:
+                    if platform not in platform_deps:
+                        platform_deps[platform] = ({}, {})
+                    conda_deps, pip_deps = platform_deps[platform]
+                    if spec.which == "conda":
+                        # Prefer pinned versions
+                        if pkg_name not in conda_deps or spec.pin:
+                            conda_deps[pkg_name] = version
+                    elif spec.which == "pip":  # noqa: SIM102
+                        # Only add to pip if not already in conda for this platform
+                        if pkg_name not in conda_deps and (
+                            pkg_name not in pip_deps or spec.pin
+                        ):
+                            pip_deps[pkg_name] = version
+            else:
+                # Universal dependency (no platform selector)
+                conda_deps, pip_deps = platform_deps[None]
+                if spec.which == "conda":
+                    # Prefer pinned versions
+                    if pkg_name not in conda_deps or spec.pin:
+                        conda_deps[pkg_name] = version
+                elif spec.which == "pip":  # noqa: SIM102
+                    # Only add to pip if not already in conda
+                    if pkg_name not in conda_deps and (
+                        pkg_name not in pip_deps or spec.pin
+                    ):
+                        pip_deps[pkg_name] = version
 
-            if spec.which == "conda":
-                # Keep the conda spec, prefer pinned versions
-                if conda_spec is None or spec.pin:
-                    conda_spec = version
-            elif spec.which == "pip" and (pip_spec is None or spec.pin):
-                # Keep the pip spec, prefer pinned versions
-                pip_spec = version
+    return platform_deps
 
-        # Add to appropriate section
-        if conda_spec:
-            conda_deps[pkg_name] = conda_spec
-        if pip_spec and pkg_name not in conda_deps:  # Only add to pip if not in conda
-            pip_deps[pkg_name] = pip_spec
 
-    return conda_deps, pip_deps
+def _add_target_sections(
+    pixi_data: dict[str, Any],
+    platform_deps: PlatformDeps,
+) -> None:
+    """Add target.<platform>.dependencies sections for platform-specific deps."""
+    for platform, (conda_deps, pip_deps) in platform_deps.items():
+        if platform is None:
+            # Universal deps are handled separately
+            continue
+        # Note: platforms only exist in platform_deps if they have deps,
+        # so we don't need to check for empty conda_deps/pip_deps
+
+        # Initialize target section if needed
+        if "target" not in pixi_data:
+            pixi_data["target"] = {}
+        if platform not in pixi_data["target"]:
+            pixi_data["target"][platform] = {}
+
+        target = pixi_data["target"][platform]
+        if conda_deps:
+            target["dependencies"] = conda_deps
+        if pip_deps:
+            target["pypi-dependencies"] = pip_deps
+
+
+def _filter_targets_by_platforms(
+    pixi_data: dict[str, Any],
+    valid_platforms: set[str],
+) -> None:
+    """Filter target sections to only include platforms in valid_platforms.
+
+    This removes targets for platforms that aren't in the project's platforms list,
+    which would otherwise cause pixi to emit warnings.
+    """
+    # Filter root-level targets
+    if "target" in pixi_data:
+        pixi_data["target"] = {
+            platform: deps
+            for platform, deps in pixi_data["target"].items()
+            if platform in valid_platforms
+        }
+        # Remove empty target section
+        if not pixi_data["target"]:
+            del pixi_data["target"]
+
+    # Filter feature-level targets
+    if "feature" in pixi_data:
+        for feature_data in pixi_data["feature"].values():
+            if "target" in feature_data:
+                feature_data["target"] = {
+                    platform: deps
+                    for platform, deps in feature_data["target"].items()
+                    if platform in valid_platforms
+                }
+                # Remove empty target section
+                if not feature_data["target"]:
+                    del feature_data["target"]
 
 
 def _write_pixi_toml(
@@ -213,7 +319,7 @@ def _write_pixi_toml(
     """Write the pixi data structure to a TOML file."""
     try:
         import tomli_w
-    except ImportError:
+    except ImportError:  # pragma: no cover
         msg = (
             "❌ `tomli_w` is required to write TOML files. "
             "Install it with `pip install tomli_w`."

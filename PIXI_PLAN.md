@@ -1,111 +1,176 @@
-# Pixi Integration - Simple Implementation Plan
+# Pixi Integration - Implementation Plan
 
 ## Core Philosophy
 **Let UniDep translate, let Pixi resolve**
 
-UniDep should act as a simple translator from `requirements.yaml`/`pyproject.toml` to `pixi.toml` format.
+UniDep acts as a translator from `requirements.yaml`/`pyproject.toml` to `pixi.toml` format.
 Pixi handles all dependency resolution, conflict management, and lock file generation.
 
-## Current Problem with `pixi` Branch
-- **Over-engineering**: Pre-resolves conflicts that Pixi can handle
-- **Origin tracking**: Complex system to track where each dependency came from
-- **Unnecessary complexity**: ~500+ lines of code for what should be ~100 lines
+## Workflow Overview
 
-## New Simple Architecture
-
-### Phase 1: Basic Pixi.toml Generation ✅
-- [x] Create minimal `_pixi.py` module (~100 lines)
-- [ ] Parse requirements WITHOUT resolution
-- [ ] Create features with literal dependencies
-- [ ] Generate pixi.toml with proper structure
-- [ ] Add `--pixi` flag to merge command
-
-### Phase 2: Pixi Lock Command
-- [ ] Add `pixi-lock` subcommand to CLI
-- [ ] Simple wrapper around `pixi lock` command
-- [ ] Support platform selection
-- [ ] Add basic tests
-
-### Phase 3: Monorepo Support (Optional)
-- [ ] Generate sub-lock files if needed
-- [ ] But let Pixi handle the complexity
-
-## Implementation Details
-
-### 1. Simple Pixi.toml Structure
-```python
-def generate_pixi_toml(requirements_files, output_file):
-    pixi_data = {
-        "project": {
-            "name": "myenv",
-            "channels": channels,
-            "platforms": platforms,
-        },
-        "dependencies": {},
-        "pypi-dependencies": {},
-    }
-
-    # For monorepo: create features
-    if len(requirements_files) > 1:
-        pixi_data["feature"] = {}
-        pixi_data["environments"] = {}
-
-        for req_file in requirements_files:
-            feature_name = req_file.parent.stem
-            deps = parse_single_file(req_file)  # NO RESOLUTION!
-
-            pixi_data["feature"][feature_name] = {
-                "dependencies": deps.conda,  # Literal copy
-                "pypi-dependencies": deps.pip,  # Literal copy
-            }
-
-        # Create environments
-        all_features = list(pixi_data["feature"].keys())
-        pixi_data["environments"]["default"] = all_features
-        for feat in all_features:
-            pixi_data["environments"][feat.replace("_", "-")] = [feat]
+```
+┌─────────────────────┐     ┌───────────┐     ┌────────────┐     ┌────────────────┐
+│ requirements.yaml   │────▶│ pixi.toml │────▶│ pixi.lock  │────▶│ conda-lock.yml │
+│ pyproject.toml      │     │           │     │            │     │                │
+└─────────────────────┘     └───────────┘     └────────────┘     └────────────────┘
+        unidep                unidep             pixi            pixi-to-conda-lock
+                            merge --pixi         lock              (optional)
 ```
 
-### 2. Key Simplifications
-- **NO conflict resolution** - Pixi handles this
-- **NO origin tracking** - Not needed
-- **NO version pinning combination** - Pixi does this
-- **NO platform resolution** - Use Pixi's native platform support
+## Implementation Phases
 
-### 3. Testing Strategy
-- Test pixi.toml generation (structure validation)
-- Test CLI integration
-- Test with example monorepo
-- Let Pixi handle the actual resolution testing
+### Phase 1: Basic Pixi.toml Generation ✅
 
-## Files to Create/Modify
+- [x] Create `_pixi.py` module for pixi.toml generation
+- [x] Add `--pixi` flag to `unidep merge` command
+- [x] Support single file → root-level dependencies
+- [x] Support multiple files → features/environments
+- [x] Handle local editable packages
+- [x] Pass through version pins without resolution
+- [x] Add comprehensive tests
 
-### New Files
-1. `unidep/_pixi.py` - Simple pixi.toml generation (~100 lines)
-2. `tests/test_pixi.py` - Basic tests (~50 lines)
+### Phase 2: Platform Selectors ✅
 
-### Modified Files
-1. `unidep/_cli.py` - Add `--pixi` flag and `pixi-lock` command
-2. `README.md` - Document new Pixi support
+- [x] Map `# [linux64]` → `[target.linux-64.dependencies]`
+- [x] Map `# [osx]` → `[target.osx-64.dependencies]` + `[target.osx-arm64.dependencies]`
+- [x] Handle platform-specific pip dependencies
+- [x] Add tests for platform-specific generation
+
+### Phase 3: Optional Dependencies → Features
+
+- [ ] Map `optional_dependencies.dev` → `[feature.dev.dependencies]`
+- [ ] Create environment combinations (e.g., `dev = ["default", "dev"]`)
+- [ ] Support extras syntax in local dependencies
+
+### Phase 4: Lock File Integration (via pixi-to-conda-lock)
+
+- [ ] Add `pixi-to-conda-lock` as optional dependency (`unidep[pixi]`)
+- [ ] Add `unidep pixi-lock` command that:
+  1. Generates `pixi.toml` (if not exists or `--regenerate`)
+  2. Runs `pixi lock` to create `pixi.lock`
+  3. Converts to `conda-lock.yml` via `pixi-to-conda-lock`
+- [ ] Support `--only-pixi-lock` to skip conda-lock conversion
+- [ ] Support monorepo per-package lock files
+- [ ] Add `--check-input-hash` equivalent
+
+### Phase 5: Pixi as Install Backend (Optional)
+
+- [ ] Add `--pixi` flag to `unidep install`
+- [ ] Use `pixi run` for command execution
+- [ ] Leverage pixi's fast resolver for installations
+
+## Key Design Decisions
+
+### 1. No Conflict Resolution
+Pixi handles all dependency resolution. UniDep just translates the specification format.
+
+### 2. Platform Mapping
+
+| UniDep Selector | Pixi Target |
+|-----------------|-------------|
+| `# [linux64]` | `target.linux-64` |
+| `# [linux]` | `target.linux-64` + `target.linux-aarch64` |
+| `# [osx64]` | `target.osx-64` |
+| `# [arm64]` | `target.osx-arm64` |
+| `# [osx]` | `target.osx-64` + `target.osx-arm64` |
+| `# [win64]` | `target.win-64` |
+| `# [unix]` | All linux + osx targets |
+
+### 3. Dependency Type Mapping
+
+| UniDep | Pixi |
+|--------|------|
+| `- numpy` | `[dependencies] numpy = "*"` |
+| `- numpy >=1.20` | `[dependencies] numpy = ">=1.20"` |
+| `- conda: scipy` | `[dependencies] scipy = "*"` |
+| `- pip: requests` | `[pypi-dependencies] requests = "*"` |
+| `local_dependencies` | `[pypi-dependencies] pkg = { path = ".", editable = true }` |
+
+### 4. Optional Dependency Mapping
+
+```yaml
+# requirements.yaml
+optional_dependencies:
+  dev:
+    - pytest
+    - black
+  docs:
+    - sphinx
+```
+
+```toml
+# pixi.toml
+[feature.dev.dependencies]
+pytest = "*"
+black = "*"
+
+[feature.docs.dependencies]
+sphinx = "*"
+
+[environments]
+default = []
+dev = ["dev"]
+docs = ["docs"]
+all = ["dev", "docs"]
+```
+
+## Files Structure
+
+```
+unidep/
+├── _pixi.py              # Pixi.toml generation (✅ exists)
+├── _pixi_lock.py         # Lock file commands (Phase 4)
+└── _cli.py               # CLI with --pixi flag (✅ updated)
+
+tests/
+└── test_pixi.py          # Pixi tests (✅ exists)
+```
+
+## Optional Dependencies Configuration
+
+```toml
+# pyproject.toml
+[project.optional-dependencies]
+pixi = ["pixi-to-conda-lock"]
+all = ["...", "pixi-to-conda-lock"]
+```
+
+## CLI Commands
+
+### Current (Phase 1)
+```bash
+# Generate pixi.toml from requirements
+unidep merge --pixi
+unidep merge --pixi --output my-pixi.toml
+unidep merge --pixi --directory ./monorepo --depth 2
+```
+
+### Planned (Phase 4)
+```bash
+# Generate pixi.lock (requires pixi CLI)
+unidep pixi-lock
+
+# Generate pixi.lock + conda-lock.yml (requires pixi-to-conda-lock)
+unidep pixi-lock --conda-lock
+
+# Full workflow
+unidep pixi-lock --directory ./monorepo --depth 2
+```
+
+## Testing Strategy
+
+1. **Unit tests**: Validate pixi.toml structure
+2. **Integration tests**: Run `pixi lock` on generated files
+3. **Monorepo tests**: Test with example/ directory
+4. **Round-trip tests**: UniDep → pixi.toml → pixi.lock → conda-lock.yml
 
 ## Success Criteria
-- [ ] Generate valid pixi.toml files
-- [ ] Pass all tests
-- [ ] Work with monorepo example
-- [ ] Total implementation < 200 lines (vs 500+ in old branch)
 
-## Timeline
-- **Hour 1-2**: Basic pixi.toml generation ✅
-- **Hour 3-4**: CLI integration and testing
-- **Hour 5-6**: Documentation and polish
-
-## Testing Checkpoints
-After each major change:
-1. Run tests: `pytest tests/test_pixi.py -xvs`
-2. Test with monorepo: `unidep merge --pixi tests/simple_monorepo`
-3. Validate pixi.toml: `pixi list`
-
-## Commit Strategy
-- Commit after each working phase
-- Clear commit messages
-- Test before each commit
+- [x] Generate valid pixi.toml files
+- [x] Pass all unit tests
+- [x] Work with single-file projects
+- [x] Work with monorepo (multiple requirements files)
+- [x] Support platform-specific dependencies
+- [ ] Support optional dependencies as features
+- [ ] Integrate with pixi-to-conda-lock for lock files
+- [ ] Document workflow in README
