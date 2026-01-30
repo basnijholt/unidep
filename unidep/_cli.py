@@ -286,15 +286,14 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
     merge_help = (
         f"Combine multiple (or a single) {_DEP_FILES}"
         " files into a"
-        " single Conda installable `environment.yaml` file"
-        " or Pixi installable `pixi.toml` file."
+        " single Conda installable `environment.yaml` file."
     )
     merge_example = (
         " Example usage: `unidep merge --directory . --depth 1 --output environment.yaml`"  # noqa: E501
         f" to search for {_DEP_FILES}"
         " files in the current directory and its"
         " subdirectories and create `environment.yaml`. These are the defaults, so you"
-        " can also just run `unidep merge`."
+        " can also just run `unidep merge`. For Pixi support, use `unidep pixi init`."
     )
     parser_merge = subparsers.add_parser(
         "merge",
@@ -307,8 +306,7 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         "--output",
         type=Path,
         default=None,
-        help="Output file for the conda environment, by default `environment.yaml`"
-        " or `pixi.toml` if `--pixi` is used",
+        help="Output file for the conda environment, by default `environment.yaml`",
     )
     parser_merge.add_argument(
         "-n",
@@ -330,11 +328,6 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         help="The selector to use for the environment markers, if `sel` then"
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
-    )
-    parser_merge.add_argument(
-        "--pixi",
-        action="store_true",
-        help="Generate a `pixi.toml` file instead of `environment.yaml`",
     )
     _add_common_args(
         parser_merge,
@@ -499,20 +492,78 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
     )
     _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
 
-    # Subparser for the 'pixi-lock' command
+    # Subparser for the 'pixi' command with nested subcommands
+    pixi_help = "Pixi integration commands for generating pixi.toml and lock files."
+    parser_pixi = subparsers.add_parser(
+        "pixi",
+        help=pixi_help,
+        description=pixi_help,
+        formatter_class=_HelpFormatter,
+    )
+    pixi_subparsers = parser_pixi.add_subparsers(
+        dest="pixi_command",
+        help="Pixi subcommands",
+    )
+
+    # pixi init - generate pixi.toml
+    pixi_init_help = f"Generate a `pixi.toml` file from {_DEP_FILES} files."
+    pixi_init_example = (
+        " Example usage: `unidep pixi init` to generate a pixi.toml file. "
+        "Use `--output` to specify a different output path. "
+        "Use `--name` to set the project name."
+    )
+    parser_pixi_init = pixi_subparsers.add_parser(
+        "init",
+        help=pixi_init_help,
+        description=pixi_init_help + pixi_init_example,
+        formatter_class=_HelpFormatter,
+    )
+    parser_pixi_init.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="Output path for pixi.toml (default: pixi.toml in current directory)",
+    )
+    parser_pixi_init.add_argument(
+        "-n",
+        "--name",
+        type=str,
+        default=None,
+        help="Name of the project (default: current directory name)",
+    )
+    parser_pixi_init.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Output to stdout instead of a file",
+    )
+    _add_common_args(
+        parser_pixi_init,
+        {
+            "directory",
+            "file-alt",
+            "verbose",
+            "platform",
+            "depth",
+            "ignore-pin",
+            "skip-dependency",
+            "overwrite-pin",
+        },
+    )
+
+    # pixi lock - generate pixi.lock
     pixi_lock_help = (
         "Generate a `pixi.lock` file from "
         f"{_DEP_FILES} files using Pixi. "
         "Optionally convert to `conda-lock.yml` format."
     )
     pixi_lock_example = (
-        " Example usage: `unidep pixi-lock` to generate a pixi.lock file. "
+        " Example usage: `unidep pixi lock` to generate a pixi.lock file. "
         "Use `--conda-lock` to also generate a conda-lock.yml file. "
         "Use `--check-input-hash` to skip regeneration if inputs haven't changed."
     )
-
-    parser_pixi_lock = subparsers.add_parser(
-        "pixi-lock",
+    parser_pixi_lock = pixi_subparsers.add_parser(
+        "lock",
         help=pixi_lock_help,
         description=pixi_lock_help + pixi_lock_example,
         formatter_class=_HelpFormatter,
@@ -523,7 +574,7 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         help="Also generate a conda-lock.yml file using pixi-to-conda-lock",
     )
     parser_pixi_lock.add_argument(
-        "--only-pixi-lock",
+        "--only-lock",
         action="store_true",
         help="Only run `pixi lock`, skip pixi.toml generation "
         "(requires existing pixi.toml)",
@@ -1339,13 +1390,12 @@ def _merge_command(
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
-    pixi: bool,
     verbose: bool,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
     if output is None:
-        output = Path("pixi.toml") if pixi else Path("environment.yaml")
+        output = Path("environment.yaml")
 
     if files:  # ignores depth and directory!
         found_files = files
@@ -1359,56 +1409,85 @@ def _merge_command(
             print(f"❌ No {_DEP_FILES} files found in {directory}")
             sys.exit(1)
 
-    if pixi:
-        # Use the new simple Pixi generation
-        from unidep._pixi import generate_pixi_toml
+    requirements = parse_requirements(
+        *found_files,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+    )
+    if not platforms:
+        platforms = requirements.platforms or [identify_current_platform()]
+    resolved = resolve_conflicts(
+        requirements.requirements,
+        platforms,
+        optional_dependencies=requirements.optional_dependencies,
+    )
+    env_spec = create_conda_env_specification(
+        resolved,
+        requirements.channels,
+        platforms,
+        selector=selector,
+    )
+    output_file = None if stdout else output
+    write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
+    if output_file:
+        found_files_str = ", ".join(f"`{f}`" for f in found_files)
+        print(
+            f"✅ Generated environment file at `{output_file}` from {found_files_str}",
+        )
 
-        requirements = parse_requirements(
-            *found_files,
-            ignore_pins=ignore_pins,
-            overwrite_pins=overwrite_pins,
-            skip_dependencies=skip_dependencies,
-            verbose=verbose,
-        )
-        output_file = None if stdout else output
-        generate_pixi_toml(
-            *found_files,
-            project_name=name,
-            channels=requirements.channels,
-            platforms=requirements.platforms or platforms,
-            output_file=output_file,
-            verbose=verbose,
-        )
+
+def _pixi_init_command(
+    *,
+    depth: int,
+    directory: Path,
+    files: list[Path] | None,
+    name: str | None,
+    output: Path | None,
+    stdout: bool,
+    platforms: list[Platform] | None,
+    ignore_pins: list[str],
+    skip_dependencies: list[str],
+    overwrite_pins: list[str],
+    verbose: bool,
+) -> None:  # pragma: no cover
+    """Generate a pixi.toml file from requirements files."""
+    from unidep._pixi import generate_pixi_toml
+
+    # When using stdout, suppress verbose output
+    verbose = verbose and not stdout
+    if output is None:
+        output = Path("pixi.toml")
+
+    if files:  # ignores depth and directory!
+        found_files = files
     else:
-        # Original conda environment generation
-        requirements = parse_requirements(
-            *found_files,
-            ignore_pins=ignore_pins,
-            overwrite_pins=overwrite_pins,
-            skip_dependencies=skip_dependencies,
+        found_files = find_requirements_files(
+            directory,
+            depth,
             verbose=verbose,
         )
-        if not platforms:
-            platforms = requirements.platforms or [identify_current_platform()]
-        resolved = resolve_conflicts(
-            requirements.requirements,
-            platforms,
-            optional_dependencies=requirements.optional_dependencies,
-        )
-        env_spec = create_conda_env_specification(
-            resolved,
-            requirements.channels,
-            platforms,
-            selector=selector,
-        )
-        output_file = None if stdout else output
-        write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
-        if output_file:
-            found_files_str = ", ".join(f"`{f}`" for f in found_files)
-            print(
-                f"✅ Generated environment file at `{output_file}` "
-                f"from {found_files_str}",
-            )
+        if not found_files:
+            print(f"❌ No {_DEP_FILES} files found in {directory}")
+            sys.exit(1)
+
+    requirements = parse_requirements(
+        *found_files,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+    )
+    output_file = None if stdout else output
+    generate_pixi_toml(
+        *found_files,
+        project_name=name,
+        channels=requirements.channels,
+        platforms=requirements.platforms or platforms,
+        output_file=output_file,
+        verbose=verbose,
+    )
 
 
 def _pip_compile_command(
@@ -1587,7 +1666,6 @@ def main() -> None:  # noqa: PLR0912
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,
-            pixi=args.pixi,
             verbose=args.verbose,
         )
     elif args.command == "pip":  # pragma: no cover
@@ -1687,21 +1765,39 @@ def main() -> None:  # noqa: PLR0912
             extra_flags=args.extra_flags,
             lockfile=args.lockfile,
         )
-    elif args.command == "pixi-lock":  # pragma: no cover
-        from unidep._pixi_lock import pixi_lock_command
+    elif args.command == "pixi":  # pragma: no cover
+        if args.pixi_command == "init":
+            _pixi_init_command(
+                depth=args.depth,
+                directory=args.directory,
+                files=args.file or None,
+                name=args.name,
+                output=args.output,
+                stdout=args.stdout,
+                platforms=args.platform or None,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
+                verbose=args.verbose,
+            )
+        elif args.pixi_command == "lock":
+            from unidep._pixi_lock import pixi_lock_command
 
-        pixi_lock_command(
-            depth=args.depth,
-            directory=args.directory,
-            files=args.file or None,
-            platforms=args.platform or None,
-            verbose=args.verbose,
-            only_pixi_lock=args.only_pixi_lock,
-            conda_lock=args.conda_lock,
-            regenerate=args.regenerate,
-            check_input_hash=args.check_input_hash,
-            pixi_toml_output=args.output,
-        )
+            pixi_lock_command(
+                depth=args.depth,
+                directory=args.directory,
+                files=args.file or None,
+                platforms=args.platform or None,
+                verbose=args.verbose,
+                only_pixi_lock=args.only_lock,
+                conda_lock=args.conda_lock,
+                regenerate=args.regenerate,
+                check_input_hash=args.check_input_hash,
+                pixi_toml_output=args.output,
+            )
+        else:
+            print("Usage: unidep pixi {init,lock}")
+            sys.exit(1)
     elif args.command == "pip-compile":  # pragma: no cover
         if args.platform and len(args.platform) > 1:
             print(
