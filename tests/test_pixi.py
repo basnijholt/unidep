@@ -64,7 +64,7 @@ def test_simple_pixi_generation(tmp_path: Path) -> None:
     content = output_file.read_text()
 
     # Check basic structure
-    assert "[project]" in content
+    assert "[workspace]" in content
     assert 'name = "test-project"' in content
     assert "conda-forge" in content
     assert "linux-64" in content
@@ -126,7 +126,7 @@ def test_monorepo_pixi_generation(tmp_path: Path) -> None:
     content = output_file.read_text()
 
     # Check project section
-    assert "[project]" in content
+    assert "[workspace]" in content
     assert 'name = "monorepo"' in content
 
     # Check feature dependencies (TOML writes them directly without parent section)
@@ -259,7 +259,7 @@ def test_pixi_empty_dependencies(tmp_path: Path) -> None:
     content = output_file.read_text()
 
     # Should have project section but no dependencies sections
-    assert "[project]" in content
+    assert "[workspace]" in content
     assert "[dependencies]" not in content
     assert "[pypi-dependencies]" not in content
 
@@ -644,7 +644,7 @@ def test_pixi_stdout_output(tmp_path: Path, capsys: object) -> None:
 
     captured = capsys.readouterr()  # type: ignore[attr-defined]
     assert 'numpy = "*"' in captured.out
-    assert "[project]" in captured.out
+    assert "[workspace]" in captured.out
 
 
 def test_pixi_monorepo_with_directory_input(tmp_path: Path) -> None:
@@ -1186,7 +1186,7 @@ def test_pixi_lock_needs_regeneration_stale_pixi_toml(tmp_path: Path) -> None:
     """Test _needs_regeneration returns True when requirements are newer."""
     # Create pixi.toml first
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\n")
+    pixi_toml.write_text("[workspace]\n")
 
     # Wait a bit and create requirements file (newer)
     time.sleep(0.05)
@@ -1205,7 +1205,7 @@ def test_pixi_lock_needs_regeneration_up_to_date(tmp_path: Path) -> None:
     # Wait a bit and create pixi.toml (newer)
     time.sleep(0.05)
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\n")
+    pixi_toml.write_text("[workspace]\n")
 
     assert _needs_regeneration(pixi_toml, [req_file]) is False
 
@@ -1214,7 +1214,7 @@ def test_pixi_lock_needs_lock_regeneration_no_lock(tmp_path: Path) -> None:
     """Test _needs_lock_regeneration returns True when pixi.lock doesn't exist."""
     pixi_lock = tmp_path / "pixi.lock"
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\n")
+    pixi_toml.write_text("[workspace]\n")
 
     assert _needs_lock_regeneration(pixi_lock, pixi_toml) is True
 
@@ -1228,7 +1228,7 @@ def test_pixi_lock_needs_lock_regeneration_stale_lock(tmp_path: Path) -> None:
     # Wait a bit and update pixi.toml
     time.sleep(0.05)
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\n")
+    pixi_toml.write_text("[workspace]\n")
 
     assert _needs_lock_regeneration(pixi_lock, pixi_toml) is True
 
@@ -1237,7 +1237,7 @@ def test_pixi_lock_needs_lock_regeneration_up_to_date(tmp_path: Path) -> None:
     """Test _needs_lock_regeneration returns False when lock is newer."""
     # Create pixi.toml first
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\n")
+    pixi_toml.write_text("[workspace]\n")
 
     # Wait a bit and create lock (newer)
     time.sleep(0.05)
@@ -1413,7 +1413,7 @@ def test_pixi_lock_only_pixi_lock_flag(
     pixi_toml.write_text(
         textwrap.dedent(
             """\
-            [project]
+            [workspace]
             name = "test"
             channels = ["conda-forge"]
             platforms = ["linux-64"]
@@ -1482,7 +1482,7 @@ def test_pixi_lock_check_input_hash_skips_when_up_to_date(
     # Wait and create pixi.toml (newer than requirements)
     time.sleep(0.05)
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\nname = 'test'\n")
+    pixi_toml.write_text("[workspace]\nname = 'test'\n")
 
     # Wait and create pixi.lock (newer than pixi.toml)
     time.sleep(0.05)
@@ -1647,7 +1647,7 @@ def test_pixi_lock_run_pixi_lock_error(
 ) -> None:
     """Test _run_pixi_lock handles CalledProcessError."""
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\nname = 'test'\n")
+    pixi_toml.write_text("[workspace]\nname = 'test'\n")
 
     def mock_subprocess_run(cmd: list, **kwargs: object) -> None:  # noqa: ARG001
         raise subprocess.CalledProcessError(1, cmd)
@@ -1667,7 +1667,7 @@ def test_pixi_lock_run_pixi_lock_verbose(
 ) -> None:
     """Test _run_pixi_lock with verbose flag."""
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\nname = 'test'\n")
+    pixi_toml.write_text("[workspace]\nname = 'test'\n")
 
     commands_called = []
 
@@ -1808,7 +1808,7 @@ def test_pixi_lock_command_verbose_existing_pixi_toml(
     # Create pixi.toml AFTER requirements.yaml so it's "up to date"
     time.sleep(0.01)
     pixi_toml = tmp_path / "pixi.toml"
-    pixi_toml.write_text("[project]\nname = 'test'\n")
+    pixi_toml.write_text("[workspace]\nname = 'test'\n")
 
     def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
         if cmd[0] == "pixi":

@@ -326,13 +326,13 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 env_name = feat.replace("_", "-")
                 pixi_data["environments"][env_name] = [feat]
 
-    # Set project metadata with collected channels and platforms
+    # Set workspace metadata with collected channels and platforms
     final_platforms = (
         list(all_platforms)
         if all_platforms
         else (platforms or [identify_current_platform()])
     )
-    pixi_data["project"] = {
+    pixi_data["workspace"] = {
         "name": project_name or Path.cwd().name,
         "channels": (
             list(all_channels) if all_channels else (channels or ["conda-forge"])
