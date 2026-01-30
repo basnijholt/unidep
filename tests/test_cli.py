@@ -28,6 +28,7 @@ from unidep._cli import (
     _maybe_create_conda_env_args,
     _pip_compile_command,
     _pip_subcommand,
+    _pixi_command,
     _print_versions,
 )
 
@@ -214,6 +215,57 @@ def test_unidep_conda() -> None:
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
     assert "pandas" in result.stdout
+
+
+def test_pixi_command_respects_overrides(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy >=1.20
+              - pandas >=2.0
+              - scipy <1.10
+              - pyobjc  # [osx]
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    _pixi_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],
+        name="test-project",
+        output=output_file,
+        stdout=False,
+        platforms=["linux-64"],
+        ignore_pins=["numpy"],
+        skip_dependencies=["pandas"],
+        overwrite_pins=["scipy>=1.11"],
+        verbose=False,
+    )
+
+    content = output_file.read_text()
+    assert 'numpy = "*"' in content
+    assert "pandas" not in content
+    assert 'scipy = ">=1.11"' in content
+
+    try:
+        import tomllib
+    except ImportError:  # pragma: no cover
+        import tomli as tomllib
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["platforms"] == ["linux-64"]
+    assert "target" not in data or "osx-arm64" not in data["target"]
 
 
 def test_unidep_file_not_found_error() -> None:
