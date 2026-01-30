@@ -1411,14 +1411,23 @@ def _pixi_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+    if platforms:
+        effective_platforms = platforms
+    elif requirements.platforms:
+        effective_platforms = requirements.platforms
+    else:
+        effective_platforms = None
     output_file = None if stdout else output
     generate_pixi_toml(
         *found_files,
         project_name=name,
         channels=requirements.channels,
-        platforms=requirements.platforms or platforms,
+        platforms=effective_platforms,
         output_file=output_file,
         verbose=verbose,
+        ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
     )
 
     if output_file:

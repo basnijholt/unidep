@@ -5,7 +5,13 @@ from __future__ import annotations
 import textwrap
 from typing import TYPE_CHECKING
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
+
+try:
+    import tomllib
+except ImportError:  # pragma: no cover
+    import tomli as tomllib
 
 from unidep._pixi import (
     _make_pip_version_spec,
@@ -337,6 +343,39 @@ def test_pixi_with_multiple_platform_selectors(tmp_path: Path) -> None:
     # win64 selector
     assert "win-64" in content
     assert "pywin32" in content
+
+
+def test_pixi_platform_override_ignores_file_platforms(tmp_path: Path) -> None:
+    """Test explicit platforms argument overrides platforms in requirements."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+              - pyobjc  # [osx]
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        platforms=["linux-64"],
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["platforms"] == ["linux-64"]
+    assert "target" not in data or "osx-arm64" not in data["target"]
 
 
 def test_pixi_monorepo_with_platform_selectors(tmp_path: Path) -> None:
@@ -936,6 +975,13 @@ def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
     assert "[feature.project2-lint.dependencies]" in content
     assert 'black = "*"' in content
 
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    envs = data["environments"]
+    assert set(envs["project1-test"]) == {"project1", "project1-test"}
+    assert set(envs["project2-lint"]) == {"project2", "project2-lint"}
+
 
 # Tests for build string parsing
 
@@ -959,6 +1005,9 @@ def test_parse_version_build_with_build_string() -> None:
 
     result = _parse_version_build("1.0 py310*")
     assert result == {"version": "1.0", "build": "py310*"}
+
+    result = _parse_version_build(">=1.20,<1.21 py310*")
+    assert result == {"version": ">=1.20,<1.21", "build": "py310*"}
 
 
 def test_pixi_with_build_string(tmp_path: Path) -> None:
@@ -989,6 +1038,32 @@ def test_pixi_with_build_string(tmp_path: Path) -> None:
     assert 'build = "cuda*"' in content
     # Simple version without build string should still work
     assert 'gcc = "=11"' in content
+
+
+def test_pixi_with_ranged_build_string(tmp_path: Path) -> None:
+    """Test ranged constraints keep build strings separate."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: numpy >=1.20,<1.21 py310*
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    content = output_file.read_text()
+
+    assert "[dependencies.numpy]" in content
+    assert 'version = ">=1.20,<1.21"' in content
+    assert 'build = "py310*"' in content
 
 
 def test_parse_package_extras_simple() -> None:

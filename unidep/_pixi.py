@@ -54,19 +54,21 @@ def _parse_version_build(pin: str | None) -> str | dict[str, str]:
     if not pin:
         return "*"
 
-    # Pattern to match version spec followed by optional build string
-    # Version spec: starts with optional operator (>=, <=, ==, =, <, >, ~=)
-    # followed by version number (digits, dots, letters)
-    # Build string: anything after a space that's not an operator
-    match = re.match(
-        r"^([><=!~]*\s*[\d\w.*]+(?:[.,][\d\w.*]+)*)\s+(\S+)$",
-        pin.strip(),
-    )
+    pin = pin.strip()
+    if not pin:
+        return "*"
 
-    if match:
-        version = match.group(1).replace(" ", "")
-        build = match.group(2)
-        return {"version": version, "build": build}
+    # Build strings come after the full version constraint, separated by whitespace.
+    # We split on the last whitespace and only treat the last token as build when
+    # the version part looks complete (has digits or a wildcard) and the last token
+    # doesn't look like another constraint.
+    if " " in pin:
+        version_candidate, build_candidate = pin.rsplit(None, 1)
+        if (
+            re.search(r"\d", version_candidate) or "*" in version_candidate
+        ) and not re.match(r"^[><=!~]", build_candidate):
+            version = version_candidate.replace(" ", "")
+            return {"version": version, "build": build_candidate}
 
     # No build string, just return the version without spaces
     return pin.replace(" ", "")
@@ -192,6 +194,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     platforms: list[Platform] | None = None,
     output_file: str | Path | None = "pixi.toml",
     verbose: bool = False,
+    ignore_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
 ) -> None:
     """Generate a pixi.toml file from requirements files.
 
@@ -200,6 +205,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     """
     if not requirements_files:
         requirements_files = (Path.cwd(),)
+    if platforms is not None and not platforms:
+        platforms = None
+    use_platforms_override = platforms is not None
 
     # Initialize pixi structure
     pixi_data: dict[str, Any] = {}
@@ -210,13 +218,20 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
-        req = parse_requirements(requirements_files[0], verbose=verbose, extras="*")
+        req = parse_requirements(
+            requirements_files[0],
+            verbose=verbose,
+            extras="*",
+            ignore_pins=ignore_pins,
+            overwrite_pins=overwrite_pins,
+            skip_dependencies=skip_dependencies,
+        )
         platform_deps = _extract_dependencies(req.requirements)
 
         # Use channels and platforms from the requirements file
         if req.channels:
             all_channels.update(req.channels)
-        if req.platforms:
+        if req.platforms and not use_platforms_override:
             all_platforms.update(req.platforms)
 
         # Get universal (non-platform-specific) dependencies
@@ -274,16 +289,24 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         pixi_data["feature"] = {}
         pixi_data["environments"] = {}
         all_features = []
+        optional_feature_parents: dict[str, str] = {}
 
         for req_file in requirements_files:
             feature_name = req_file.parent.stem if req_file.is_file() else req_file.stem
-            req = parse_requirements(req_file, verbose=verbose, extras="*")
+            req = parse_requirements(
+                req_file,
+                verbose=verbose,
+                extras="*",
+                ignore_pins=ignore_pins,
+                overwrite_pins=overwrite_pins,
+                skip_dependencies=skip_dependencies,
+            )
             platform_deps = _extract_dependencies(req.requirements)
 
             # Collect channels and platforms
             if req.channels:
                 all_channels.update(req.channels)
-            if req.platforms:
+            if req.platforms and not use_platforms_override:
                 all_platforms.update(req.platforms)
 
             # Build the feature dict from platform deps
@@ -316,6 +339,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     opt_feature_name = f"{feature_name}-{group_name}"
                     pixi_data["feature"][opt_feature_name] = opt_feature
                     all_features.append(opt_feature_name)
+                    optional_feature_parents[opt_feature_name] = feature_name
 
         # Create environments
         if all_features:
@@ -323,15 +347,21 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             for feat in all_features:
                 # Environment names can't have underscores
                 env_name = feat.replace("_", "-")
+                if feat in optional_feature_parents:
+                    parent = optional_feature_parents[feat]
+                    if parent in pixi_data["feature"]:
+                        pixi_data["environments"][env_name] = [parent, feat]
+                        continue
                 pixi_data["environments"][env_name] = [feat]
 
     # Set workspace metadata with collected channels and platforms
     # Sort for deterministic output
-    final_platforms = sorted(
-        list(all_platforms)
-        if all_platforms
-        else (platforms or [identify_current_platform()]),
-    )
+    if platforms is not None:
+        final_platforms = sorted(platforms)
+    elif all_platforms:
+        final_platforms = sorted(all_platforms)
+    else:
+        final_platforms = [identify_current_platform()]
     final_channels = sorted(
         list(all_channels) if all_channels else (channels or ["conda-forge"]),
     )
