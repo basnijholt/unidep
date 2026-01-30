@@ -166,27 +166,18 @@ all = ["...", "unidep[pixi]"]
 
 ### Generate pixi.toml
 ```bash
-unidep pixi init
-unidep pixi init --output my-pixi.toml
-unidep pixi init --directory ./monorepo --depth 2
-unidep pixi init --name my-project
-unidep pixi init --stdout  # Output to stdout
+unidep pixi
+unidep pixi --output my-pixi.toml
+unidep pixi --directory ./monorepo --depth 2
+unidep pixi --name my-project
+unidep pixi --stdout  # Output to stdout
 ```
 
-### Generate pixi.lock
+### Then use pixi directly
 ```bash
-# Generate pixi.lock (requires pixi CLI)
-unidep pixi lock
-
-# Generate pixi.lock + conda-lock.yml (requires pixi-to-conda-lock)
-unidep pixi lock --conda-lock
-
-# Full workflow with options
-unidep pixi lock --directory ./monorepo --depth 2
-unidep pixi lock --regenerate              # Force regeneration
-unidep pixi lock --check-input-hash        # Skip if up to date
-unidep pixi lock --only-lock               # Skip pixi.toml generation
-unidep pixi lock -o /path/to/pixi.toml     # Custom output path
+pixi lock      # Generate pixi.lock
+pixi install   # Install dependencies
+pixi run ...   # Run commands in the environment
 ```
 
 ## Testing Strategy

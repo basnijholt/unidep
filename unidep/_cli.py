@@ -492,53 +492,41 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
     )
     _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
 
-    # Subparser for the 'pixi' command with nested subcommands
-    pixi_help = "Pixi integration commands for generating pixi.toml and lock files."
+    # Subparser for the 'pixi' command
+    pixi_help = f"Generate a `pixi.toml` file from {_DEP_FILES} files."
+    pixi_example = (
+        " Example usage: `unidep pixi` to generate a pixi.toml file. "
+        "Use `--output` to specify a different output path. "
+        "Use `--name` to set the project name. "
+        "After generating, use `pixi lock` and `pixi install` directly."
+    )
     parser_pixi = subparsers.add_parser(
         "pixi",
         help=pixi_help,
-        description=pixi_help,
+        description=pixi_help + pixi_example,
         formatter_class=_HelpFormatter,
     )
-    pixi_subparsers = parser_pixi.add_subparsers(
-        dest="pixi_command",
-        help="Pixi subcommands",
-    )
-
-    # pixi init - generate pixi.toml
-    pixi_init_help = f"Generate a `pixi.toml` file from {_DEP_FILES} files."
-    pixi_init_example = (
-        " Example usage: `unidep pixi init` to generate a pixi.toml file. "
-        "Use `--output` to specify a different output path. "
-        "Use `--name` to set the project name."
-    )
-    parser_pixi_init = pixi_subparsers.add_parser(
-        "init",
-        help=pixi_init_help,
-        description=pixi_init_help + pixi_init_example,
-        formatter_class=_HelpFormatter,
-    )
-    parser_pixi_init.add_argument(
+    parser_pixi.add_argument(
         "-o",
         "--output",
         type=Path,
         default=None,
         help="Output path for pixi.toml (default: pixi.toml in current directory)",
     )
-    parser_pixi_init.add_argument(
+    parser_pixi.add_argument(
         "-n",
         "--name",
         type=str,
         default=None,
         help="Name of the project (default: current directory name)",
     )
-    parser_pixi_init.add_argument(
+    parser_pixi.add_argument(
         "--stdout",
         action="store_true",
         help="Output to stdout instead of a file",
     )
     _add_common_args(
-        parser_pixi_init,
+        parser_pixi,
         {
             "directory",
             "file-alt",
@@ -548,62 +536,6 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
             "ignore-pin",
             "skip-dependency",
             "overwrite-pin",
-        },
-    )
-
-    # pixi lock - generate pixi.lock
-    pixi_lock_help = (
-        "Generate a `pixi.lock` file from "
-        f"{_DEP_FILES} files using Pixi. "
-        "Optionally convert to `conda-lock.yml` format."
-    )
-    pixi_lock_example = (
-        " Example usage: `unidep pixi lock` to generate a pixi.lock file. "
-        "Use `--conda-lock` to also generate a conda-lock.yml file. "
-        "Use `--check-input-hash` to skip regeneration if inputs haven't changed."
-    )
-    parser_pixi_lock = pixi_subparsers.add_parser(
-        "lock",
-        help=pixi_lock_help,
-        description=pixi_lock_help + pixi_lock_example,
-        formatter_class=_HelpFormatter,
-    )
-    parser_pixi_lock.add_argument(
-        "--conda-lock",
-        action="store_true",
-        help="Also generate a conda-lock.yml file using pixi-to-conda-lock",
-    )
-    parser_pixi_lock.add_argument(
-        "--only-lock",
-        action="store_true",
-        help="Only run `pixi lock`, skip pixi.toml generation "
-        "(requires existing pixi.toml)",
-    )
-    parser_pixi_lock.add_argument(
-        "--regenerate",
-        action="store_true",
-        help="Force regeneration of pixi.toml and pixi.lock even if up to date",
-    )
-    parser_pixi_lock.add_argument(
-        "--check-input-hash",
-        action="store_true",
-        help="Skip regeneration if lock files are up to date based on file timestamps",
-    )
-    parser_pixi_lock.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=None,
-        help="Output path for pixi.toml (default: pixi.toml in current directory)",
-    )
-    _add_common_args(
-        parser_pixi_lock,
-        {
-            "directory",
-            "file-alt",
-            "verbose",
-            "platform",
-            "depth",
         },
     )
 
@@ -1438,7 +1370,7 @@ def _merge_command(
         )
 
 
-def _pixi_init_command(
+def _pixi_command(
     *,
     depth: int,
     directory: Path,
@@ -1766,38 +1698,19 @@ def main() -> None:  # noqa: PLR0912
             lockfile=args.lockfile,
         )
     elif args.command == "pixi":  # pragma: no cover
-        if args.pixi_command == "init":
-            _pixi_init_command(
-                depth=args.depth,
-                directory=args.directory,
-                files=args.file or None,
-                name=args.name,
-                output=args.output,
-                stdout=args.stdout,
-                platforms=args.platform or None,
-                ignore_pins=args.ignore_pin,
-                skip_dependencies=args.skip_dependency,
-                overwrite_pins=args.overwrite_pin,
-                verbose=args.verbose,
-            )
-        elif args.pixi_command == "lock":
-            from unidep._pixi_lock import pixi_lock_command
-
-            pixi_lock_command(
-                depth=args.depth,
-                directory=args.directory,
-                files=args.file or None,
-                platforms=args.platform or None,
-                verbose=args.verbose,
-                only_pixi_lock=args.only_lock,
-                conda_lock=args.conda_lock,
-                regenerate=args.regenerate,
-                check_input_hash=args.check_input_hash,
-                pixi_toml_output=args.output,
-            )
-        else:
-            print("Usage: unidep pixi {init,lock}")
-            sys.exit(1)
+        _pixi_command(
+            depth=args.depth,
+            directory=args.directory,
+            files=args.file or None,
+            name=args.name,
+            output=args.output,
+            stdout=args.stdout,
+            platforms=args.platform or None,
+            ignore_pins=args.ignore_pin,
+            skip_dependencies=args.skip_dependency,
+            overwrite_pins=args.overwrite_pin,
+            verbose=args.verbose,
+        )
     elif args.command == "pip-compile":  # pragma: no cover
         if args.platform and len(args.platform) > 1:
             print(
