@@ -1050,8 +1050,8 @@ See `unidep pixi -h` for more information:
 usage: unidep pixi [-h] [-o OUTPUT] [-n NAME] [--stdout] [-d DIRECTORY]
                    [--depth DEPTH] [-f FILE] [-v]
                    [-p {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}]
-                   [--ignore-pin IGNORE_PIN] [--skip-dependency SKIP_DEPENDENCY]
-                   [--overwrite-pin OVERWRITE_PIN]
+                   [--skip-dependency SKIP_DEPENDENCY]
+                   [--ignore-pin IGNORE_PIN] [--overwrite-pin OVERWRITE_PIN]
 
 Generate a `pixi.toml` file from `requirements.yaml` or `pyproject.toml`
 files. Example usage: `unidep pixi` to generate a pixi.toml file. Use
@@ -1070,17 +1070,33 @@ options:
   --depth DEPTH         Maximum depth to scan for `requirements.yaml` or
                         `pyproject.toml` files, by default 1
   -f, --file FILE       A single `requirements.yaml` or `pyproject.toml` file
-                        to use, or folder that contains that file.
+                        to use, or folder that contains that file. This is an
+                        alternative to using `--directory` which searches for
+                        all `requirements.yaml` or `pyproject.toml` files in
+                        the directory and its subdirectories.
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
-                        The platform(s) to get the requirements for.
-  --ignore-pin IGNORE_PIN
-                        Ignore the version pin for a specific package.
+                        The platform(s) to get the requirements for. Multiple
+                        platforms can be specified. By default, the current
+                        platform (`linux-64`) is used.
   --skip-dependency SKIP_DEPENDENCY
-                        Skip a specific dependency.
+                        Skip installing a specific dependency that is in one
+                        of the `requirements.yaml` or `pyproject.toml` files.
+                        This option can be used multiple times, each time
+                        specifying a different package to skip. For example,
+                        use `--skip-dependency pandas` to skip installing
+                        pandas.
+  --ignore-pin IGNORE_PIN
+                        Ignore the version pin for a specific package, e.g.,
+                        `--ignore-pin numpy`. This option can be repeated to
+                        ignore multiple packages.
   --overwrite-pin OVERWRITE_PIN
-                        Overwrite the version pin for a specific package.
+                        Overwrite the version pin for a specific package,
+                        e.g., `--overwrite-pin 'numpy=1.19.2'`. This option
+                        can be repeated to overwrite the pins of multiple
+                        packages.
 ```
+
 <!-- OUTPUT:END -->
 
 > [!TIP]
