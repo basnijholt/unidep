@@ -275,7 +275,7 @@ def _add_extra_flags(
     )
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
     parser = argparse.ArgumentParser(
         description="Unified Conda and Pip requirements management.",
         formatter_class=_HelpFormatter,
@@ -498,6 +498,63 @@ def _parse_args() -> argparse.Namespace:
         },
     )
     _add_extra_flags(parser_lock, "conda-lock lock", "conda-lock", "--micromamba")
+
+    # Subparser for the 'pixi-lock' command
+    pixi_lock_help = (
+        "Generate a `pixi.lock` file from "
+        f"{_DEP_FILES} files using Pixi. "
+        "Optionally convert to `conda-lock.yml` format."
+    )
+    pixi_lock_example = (
+        " Example usage: `unidep pixi-lock` to generate a pixi.lock file. "
+        "Use `--conda-lock` to also generate a conda-lock.yml file. "
+        "Use `--check-input-hash` to skip regeneration if inputs haven't changed."
+    )
+
+    parser_pixi_lock = subparsers.add_parser(
+        "pixi-lock",
+        help=pixi_lock_help,
+        description=pixi_lock_help + pixi_lock_example,
+        formatter_class=_HelpFormatter,
+    )
+    parser_pixi_lock.add_argument(
+        "--conda-lock",
+        action="store_true",
+        help="Also generate a conda-lock.yml file using pixi-to-conda-lock",
+    )
+    parser_pixi_lock.add_argument(
+        "--only-pixi-lock",
+        action="store_true",
+        help="Only run `pixi lock`, skip pixi.toml generation "
+        "(requires existing pixi.toml)",
+    )
+    parser_pixi_lock.add_argument(
+        "--regenerate",
+        action="store_true",
+        help="Force regeneration of pixi.toml and pixi.lock even if up to date",
+    )
+    parser_pixi_lock.add_argument(
+        "--check-input-hash",
+        action="store_true",
+        help="Skip regeneration if lock files are up to date based on file timestamps",
+    )
+    parser_pixi_lock.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="Output path for pixi.toml (default: pixi.toml in current directory)",
+    )
+    _add_common_args(
+        parser_pixi_lock,
+        {
+            "directory",
+            "file-alt",
+            "verbose",
+            "platform",
+            "depth",
+        },
+    )
 
     # Subparser for the 'pip-compile' command
     pip_compile_help = (
@@ -1513,7 +1570,7 @@ def _pip_subcommand(
     return escape_unicode(separator).join(pip_dependencies)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0912
     """Main entry point for the command-line tool."""
     args = _parse_args()
 
@@ -1629,6 +1686,21 @@ def main() -> None:
             check_input_hash=args.check_input_hash,
             extra_flags=args.extra_flags,
             lockfile=args.lockfile,
+        )
+    elif args.command == "pixi-lock":  # pragma: no cover
+        from unidep._pixi_lock import pixi_lock_command
+
+        pixi_lock_command(
+            depth=args.depth,
+            directory=args.directory,
+            files=args.file or None,
+            platforms=args.platform or None,
+            verbose=args.verbose,
+            only_pixi_lock=args.only_pixi_lock,
+            conda_lock=args.conda_lock,
+            regenerate=args.regenerate,
+            check_input_hash=args.check_input_hash,
+            pixi_toml_output=args.output,
         )
     elif args.command == "pip-compile":  # pragma: no cover
         if args.platform and len(args.platform) > 1:

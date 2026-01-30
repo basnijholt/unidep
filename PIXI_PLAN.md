@@ -44,16 +44,16 @@ Pixi handles all dependency resolution, conflict management, and lock file gener
 - [x] Handle pip vs conda optional dependencies
 - [x] Add comprehensive tests for optional dependencies
 
-### Phase 4: Lock File Integration (via pixi-to-conda-lock)
+### Phase 4: Lock File Integration (via pixi-to-conda-lock) ✅
 
-- [ ] Add `pixi-to-conda-lock` as optional dependency (`unidep[pixi]`)
-- [ ] Add `unidep pixi-lock` command that:
+- [x] Add `pixi-to-conda-lock` as optional dependency (`unidep[pixi]`)
+- [x] Add `unidep pixi-lock` command that:
   1. Generates `pixi.toml` (if not exists or `--regenerate`)
   2. Runs `pixi lock` to create `pixi.lock`
-  3. Converts to `conda-lock.yml` via `pixi-to-conda-lock`
-- [ ] Support `--only-pixi-lock` to skip conda-lock conversion
-- [ ] Support monorepo per-package lock files
-- [ ] Add `--check-input-hash` equivalent
+  3. Converts to `conda-lock.yml` via `pixi-to-conda-lock` (`--conda-lock`)
+- [x] Support `--only-pixi-lock` to skip pixi.toml generation
+- [x] Add `--check-input-hash` equivalent (file timestamp-based)
+- [ ] Support monorepo per-package lock files (future enhancement)
 
 ### Phase 5: Pixi as Install Backend (Optional)
 
@@ -174,5 +174,5 @@ unidep pixi-lock --directory ./monorepo --depth 2
 - [x] Work with monorepo (multiple requirements files)
 - [x] Support platform-specific dependencies
 - [x] Support optional dependencies as features
-- [ ] Integrate with pixi-to-conda-lock for lock files
+- [x] Integrate with pixi-to-conda-lock for lock files
 - [ ] Document workflow in README

@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
+import builtins
+import shutil
+import subprocess
+import sys
 import textwrap
+import time
+import types
 from typing import TYPE_CHECKING
 
+import pytest
+
 from unidep._pixi import generate_pixi_toml
+from unidep._pixi_lock import (
+    _check_pixi_installed,
+    _convert_to_conda_lock,
+    _needs_lock_regeneration,
+    _needs_regeneration,
+    _run_pixi_lock,
+    pixi_lock_command,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -726,7 +742,7 @@ def test_pixi_monorepo_filtering_removes_empty_feature_targets(tmp_path: Path) -
     assert "[feature.project1.target" not in content
 
 
-def test_pixi_default_cwd(tmp_path: Path, monkeypatch: object) -> None:
+def test_pixi_default_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that generate_pixi_toml uses cwd when no args provided."""
     # Create requirements.yaml in tmp_path
     req_file = tmp_path / "requirements.yaml"
@@ -927,3 +943,668 @@ def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
     assert 'pytest = "*"' in content
     assert "[feature.project2-lint.dependencies]" in content
     assert 'black = "*"' in content
+
+
+# Tests for pixi-lock command
+
+
+def test_pixi_lock_needs_regeneration_no_pixi_toml(tmp_path: Path) -> None:
+    """Test _needs_regeneration returns True when pixi.toml doesn't exist."""
+    pixi_toml = tmp_path / "pixi.toml"
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - numpy\n")
+
+    assert _needs_regeneration(pixi_toml, [req_file]) is True
+
+
+def test_pixi_lock_needs_regeneration_stale_pixi_toml(tmp_path: Path) -> None:
+    """Test _needs_regeneration returns True when requirements are newer."""
+    # Create pixi.toml first
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\n")
+
+    # Wait a bit and create requirements file (newer)
+    time.sleep(0.05)
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - numpy\n")
+
+    assert _needs_regeneration(pixi_toml, [req_file]) is True
+
+
+def test_pixi_lock_needs_regeneration_up_to_date(tmp_path: Path) -> None:
+    """Test _needs_regeneration returns False when pixi.toml is newer."""
+    # Create requirements file first
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - numpy\n")
+
+    # Wait a bit and create pixi.toml (newer)
+    time.sleep(0.05)
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\n")
+
+    assert _needs_regeneration(pixi_toml, [req_file]) is False
+
+
+def test_pixi_lock_needs_lock_regeneration_no_lock(tmp_path: Path) -> None:
+    """Test _needs_lock_regeneration returns True when pixi.lock doesn't exist."""
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\n")
+
+    assert _needs_lock_regeneration(pixi_lock, pixi_toml) is True
+
+
+def test_pixi_lock_needs_lock_regeneration_stale_lock(tmp_path: Path) -> None:
+    """Test _needs_lock_regeneration returns True when pixi.toml is newer."""
+    # Create lock first
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    # Wait a bit and update pixi.toml
+    time.sleep(0.05)
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\n")
+
+    assert _needs_lock_regeneration(pixi_lock, pixi_toml) is True
+
+
+def test_pixi_lock_needs_lock_regeneration_up_to_date(tmp_path: Path) -> None:
+    """Test _needs_lock_regeneration returns False when lock is newer."""
+    # Create pixi.toml first
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\n")
+
+    # Wait a bit and create lock (newer)
+    time.sleep(0.05)
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    assert _needs_lock_regeneration(pixi_lock, pixi_toml) is False
+
+
+def test_pixi_lock_check_pixi_installed_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _check_pixi_installed exits when pixi is not found."""
+    # Make shutil.which return None for pixi
+    monkeypatch.setattr(shutil, "which", lambda _: None)  # type: ignore[attr-defined]
+
+    with pytest.raises(SystemExit) as exc_info:
+        _check_pixi_installed()
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_command_generates_pixi_toml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test full pixi-lock workflow with mocked pixi CLI."""
+    # Create requirements file
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    # Mock subprocess.run to avoid actually calling pixi
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        if cmd[0] == "pixi":
+            # Create a fake pixi.lock file
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+            return subprocess.CompletedProcess(cmd, 0)
+        msg = f"Unexpected command: {cmd}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    # Mock shutil.which to find pixi
+
+    original_which = shutil.which
+
+    def mock_which(cmd: str) -> str | None:
+        if cmd == "pixi":
+            return "/usr/bin/pixi"
+        return original_which(cmd)
+
+    monkeypatch.setattr(shutil, "which", mock_which)  # type: ignore[attr-defined]
+
+    # Run the command
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=False,
+        only_pixi_lock=False,
+        conda_lock=False,
+        regenerate=False,
+        check_input_hash=False,
+    )
+
+    # Check pixi.toml was generated
+    pixi_toml = tmp_path / "pixi.toml"
+    assert pixi_toml.exists()
+    content = pixi_toml.read_text()
+    assert 'numpy = "*"' in content
+
+    # Check pixi.lock was "created" by our mock
+    assert (tmp_path / "pixi.lock").exists()
+
+
+def test_pixi_lock_command_with_conda_lock_conversion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test pixi-lock with --conda-lock flag."""
+    # Create requirements file
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    pixi_called = False
+    convert_called = False
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        nonlocal pixi_called
+        if cmd[0] == "pixi":
+            pixi_called = True
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    # Mock shutil.which to find pixi
+
+    def mock_which(cmd: str) -> str | None:
+        if cmd == "pixi":
+            return "/usr/bin/pixi"
+        return None
+
+    monkeypatch.setattr(shutil, "which", mock_which)  # type: ignore[attr-defined]
+
+    # Mock _convert_to_conda_lock to avoid needing a real pixi.lock
+    import unidep._pixi_lock
+
+    def mock_convert_to_conda_lock(
+        pixi_lock: Path,
+        output: Path | None = None,
+        *,
+        verbose: bool = False,  # noqa: ARG001
+    ) -> Path:
+        nonlocal convert_called
+        convert_called = True
+        output_path = output or pixi_lock.parent / "conda-lock.yml"
+        output_path.write_text("version: 1\n")
+        return output_path
+
+    monkeypatch.setattr(
+        unidep._pixi_lock,
+        "_convert_to_conda_lock",
+        mock_convert_to_conda_lock,
+    )
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=False,
+        only_pixi_lock=False,
+        conda_lock=True,  # Enable conda-lock conversion
+        regenerate=False,
+        check_input_hash=False,
+    )
+
+    assert pixi_called
+    assert convert_called
+    assert (tmp_path / "conda-lock.yml").exists()
+
+
+def test_pixi_lock_only_pixi_lock_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test --only-pixi-lock flag skips pixi.toml generation."""
+    # Pre-create pixi.toml (required when using --only-pixi-lock)
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text(
+        textwrap.dedent(
+            """\
+            [project]
+            name = "test"
+            channels = ["conda-forge"]
+            platforms = ["linux-64"]
+
+            [dependencies]
+            numpy = "*"
+            """,
+        ),
+    )
+
+    # Create requirements file (but it shouldn't be read)
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - pandas\n")
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        if cmd[0] == "pixi":
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        shutil,
+        "which",
+        lambda cmd: "/usr/bin/pixi" if cmd == "pixi" else None,
+    )
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=False,
+        only_pixi_lock=True,  # Skip pixi.toml generation
+        conda_lock=False,
+        regenerate=False,
+        check_input_hash=False,
+    )
+
+    # pixi.toml should still have numpy (not regenerated with pandas)
+    content = pixi_toml.read_text()
+    assert "numpy" in content
+    assert "pandas" not in content
+
+
+def test_pixi_lock_check_input_hash_skips_when_up_to_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test --check-input-hash skips regeneration when files are up to date."""
+    # Create requirements file first
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    # Wait and create pixi.toml (newer than requirements)
+    time.sleep(0.05)
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\nname = 'test'\n")
+
+    # Wait and create pixi.lock (newer than pixi.toml)
+    time.sleep(0.05)
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    commands_called = []
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        commands_called.append(cmd[0])
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        shutil,
+        "which",
+        lambda cmd: "/usr/bin/pixi" if cmd == "pixi" else None,
+    )
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=True,  # Enable verbose to hit those code paths
+        only_pixi_lock=False,
+        conda_lock=False,
+        regenerate=False,
+        check_input_hash=True,  # Enable input hash check
+    )
+
+    # pixi lock should NOT be called since everything is up to date
+    assert "pixi" not in commands_called
+
+
+def test_pixi_lock_no_requirements_files_found(
+    tmp_path: Path,
+) -> None:
+    """Test error when no requirements files are found."""
+    with pytest.raises(SystemExit) as exc_info:
+        pixi_lock_command(
+            depth=1,
+            directory=tmp_path,
+            files=None,
+            platforms=None,
+            verbose=False,
+            only_pixi_lock=False,
+            conda_lock=False,
+            regenerate=False,
+            check_input_hash=False,
+        )
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_missing_pixi_toml_with_only_lock_flag(
+    tmp_path: Path,
+) -> None:
+    """Test error when --only-pixi-lock but pixi.toml doesn't exist."""
+    # Create a requirements file so we pass the first check
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - numpy\n")
+
+    with pytest.raises(SystemExit) as exc_info:
+        pixi_lock_command(
+            depth=1,
+            directory=tmp_path,
+            files=None,
+            platforms=None,
+            verbose=False,
+            only_pixi_lock=True,  # Skip generation, but pixi.toml doesn't exist
+            conda_lock=False,
+            regenerate=False,
+            check_input_hash=False,
+        )
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_convert_to_conda_lock_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _convert_to_conda_lock calls convert and handles output."""
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    convert_called = False
+
+    def mock_convert(lock_file_path: Path, conda_lock_path: Path) -> None:  # noqa: ARG001
+        nonlocal convert_called
+        convert_called = True
+        conda_lock_path.write_text("version: 1\n")
+
+    # Create a fake module to be imported
+
+    fake_module = types.ModuleType("pixi_to_conda_lock")
+    fake_module.convert = mock_convert  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "pixi_to_conda_lock", fake_module)
+
+    result = _convert_to_conda_lock(pixi_lock, verbose=True)
+    assert convert_called
+    assert result == tmp_path / "conda-lock.yml"
+    assert result.exists()
+
+
+def test_pixi_lock_convert_to_conda_lock_import_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _convert_to_conda_lock handles ImportError."""
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    # Remove the module from sys.modules to force ImportError
+    monkeypatch.delitem(sys.modules, "pixi_to_conda_lock", raising=False)
+
+    # Make import fail
+    original_import = builtins.__import__
+
+    def mock_import(
+        name: str,
+        globals_: dict | None = None,
+        locals_: dict | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "pixi_to_conda_lock":
+            raise ImportError(name)
+        return original_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _convert_to_conda_lock(pixi_lock)
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_convert_to_conda_lock_convert_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _convert_to_conda_lock handles convert exception."""
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+
+    def mock_convert(lock_file_path: Path, conda_lock_path: Path) -> None:  # noqa: ARG001
+        msg = "Invalid lock file format"
+        raise ValueError(msg)
+
+    fake_module = types.ModuleType("pixi_to_conda_lock")
+    fake_module.convert = mock_convert  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "pixi_to_conda_lock", fake_module)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _convert_to_conda_lock(pixi_lock)
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_run_pixi_lock_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _run_pixi_lock handles CalledProcessError."""
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\nname = 'test'\n")
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> None:  # noqa: ARG001
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/pixi")  # type: ignore[attr-defined]
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_pixi_lock(pixi_toml)
+    assert exc_info.value.code == 1
+
+
+def test_pixi_lock_run_pixi_lock_verbose(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _run_pixi_lock with verbose flag."""
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\nname = 'test'\n")
+
+    commands_called = []
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        commands_called.append(cmd)
+        (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/pixi")  # type: ignore[attr-defined]
+
+    _run_pixi_lock(pixi_toml, verbose=True)
+
+    assert len(commands_called) == 1
+    assert "--verbose" in commands_called[0]
+
+
+def test_pixi_lock_command_with_explicit_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test pixi_lock_command with explicit files argument."""
+    # Create requirements file
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        if cmd[0] == "pixi":
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/pixi")  # type: ignore[attr-defined]
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],  # Explicit file
+        platforms=None,
+        verbose=False,
+        only_pixi_lock=False,
+        conda_lock=False,
+        regenerate=False,
+        check_input_hash=False,
+    )
+
+    assert (tmp_path / "pixi.toml").exists()
+    assert (tmp_path / "pixi.lock").exists()
+
+
+def test_pixi_lock_needs_lock_regeneration_missing_pixi_toml(tmp_path: Path) -> None:
+    """Test _needs_lock_regeneration returns True when pixi.toml doesn't exist."""
+    pixi_lock = tmp_path / "pixi.lock"
+    pixi_lock.write_text("version: 5\n")
+    pixi_toml = tmp_path / "pixi.toml"  # Does not exist
+
+    assert _needs_lock_regeneration(pixi_lock, pixi_toml) is True
+
+
+def test_pixi_lock_command_verbose_regenerate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: object,
+) -> None:
+    """Test verbose output when regenerating pixi.toml."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        if cmd[0] == "pixi":
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/pixi")  # type: ignore[attr-defined]
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=True,  # Enable verbose
+        only_pixi_lock=False,
+        conda_lock=False,
+        regenerate=True,  # Force regeneration
+        check_input_hash=False,
+    )
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    assert "Generating pixi.toml" in captured.out
+
+
+def test_pixi_lock_command_verbose_existing_pixi_toml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: object,
+) -> None:
+    """Test verbose output when pixi.toml already exists and is up to date."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    # Create pixi.toml AFTER requirements.yaml so it's "up to date"
+    time.sleep(0.01)
+    pixi_toml = tmp_path / "pixi.toml"
+    pixi_toml.write_text("[project]\nname = 'test'\n")
+
+    def mock_subprocess_run(cmd: list, **kwargs: object) -> object:  # noqa: ARG001
+        if cmd[0] == "pixi":
+            (tmp_path / "pixi.lock").write_text("version: 5\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/pixi")  # type: ignore[attr-defined]
+
+    pixi_lock_command(
+        depth=1,
+        directory=tmp_path,
+        files=None,
+        platforms=None,
+        verbose=True,  # Enable verbose
+        only_pixi_lock=False,
+        conda_lock=False,
+        regenerate=False,
+        check_input_hash=False,  # Not using check_input_hash
+    )
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    assert "Using existing pixi.toml" in captured.out
