@@ -172,6 +172,37 @@ def _merge_version_specs(
     return merged_version
 
 
+def _version_spec_is_pinned(version_spec: VersionSpec) -> bool:
+    """Return True if the version spec has a concrete pin."""
+    if isinstance(version_spec, dict):
+        version = version_spec.get("version", "*")
+        if version != "*":
+            return True
+        return "build" in version_spec
+    return version_spec != "*"
+
+
+def _resolve_conda_pip_conflict(
+    conda_deps: dict[str, VersionSpec],
+    pip_deps: dict[str, VersionSpec],
+    base_name: str,
+) -> None:
+    """Resolve conflicts between conda and pip specs for the same package."""
+    conda_spec = conda_deps.get(base_name)
+    pip_spec = pip_deps.get(base_name)
+    if conda_spec is None or pip_spec is None:
+        return
+
+    conda_pinned = _version_spec_is_pinned(conda_spec)
+    pip_pinned = _version_spec_is_pinned(pip_spec)
+
+    if conda_pinned and not pip_pinned:
+        pip_deps.pop(base_name, None)
+        return
+    if pip_pinned and not conda_pinned:
+        conda_deps.pop(base_name, None)
+
+
 def _get_package_name(project_dir: Path) -> str | None:
     """Get the package name from pyproject.toml or setup.py."""
     pyproject_path = project_dir / "pyproject.toml"
@@ -343,7 +374,10 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
         # Create environments
         if all_features:
-            pixi_data["environments"]["default"] = all_features
+            default_features = [
+                feat for feat in all_features if feat not in optional_feature_parents
+            ]
+            pixi_data["environments"]["default"] = default_features
             for feat in all_features:
                 # Environment names can't have underscores
                 env_name = feat.replace("_", "-")
@@ -394,13 +428,14 @@ def _add_dep(
             version,
             pkg_name,
         )
-    elif spec_which == "pip" and base_name not in conda_deps:
-        # Only add to pip if not already in conda
+        _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
+    elif spec_which == "pip":
         pip_deps[base_name] = _merge_version_specs(
             pip_deps.get(base_name),
             pip_version,
             base_name,
         )
+        _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
 
 
 def _extract_dependencies(
