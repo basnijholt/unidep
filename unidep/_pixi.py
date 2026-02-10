@@ -538,7 +538,13 @@ def _extract_dependencies(
 
     for pkg_name, specs in specs_dict.items():
         for spec in specs:
-            version = _parse_version_build(spec.pin)
+            normalized_pin = spec.pin
+            if spec.which == "pip":
+                # Reuse Spec pin-normalization logic (`=` -> `==`) used elsewhere.
+                normalized = spec.name_with_pin(is_pip=True)
+                normalized_pin = normalized[len(spec.name) :].strip() or None
+
+            version = _parse_version_build(normalized_pin)
 
             # For pip packages, parse extras from package name
             if spec.which == "pip":

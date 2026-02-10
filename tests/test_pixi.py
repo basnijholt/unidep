@@ -287,6 +287,33 @@ def test_pixi_with_version_pins(tmp_path: Path) -> None:
     assert 'sympy = ">=1.11"' in content  # Space should be removed
 
 
+def test_pixi_normalizes_single_equals_for_pip_pins(tmp_path: Path) -> None:
+    """Pip pins with single '=' should be normalized to '=='."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: pygsti =0.9.13.3
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["pypi-dependencies"]["pygsti"] == "==0.9.13.3"
+
+
 def test_pixi_prefers_pip_pin_over_unpinned_conda(tmp_path: Path) -> None:
     """Pinned pip spec should override unpinned conda spec."""
     req_file = tmp_path / "requirements.yaml"
