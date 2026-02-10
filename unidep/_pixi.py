@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
 
@@ -218,6 +220,89 @@ def _get_package_name(project_dir: Path) -> str | None:
     return project_dir.name
 
 
+def _normalize_feature_name(name: str) -> str:
+    """Normalize a feature name to a deterministic pixi-friendly key."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", name.strip()).strip("-_")
+
+
+def _project_dir_from_requirement_file(req_file: Path) -> Path:
+    """Get the installable project directory for a requirements path."""
+    resolved = req_file.resolve()
+    return resolved.parent if resolved.is_file() else resolved
+
+
+def _derive_feature_names(requirements_files: Sequence[Path]) -> list[str]:
+    """Derive unique, non-empty feature names for requirements files."""
+    project_dirs = [
+        _project_dir_from_requirement_file(req_file) for req_file in requirements_files
+    ]
+    resolved_paths = [req_file.resolve() for req_file in requirements_files]
+
+    base_names = []
+    for req_file, req_path, req_dir in zip(
+        requirements_files,
+        resolved_paths,
+        project_dirs,
+    ):
+        default_name = req_dir.name or req_path.stem or req_file.stem or "feature"
+        normalized = _normalize_feature_name(default_name)
+        base_names.append(normalized or "feature")
+
+    try:
+        common_dir = Path(os.path.commonpath([str(path) for path in project_dirs]))
+    except ValueError:
+        common_dir = Path.cwd().resolve()
+    base_counts = Counter(base_names)
+    used_names: set[str] = set()
+    feature_names: list[str] = []
+
+    for base_name, req_path, req_dir in zip(base_names, resolved_paths, project_dirs):
+        if base_counts[base_name] == 1:
+            candidate = base_name
+        else:
+            try:
+                rel_parts = req_dir.relative_to(common_dir).parts
+            except ValueError:
+                rel_parts = req_dir.parts
+            rel_name = _normalize_feature_name(
+                "-".join(part for part in rel_parts if part),
+            )
+            candidate = rel_name or base_name or "feature"
+
+            if candidate in used_names:
+                stem_name = _normalize_feature_name(req_path.stem)
+                if stem_name:
+                    candidate = _normalize_feature_name(f"{candidate}-{stem_name}")
+
+        if not candidate:
+            candidate = "feature"
+
+        unique_name = candidate
+        suffix = 2
+        while unique_name in used_names:
+            unique_name = f"{candidate}-{suffix}"
+            suffix += 1
+        used_names.add(unique_name)
+        feature_names.append(unique_name)
+
+    return feature_names
+
+
+def _editable_dependency_path(req_dir: Path, output_file: str | Path | None) -> str:
+    """Build editable path relative to the generated pixi.toml location."""
+    output_dir = (
+        Path.cwd().resolve()
+        if output_file is None
+        else Path(output_file).resolve().parent
+    )
+    rel_path = Path(os.path.relpath(req_dir.resolve(), output_dir)).as_posix()
+    if rel_path == ".":
+        return "."
+    if rel_path.startswith("."):
+        return rel_path
+    return f"./{rel_path}"
+
+
 def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     *requirements_files: Path,
     project_name: str | None = None,
@@ -278,7 +363,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
         # Check if there's a local package in the same directory
         req_file = requirements_files[0]
-        req_dir = req_file.parent if req_file.is_file() else req_file
+        req_dir = _project_dir_from_requirement_file(req_file)
         if is_pip_installable(req_dir):
             # Add the local package as an editable dependency
             if "pypi-dependencies" not in pixi_data:
@@ -286,7 +371,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             # Get the actual package name from pyproject.toml
             package_name = _get_package_name(req_dir) or req_dir.name
             pixi_data["pypi-dependencies"][package_name] = {
-                "path": ".",
+                "path": _editable_dependency_path(req_dir, output_file),
                 "editable": True,
             }
 
@@ -321,9 +406,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         pixi_data["environments"] = {}
         all_features = []
         optional_feature_parents: dict[str, str] = {}
+        feature_names = _derive_feature_names(requirements_files)
 
-        for req_file in requirements_files:
-            feature_name = req_file.parent.stem if req_file.is_file() else req_file.stem
+        for req_file, feature_name in zip(requirements_files, feature_names):
             req = parse_requirements(
                 req_file,
                 verbose=verbose,
@@ -344,7 +429,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             feature = _build_feature_dict(platform_deps)
 
             # Check if there's a local package in the same directory
-            req_dir = req_file.parent if req_file.is_file() else req_file
+            req_dir = _project_dir_from_requirement_file(req_file)
             if is_pip_installable(req_dir):
                 # Add the local package as an editable dependency
                 if "pypi-dependencies" not in feature:
@@ -352,7 +437,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 # Get the actual package name from pyproject.toml
                 package_name = _get_package_name(req_dir) or feature_name
                 # Use relative path from the output file location
-                rel_path = f"./{feature_name}"
+                rel_path = _editable_dependency_path(req_dir, output_file)
                 feature["pypi-dependencies"][package_name] = {
                     "path": rel_path,
                     "editable": True,

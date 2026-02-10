@@ -141,6 +141,119 @@ def test_monorepo_pixi_generation(tmp_path: Path) -> None:
     assert content.count('"project2"') >= 2  # In default and individual env
 
 
+def test_pixi_monorepo_feature_names_unique_for_same_leaf_dir(tmp_path: Path) -> None:
+    """Feature names should not collide when leaf directory names are identical."""
+    apps_api_dir = tmp_path / "apps" / "api"
+    apps_api_dir.mkdir(parents=True)
+    apps_req = apps_api_dir / "requirements.yaml"
+    apps_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    libs_api_dir = tmp_path / "libs" / "api"
+    libs_api_dir.mkdir(parents=True)
+    libs_req = libs_api_dir / "requirements.yaml"
+    libs_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        apps_req,
+        libs_req,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    assert len(features) == 2
+    assert len(set(features)) == 2
+
+    numpy_features = [
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("numpy") == "*"
+    ]
+    pandas_features = [
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("pandas") == "*"
+    ]
+    assert len(numpy_features) == 1
+    assert len(pandas_features) == 1
+    assert numpy_features[0] != pandas_features[0]
+    assert set(data["environments"]["default"]) == {
+        numpy_features[0],
+        pandas_features[0],
+    }
+
+
+def test_pixi_monorepo_feature_name_not_empty_for_relative_root_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Relative root-level requirements file should not produce an empty feature key."""
+    root_req = tmp_path / "requirements.yaml"
+    root_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    sub_dir = tmp_path / "project"
+    sub_dir.mkdir()
+    sub_req = sub_dir / "requirements.yaml"
+    sub_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        root_req.relative_to(tmp_path),
+        sub_req.relative_to(tmp_path),
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    assert len(features) == 2
+    assert "" not in features
+    assert all(name for name in features)
+
+
 def test_pixi_with_version_pins(tmp_path: Path) -> None:
     """Test that version pins are passed through without resolution."""
     req_file = tmp_path / "requirements.yaml"
@@ -250,9 +363,50 @@ def test_pixi_with_local_package(tmp_path: Path) -> None:
     # TOML can format this as either inline or table format
     assert "pypi-dependencies" in content
     assert "my_package" in content
-    assert 'path = "."' in content
+    assert 'path = "./my_package"' in content
     assert "editable = true" in content
     assert 'numpy = "*"' in content
+
+
+def test_pixi_single_file_editable_path_relative_to_output(tmp_path: Path) -> None:
+    """Single-file mode should use editable path relative to output location."""
+    project_dir = tmp_path / "services" / "api"
+    project_dir.mkdir(parents=True)
+
+    req_file = project_dir / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    pyproject_file = project_dir / "pyproject.toml"
+    pyproject_file.write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "service-api"
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    editable_dep = data["pypi-dependencies"]["service_api"]
+    assert editable_dep["editable"] is True
+    assert editable_dep["path"] == "./services/api"
 
 
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:
@@ -511,6 +665,75 @@ def test_pixi_monorepo_with_local_packages(tmp_path: Path) -> None:
     assert 'path = "./project1"' in content
     assert 'path = "./project2"' in content
     assert "editable = true" in content
+
+
+def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
+    """Editable paths should point to project dirs, not derived feature names."""
+    apps_api_dir = tmp_path / "apps" / "api"
+    apps_api_dir.mkdir(parents=True)
+    req1 = apps_api_dir / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+    pyproject1 = apps_api_dir / "pyproject.toml"
+    pyproject1.write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "apps-api"
+            """,
+        ),
+    )
+
+    libs_api_dir = tmp_path / "libs" / "api"
+    libs_api_dir.mkdir(parents=True)
+    req2 = libs_api_dir / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+    pyproject2 = libs_api_dir / "pyproject.toml"
+    pyproject2.write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "libs-api"
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req1, req2, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    editable_paths = {
+        dep_data["path"]
+        for feature in data["feature"].values()
+        for dep_data in feature.get("pypi-dependencies", {}).values()
+        if isinstance(dep_data, dict) and dep_data.get("editable") is True
+    }
+    assert editable_paths == {"./apps/api", "./libs/api"}
 
 
 def test_pixi_with_directory_input(tmp_path: Path) -> None:
