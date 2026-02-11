@@ -18,6 +18,7 @@ from unidep._pixi import (
     _editable_dependency_path,
     _make_pip_version_spec,
     _merge_version_specs,
+    _optional_group_names,
     _parse_direct_requirements_for_node,
     _parse_package_extras,
     _parse_version_build,
@@ -409,6 +410,129 @@ def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> N
 
     assert data["dependencies"]["scipy"] == ">=1.10"
     assert "pypi-dependencies" not in data
+
+
+def test_pixi_reconciles_universal_conda_and_target_pip_conflict(
+    tmp_path: Path,
+) -> None:
+    """Target pip pins should reconcile against universal conda entries."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - click
+              - pip: click ==0.1 # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "click" not in data.get("dependencies", {})
+    assert "click" not in data.get("pypi-dependencies", {})
+    linux_target = data["target"]["linux-64"]
+    assert linux_target["pypi-dependencies"]["click"] == "==0.1"
+
+
+def test_pixi_reconciles_universal_conda_and_target_pip_prefers_conda_when_target_unpinned(
+    tmp_path: Path,
+) -> None:
+    """Universal pinned conda should drop target-unpinned pip duplicates."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click >=8
+              - pip: click # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["dependencies"]["click"] == ">=8"
+    linux_target = data["target"]["linux-64"]
+    assert "pypi-dependencies" not in linux_target
+
+
+def test_pixi_reconciles_universal_pip_and_target_conda_prefers_conda_when_pinned(
+    tmp_path: Path,
+) -> None:
+    """Universal pip should be removed when target conda has a stronger pin."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: click
+              - conda: click >=8 # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "pypi-dependencies" not in data
+    assert data["target"]["linux-64"]["dependencies"]["click"] == ">=8"
+
+
+def test_pixi_reconciles_universal_pip_and_target_conda_prefers_pip_when_pinned(
+    tmp_path: Path,
+) -> None:
+    """Target conda should be removed when universal pip has the stronger pin."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: click ==0.1
+              - conda: click # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["pypi-dependencies"]["click"] == "==0.1"
+    assert "dependencies" not in data["target"]["linux-64"]
 
 
 def test_pixi_with_local_package(tmp_path: Path) -> None:
@@ -992,6 +1116,54 @@ def test_pixi_monorepo_transitive_local_dependencies_are_composed_in_envs(
     assert set(data["environments"]["default"]) == {feature_a, feature_b, feature_c}
 
 
+def test_pixi_monorepo_ignores_wheel_local_dependencies_in_graph(
+    tmp_path: Path,
+) -> None:
+    """Multi-file mode should skip wheel/zip locals while discovering features."""
+    wheels_dir = tmp_path / "wheels"
+    wheels_dir.mkdir()
+    wheel_file = wheels_dir / "example-0.1.0-py3-none-any.whl"
+    wheel_file.write_text("not-a-real-wheel")
+
+    project1 = tmp_path / "project1"
+    project1.mkdir()
+    req1 = project1 / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../wheels/example-0.1.0-py3-none-any.whl
+            """,
+        ),
+    )
+
+    project2 = tmp_path / "project2"
+    project2.mkdir()
+    req2 = project2 / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req1, req2, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert set(data["feature"]) == {"project1", "project2"}
+
+
 def test_pixi_with_directory_input(tmp_path: Path) -> None:
     """Test passing a directory instead of a file."""
     # Create a directory with requirements.yaml
@@ -1383,6 +1555,72 @@ def test_pixi_optional_dependencies_single_group(tmp_path: Path) -> None:
 
     # With only one group, there should be no "all" environment
     assert "all = [" not in content
+
+
+def test_pixi_single_file_optional_local_dependency_stays_optional(
+    tmp_path: Path,
+) -> None:
+    """Optional local deps should appear in optional features, not root deps."""
+    local_dep_dir = tmp_path / "localdep"
+    local_dep_dir.mkdir()
+    local_req = local_dep_dir / "requirements.yaml"
+    local_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    root_req = tmp_path / "requirements.yaml"
+    root_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - ./localdep
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(root_req, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["dependencies"]["numpy"] == "*"
+    assert "pandas" not in data.get("dependencies", {})
+    assert data["feature"]["dev"]["dependencies"]["pandas"] == "*"
+    assert data["environments"]["default"] == []
+    assert data["environments"]["dev"] == ["dev"]
+
+
+def test_optional_group_names_returns_empty_for_non_mapping_data(
+    tmp_path: Path,
+) -> None:
+    """Invalid optional_dependencies structures should not crash group discovery."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies: []
+            """,
+        ),
+    )
+
+    assert _optional_group_names(req_file) == []
 
 
 def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
