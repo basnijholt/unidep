@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple, Union
+
+from ruamel.yaml import YAML
 
 from unidep._conflicts import VersionConflictError, combine_version_pinnings
-from unidep._dependencies_parsing import parse_requirements
+from unidep._dependencies_parsing import (
+    _apply_local_dependency_override,
+    _load,
+    _move_local_optional_dependencies_to_local_dependencies,
+    get_local_dependencies,
+    parse_requirements,
+)
 from unidep.platform_definitions import Spec, platforms_from_selector
-from unidep.utils import identify_current_platform, is_pip_installable
+from unidep.utils import (
+    LocalDependency,
+    PathWithExtras,
+    identify_current_platform,
+    is_pip_installable,
+    parse_folder_or_filename,
+)
 
 if TYPE_CHECKING:
     if sys.version_info >= (3, 10):
@@ -244,7 +259,12 @@ def _derive_feature_names(requirements_files: Sequence[Path]) -> list[str]:
         resolved_paths,
         project_dirs,
     ):
-        default_name = req_dir.name or req_path.stem or req_file.stem or "feature"
+        # Prefer the file stem for non-standard requirement filenames
+        # (e.g. dev-requirements.yaml) so shared files get meaningful feature names.
+        if req_path.name not in {"requirements.yaml", "pyproject.toml"}:
+            default_name = req_path.stem
+        else:
+            default_name = req_dir.name or req_path.stem or req_file.stem or "feature"
         normalized = _normalize_feature_name(default_name)
         base_names.append(normalized or "feature")
 
@@ -301,6 +321,168 @@ def _editable_dependency_path(req_dir: Path, output_file: str | Path | None) -> 
     if rel_path.startswith("."):
         return rel_path
     return f"./{rel_path}"
+
+
+def _canonical_path_with_extras(path_with_extras: PathWithExtras) -> PathWithExtras:
+    """Normalize a requirements path for deterministic graph keys."""
+    extras = sorted(set(path_with_extras.extras))
+    return PathWithExtras(path_with_extras.path.resolve(), extras)
+
+
+def _discover_local_dependency_graph(
+    requirements_files: Sequence[Path],
+) -> tuple[
+    list[PathWithExtras],
+    list[PathWithExtras],
+    dict[PathWithExtras, list[PathWithExtras]],
+]:
+    """Discover requirement files reachable via local_dependencies.
+
+    Returns:
+        - Root requirement files (the user-provided inputs).
+        - All discovered requirement files (roots + reachable local deps).
+        - A direct dependency graph between discovered requirement files.
+
+    """
+    yaml = YAML(typ="rt")
+    local_dependency_overrides: dict[Path, LocalDependency] = {}
+
+    roots = [
+        _canonical_path_with_extras(parse_folder_or_filename(req_file))
+        for req_file in requirements_files
+    ]
+    discovered: list[PathWithExtras] = []
+    graph: dict[PathWithExtras, list[PathWithExtras]] = {}
+    seen: set[PathWithExtras] = set()
+    queue = list(roots)
+
+    while queue:
+        node = queue.pop(0)
+        if node in seen:
+            continue
+        seen.add(node)
+        discovered.append(node)
+
+        data = copy.deepcopy(_load(node.path, yaml))
+        _move_local_optional_dependencies_to_local_dependencies(
+            data=data,
+            path_with_extras=node,
+            verbose=False,
+        )
+        local_dependencies = get_local_dependencies(data)
+
+        for local_dep_obj in local_dependencies:
+            if local_dep_obj.use != "local":
+                _apply_local_dependency_override(
+                    local_dependency=local_dep_obj,
+                    base_dir=node.path.parent,
+                    overrides=local_dependency_overrides,
+                )
+
+        direct_nodes: list[PathWithExtras] = []
+        for local_dep_obj in local_dependencies:
+            effective_local_dep = _apply_local_dependency_override(
+                local_dependency=local_dep_obj,
+                base_dir=node.path.parent,
+                overrides=local_dependency_overrides,
+            )
+            if effective_local_dep.use != "local":
+                continue
+            try:
+                requirements_dep_file = parse_folder_or_filename(
+                    node.path.parent / effective_local_dep.local,
+                )
+            except FileNotFoundError:
+                # Local dependency can be an unmanaged package; keep parity with
+                # parse_requirements() behavior by skipping it here.
+                continue
+            child = _canonical_path_with_extras(requirements_dep_file)
+            if child not in direct_nodes:
+                direct_nodes.append(child)
+            if child not in seen:
+                queue.append(child)
+
+        graph[node] = direct_nodes
+
+    return roots, discovered, graph
+
+
+def _parse_direct_requirements_for_node(
+    node: PathWithExtras,
+    *,
+    verbose: bool,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
+    include_all_optional_groups: bool = False,
+) -> Any:
+    """Parse a requirements node without recursively flattening local deps."""
+    extras: list[list[str]] | Literal["*"] | None
+    if node.extras:
+        extras = [node.extras]
+    elif include_all_optional_groups:
+        extras = "*"
+    else:
+        extras = None
+    req = parse_requirements(
+        node.path,
+        verbose=verbose,
+        extras=extras,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        include_local_dependencies=False,
+    )
+
+    if not node.extras:
+        return req
+
+    merged_requirements = {
+        name: list(specs) for name, specs in req.requirements.items()
+    }
+    if "*" in node.extras:
+        selected_groups = list(req.optional_dependencies.keys())
+    else:
+        selected_groups = [
+            group_name
+            for group_name in node.extras
+            if group_name in req.optional_dependencies
+        ]
+
+    # Extras selected on local dependencies are required for the parent feature.
+    for group_name in selected_groups:
+        for dep_name, specs in req.optional_dependencies[group_name].items():
+            merged_requirements.setdefault(dep_name, []).extend(specs)
+
+    return req._replace(
+        requirements=merged_requirements,
+        optional_dependencies={},
+    )
+
+
+def _collect_transitive_nodes(
+    node: PathWithExtras,
+    graph: dict[PathWithExtras, list[PathWithExtras]],
+) -> list[PathWithExtras]:
+    """Collect transitive local dependency nodes in deterministic order."""
+    collected: list[PathWithExtras] = []
+    seen: set[PathWithExtras] = set()
+    queue = list(graph.get(node, []))
+
+    while queue:
+        current = queue.pop(0)
+        if current in seen:
+            continue
+        seen.add(current)
+        collected.append(current)
+        queue.extend(graph.get(current, []))
+
+    return collected
+
+
+def _with_unique_order(items: list[str]) -> list[str]:
+    """Return unique items while preserving order."""
+    return list(dict.fromkeys(items))
 
 
 def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
@@ -401,23 +583,30 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     pixi_data["environments"]["all"] = opt_features
 
     else:
-        # Multiple files: create features
+        # Multiple files: create one feature per requirement file and compose
+        # local-dependency relationships in environments instead of flattening.
         pixi_data["feature"] = {}
         pixi_data["environments"] = {}
-        all_features = []
+        root_nodes, discovered_nodes, local_dependency_graph = (
+            _discover_local_dependency_graph(requirements_files)
+        )
+        feature_names = _derive_feature_names([node.path for node in discovered_nodes])
+        feature_name_by_node = dict(zip(discovered_nodes, feature_names))
+        root_nodes_set = set(root_nodes)
+        base_feature_nodes: dict[str, PathWithExtras] = {}
         optional_feature_parents: dict[str, str] = {}
-        feature_names = _derive_feature_names(requirements_files)
 
-        for req_file, feature_name in zip(requirements_files, feature_names):
-            req = parse_requirements(
-                req_file,
+        for node in discovered_nodes:
+            req = _parse_direct_requirements_for_node(
+                node,
                 verbose=verbose,
-                extras="*",
                 ignore_pins=ignore_pins,
-                overwrite_pins=overwrite_pins,
                 skip_dependencies=skip_dependencies,
+                overwrite_pins=overwrite_pins,
+                include_all_optional_groups=node in root_nodes_set,
             )
             platform_deps = _extract_dependencies(req.requirements)
+            feature_name = feature_name_by_node[node]
 
             # Collect channels and platforms
             if req.channels:
@@ -428,9 +617,13 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             # Build the feature dict from platform deps
             feature = _build_feature_dict(platform_deps)
 
-            # Check if there's a local package in the same directory
-            req_dir = _project_dir_from_requirement_file(req_file)
-            if is_pip_installable(req_dir):
+            # Add editable dependency for standard project requirement files.
+            req_dir = _project_dir_from_requirement_file(node.path)
+            should_add_editable = node.path.name in {
+                "requirements.yaml",
+                "pyproject.toml",
+            }
+            if should_add_editable and is_pip_installable(req_dir):
                 # Add the local package as an editable dependency
                 if "pypi-dependencies" not in feature:
                     feature["pypi-dependencies"] = {}
@@ -445,33 +638,65 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
             if feature:  # Only add non-empty features
                 pixi_data["feature"][feature_name] = feature
-                all_features.append(feature_name)
+                base_feature_nodes[feature_name] = node
 
-            # Handle optional dependencies as sub-features
+            if node not in root_nodes_set:
+                continue
+
+            # Handle optional dependencies as sub-features for root features.
+            if feature_name not in pixi_data["feature"]:
+                continue
             for group_name, group_specs in req.optional_dependencies.items():
-                opt_platform_deps = _extract_dependencies(group_specs)
-                opt_feature = _build_feature_dict(opt_platform_deps)
-                if opt_feature:
-                    opt_feature_name = f"{feature_name}-{group_name}"
-                    pixi_data["feature"][opt_feature_name] = opt_feature
-                    all_features.append(opt_feature_name)
-                    optional_feature_parents[opt_feature_name] = feature_name
+                opt_feature = _build_feature_dict(_extract_dependencies(group_specs))
+                if not opt_feature:
+                    continue
+                opt_feature_name = f"{feature_name}-{group_name}"
+                pixi_data["feature"][opt_feature_name] = opt_feature
+                optional_feature_parents[opt_feature_name] = feature_name
 
         # Create environments
-        if all_features:
-            default_features = [
-                feat for feat in all_features if feat not in optional_feature_parents
+        if pixi_data["feature"]:
+            transitive_features: dict[str, list[str]] = {}
+            for feature_name, node in base_feature_nodes.items():
+                dep_features = [
+                    feature_name_by_node[dep_node]
+                    for dep_node in _collect_transitive_nodes(
+                        node,
+                        local_dependency_graph,
+                    )
+                    if feature_name_by_node.get(dep_node) in pixi_data["feature"]
+                ]
+                transitive_features[feature_name] = _with_unique_order(dep_features)
+
+            root_base_features = [
+                feature_name_by_node[node]
+                for node in root_nodes
+                if feature_name_by_node.get(node) in pixi_data["feature"]
             ]
-            pixi_data["environments"]["default"] = default_features
-            for feat in all_features:
-                # Environment names can't have underscores
-                env_name = feat.replace("_", "-")
-                if feat in optional_feature_parents:
-                    parent = optional_feature_parents[feat]
-                    if parent in pixi_data["feature"]:
-                        pixi_data["environments"][env_name] = [parent, feat]
-                        continue
-                pixi_data["environments"][env_name] = [feat]
+            default_features: list[str] = []
+            for feature_name in root_base_features:
+                default_features.append(feature_name)
+                default_features.extend(transitive_features.get(feature_name, []))
+            pixi_data["environments"]["default"] = _with_unique_order(default_features)
+
+            for feature_name, deps in transitive_features.items():
+                env_name = feature_name.replace("_", "-")
+                pixi_data["environments"][env_name] = _with_unique_order(
+                    [feature_name, *deps],
+                )
+
+            for opt_feature_name, parent_feature in optional_feature_parents.items():
+                env_name = opt_feature_name.replace("_", "-")
+                if parent_feature not in pixi_data["feature"]:
+                    pixi_data["environments"][env_name] = [opt_feature_name]
+                    continue
+                pixi_data["environments"][env_name] = _with_unique_order(
+                    [
+                        parent_feature,
+                        opt_feature_name,
+                        *transitive_features.get(parent_feature, []),
+                    ],
+                )
 
     # Set workspace metadata with collected channels and platforms
     # Sort for deterministic output

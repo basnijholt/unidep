@@ -763,6 +763,177 @@ def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
     assert editable_paths == {"./apps/api", "./libs/api"}
 
 
+def test_pixi_monorepo_shared_local_file_becomes_single_feature(tmp_path: Path) -> None:
+    """Shared local requirements should be represented as a separate feature."""
+    shared_req = tmp_path / "dev-requirements.yaml"
+    shared_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pytest
+            """,
+        ),
+    )
+
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = project1_dir / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../dev-requirements.yaml
+            """,
+        ),
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = project2_dir / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            local_dependencies:
+              - ../dev-requirements.yaml
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req1, req2, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    project1_feature = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("numpy") == "*"
+    )
+    project2_feature = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("pandas") == "*"
+    )
+    shared_feature = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("pytest") == "*"
+    )
+
+    assert project1_feature != shared_feature
+    assert project2_feature != shared_feature
+    assert shared_feature.startswith("dev-requirements")
+    assert "pytest" not in features[project1_feature].get("dependencies", {})
+    assert "pytest" not in features[project2_feature].get("dependencies", {})
+
+    env_project1 = data["environments"][project1_feature.replace("_", "-")]
+    env_project2 = data["environments"][project2_feature.replace("_", "-")]
+    assert set(env_project1) == {project1_feature, shared_feature}
+    assert set(env_project2) == {project2_feature, shared_feature}
+    assert set(data["environments"]["default"]) == {
+        project1_feature,
+        project2_feature,
+        shared_feature,
+    }
+
+
+def test_pixi_monorepo_transitive_local_dependencies_are_composed_in_envs(
+    tmp_path: Path,
+) -> None:
+    """Features should stay local while envs include transitive local dependencies."""
+    project_c = tmp_path / "project_c"
+    project_c.mkdir()
+    req_c = project_c / "requirements.yaml"
+    req_c.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - sympy
+            """,
+        ),
+    )
+
+    project_b = tmp_path / "project_b"
+    project_b.mkdir()
+    req_b = project_b / "requirements.yaml"
+    req_b.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            local_dependencies:
+              - ../project_c
+            """,
+        ),
+    )
+
+    project_a = tmp_path / "project_a"
+    project_a.mkdir()
+    req_a = project_a / "requirements.yaml"
+    req_a.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../project_b
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_a, req_c, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    feature_a = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("numpy") == "*"
+    )
+    feature_b = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("pandas") == "*"
+    )
+    feature_c = next(
+        name
+        for name, feature in features.items()
+        if feature.get("dependencies", {}).get("sympy") == "*"
+    )
+
+    assert "pandas" not in features[feature_a].get("dependencies", {})
+    assert "sympy" not in features[feature_a].get("dependencies", {})
+    assert "sympy" not in features[feature_b].get("dependencies", {})
+
+    env_a = data["environments"][feature_a.replace("_", "-")]
+    env_b = data["environments"][feature_b.replace("_", "-")]
+    env_c = data["environments"][feature_c.replace("_", "-")]
+    assert set(env_a) == {feature_a, feature_b, feature_c}
+    assert set(env_b) == {feature_b, feature_c}
+    assert set(env_c) == {feature_c}
+
+
 def test_pixi_with_directory_input(tmp_path: Path) -> None:
     """Test passing a directory instead of a file."""
     # Create a directory with requirements.yaml
