@@ -213,11 +213,21 @@ def _resolve_conda_pip_conflict(
     conda_pinned = _version_spec_is_pinned(conda_spec)
     pip_pinned = _version_spec_is_pinned(pip_spec)
 
+    # Pip extras cannot be represented via conda dependencies, so prefer pip.
+    if isinstance(pip_spec, dict) and pip_spec.get("extras"):
+        conda_deps.pop(base_name, None)
+        return
+
     if conda_pinned and not pip_pinned:
         pip_deps.pop(base_name, None)
         return
     if pip_pinned and not conda_pinned:
         conda_deps.pop(base_name, None)
+        return
+
+    # If both are pinned or both are unpinned, default to conda to avoid
+    # duplicating the same dependency in both sections.
+    pip_deps.pop(base_name, None)
 
 
 def _get_package_name(project_dir: Path) -> str | None:

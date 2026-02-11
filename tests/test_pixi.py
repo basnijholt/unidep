@@ -344,6 +344,65 @@ def test_pixi_prefers_pip_pin_over_unpinned_conda(tmp_path: Path) -> None:
     assert data["pypi-dependencies"]["foo"] == ">=1.2"
 
 
+def test_pixi_prefers_conda_for_unpinned_both_sources(tmp_path: Path) -> None:
+    """Unpinned dependencies available in both sources should use conda only."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    deps = data["dependencies"]
+    assert deps["numpy"] == "*"
+    assert deps["pandas"] == "*"
+    assert "pypi-dependencies" not in data
+
+
+def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> None:
+    """When conda and pip have the same pin, use conda only."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - scipy >=1.10
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["dependencies"]["scipy"] == ">=1.10"
+    assert "pypi-dependencies" not in data
+
+
 def test_pixi_with_local_package(tmp_path: Path) -> None:
     """Test that local packages are added as editable dependencies."""
     # Create a directory with requirements.yaml and pyproject.toml
