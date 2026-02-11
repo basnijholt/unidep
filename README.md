@@ -698,7 +698,7 @@ into a single Conda installable `environment.yaml` file. Example usage:
 `unidep merge --directory . --depth 1 --output environment.yaml` to search for
 `requirements.yaml` or `pyproject.toml` files in the current directory and its
 subdirectories and create `environment.yaml`. These are the defaults, so you
-can also just run `unidep merge`. For Pixi support, use `unidep pixi init`.
+can also just run `unidep merge`. For Pixi support, use `unidep pixi`.
 
 options:
   -h, --help            show this help message and exit
