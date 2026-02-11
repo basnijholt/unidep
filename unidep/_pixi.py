@@ -27,6 +27,7 @@ from unidep.utils import (
     identify_current_platform,
     is_pip_installable,
     parse_folder_or_filename,
+    split_path_and_extras,
 )
 
 if TYPE_CHECKING:
@@ -395,6 +396,12 @@ def _discover_local_dependency_graph(
             )
             if effective_local_dep.use != "local":
                 continue
+            local_path, _ = split_path_and_extras(effective_local_dep.local)
+            abs_local = (node.path.parent / local_path).resolve()
+            if abs_local.suffix in (".whl", ".zip"):
+                # Keep parity with parse_requirements(): wheel/zip entries are
+                # installable artifacts, not requirement files to recurse into.
+                continue
             try:
                 requirements_dep_file = parse_folder_or_filename(
                     node.path.parent / effective_local_dep.local,
@@ -492,6 +499,35 @@ def _with_unique_order(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
 
+def _subtract_requirements(
+    full_requirements: dict[str, list[Spec]],
+    base_requirements: dict[str, list[Spec]],
+) -> dict[str, list[Spec]]:
+    """Return specs present in full_requirements but not in base_requirements."""
+    diff: dict[str, list[Spec]] = {}
+    for package_name, specs in full_requirements.items():
+        remaining = Counter(base_requirements.get(package_name, []))
+        package_diff: list[Spec] = []
+        for spec in specs:
+            if remaining[spec] > 0:
+                remaining[spec] -= 1
+            else:
+                package_diff.append(spec)
+        if package_diff:
+            diff[package_name] = package_diff
+    return diff
+
+
+def _optional_group_names(requirements_file: Path) -> list[str]:
+    """Get optional dependency group names from a requirements file."""
+    yaml = YAML(typ="rt")
+    data = copy.deepcopy(_load(requirements_file, yaml))
+    optional_dependencies = data.get("optional_dependencies", {})
+    if not isinstance(optional_dependencies, dict):
+        return []
+    return list(optional_dependencies)
+
+
 def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     *requirements_files: Path,
     project_name: str | None = None,
@@ -523,21 +559,23 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
-        req = parse_requirements(
+        requirements_file = requirements_files[0]
+        req_file = parse_folder_or_filename(requirements_file).path
+        base_req = parse_requirements(
             requirements_files[0],
             verbose=verbose,
-            extras="*",
             ignore_pins=ignore_pins,
             overwrite_pins=overwrite_pins,
             skip_dependencies=skip_dependencies,
+            include_local_dependencies=True,
         )
-        platform_deps = _extract_dependencies(req.requirements)
+        platform_deps = _extract_dependencies(base_req.requirements)
 
         # Use channels and platforms from the requirements file
-        if req.channels:
-            all_channels.update(req.channels)
-        if req.platforms and not use_platforms_override:
-            all_platforms.update(req.platforms)
+        if base_req.channels:
+            all_channels.update(base_req.channels)
+        if base_req.platforms and not use_platforms_override:
+            all_platforms.update(base_req.platforms)
 
         # Get universal (non-platform-specific) dependencies
         conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
@@ -551,7 +589,6 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         _add_target_sections(pixi_data, platform_deps)
 
         # Check if there's a local package in the same directory
-        req_file = requirements_files[0]
         req_dir = _project_dir_from_requirement_file(req_file)
         if is_pip_installable(req_dir):
             # Add the local package as an editable dependency
@@ -565,13 +602,36 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             }
 
         # Handle optional dependencies as features
-        if req.optional_dependencies:
+        optional_groups = _optional_group_names(req_file)
+        if optional_groups:
             pixi_data["feature"] = {}
             pixi_data["environments"] = {}
             opt_features = []
 
-            for group_name, group_specs in req.optional_dependencies.items():
-                opt_platform_deps = _extract_dependencies(group_specs)
+            for group_name in optional_groups:
+                group_req = parse_requirements(
+                    requirements_file,
+                    verbose=verbose,
+                    extras=[[group_name]],
+                    ignore_pins=ignore_pins,
+                    overwrite_pins=overwrite_pins,
+                    skip_dependencies=skip_dependencies,
+                    include_local_dependencies=True,
+                )
+                # A group parse contains the base requirements plus group-selected
+                # optional local dependencies. Keep only the delta to preserve
+                # optional semantics.
+                group_feature_requirements = _subtract_requirements(
+                    group_req.requirements,
+                    base_req.requirements,
+                )
+                for dep_name, specs in group_req.optional_dependencies.get(
+                    group_name,
+                    {},
+                ).items():
+                    group_feature_requirements.setdefault(dep_name, []).extend(specs)
+
+                opt_platform_deps = _extract_dependencies(group_feature_requirements)
                 feature = _build_feature_dict(opt_platform_deps)
                 if feature:
                     pixi_data["feature"][group_name] = feature
@@ -746,6 +806,40 @@ def _add_dep(
         _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
 
 
+def _reconcile_with_universal_deps(
+    platform_deps: PlatformDeps,
+    *,
+    platform: Platform | None,
+    base_name: str,
+) -> None:
+    """Resolve conflicts between a platform bucket and universal dependencies."""
+    if platform is None or platform not in platform_deps:
+        return
+
+    universal_conda, universal_pip = platform_deps.get(None, ({}, {}))
+    platform_conda, platform_pip = platform_deps[platform]
+
+    # Universal conda versus platform-specific pip.
+    if base_name in universal_conda and base_name in platform_pip:
+        conda_probe = {base_name: universal_conda[base_name]}
+        pip_probe = {base_name: platform_pip[base_name]}
+        _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
+        if base_name not in conda_probe:
+            universal_conda.pop(base_name, None)
+        if base_name not in pip_probe:
+            platform_pip.pop(base_name, None)
+
+    # Universal pip versus platform-specific conda.
+    if base_name in universal_pip and base_name in platform_conda:
+        conda_probe = {base_name: platform_conda[base_name]}
+        pip_probe = {base_name: universal_pip[base_name]}
+        _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
+        if base_name not in conda_probe:
+            platform_conda.pop(base_name, None)
+        if base_name not in pip_probe:
+            universal_pip.pop(base_name, None)
+
+
 def _extract_dependencies(
     specs_dict: dict[str, list[Spec]],
 ) -> PlatformDeps:
@@ -796,6 +890,11 @@ def _extract_dependencies(
                     base_name,
                     version,
                     pip_version,
+                )
+                _reconcile_with_universal_deps(
+                    platform_deps,
+                    platform=platform,
+                    base_name=base_name,
                 )
 
     return platform_deps
