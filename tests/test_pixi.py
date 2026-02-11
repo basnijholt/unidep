@@ -10,13 +10,21 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from unidep._dependencies_parsing import _normalize_local_dependency_use
 from unidep._pixi import (
+    _collect_transitive_nodes,
+    _derive_feature_names,
+    _discover_local_dependency_graph,
+    _editable_dependency_path,
     _make_pip_version_spec,
     _merge_version_specs,
+    _parse_direct_requirements_for_node,
     _parse_package_extras,
     _parse_version_build,
+    _resolve_conda_pip_conflict,
     generate_pixi_toml,
 )
+from unidep.utils import PathWithExtras
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1500,6 +1508,131 @@ def test_pixi_monorepo_default_env_excludes_optional_features(
     assert set(envs["project1-dev"]) == {"project1", "project1-dev"}
 
 
+def test_pixi_empty_platform_override_uses_file_platforms(tmp_path: Path) -> None:
+    """Passing platforms=[] should fall back to platforms from requirements files."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+        platforms=[],
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert set(data["workspace"]["platforms"]) == {"linux-64", "osx-arm64"}
+
+
+def test_pixi_monorepo_skips_optional_groups_when_base_feature_empty(
+    tmp_path: Path,
+) -> None:
+    """Optional sub-features should be skipped when a root has no base feature."""
+    project1 = tmp_path / "project1"
+    project1.mkdir()
+    req1 = project1 / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies: []
+            optional_dependencies:
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+
+    project2 = tmp_path / "project2"
+    project2.mkdir()
+    req2 = project2 / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req1, req2, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    assert "project1" not in features
+    assert "project1-docs" not in features
+    assert "project2" in features
+
+
+def test_pixi_monorepo_skips_empty_optional_feature_group(tmp_path: Path) -> None:
+    """Empty optional groups should not create empty sub-features."""
+    project1 = tmp_path / "project1"
+    project1.mkdir()
+    req1 = project1 / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - pytest
+            """,
+        ),
+    )
+
+    project2 = tmp_path / "project2"
+    project2.mkdir()
+    req2 = project2 / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req1,
+        req2,
+        output_file=output_file,
+        verbose=False,
+        skip_dependencies=["pytest"],
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "project1-docs" not in data["feature"]
+
+
 # Tests for build string parsing
 
 
@@ -1522,6 +1655,207 @@ def test_parse_version_build_with_build_string() -> None:
 
     result = _parse_version_build("1.0 py310*")
     assert result == {"version": "1.0", "build": "py310*"}
+
+
+def test_parse_version_build_empty_string() -> None:
+    """Whitespace-only pins should normalize to wildcard."""
+    assert _parse_version_build("   ") == "*"
+
+
+def test_resolve_conda_pip_conflict_prefers_pip_with_extras() -> None:
+    """Pip extras cannot be represented via conda, so keep pip and drop conda."""
+    conda_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
+    pip_deps: dict[str, str | dict[str, object]] = {
+        "foo": {"version": "*", "extras": ["dev"]},
+    }
+    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
+    assert "foo" not in conda_deps
+    assert "foo" in pip_deps
+
+
+def test_resolve_conda_pip_conflict_drops_unpinned_pip_when_conda_pinned() -> None:
+    """Pinned conda should win over unpinned pip for the same package."""
+    conda_deps: dict[str, str | dict[str, object]] = {"foo": ">=1.0"}
+    pip_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
+    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
+    assert "foo" in conda_deps
+    assert "foo" not in pip_deps
+
+
+def test_resolve_conda_pip_conflict_with_pinned_dict_spec() -> None:
+    """Dict specs with non-wildcard versions should be treated as pinned."""
+    conda_deps: dict[str, str | dict[str, object]] = {"foo": {"version": ">=1.0"}}
+    pip_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
+    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
+    assert "foo" in conda_deps
+    assert "foo" not in pip_deps
+
+
+def test_normalize_local_dependency_use_returns_valid_mode() -> None:
+    """Valid explicit local dependency use values should pass through."""
+    assert _normalize_local_dependency_use("skip") == "skip"
+
+
+def test_derive_feature_names_handles_commonpath_valueerror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feature naming should fall back when commonpath raises ValueError."""
+    first = tmp_path / "a" / "api"
+    second = tmp_path / "b" / "api"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    req1 = first / "requirements.yaml"
+    req2 = second / "requirements.yaml"
+    req1.write_text("dependencies: [numpy]\n")
+    req2.write_text("dependencies: [pandas]\n")
+
+    def _raise_commonpath(_: list[str]) -> str:
+        msg = "boom"
+        raise ValueError(msg)
+
+    monkeypatch.setattr("unidep._pixi.os.path.commonpath", _raise_commonpath)
+    names = _derive_feature_names([req1, req2])
+    assert len(names) == 2
+    assert len(set(names)) == 2
+
+
+def test_derive_feature_names_handles_relative_to_valueerror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feature naming should still be unique if relative_to raises ValueError."""
+    root1 = tmp_path / "a+b" / "api"
+    root2 = tmp_path / "a b" / "api"
+    root3 = tmp_path / "a@b" / "api"
+    root1.mkdir(parents=True)
+    root2.mkdir(parents=True)
+    root3.mkdir(parents=True)
+    req1 = root1 / "requirements.yaml"
+    req2 = root2 / "requirements.yaml"
+    req3 = root3 / "requirements.yaml"
+    req1.write_text("dependencies: [numpy]\n")
+    req2.write_text("dependencies: [pandas]\n")
+    req3.write_text("dependencies: [scipy]\n")
+
+    path_type = type(tmp_path)
+
+    def _raise_relative_to(_self: Path, *_args: object, **_kwargs: object) -> Path:
+        msg = "boom"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(path_type, "relative_to", _raise_relative_to)
+    names = _derive_feature_names([req1, req2, req3])
+    assert len(names) == 3
+    assert len(set(names)) == 3
+    assert any(name.endswith("-2") for name in names)
+
+
+def test_editable_dependency_path_relative_forms(tmp_path: Path) -> None:
+    """Editable path helper should preserve '.' and '../' relative forms."""
+    project_dir = tmp_path / "pkg"
+    project_dir.mkdir()
+    same_dir_output = project_dir / "pixi.toml"
+    assert _editable_dependency_path(project_dir, same_dir_output) == "."
+
+    nested_output = tmp_path / "nested" / "pixi.toml"
+    nested_output.parent.mkdir()
+    assert _editable_dependency_path(project_dir, nested_output) == "../pkg"
+
+
+def test_discover_local_dependency_graph_skips_non_local_and_missing(
+    tmp_path: Path,
+) -> None:
+    """Graph discovery should ignore skipped/pypi/missing local entries safely."""
+    root = tmp_path / "root"
+    root.mkdir()
+    req = root / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - local: ../missing
+                use: local
+              - local: ../skipme
+                use: skip
+              - local: ../pypi-alt
+                use: pypi
+                pypi: foo>=1
+            """,
+        ),
+    )
+
+    roots, discovered, graph = _discover_local_dependency_graph([req])
+    assert roots == discovered
+    assert len(roots) == 1
+    assert graph[roots[0]] == []
+
+
+def test_parse_direct_requirements_for_node_with_extras(tmp_path: Path) -> None:
+    """Selected extras on a local node should merge into required dependencies."""
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+            """,
+        ),
+    )
+    node = PathWithExtras(req, ["dev"])
+    parsed = _parse_direct_requirements_for_node(
+        node,
+        verbose=False,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+    )
+    assert "numpy" in parsed.requirements
+    assert "pytest" in parsed.requirements
+    assert parsed.optional_dependencies == {}
+
+
+def test_parse_direct_requirements_for_node_with_star_extra(tmp_path: Path) -> None:
+    """A '*' extra should include all optional dependency groups."""
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+    node = PathWithExtras(req, ["*"])
+    parsed = _parse_direct_requirements_for_node(
+        node,
+        verbose=False,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+    )
+    assert "pytest" in parsed.requirements
+    assert "sphinx" in parsed.requirements
+    assert parsed.optional_dependencies == {}
+
+
+def test_collect_transitive_nodes_deduplicates_seen_nodes(tmp_path: Path) -> None:
+    """Transitive collection should skip already-seen nodes in cyclic graphs."""
+    req_a = PathWithExtras(tmp_path / "a" / "requirements.yaml", [])
+    req_b = PathWithExtras(tmp_path / "b" / "requirements.yaml", [])
+    graph = {req_a: [req_b, req_b], req_b: [req_a]}
+    collected = _collect_transitive_nodes(req_a, graph)
+    assert collected == [req_b, req_a]
 
 
 def test_pixi_with_build_string(tmp_path: Path) -> None:

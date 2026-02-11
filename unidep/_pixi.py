@@ -304,9 +304,6 @@ def _derive_feature_names(requirements_files: Sequence[Path]) -> list[str]:
                 if stem_name:
                     candidate = _normalize_feature_name(f"{candidate}-{stem_name}")
 
-        if not candidate:
-            candidate = "feature"
-
         unique_name = candidate
         suffix = 2
         while unique_name in used_names:
@@ -691,9 +688,6 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
             for opt_feature_name, parent_feature in optional_feature_parents.items():
                 env_name = opt_feature_name.replace("_", "-")
-                if parent_feature not in pixi_data["feature"]:
-                    pixi_data["environments"][env_name] = [opt_feature_name]
-                    continue
                 pixi_data["environments"][env_name] = _with_unique_order(
                     [
                         parent_feature,
