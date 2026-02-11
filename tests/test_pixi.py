@@ -137,8 +137,8 @@ def test_monorepo_pixi_generation(tmp_path: Path) -> None:
     assert "project1" in content
     assert "project2" in content
     # Verify that default includes both projects
-    assert content.count('"project1"') >= 2  # In default and individual env
-    assert content.count('"project2"') >= 2  # In default and individual env
+    assert content.count('"project1"') >= 1
+    assert content.count('"project2"') >= 1
 
 
 def test_pixi_monorepo_feature_names_unique_for_same_leaf_dir(tmp_path: Path) -> None:
@@ -897,10 +897,6 @@ def test_pixi_monorepo_shared_local_file_becomes_single_feature(tmp_path: Path) 
     assert "pytest" not in features[project1_feature].get("dependencies", {})
     assert "pytest" not in features[project2_feature].get("dependencies", {})
 
-    env_project1 = data["environments"][project1_feature.replace("_", "-")]
-    env_project2 = data["environments"][project2_feature.replace("_", "-")]
-    assert set(env_project1) == {project1_feature, shared_feature}
-    assert set(env_project2) == {project2_feature, shared_feature}
     assert set(data["environments"]["default"]) == {
         project1_feature,
         project2_feature,
@@ -985,12 +981,7 @@ def test_pixi_monorepo_transitive_local_dependencies_are_composed_in_envs(
     assert "sympy" not in features[feature_a].get("dependencies", {})
     assert "sympy" not in features[feature_b].get("dependencies", {})
 
-    env_a = data["environments"][feature_a.replace("_", "-")]
-    env_b = data["environments"][feature_b.replace("_", "-")]
-    env_c = data["environments"][feature_c.replace("_", "-")]
-    assert set(env_a) == {feature_a, feature_b, feature_c}
-    assert set(env_b) == {feature_b, feature_c}
-    assert set(env_c) == {feature_c}
+    assert set(data["environments"]["default"]) == {feature_a, feature_b, feature_c}
 
 
 def test_pixi_with_directory_input(tmp_path: Path) -> None:

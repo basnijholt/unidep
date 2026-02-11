@@ -689,12 +689,6 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 default_features.extend(transitive_features.get(feature_name, []))
             pixi_data["environments"]["default"] = _with_unique_order(default_features)
 
-            for feature_name, deps in transitive_features.items():
-                env_name = feature_name.replace("_", "-")
-                pixi_data["environments"][env_name] = _with_unique_order(
-                    [feature_name, *deps],
-                )
-
             for opt_feature_name, parent_feature in optional_feature_parents.items():
                 env_name = opt_feature_name.replace("_", "-")
                 if parent_feature not in pixi_data["feature"]:
