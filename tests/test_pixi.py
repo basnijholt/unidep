@@ -684,21 +684,49 @@ def test_pixi_with_platform_selectors(tmp_path: Path) -> None:
     )
 
     assert output_file.exists()
-    content = output_file.read_text()
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
 
-    # Check universal dependencies
-    assert "[dependencies]" in content
-    assert 'numpy = "*"' in content
+    assert data["dependencies"]["numpy"] == "*"
+    assert "cuda-toolkit" not in data["dependencies"]
+    assert "pyobjc" not in data.get("pypi-dependencies", {})
 
-    # Check platform-specific conda dependency
-    assert "[target.linux-64.dependencies]" in content
-    assert 'cuda-toolkit = "=11.8"' in content
+    assert data["target"]["linux-64"]["dependencies"]["cuda-toolkit"] == "=11.8"
+    osx_target = data["target"].get("osx-arm64") or data["target"].get("osx-64")
+    assert osx_target is not None
+    assert osx_target["pypi-dependencies"]["pyobjc"] == "*"
 
-    # Check platform-specific pip dependency (osx maps to osx-64 and osx-arm64)
-    assert "pypi-dependencies" in content
-    assert "pyobjc" in content
-    # Should be in at least one osx target
-    assert "osx-64" in content or "osx-arm64" in content
+
+def test_pixi_selector_targets_preserved_without_explicit_platforms(
+    tmp_path: Path,
+) -> None:
+    """Selector targets should not be dropped when input files omit platforms."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+              - cuda-toolkit  # [linux64]
+              - pip: pyobjc  # [osx]
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "linux-64" in data["workspace"]["platforms"]
+    assert any(p in data["workspace"]["platforms"] for p in ("osx-64", "osx-arm64"))
+    assert data["target"]["linux-64"]["dependencies"]["cuda-toolkit"] == "*"
+    osx_target = data["target"].get("osx-arm64") or data["target"].get("osx-64")
+    assert osx_target is not None
+    assert osx_target["pypi-dependencies"]["pyobjc"] == "*"
 
 
 def test_pixi_with_multiple_platform_selectors(tmp_path: Path) -> None:
@@ -730,19 +758,15 @@ def test_pixi_with_multiple_platform_selectors(tmp_path: Path) -> None:
     )
 
     assert output_file.exists()
-    content = output_file.read_text()
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
 
-    # Universal dep
-    assert 'numpy = "*"' in content
-
-    # unix selector should expand to linux and osx platforms
-    assert "linux-64" in content
-    assert "osx-arm64" in content or "osx-64" in content
-    assert "readline" in content
-
-    # win64 selector
-    assert "win-64" in content
-    assert "pywin32" in content
+    assert data["dependencies"]["numpy"] == "*"
+    assert "readline" not in data["dependencies"]
+    assert "pywin32" not in data["dependencies"]
+    assert data["target"]["linux-64"]["dependencies"]["readline"] == "*"
+    assert data["target"]["osx-arm64"]["dependencies"]["readline"] == "*"
+    assert data["target"]["win-64"]["dependencies"]["pywin32"] == "*"
 
 
 def test_pixi_monorepo_with_platform_selectors(tmp_path: Path) -> None:
@@ -792,20 +816,19 @@ def test_pixi_monorepo_with_platform_selectors(tmp_path: Path) -> None:
     )
 
     assert output_file.exists()
-    content = output_file.read_text()
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
 
-    # Check that features have target sections
-    assert "[feature.project1.dependencies]" in content
-    assert 'numpy = "*"' in content
+    project1 = data["feature"]["project1"]
+    project2 = data["feature"]["project2"]
 
-    # Platform-specific in feature should use target within feature
-    assert "cuda-toolkit" in content
-    assert "linux-64" in content
+    assert project1["dependencies"]["numpy"] == "*"
+    assert "cuda-toolkit" not in project1["dependencies"]
+    assert project1["target"]["linux-64"]["dependencies"]["cuda-toolkit"] == "*"
 
-    assert "[feature.project2.dependencies]" in content
-    assert 'pandas = "*"' in content
-    assert "pyobjc" in content
-    assert "osx-arm64" in content
+    assert project2["dependencies"]["pandas"] == "*"
+    assert "pyobjc" not in project2.get("pypi-dependencies", {})
+    assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
 
 
 def test_pixi_monorepo_with_local_packages(tmp_path: Path) -> None:
@@ -1161,6 +1184,66 @@ def test_pixi_monorepo_ignores_wheel_local_dependencies_in_graph(
         data = tomllib.load(f)
 
     assert set(data["feature"]) == {"project1", "project2"}
+
+
+def test_pixi_single_file_local_dependency_use_modes(tmp_path: Path) -> None:
+    """`use: pypi` should add pip dep, while `use: skip` should add nothing."""
+    pypi_local = tmp_path / "pypi_local"
+    pypi_local.mkdir()
+    (pypi_local / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    skipped_local = tmp_path / "skipped_local"
+    skipped_local.mkdir()
+    (skipped_local / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - scipy
+            """,
+        ),
+    )
+
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - local: ./pypi_local
+                use: pypi
+                pypi: pypi-local-package >=1.2
+              - local: ./skipped_local
+                use: skip
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["dependencies"]["numpy"] == "*"
+    assert "pandas" not in data["dependencies"]
+    assert "scipy" not in data["dependencies"]
+    assert data["pypi-dependencies"]["pypi-local-package"] == ">=1.2"
+    assert "skipped_local" not in data.get("pypi-dependencies", {})
+    assert "target" not in data
 
 
 def test_pixi_with_directory_input(tmp_path: Path) -> None:
@@ -2192,6 +2275,10 @@ def test_merge_version_specs_simple_merge() -> None:
     result = _merge_version_specs(">=1.0", "<2.0", "pkg")
     assert result == ">=1.0,<2.0"
 
+    # A simplified merge should still keep a single constraint format.
+    result = _merge_version_specs(">=1.0", ">=2.0", "pkg")
+    assert result == ">=2.0"
+
 
 def test_merge_version_specs_star_handling() -> None:
     """Test _merge_version_specs handles * (no constraint) correctly."""
@@ -2227,14 +2314,22 @@ def test_merge_version_specs_with_extras() -> None:
     result = _merge_version_specs(existing, new, "pkg")
     assert isinstance(result, dict)
     assert result["version"] == ">=1.0,<2.0"
-    assert set(result["extras"]) == {"dev", "test"}
+    assert result["extras"] == ["dev", "test"]
 
 
 def test_merge_version_specs_conflict() -> None:
     """Test _merge_version_specs handles conflicting constraints."""
-    # >=2.0 and <1.0 conflict - should prefer new
+    # Conflict fallback should be deterministic and order-independent.
     result = _merge_version_specs(">=2.0", "<1.0", "pkg")
-    assert result == "<1.0"  # Prefers new when conflict
+    assert result == ">=2.0,<1.0"
+
+    # Reverse order should produce the same result.
+    reverse_result = _merge_version_specs("<1.0", ">=2.0", "pkg")
+    assert reverse_result == ">=2.0,<1.0"
+
+    # Conflict path that still triggers the explicit fallback branch.
+    exact_pin_conflict = _merge_version_specs("==1.0", ">=2.0", "pkg")
+    assert exact_pin_conflict == "==1.0,>=2.0"
 
     # When new is *, keep existing
     result = _merge_version_specs(">=2.0", "*", "pkg")

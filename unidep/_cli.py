@@ -293,7 +293,7 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         f" to search for {_DEP_FILES}"
         " files in the current directory and its"
         " subdirectories and create `environment.yaml`. These are the defaults, so you"
-        " can also just run `unidep merge`. For Pixi support, use `unidep pixi init`."
+        " can also just run `unidep merge`. For Pixi support, use `unidep pixi`."
     )
     parser_merge = subparsers.add_parser(
         "merge",

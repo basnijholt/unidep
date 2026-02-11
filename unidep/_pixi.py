@@ -9,7 +9,17 @@ import sys
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 from ruamel.yaml import YAML
 
@@ -134,6 +144,39 @@ def _make_pip_version_spec(
     return {**version, "extras": extras}
 
 
+def _canonicalize_version_spec(version_spec: str) -> str:
+    """Normalize comma-separated version constraints to a stable order."""
+    if "," not in version_spec:
+        return version_spec
+
+    operator_order = {
+        "==": 0,
+        "===": 0,
+        "~=": 1,
+        ">=": 2,
+        ">": 3,
+        "<=": 4,
+        "<": 5,
+        "!=": 6,
+        "=": 7,
+    }
+
+    def _constraint_key(constraint: str) -> tuple[int, str]:
+        token = constraint.strip()
+        op = next(
+            (
+                candidate
+                for candidate in ("===", "==", "~=", ">=", "<=", "!=", ">", "<", "=")
+                if token.startswith(candidate)
+            ),
+            "",
+        )
+        return (operator_order.get(op, 8), token)
+
+    parts = [part.strip() for part in version_spec.split(",") if part.strip()]
+    return ",".join(sorted(parts, key=_constraint_key))
+
+
 def _merge_version_specs(
     existing: str | dict[str, Any] | None,
     new: str | dict[str, Any],
@@ -171,20 +214,20 @@ def _merge_version_specs(
     elif new_version == "*":
         merged_version = existing_version
     else:
-        # Merge the version constraints
+        # Merge constraints in a deterministic order.
+        constraint_pair = sorted([existing_version, new_version])
         try:
-            merged_version = combine_version_pinnings(
-                [existing_version, new_version],
-                name=pkg_name,
-            )
+            merged_version = combine_version_pinnings(constraint_pair, name=pkg_name)
         except VersionConflictError:
-            # If constraints conflict, prefer the more specific one (new if pinned)
-            merged_version = new_version if new_version != "*" else existing_version
+            # Keep both constraints (deterministically ordered) so the manifest
+            # stays explicit and downstream solvers can report unsatisfiable specs.
+            merged_version = ",".join(constraint_pair)
+        merged_version = _canonicalize_version_spec(merged_version)
 
     # Handle extras (for pip packages)
     existing_extras = existing.get("extras", []) if isinstance(existing, dict) else []
     new_extras = new.get("extras", []) if isinstance(new, dict) else []
-    merged_extras = list(set(existing_extras) | set(new_extras))
+    merged_extras = sorted(set(existing_extras) | set(new_extras))
 
     if merged_extras:
         return {"version": merged_version, "extras": merged_extras}
@@ -547,6 +590,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     # Collect channels and platforms from all requirements files
     all_channels = set()
     all_platforms = set()
+    discovered_target_platforms: set[str] = set()
 
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
@@ -561,6 +605,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             include_local_dependencies=True,
         )
         platform_deps = _extract_dependencies(base_req.requirements)
+        discovered_target_platforms.update(
+            platform for platform in platform_deps if platform is not None
+        )
 
         # Use channels and platforms from the requirements file
         if base_req.channels:
@@ -625,6 +672,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 ).items():
                     group_feature_requirements.setdefault(dep_name, []).extend(specs)
                 opt_platform_deps = _extract_dependencies(group_feature_requirements)
+                discovered_target_platforms.update(
+                    platform for platform in opt_platform_deps if platform is not None
+                )
                 feature = _build_feature_dict(opt_platform_deps)
                 if feature:
                     pixi_data["feature"][group_name] = feature
@@ -666,6 +716,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 include_all_optional_groups=node in root_nodes_set,
             )
             platform_deps = _extract_dependencies(req.requirements)
+            discovered_target_platforms.update(
+                platform for platform in platform_deps if platform is not None
+            )
             feature_name = feature_name_by_node[node]
 
             # Collect channels and platforms
@@ -707,7 +760,11 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if feature_name not in pixi_data["feature"]:
                 continue
             for group_name, group_specs in req.optional_dependencies.items():
-                opt_feature = _build_feature_dict(_extract_dependencies(group_specs))
+                group_platform_deps = _extract_dependencies(group_specs)
+                discovered_target_platforms.update(
+                    platform for platform in group_platform_deps if platform is not None
+                )
+                opt_feature = _build_feature_dict(group_platform_deps)
                 if not opt_feature:
                     continue
                 opt_feature_name = f"{feature_name}-{group_name}"
@@ -755,6 +812,10 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         final_platforms = sorted(platforms)
     elif all_platforms:
         final_platforms = sorted(all_platforms)
+    elif discovered_target_platforms:
+        # Preserve all selector-derived targets when input files do not define
+        # explicit platforms.
+        final_platforms = sorted(cast("set[Platform]", discovered_target_platforms))
     else:
         final_platforms = [identify_current_platform()]
     final_channels = sorted(
