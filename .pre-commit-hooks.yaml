@@ -1,5 +1,5 @@
-- id: unidep-merge
-  name: unidep merge
+- id: unidep-environment-yaml
+  name: unidep environment.yaml
   description: Generate environment.yaml from requirements.yaml using unidep.
   entry: unidep merge
   language: python
