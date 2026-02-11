@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
@@ -518,16 +519,6 @@ def _subtract_requirements(
     return diff
 
 
-def _optional_group_names(requirements_file: Path) -> list[str]:
-    """Get optional dependency group names from a requirements file."""
-    yaml = YAML(typ="rt")
-    data = copy.deepcopy(_load(requirements_file, yaml))
-    optional_dependencies = data.get("optional_dependencies", {})
-    if not isinstance(optional_dependencies, dict):
-        return []
-    return list(optional_dependencies)
-
-
 def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     *requirements_files: Path,
     project_name: str | None = None,
@@ -602,7 +593,10 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             }
 
         # Handle optional dependencies as features
-        optional_groups = _optional_group_names(req_file)
+        optional_data = _load(req_file, YAML(typ="rt")).get("optional_dependencies", {})
+        optional_groups = (
+            list(optional_data) if isinstance(optional_data, Mapping) else []
+        )
         if optional_groups:
             pixi_data["feature"] = {}
             pixi_data["environments"] = {}
@@ -630,7 +624,6 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     {},
                 ).items():
                     group_feature_requirements.setdefault(dep_name, []).extend(specs)
-
                 opt_platform_deps = _extract_dependencies(group_feature_requirements)
                 feature = _build_feature_dict(opt_platform_deps)
                 if feature:
@@ -813,31 +806,25 @@ def _reconcile_with_universal_deps(
     base_name: str,
 ) -> None:
     """Resolve conflicts between a platform bucket and universal dependencies."""
-    if platform is None or platform not in platform_deps:
+    if platform is None:
         return
 
     universal_conda, universal_pip = platform_deps.get(None, ({}, {}))
-    platform_conda, platform_pip = platform_deps[platform]
+    platform_conda, platform_pip = platform_deps.get(platform, ({}, {}))
 
-    # Universal conda versus platform-specific pip.
-    if base_name in universal_conda and base_name in platform_pip:
-        conda_probe = {base_name: universal_conda[base_name]}
-        pip_probe = {base_name: platform_pip[base_name]}
+    for conda_scope, pip_scope in (
+        (universal_conda, platform_pip),
+        (platform_conda, universal_pip),
+    ):
+        if base_name not in conda_scope or base_name not in pip_scope:
+            continue
+        conda_probe = {base_name: conda_scope[base_name]}
+        pip_probe = {base_name: pip_scope[base_name]}
         _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
         if base_name not in conda_probe:
-            universal_conda.pop(base_name, None)
+            conda_scope.pop(base_name, None)
         if base_name not in pip_probe:
-            platform_pip.pop(base_name, None)
-
-    # Universal pip versus platform-specific conda.
-    if base_name in universal_pip and base_name in platform_conda:
-        conda_probe = {base_name: platform_conda[base_name]}
-        pip_probe = {base_name: universal_pip[base_name]}
-        _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
-        if base_name not in conda_probe:
-            platform_conda.pop(base_name, None)
-        if base_name not in pip_probe:
-            universal_pip.pop(base_name, None)
+            pip_scope.pop(base_name, None)
 
 
 def _extract_dependencies(

@@ -18,7 +18,6 @@ from unidep._pixi import (
     _editable_dependency_path,
     _make_pip_version_spec,
     _merge_version_specs,
-    _optional_group_names,
     _parse_direct_requirements_for_node,
     _parse_package_extras,
     _parse_version_build,
@@ -1601,26 +1600,6 @@ def test_pixi_single_file_optional_local_dependency_stays_optional(
     assert data["feature"]["dev"]["dependencies"]["pandas"] == "*"
     assert data["environments"]["default"] == []
     assert data["environments"]["dev"] == ["dev"]
-
-
-def test_optional_group_names_returns_empty_for_non_mapping_data(
-    tmp_path: Path,
-) -> None:
-    """Invalid optional_dependencies structures should not crash group discovery."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - numpy
-            optional_dependencies: []
-            """,
-        ),
-    )
-
-    assert _optional_group_names(req_file) == []
 
 
 def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
