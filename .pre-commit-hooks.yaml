@@ -1,0 +1,7 @@
+- id: unidep-merge
+  name: unidep merge
+  description: Generate environment.yaml from requirements.yaml using unidep.
+  entry: unidep merge
+  language: python
+  files: '(requirements\.yaml|pyproject\.toml)$'
+  pass_filenames: false
