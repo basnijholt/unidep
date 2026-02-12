@@ -35,9 +35,9 @@ from unidep.platform_definitions import Spec, platforms_from_selector
 from unidep.utils import (
     LocalDependency,
     PathWithExtras,
-    identify_current_platform,
     is_pip_installable,
     parse_folder_or_filename,
+    resolve_platforms,
     split_path_and_extras,
 )
 
@@ -808,16 +808,11 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
     # Set workspace metadata with collected channels and platforms
     # Sort for deterministic output
-    if platforms is not None:
-        final_platforms = sorted(platforms)
-    elif all_platforms:
-        final_platforms = sorted(all_platforms)
-    elif discovered_target_platforms:
-        # Preserve all selector-derived targets when input files do not define
-        # explicit platforms.
-        final_platforms = sorted(cast("set[Platform]", discovered_target_platforms))
-    else:
-        final_platforms = [identify_current_platform()]
+    final_platforms = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=cast("set[Platform]", all_platforms),
+        selector_platforms=cast("set[Platform]", discovered_target_platforms),
+    )
     final_channels = sorted(
         list(all_channels) if all_channels else (channels or ["conda-forge"]),
     )

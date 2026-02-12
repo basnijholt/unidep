@@ -38,12 +38,14 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
+    collect_selector_platforms,
     escape_unicode,
     get_package_version,
     identify_current_platform,
     is_pip_installable,
     parse_folder_or_filename,
     parse_package_str,
+    resolve_platforms,
     warn,
 )
 
@@ -1348,8 +1350,14 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    if not platforms:
-        platforms = requirements.platforms or [identify_current_platform()]
+    platforms = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=requirements.platforms,
+        selector_platforms=collect_selector_platforms(
+            requirements.requirements,
+            requirements.optional_dependencies,
+        ),
+    )
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
@@ -1411,11 +1419,12 @@ def _pixi_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    if platforms:
-        effective_platforms = platforms
-    elif requirements.platforms:
-        effective_platforms = requirements.platforms
-    else:
+    effective_platforms: list[Platform] | None = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=requirements.platforms,
+        default_current=False,
+    )
+    if not effective_platforms:
         effective_platforms = None
     output_file = None if stdout else output
     generate_pixi_toml(

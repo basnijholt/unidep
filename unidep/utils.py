@@ -19,6 +19,7 @@ from unidep.platform_definitions import (
     PEP508_MARKERS,
     Platform,
     Selector,
+    Spec,
     platforms_from_selector,
     validate_selector,
 )
@@ -122,6 +123,50 @@ def identify_current_platform() -> Platform:
         raise UnsupportedPlatformError(msg)
     msg = f"Unsupported operating system `{system}` with architecture `{architecture}`"
     raise UnsupportedPlatformError(msg)
+
+
+def collect_selector_platforms(
+    requirements: dict[str, list[Spec]],
+    optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
+) -> list[Platform]:
+    """Collect all platforms referenced by dependency selectors."""
+    selector_platforms: set[Platform] = set()
+
+    def _collect(specs_by_name: dict[str, list[Spec]]) -> None:
+        for specs in specs_by_name.values():
+            for spec in specs:
+                if spec.selector is None:
+                    continue
+                selector_platforms.update(platforms_from_selector(spec.selector))
+
+    _collect(requirements)
+    if optional_dependencies is not None:
+        for optional_specs in optional_dependencies.values():
+            _collect(optional_specs)
+    return sorted(selector_platforms)
+
+
+def resolve_platforms(
+    *,
+    requested_platforms: list[Platform] | None,
+    declared_platforms: list[Platform] | set[Platform] | None = None,
+    selector_platforms: list[Platform] | set[Platform] | None = None,
+    default_current: bool = True,
+) -> list[Platform]:
+    """Resolve effective platforms with a shared precedence policy.
+
+    Precedence is:
+    1) explicitly requested platforms
+    2) declared platforms from requirements files
+    3) selector-derived platforms from dependency specs
+    4) current platform fallback (optional)
+    """
+    for candidate in (requested_platforms, declared_platforms, selector_platforms):
+        if candidate:
+            return sorted(set(candidate))
+    if default_current:
+        return [identify_current_platform()]
+    return []
 
 
 def build_pep508_environment_marker(
