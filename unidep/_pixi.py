@@ -28,6 +28,7 @@ from unidep._dependencies_parsing import (
     _apply_local_dependency_override,
     _load,
     _move_local_optional_dependencies_to_local_dependencies,
+    _str_is_path_like,
     get_local_dependencies,
     parse_requirements,
 )
@@ -381,12 +382,13 @@ def _canonical_path_with_extras(path_with_extras: PathWithExtras) -> PathWithExt
     return PathWithExtras(path_with_extras.path.resolve(), extras)
 
 
-def _discover_local_dependency_graph(
+def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
     requirements_files: Sequence[Path],
 ) -> tuple[
     list[PathWithExtras],
     list[PathWithExtras],
     dict[PathWithExtras, list[PathWithExtras]],
+    dict[PathWithExtras, dict[str, list[PathWithExtras]]],
 ]:
     """Discover requirement files reachable via local_dependencies.
 
@@ -394,6 +396,7 @@ def _discover_local_dependency_graph(
         - Root requirement files (the user-provided inputs).
         - All discovered requirement files (roots + reachable local deps).
         - A direct dependency graph between discovered requirement files.
+        - Optional-group local dependency edges for root files.
 
     """
     yaml = YAML(typ="rt")
@@ -405,7 +408,9 @@ def _discover_local_dependency_graph(
     ]
     discovered: list[PathWithExtras] = []
     graph: dict[PathWithExtras, list[PathWithExtras]] = {}
+    optional_group_graph: dict[PathWithExtras, dict[str, list[PathWithExtras]]] = {}
     seen: set[PathWithExtras] = set()
+    roots_set = set(roots)
     queue = list(roots)
 
     while queue:
@@ -430,6 +435,42 @@ def _discover_local_dependency_graph(
                     base_dir=node.path.parent,
                     overrides=local_dependency_overrides,
                 )
+
+        if node in roots_set:
+            optional_groups = data.get("optional_dependencies", {})
+            if isinstance(optional_groups, Mapping):
+                for group_name, group_deps in optional_groups.items():
+                    if not isinstance(group_deps, list):
+                        continue
+                    for dep in group_deps:
+                        if isinstance(dep, Mapping) or not _str_is_path_like(dep):
+                            continue
+                        effective_local_dep = _apply_local_dependency_override(
+                            local_dependency=LocalDependency(local=dep),
+                            base_dir=node.path.parent,
+                            overrides=local_dependency_overrides,
+                        )
+                        if effective_local_dep.use != "local":
+                            continue
+                        local_path, _ = split_path_and_extras(effective_local_dep.local)
+                        abs_local = (node.path.parent / local_path).resolve()
+                        if abs_local.suffix in (".whl", ".zip"):
+                            continue
+                        try:
+                            requirements_dep_file = parse_folder_or_filename(
+                                node.path.parent / effective_local_dep.local,
+                            )
+                        except FileNotFoundError:
+                            continue
+                        child = _canonical_path_with_extras(requirements_dep_file)
+                        group_edges = optional_group_graph.setdefault(
+                            node,
+                            {},
+                        ).setdefault(group_name, [])
+                        if child not in group_edges:
+                            group_edges.append(child)
+                        if child not in seen:
+                            queue.append(child)
 
         direct_nodes: list[PathWithExtras] = []
         for local_dep_obj in local_dependencies:
@@ -462,7 +503,7 @@ def _discover_local_dependency_graph(
 
         graph[node] = direct_nodes
 
-    return roots, discovered, graph
+    return roots, discovered, graph, optional_group_graph
 
 
 def _parse_direct_requirements_for_node(
@@ -697,7 +738,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         # local-dependency relationships in environments instead of flattening.
         pixi_data["feature"] = {}
         pixi_data["environments"] = {}
-        root_nodes, discovered_nodes, local_dependency_graph = (
+        root_nodes, discovered_nodes, local_dependency_graph, optional_group_graph = (
             _discover_local_dependency_graph(requirements_files)
         )
         feature_names = _derive_feature_names([node.path for node in discovered_nodes])
@@ -705,6 +746,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         root_nodes_set = set(root_nodes)
         base_feature_nodes: dict[str, PathWithExtras] = {}
         optional_feature_parents: dict[str, str] = {}
+        optional_feature_has_feature: dict[str, bool] = {}
+        optional_feature_local_nodes: dict[str, list[PathWithExtras]] = {}
 
         for node in discovered_nodes:
             req = _parse_direct_requirements_for_node(
@@ -765,11 +808,20 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     platform for platform in group_platform_deps if platform is not None
                 )
                 opt_feature = _build_feature_dict(group_platform_deps)
-                if not opt_feature:
-                    continue
                 opt_feature_name = f"{feature_name}-{group_name}"
-                pixi_data["feature"][opt_feature_name] = opt_feature
+                optional_local_nodes = optional_group_graph.get(node, {}).get(
+                    group_name,
+                    [],
+                )
+                if not opt_feature and not optional_local_nodes:
+                    continue
+                if opt_feature:
+                    pixi_data["feature"][opt_feature_name] = opt_feature
+                    optional_feature_has_feature[opt_feature_name] = True
+                else:
+                    optional_feature_has_feature[opt_feature_name] = False
                 optional_feature_parents[opt_feature_name] = feature_name
+                optional_feature_local_nodes[opt_feature_name] = optional_local_nodes
 
         # Create environments
         if pixi_data["feature"]:
@@ -798,13 +850,25 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
 
             for opt_feature_name, parent_feature in optional_feature_parents.items():
                 env_name = opt_feature_name.replace("_", "-")
-                pixi_data["environments"][env_name] = _with_unique_order(
-                    [
-                        parent_feature,
-                        opt_feature_name,
-                        *transitive_features.get(parent_feature, []),
-                    ],
-                )
+                env_features = [
+                    parent_feature,
+                    *transitive_features.get(parent_feature, []),
+                ]
+                if optional_feature_has_feature.get(opt_feature_name, False):
+                    env_features.append(opt_feature_name)
+                for local_node in optional_feature_local_nodes.get(
+                    opt_feature_name,
+                    [],
+                ):
+                    local_feature = feature_name_by_node.get(local_node)
+                    if (
+                        local_feature is None
+                        or local_feature not in pixi_data["feature"]
+                    ):
+                        continue
+                    env_features.append(local_feature)
+                    env_features.extend(transitive_features.get(local_feature, []))
+                pixi_data["environments"][env_name] = _with_unique_order(env_features)
 
     # Set workspace metadata with collected channels and platforms
     # Sort for deterministic output
@@ -873,6 +937,16 @@ def _reconcile_with_universal_deps(
         (platform_conda, universal_pip),
     ):
         if base_name not in conda_scope or base_name not in pip_scope:
+            continue
+        # For universal-vs-target conflicts, preserve target-specific intent
+        # when both sides are pinned.
+        if (
+            conda_scope is universal_conda
+            and pip_scope is platform_pip
+            and _version_spec_is_pinned(conda_scope[base_name])
+            and _version_spec_is_pinned(pip_scope[base_name])
+        ):
+            conda_scope.pop(base_name, None)
             continue
         conda_probe = {base_name: conda_scope[base_name]}
         pip_probe = {base_name: pip_scope[base_name]}

@@ -446,6 +446,40 @@ def test_pixi_reconciles_universal_conda_and_target_pip_conflict(
     assert linux_target["pypi-dependencies"]["click"] == "==0.1"
 
 
+def test_pixi_reconciles_universal_pinned_conda_and_target_pinned_pip_prefers_target(
+    tmp_path: Path,
+) -> None:
+    """Target pinned pip should override universal pinned conda entries."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click >=8
+              - pip: click ==0.1 # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "click" not in data.get("dependencies", {})
+    linux_target = data["target"]["linux-64"]
+    assert linux_target["pypi-dependencies"]["click"] == "==0.1"
+
+
 def test_pixi_reconciles_universal_conda_and_target_pip_prefers_conda_when_target_unpinned(
     tmp_path: Path,
 ) -> None:
@@ -1751,6 +1785,73 @@ def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
     assert 'black = "*"' in content
 
 
+def test_pixi_monorepo_optional_local_dependency_is_only_in_optional_env(
+    tmp_path: Path,
+) -> None:
+    """Optional local projects should be included only in the optional env."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    app_req = app_dir / "requirements.yaml"
+    app_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            optional_dependencies:
+              dev:
+                - ../lib
+                - pytest
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    lib_req = lib_dir / "requirements.yaml"
+    lib_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other_req = other_dir / "requirements.yaml"
+    other_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - scipy
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(app_req, other_req, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    assert "app" in features
+    assert "app-dev" in features
+    assert "lib" in features
+    assert "other" in features
+
+    envs = data["environments"]
+    assert "lib" not in envs["default"]
+    assert "lib" in envs["app-dev"]
+
+
 def test_pixi_monorepo_default_env_excludes_optional_features(
     tmp_path: Path,
 ) -> None:
@@ -2087,10 +2188,11 @@ def test_discover_local_dependency_graph_skips_non_local_and_missing(
         ),
     )
 
-    roots, discovered, graph = _discover_local_dependency_graph([req])
+    roots, discovered, graph, optional_graph = _discover_local_dependency_graph([req])
     assert roots == discovered
     assert len(roots) == 1
     assert graph[roots[0]] == []
+    assert optional_graph == {}
 
 
 def test_parse_direct_requirements_for_node_with_extras(tmp_path: Path) -> None:
