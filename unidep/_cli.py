@@ -128,7 +128,6 @@ def _add_common_args(  # noqa: PLR0912, C901
             help="Print verbose output",
         )
     if "platform" in options:
-        current_platform = identify_current_platform()
         sub_parser.add_argument(
             "-p",
             "--platform",
@@ -138,7 +137,7 @@ def _add_common_args(  # noqa: PLR0912, C901
             choices=get_args(Platform),
             help="The platform(s) to get the requirements for. "
             "Multiple platforms can be specified. "
-            f"By default, the current platform (`{current_platform}`) is used.",
+            "If omitted, platforms are inferred from the requirements file(s).",
         )
     if "editable" in options:
         sub_parser.add_argument(

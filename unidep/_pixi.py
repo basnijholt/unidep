@@ -632,6 +632,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     all_channels = set()
     all_platforms = set()
     discovered_target_platforms: set[str] = set()
+    # Track demoted universal entries for post-resolution fixup
+    root_demoted: dict[str, tuple[str, VersionSpec]] = {}
+    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
 
     # If single file, put dependencies at root level
     if len(requirements_files) == 1:
@@ -645,7 +648,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             skip_dependencies=skip_dependencies,
             include_local_dependencies=True,
         )
-        platform_deps = _extract_dependencies(base_req.requirements)
+        platform_deps, root_demoted = _extract_dependencies(base_req.requirements)
         discovered_target_platforms.update(
             platform for platform in platform_deps if platform is not None
         )
@@ -712,7 +715,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     {},
                 ).items():
                     group_feature_requirements.setdefault(dep_name, []).extend(specs)
-                opt_platform_deps = _extract_dependencies(group_feature_requirements)
+                opt_platform_deps, opt_demoted = _extract_dependencies(
+                    group_feature_requirements,
+                )
                 discovered_target_platforms.update(
                     platform for platform in opt_platform_deps if platform is not None
                 )
@@ -720,6 +725,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 if feature:
                     pixi_data["feature"][group_name] = feature
                     opt_features.append(group_name)
+                if opt_demoted:
+                    feature_demoted_map[group_name] = opt_demoted
 
             # Create environments for optional dependencies
             if opt_features:
@@ -758,7 +765,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 overwrite_pins=overwrite_pins,
                 include_all_optional_groups=node in root_nodes_set,
             )
-            platform_deps = _extract_dependencies(req.requirements)
+            platform_deps, node_demoted = _extract_dependencies(req.requirements)
             discovered_target_platforms.update(
                 platform for platform in platform_deps if platform is not None
             )
@@ -795,6 +802,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if feature:  # Only add non-empty features
                 pixi_data["feature"][feature_name] = feature
                 base_feature_nodes[feature_name] = node
+            if node_demoted:
+                feature_demoted_map[feature_name] = node_demoted
 
             if node not in root_nodes_set:
                 continue
@@ -803,7 +812,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if feature_name not in pixi_data["feature"]:
                 continue
             for group_name, group_specs in req.optional_dependencies.items():
-                group_platform_deps = _extract_dependencies(group_specs)
+                group_platform_deps, group_demoted = _extract_dependencies(group_specs)
                 discovered_target_platforms.update(
                     platform for platform in group_platform_deps if platform is not None
                 )
@@ -822,6 +831,8 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     optional_feature_has_feature[opt_feature_name] = False
                 optional_feature_parents[opt_feature_name] = feature_name
                 optional_feature_local_nodes[opt_feature_name] = optional_local_nodes
+                if group_demoted:
+                    feature_demoted_map[opt_feature_name] = group_demoted
 
         # Create environments
         if pixi_data["feature"]:
@@ -889,6 +900,17 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     # Filter target sections to only include platforms in the project's platforms list
     _filter_targets_by_platforms(pixi_data, set(final_platforms))
 
+    # Restore demoted universal entries as explicit targets for uncovered platforms
+    if root_demoted:
+        _restore_demoted_universals(pixi_data, root_demoted, final_platforms)
+    for feat_name, feat_demoted in feature_demoted_map.items():
+        if feat_name in pixi_data.get("feature", {}):
+            _restore_demoted_universals(
+                pixi_data["feature"][feat_name],
+                feat_demoted,
+                final_platforms,
+            )
+
     # Write the pixi.toml file
     _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
@@ -924,8 +946,14 @@ def _reconcile_with_universal_deps(
     *,
     platform: Platform | None,
     base_name: str,
+    demoted: dict[str, tuple[str, VersionSpec]] | None = None,
 ) -> None:
-    """Resolve conflicts between a platform bucket and universal dependencies."""
+    """Resolve conflicts between a platform bucket and universal dependencies.
+
+    When a universal entry is removed because of a target-specific conflict,
+    the original spec is recorded in *demoted* so that callers can later
+    promote it to explicit target entries for platforms that don't override it.
+    """
     if platform is None:
         return
 
@@ -946,29 +974,55 @@ def _reconcile_with_universal_deps(
             and _version_spec_is_pinned(conda_scope[base_name])
             and _version_spec_is_pinned(pip_scope[base_name])
         ):
+            if demoted is not None and base_name not in demoted:
+                demoted[base_name] = ("conda", copy.deepcopy(conda_scope[base_name]))
             conda_scope.pop(base_name, None)
             continue
         conda_probe = {base_name: conda_scope[base_name]}
         pip_probe = {base_name: pip_scope[base_name]}
         _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
         if base_name not in conda_probe:
+            if (
+                demoted is not None
+                and conda_scope is universal_conda
+                and base_name not in demoted
+            ):
+                demoted[base_name] = (
+                    "conda",
+                    copy.deepcopy(conda_scope[base_name]),
+                )
             conda_scope.pop(base_name, None)
         if base_name not in pip_probe:
+            if (
+                demoted is not None
+                and pip_scope is universal_pip
+                and base_name not in demoted
+            ):
+                demoted[base_name] = (
+                    "pip",
+                    copy.deepcopy(pip_scope[base_name]),
+                )
             pip_scope.pop(base_name, None)
 
 
 def _extract_dependencies(
     specs_dict: dict[str, list[Spec]],
-) -> PlatformDeps:
+) -> tuple[PlatformDeps, dict[str, tuple[str, VersionSpec]]]:
     """Extract conda and pip dependencies from a dict of package specs.
 
-    Returns a dict mapping platform (or None for universal) to (conda_deps, pip_deps).
+    Returns a tuple of:
+        - A dict mapping platform (or None for universal) to (conda_deps, pip_deps).
+        - A dict of demoted universal entries (pkg_name -> (dep_type, spec)) that
+          were removed from universal during cross-platform reconciliation and may
+          need to be restored as explicit target entries for other platforms.
+
     Platform-specific dependencies are mapped to their respective platforms.
     Version constraints are merged using combine_version_pinnings to ensure
     consistency with pip package metadata generated by unidep's setuptools hook.
 
     """
     platform_deps: PlatformDeps = {None: ({}, {})}
+    demoted: dict[str, tuple[str, VersionSpec]] = {}
 
     for pkg_name, specs in specs_dict.items():
         for spec in specs:
@@ -1012,9 +1066,10 @@ def _extract_dependencies(
                     platform_deps,
                     platform=platform,
                     base_name=base_name,
+                    demoted=demoted,
                 )
 
-    return platform_deps
+    return platform_deps, demoted
 
 
 def _build_feature_dict(platform_deps: PlatformDeps) -> dict[str, Any]:
@@ -1101,6 +1156,39 @@ def _filter_targets_by_platforms(
                 # Remove empty target section
                 if not feature_data["target"]:
                     del feature_data["target"]
+
+
+def _restore_demoted_universals(
+    section: dict[str, Any],
+    demoted: dict[str, tuple[str, VersionSpec]],
+    final_platforms: Sequence[str],
+) -> None:
+    """Add explicit target entries for platforms missing demoted universal deps.
+
+    During conda/pip reconciliation, a universal entry may be removed when it
+    conflicts with a target-specific entry on one platform.  Without this
+    fixup, the dependency disappears for *all other* platforms.  This function
+    promotes the original universal spec to an explicit target entry for every
+    final platform that doesn't already carry it.
+    """
+    for pkg, (dep_type, spec) in demoted.items():
+        dep_key = "dependencies" if dep_type == "conda" else "pypi-dependencies"
+        # If the package is (still) in universal deps, all platforms are covered.
+        if pkg in section.get("dependencies", {}):
+            continue
+        if pkg in section.get("pypi-dependencies", {}):
+            continue
+        for platform in final_platforms:
+            target = section.get("target", {}).get(platform, {})
+            if pkg in target.get("dependencies", {}):
+                continue
+            if pkg in target.get("pypi-dependencies", {}):
+                continue
+            # This platform is missing the package — add it.
+            section.setdefault("target", {}).setdefault(
+                platform,
+                {},
+            ).setdefault(dep_key, {})[pkg] = copy.deepcopy(spec)
 
 
 def _write_pixi_toml(

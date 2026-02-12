@@ -539,6 +539,84 @@ def test_pixi_reconciles_universal_pip_and_target_conda_prefers_conda_when_pinne
     assert data["target"]["linux-64"]["dependencies"]["click"] == ">=8"
 
 
+def test_pixi_reconciles_universal_conda_and_target_pip_multiplatform(
+    tmp_path: Path,
+) -> None:
+    """Universal conda should be promoted to non-overriding target platforms."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click >=8
+              - pip: click ==0.1 # [linux64]
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    # click must NOT be in universal deps (conflict on at least one platform)
+    assert "click" not in data.get("dependencies", {})
+    assert "click" not in data.get("pypi-dependencies", {})
+
+    # linux-64 gets the target-specific pip pin
+    linux_target = data["target"]["linux-64"]
+    assert linux_target["pypi-dependencies"]["click"] == "==0.1"
+
+    # osx-arm64 gets the original universal conda spec
+    osx_target = data["target"]["osx-arm64"]
+    assert osx_target["dependencies"]["click"] == ">=8"
+
+
+def test_pixi_reconciles_universal_pip_and_target_conda_multiplatform(
+    tmp_path: Path,
+) -> None:
+    """Universal pip should be promoted to non-overriding target platforms."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: click ==0.1
+              - conda: click >=8 # [linux64]
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    # click must NOT be in universal deps
+    assert "click" not in data.get("dependencies", {})
+    assert "click" not in data.get("pypi-dependencies", {})
+
+    # linux-64 gets the target-specific conda pin
+    linux_target = data["target"]["linux-64"]
+    assert linux_target["dependencies"]["click"] == ">=8"
+
+    # osx-arm64 gets the original universal pip spec
+    osx_target = data["target"]["osx-arm64"]
+    assert osx_target["pypi-dependencies"]["click"] == "==0.1"
+
+
 def test_pixi_reconciles_universal_pip_and_target_conda_prefers_pip_when_pinned(
     tmp_path: Path,
 ) -> None:
