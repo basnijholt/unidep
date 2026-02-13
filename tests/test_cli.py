@@ -15,6 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
+try:
+    import tomllib
+except ImportError:  # pragma: no cover
+    import tomli as tomllib
+
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
@@ -26,6 +31,7 @@ from unidep._cli import (
     _install_command,
     _maybe_conda_run,
     _maybe_create_conda_env_args,
+    _merge_command,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
@@ -214,6 +220,205 @@ def test_unidep_conda() -> None:
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
     assert "pandas" in result.stdout
+
+
+def test_unidep_pixi_cli_respects_overrides(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy >=1.20
+              - pandas >=2.0
+              - scipy <1.10
+              - pyobjc  # [osx]
+            platforms:
+              - linux-64
+              - osx-arm64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    result = subprocess.run(
+        [  # noqa: S607
+            "unidep",
+            "pixi",
+            "--file",
+            str(req_file),
+            "--output",
+            str(output_file),
+            "--name",
+            "test-project",
+            "--platform",
+            "linux-64",
+            "--ignore-pin",
+            "numpy",
+            "--skip-dependency",
+            "pandas",
+            "--overwrite-pin",
+            "scipy>=1.11",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, "Command failed to execute successfully"
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    deps = data["dependencies"]
+    assert deps["numpy"] == "*"
+    assert "pandas" not in deps
+    assert deps["scipy"] == ">=1.11"
+    assert data["workspace"]["platforms"] == ["linux-64"]
+    assert "target" not in data or "osx-arm64" not in data["target"]
+
+
+def test_unidep_pixi_cli_ranged_build_string(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: numpy >=1.20,<1.21 py310*
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    result = subprocess.run(
+        [  # noqa: S607
+            "unidep",
+            "pixi",
+            "--file",
+            str(req_file),
+            "--output",
+            str(output_file),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, "Command failed to execute successfully"
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    numpy_spec = data["dependencies"]["numpy"]
+    assert numpy_spec["version"] == ">=1.20,<1.21"
+    assert numpy_spec["build"] == "py310*"
+
+
+def test_merge_uses_selector_platforms_when_no_platforms_declared(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - cuda-toolkit  # [linux64]
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    with patch("unidep.utils.identify_current_platform", return_value="osx-arm64"):
+        _merge_command(
+            depth=1,
+            directory=tmp_path,
+            files=[req_file],
+            name="myenv",
+            output=output_file,
+            stdout=False,
+            selector="comment",
+            platforms=[],
+            ignore_pins=[],
+            skip_dependencies=[],
+            overwrite_pins=[],
+            verbose=False,
+        )
+
+    content = output_file.read_text()
+    assert "platforms:" in content
+    assert "  - linux-64" in content
+    assert "  - osx-arm64" not in content
+
+
+def test_unidep_pixi_cli_optional_monorepo_env_includes_base(
+    tmp_path: Path,
+) -> None:
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = project1_dir / "requirements.yaml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = project2_dir / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    result = subprocess.run(
+        [  # noqa: S607
+            "unidep",
+            "pixi",
+            "--file",
+            str(project1_dir),
+            "--file",
+            str(project2_dir),
+            "--output",
+            str(output_file),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, "Command failed to execute successfully"
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    envs = data["environments"]
+    assert set(envs["project1-dev"]) == {"project1", "project1-dev"}
 
 
 def test_unidep_file_not_found_error() -> None:

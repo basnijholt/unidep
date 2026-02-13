@@ -90,3 +90,4 @@ ENV/
 
 # other
 .pixi
+.DS_Store

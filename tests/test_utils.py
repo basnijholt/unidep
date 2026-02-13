@@ -8,15 +8,17 @@ from unittest.mock import patch
 
 import pytest
 
-from unidep.platform_definitions import Selector
+from unidep.platform_definitions import Selector, Spec
 from unidep.utils import (
     PathWithExtras,
     UnsupportedPlatformError,
     build_pep508_environment_marker,
+    collect_selector_platforms,
     escape_unicode,
     extract_matching_platforms,
     identify_current_platform,
     parse_package_str,
+    resolve_platforms,
     split_path_and_extras,
 )
 
@@ -276,6 +278,65 @@ def test_extract_matching_platforms() -> None:
     incorrect_platform = "dependency8  # [unknown-platform]"
     with pytest.raises(ValueError, match="Invalid platform selector"):
         extract_matching_platforms(incorrect_platform)
+
+
+def test_collect_selector_platforms() -> None:
+    requirements = {
+        "numpy": [
+            Spec("numpy", "conda", ">=1.20", "a1", "linux64"),
+            Spec("numpy", "pip", ">=1.20", "a2", None),
+        ],
+    }
+    optional_dependencies = {
+        "dev": {
+            "pyobjc": [
+                Spec("pyobjc", "pip", None, "b1", "osx"),
+            ],
+        },
+    }
+
+    assert collect_selector_platforms(requirements, optional_dependencies) == [
+        "linux-64",
+        "osx-64",
+        "osx-arm64",
+    ]
+
+
+def test_resolve_platforms_precedence() -> None:
+    assert resolve_platforms(
+        requested_platforms=["osx-arm64", "linux-64", "osx-arm64"],
+        declared_platforms=["win-64"],
+        selector_platforms=["linux-aarch64"],
+    ) == ["linux-64", "osx-arm64"]
+
+    assert resolve_platforms(
+        requested_platforms=[],
+        declared_platforms=["win-64", "linux-64"],
+        selector_platforms=["osx-64"],
+    ) == ["linux-64", "win-64"]
+
+    assert resolve_platforms(
+        requested_platforms=[],
+        declared_platforms=[],
+        selector_platforms=["osx-64", "linux-aarch64"],
+    ) == ["linux-aarch64", "osx-64"]
+
+    with patch("unidep.utils.identify_current_platform", return_value="osx-arm64"):
+        assert resolve_platforms(
+            requested_platforms=[],
+            declared_platforms=[],
+            selector_platforms=[],
+        ) == ["osx-arm64"]
+
+    assert (
+        resolve_platforms(
+            requested_platforms=[],
+            declared_platforms=[],
+            selector_platforms=[],
+            default_current=False,
+        )
+        == []
+    )
 
 
 def test_split_path_and_extras() -> None:

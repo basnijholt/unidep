@@ -10,7 +10,7 @@ authors = [{ name = "Bas Nijholt", email = "bas@nijho.lt" }]
 dependencies = [
     "packaging",
     "ruamel.yaml",
-    "typing_extensions; python_version < '3.8'",
+    "typing_extensions; python_version < '3.10'",
     "tomli; python_version < '3.11'",
 ]
 requires-python = ">=3.7"
@@ -28,9 +28,10 @@ conda-lock = ["conda-lock", "conda-package-handling"]
 pip-compile = ["pip-tools"]
 pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
+pixi = ["pixi-to-conda-lock; python_version >= '3.9'", "tomli_w"]
 # Everything except 'test' and 'docs'
 all = [
-    "unidep[toml,conda-lock,pip-compile,pytest,rich]",
+    "unidep[toml,conda-lock,pip-compile,pytest,rich,pixi]",
 ]
 docs = [
     "myst-parser",
@@ -117,6 +118,7 @@ ignore = [
     "SLF001",  # Private member accessed
     "PLR0913", # Too many arguments in function definition
     "TD002",   # Missing author in TODO
+    "PLC0415", # `import` should be at the top-level of a file
 ]
 
 [tool.ruff.lint.per-file-ignores]
