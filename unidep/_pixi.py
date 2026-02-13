@@ -1124,6 +1124,22 @@ def _add_target_sections(
             target["pypi-dependencies"] = pip_deps
 
 
+def _filter_section_targets(
+    section: dict[str, Any],
+    valid_platforms: set[str],
+) -> None:
+    """Remove target entries for platforms not in *valid_platforms*."""
+    if "target" not in section:
+        return
+    section["target"] = {
+        platform: deps
+        for platform, deps in section["target"].items()
+        if platform in valid_platforms
+    }
+    if not section["target"]:
+        del section["target"]
+
+
 def _filter_targets_by_platforms(
     pixi_data: dict[str, Any],
     valid_platforms: set[str],
@@ -1133,29 +1149,9 @@ def _filter_targets_by_platforms(
     This removes targets for platforms that aren't in the project's platforms list,
     which would otherwise cause pixi to emit warnings.
     """
-    # Filter root-level targets
-    if "target" in pixi_data:
-        pixi_data["target"] = {
-            platform: deps
-            for platform, deps in pixi_data["target"].items()
-            if platform in valid_platforms
-        }
-        # Remove empty target section
-        if not pixi_data["target"]:
-            del pixi_data["target"]
-
-    # Filter feature-level targets
-    if "feature" in pixi_data:
-        for feature_data in pixi_data["feature"].values():
-            if "target" in feature_data:
-                feature_data["target"] = {
-                    platform: deps
-                    for platform, deps in feature_data["target"].items()
-                    if platform in valid_platforms
-                }
-                # Remove empty target section
-                if not feature_data["target"]:
-                    del feature_data["target"]
+    _filter_section_targets(pixi_data, valid_platforms)
+    for feature_data in pixi_data.get("feature", {}).values():
+        _filter_section_targets(feature_data, valid_platforms)
 
 
 def _restore_demoted_universals(
