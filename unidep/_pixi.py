@@ -23,7 +23,11 @@ from typing import (
 
 from ruamel.yaml import YAML
 
-from unidep._conflicts import VersionConflictError, combine_version_pinnings
+from unidep._conflicts import (
+    VersionConflictError,
+    _choose_conda_pip_source,
+    combine_version_pinnings,
+)
 from unidep._dependencies_parsing import (
     _apply_local_dependency_override,
     _load,
@@ -256,24 +260,18 @@ def _resolve_conda_pip_conflict(
     if conda_spec is None or pip_spec is None:
         return
 
-    conda_pinned = _version_spec_is_pinned(conda_spec)
-    pip_pinned = _version_spec_is_pinned(pip_spec)
-
-    # Pip extras cannot be represented via conda dependencies, so prefer pip.
-    if isinstance(pip_spec, dict) and pip_spec.get("extras"):
-        conda_deps.pop(base_name, None)
-        return
-
-    if conda_pinned and not pip_pinned:
+    decision = _choose_conda_pip_source(
+        conda_pinned=_version_spec_is_pinned(conda_spec),
+        pip_pinned=_version_spec_is_pinned(pip_spec),
+        pip_has_extras=bool(isinstance(pip_spec, dict) and pip_spec.get("extras")),
+        on_tie="conda",
+    )
+    if decision == "conda":
         pip_deps.pop(base_name, None)
         return
-    if pip_pinned and not conda_pinned:
+    if decision == "pip":
         conda_deps.pop(base_name, None)
         return
-
-    # If both are pinned or both are unpinned, default to conda to avoid
-    # duplicating the same dependency in both sections.
-    pip_deps.pop(base_name, None)
 
 
 def _get_package_name(project_dir: Path) -> str | None:
@@ -1178,11 +1176,14 @@ def _restore_demoted_universals(
     conflicts with a target-specific entry on one platform.  Without this
     fixup, the dependency disappears for *all other* platforms.  This function
     promotes the original universal spec to an explicit target entry for every
-    final platform that doesn't already have a *pinned* override for it.
+    final platform that doesn't already carry a stronger target-specific override.
 
-    When a platform has an existing but unpinned entry for the package, the
-    demoted (pinned) spec wins — mirroring _resolve_conda_pip_conflict's
-    preference for pinned specs.
+    If a platform already has the package in the opposite dependency section,
+    this function re-runs _resolve_conda_pip_conflict with the demoted spec and
+    the existing target spec to preserve conflict precedence rules
+    (pins/extras/default conda preference), except for the existing
+    universal-conda-vs-target-pip pinned/pinned case where target-specific pip
+    intent is intentionally preserved.
     """
     for pkg, (dep_type, spec) in demoted.items():
         dep_key = "dependencies" if dep_type == "conda" else "pypi-dependencies"
@@ -1192,7 +1193,6 @@ def _restore_demoted_universals(
             continue
         if pkg in section.get("pypi-dependencies", {}):
             continue
-        demoted_pinned = _version_spec_is_pinned(spec)
         for platform in final_platforms:
             target = section.get("target", {}).get(platform, {})
             existing_same = target.get(dep_key, {}).get(pkg)
@@ -1202,16 +1202,36 @@ def _restore_demoted_universals(
                 # Same dep type already present — skip (it's a real override).
                 continue
             if existing_other is not None:
-                # The other dep type has this package on this platform.
-                # If the demoted spec is pinned and the existing one is not,
-                # replace: the demoted spec should win.
-                if demoted_pinned and not _version_spec_is_pinned(existing_other):
-                    target[other_key].pop(pkg)
-                    if not target[other_key]:
-                        del target[other_key]
-                else:
-                    # Existing entry is pinned or both are unpinned — keep it.
+                if (
+                    dep_type == "conda"
+                    and other_key == "pypi-dependencies"
+                    and _version_spec_is_pinned(spec)
+                    and _version_spec_is_pinned(existing_other)
+                ):
+                    # Mirror _reconcile_with_universal_deps behavior:
+                    # universal pinned conda should not overwrite a pinned
+                    # target-specific pip override.
                     continue
+                # Re-apply conda/pip conflict policy against the existing
+                # target entry instead of treating any existing key as a hard
+                # override.
+                conda_probe: dict[str, VersionSpec] = {}
+                pip_probe: dict[str, VersionSpec] = {}
+                if dep_type == "conda":
+                    conda_probe[pkg] = copy.deepcopy(spec)
+                    pip_probe[pkg] = copy.deepcopy(existing_other)
+                else:
+                    conda_probe[pkg] = copy.deepcopy(existing_other)
+                    pip_probe[pkg] = copy.deepcopy(spec)
+                _resolve_conda_pip_conflict(conda_probe, pip_probe, pkg)
+                demoted_wins = (
+                    pkg in conda_probe if dep_type == "conda" else pkg in pip_probe
+                )
+                if not demoted_wins:
+                    continue
+                target[other_key].pop(pkg)
+                if not target[other_key]:
+                    del target[other_key]
             # This platform needs the demoted package.
             section.setdefault("target", {}).setdefault(
                 platform,

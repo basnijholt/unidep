@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 
 from unidep._conflicts import (
     VersionConflictError,
+    _choose_conda_pip_source,
     _combine_pinning_within_platform,
     _is_redundant,
     _is_valid_pinning,
@@ -30,6 +33,47 @@ def test_combining_versions() -> None:
             "conda": Spec(name="numpy", which="conda", pin=">1,<2"),
         },
     }
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        (
+            (False, False, False, "both"),
+            "both",
+        ),
+        (
+            (False, False, False, "conda"),
+            "conda",
+        ),
+        (
+            (True, False, False, "both"),
+            "conda",
+        ),
+        (
+            (False, True, False, "both"),
+            "pip",
+        ),
+        (
+            (True, True, True, "conda"),
+            "pip",
+        ),
+    ],
+)
+def test_choose_conda_pip_source(
+    case: tuple[bool, bool, bool, Literal["conda", "pip", "both"]],
+    expected: str,
+) -> None:
+    conda_pinned, pip_pinned, pip_has_extras, on_tie = case
+    assert (
+        _choose_conda_pip_source(
+            conda_pinned=conda_pinned,
+            pip_pinned=pip_pinned,
+            pip_has_extras=pip_has_extras,
+            on_tie=on_tie,
+        )
+        == expected
+    )
 
 
 @pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])

@@ -15,9 +15,9 @@ from unidep.platform_definitions import Platform, Spec
 from unidep.utils import defaultdict_to_dict, warn
 
 if sys.version_info >= (3, 8):
-    from typing import get_args
+    from typing import Literal, get_args
 else:  # pragma: no cover
-    from typing_extensions import get_args
+    from typing_extensions import Literal, get_args
 
 
 if TYPE_CHECKING:
@@ -25,6 +25,33 @@ if TYPE_CHECKING:
 
 VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
 _REPO_URL = "https://github.com/basnijholt/unidep"
+
+
+def _choose_conda_pip_source(
+    *,
+    conda_pinned: bool,
+    pip_pinned: bool,
+    pip_has_extras: bool = False,
+    on_tie: CondaPip | Literal["both"] = "both",
+) -> CondaPip | Literal["both"]:
+    """Choose source preference for a conda/pip package name collision.
+
+    Rules:
+    - Pip with extras wins (extras cannot be represented in conda deps).
+    - If exactly one side is pinned, pinned side wins.
+    - If both sides are pinned or both are unpinned, use *on_tie*.
+
+    The caller decides tie behavior to match command semantics:
+    - ``on_tie="both"`` keeps both entries.
+    - ``on_tie="conda"`` or ``on_tie="pip"`` selects one.
+    """
+    if pip_has_extras:
+        return "pip"
+    if conda_pinned and not pip_pinned:
+        return "conda"
+    if pip_pinned and not conda_pinned:
+        return "pip"
+    return on_tie
 
 
 def _prepare_specs_for_conflict_resolution(
@@ -117,13 +144,19 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip
     if not conda_spec or not pip_spec:  # If either is missing, there is no conflict
         return sources
 
-    # Compare version pins to resolve conflicts
-    if conda_spec.pin and not pip_spec.pin:
-        return {"conda": conda_spec}  # Prefer conda if it has a pin
-    if pip_spec.pin and not conda_spec.pin:
-        return {"pip": pip_spec}  # Prefer pip if it has a pin
+    decision = _choose_conda_pip_source(
+        conda_pinned=conda_spec.pin is not None,
+        pip_pinned=pip_spec.pin is not None,
+        on_tie="both",
+    )
+    if decision == "conda":
+        return {"conda": conda_spec}
+    if decision == "pip":
+        return {"pip": pip_spec}
+
+    assert decision == "both"
     if conda_spec.pin == pip_spec.pin:
-        return {"conda": conda_spec, "pip": pip_spec}  # Keep both if pins are identical
+        return {"conda": conda_spec, "pip": pip_spec}
 
     # Handle conflict where both conda and pip have different pins
     warn(

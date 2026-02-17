@@ -2545,3 +2545,43 @@ def test_pixi_demoted_universal_replaces_weak_target_override(
     osx = data["target"]["osx-64"]
     assert osx["dependencies"]["click"] == ">=8"
     assert "click" not in osx.get("pypi-dependencies", {})
+
+
+def test_pixi_demoted_universal_reapplies_conflict_policy_for_unpinned_specs(
+    tmp_path: Path,
+) -> None:
+    """Demoted universals should still use conda-vs-pip default precedence.
+
+    With universal conda click and target pip overrides, linux-64 keeps the
+    pinned pip override. For osx-64, where target pip is unpinned, restoration
+    must re-run conflict preference so conda wins over unpinned pip.
+    """
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click
+              - pip: click ==0.1  # [linux64]
+              - pip: click        # [osx64]
+            platforms:
+              - linux-64
+              - osx-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    linux = data["target"]["linux-64"]
+    assert linux["pypi-dependencies"]["click"] == "==0.1"
+
+    osx = data["target"]["osx-64"]
+    assert osx["dependencies"]["click"] == "*"
+    assert "click" not in osx.get("pypi-dependencies", {})
