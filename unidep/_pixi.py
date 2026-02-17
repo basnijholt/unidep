@@ -584,18 +584,31 @@ def _with_unique_order(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
 
+def _spec_key(spec: Spec) -> tuple[str, str, str | None, str | None]:
+    """Return the stable identity of a Spec (excludes parse-time identifier)."""
+    return (spec.name, spec.which, spec.pin, spec.selector)
+
+
 def _subtract_requirements(
     full_requirements: dict[str, list[Spec]],
     base_requirements: dict[str, list[Spec]],
 ) -> dict[str, list[Spec]]:
-    """Return specs present in full_requirements but not in base_requirements."""
+    """Return specs present in full_requirements but not in base_requirements.
+
+    Comparison uses stable Spec fields (name, which, pin, selector) so that
+    parse-time identifier differences between separate parse_requirements calls
+    don't cause false mismatches.
+    """
     diff: dict[str, list[Spec]] = {}
     for package_name, specs in full_requirements.items():
-        remaining = Counter(base_requirements.get(package_name, []))
+        remaining = Counter(
+            _spec_key(s) for s in base_requirements.get(package_name, [])
+        )
         package_diff: list[Spec] = []
         for spec in specs:
-            if remaining[spec] > 0:
-                remaining[spec] -= 1
+            key = _spec_key(spec)
+            if remaining[key] > 0:
+                remaining[key] -= 1
             else:
                 package_diff.append(spec)
         if package_diff:
@@ -1165,22 +1178,41 @@ def _restore_demoted_universals(
     conflicts with a target-specific entry on one platform.  Without this
     fixup, the dependency disappears for *all other* platforms.  This function
     promotes the original universal spec to an explicit target entry for every
-    final platform that doesn't already carry it.
+    final platform that doesn't already have a *pinned* override for it.
+
+    When a platform has an existing but unpinned entry for the package, the
+    demoted (pinned) spec wins — mirroring _resolve_conda_pip_conflict's
+    preference for pinned specs.
     """
     for pkg, (dep_type, spec) in demoted.items():
         dep_key = "dependencies" if dep_type == "conda" else "pypi-dependencies"
+        other_key = "pypi-dependencies" if dep_type == "conda" else "dependencies"
         # If the package is (still) in universal deps, all platforms are covered.
         if pkg in section.get("dependencies", {}):
             continue
         if pkg in section.get("pypi-dependencies", {}):
             continue
+        demoted_pinned = _version_spec_is_pinned(spec)
         for platform in final_platforms:
             target = section.get("target", {}).get(platform, {})
-            if pkg in target.get("dependencies", {}):
+            existing_same = target.get(dep_key, {}).get(pkg)
+            existing_other = target.get(other_key, {}).get(pkg)
+
+            if existing_same is not None:
+                # Same dep type already present — skip (it's a real override).
                 continue
-            if pkg in target.get("pypi-dependencies", {}):
-                continue
-            # This platform is missing the package — add it.
+            if existing_other is not None:
+                # The other dep type has this package on this platform.
+                # If the demoted spec is pinned and the existing one is not,
+                # replace: the demoted spec should win.
+                if demoted_pinned and not _version_spec_is_pinned(existing_other):
+                    target[other_key].pop(pkg)
+                    if not target[other_key]:
+                        del target[other_key]
+                else:
+                    # Existing entry is pinned or both are unpinned — keep it.
+                    continue
+            # This platform needs the demoted package.
             section.setdefault("target", {}).setdefault(
                 platform,
                 {},

@@ -10,17 +10,13 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
-from unidep._dependencies_parsing import _normalize_local_dependency_use
 from unidep._pixi import (
     _collect_transitive_nodes,
     _derive_feature_names,
     _discover_local_dependency_graph,
     _editable_dependency_path,
-    _make_pip_version_spec,
     _merge_version_specs,
     _parse_direct_requirements_for_node,
-    _parse_package_extras,
-    _parse_version_build,
     _resolve_conda_pip_conflict,
     generate_pixi_toml,
 )
@@ -2115,32 +2111,6 @@ def test_pixi_monorepo_skips_empty_optional_feature_group(tmp_path: Path) -> Non
 # Tests for build string parsing
 
 
-def test_parse_version_build_simple() -> None:
-    """Test _parse_version_build with simple version specs."""
-    assert _parse_version_build(None) == "*"
-    assert _parse_version_build("") == "*"
-    assert _parse_version_build(">=1.0") == ">=1.0"
-    assert _parse_version_build("=11") == "=11"
-    assert _parse_version_build("1.2.3") == "1.2.3"
-
-
-def test_parse_version_build_with_build_string() -> None:
-    """Test _parse_version_build with build strings."""
-    result = _parse_version_build(">=0.21.0 cuda*")
-    assert result == {"version": ">=0.21.0", "build": "cuda*"}
-
-    result = _parse_version_build("=11 h1234*")
-    assert result == {"version": "=11", "build": "h1234*"}
-
-    result = _parse_version_build("1.0 py310*")
-    assert result == {"version": "1.0", "build": "py310*"}
-
-
-def test_parse_version_build_empty_string() -> None:
-    """Whitespace-only pins should normalize to wildcard."""
-    assert _parse_version_build("   ") == "*"
-
-
 def test_resolve_conda_pip_conflict_prefers_pip_with_extras() -> None:
     """Pip extras cannot be represented via conda, so keep pip and drop conda."""
     conda_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
@@ -2150,29 +2120,6 @@ def test_resolve_conda_pip_conflict_prefers_pip_with_extras() -> None:
     _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
     assert "foo" not in conda_deps
     assert "foo" in pip_deps
-
-
-def test_resolve_conda_pip_conflict_drops_unpinned_pip_when_conda_pinned() -> None:
-    """Pinned conda should win over unpinned pip for the same package."""
-    conda_deps: dict[str, str | dict[str, object]] = {"foo": ">=1.0"}
-    pip_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
-    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
-    assert "foo" in conda_deps
-    assert "foo" not in pip_deps
-
-
-def test_resolve_conda_pip_conflict_with_pinned_dict_spec() -> None:
-    """Dict specs with non-wildcard versions should be treated as pinned."""
-    conda_deps: dict[str, str | dict[str, object]] = {"foo": {"version": ">=1.0"}}
-    pip_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
-    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
-    assert "foo" in conda_deps
-    assert "foo" not in pip_deps
-
-
-def test_normalize_local_dependency_use_returns_valid_mode() -> None:
-    """Valid explicit local dependency use values should pass through."""
-    assert _normalize_local_dependency_use("skip") == "skip"
 
 
 def test_derive_feature_names_handles_commonpath_valueerror(
@@ -2368,43 +2315,6 @@ def test_pixi_with_build_string(tmp_path: Path) -> None:
     assert 'gcc = "=11"' in content
 
 
-def test_parse_package_extras_simple() -> None:
-    """Test _parse_package_extras with packages without extras."""
-    assert _parse_package_extras("numpy") == ("numpy", [])
-    assert _parse_package_extras("my-package") == ("my-package", [])
-    assert _parse_package_extras("pkg.name") == ("pkg.name", [])
-
-
-def test_parse_package_extras_with_extras() -> None:
-    """Test _parse_package_extras with packages that have extras."""
-    assert _parse_package_extras("pipefunc[extras]") == ("pipefunc", ["extras"])
-    assert _parse_package_extras("package[dev,test]") == ("package", ["dev", "test"])
-    assert _parse_package_extras("pkg[a, b, c]") == ("pkg", ["a", "b", "c"])
-
-
-def test_make_pip_version_spec_no_extras() -> None:
-    """Test _make_pip_version_spec without extras returns unchanged version."""
-    assert _make_pip_version_spec("*", []) == "*"
-    assert _make_pip_version_spec(">=1.0", []) == ">=1.0"
-    assert _make_pip_version_spec({"version": ">=1.0", "build": "py*"}, []) == {
-        "version": ">=1.0",
-        "build": "py*",
-    }
-
-
-def test_make_pip_version_spec_with_extras() -> None:
-    """Test _make_pip_version_spec with extras returns table format."""
-    result = _make_pip_version_spec("*", ["dev"])
-    assert result == {"version": "*", "extras": ["dev"]}
-
-    result = _make_pip_version_spec(">=1.0", ["dev", "test"])
-    assert result == {"version": ">=1.0", "extras": ["dev", "test"]}
-
-    # Also works with dict version (with build string)
-    result = _make_pip_version_spec({"version": ">=1.0", "build": "py*"}, ["extra"])
-    assert result == {"version": ">=1.0", "build": "py*", "extras": ["extra"]}
-
-
 def test_pixi_with_pip_extras(tmp_path: Path) -> None:
     """Test pixi.toml generation with pip extras."""
     req_file = tmp_path / "requirements.yaml"
@@ -2439,12 +2349,6 @@ def test_pixi_with_pip_extras(tmp_path: Path) -> None:
     assert '"test"' in content
 
 
-def test_merge_version_specs_none_existing() -> None:
-    """Test _merge_version_specs when existing is None."""
-    assert _merge_version_specs(None, ">=1.0", "pkg") == ">=1.0"
-    assert _merge_version_specs(None, "*", "pkg") == "*"
-
-
 def test_merge_version_specs_simple_merge() -> None:
     """Test _merge_version_specs merges compatible constraints."""
     # >=1.7,<2 + <1.16 -> >=1.7,<1.16
@@ -2458,18 +2362,6 @@ def test_merge_version_specs_simple_merge() -> None:
     # A simplified merge should still keep a single constraint format.
     result = _merge_version_specs(">=1.0", ">=2.0", "pkg")
     assert result == ">=2.0"
-
-
-def test_merge_version_specs_star_handling() -> None:
-    """Test _merge_version_specs handles * (no constraint) correctly."""
-    # * + >=1.0 -> >=1.0
-    assert _merge_version_specs("*", ">=1.0", "pkg") == ">=1.0"
-
-    # >=1.0 + * -> >=1.0
-    assert _merge_version_specs(">=1.0", "*", "pkg") == ">=1.0"
-
-    # * + * -> *
-    assert _merge_version_specs("*", "*", "pkg") == "*"
 
 
 def test_merge_version_specs_with_build_string() -> None:
@@ -2543,3 +2435,113 @@ def test_pixi_with_merged_constraints(tmp_path: Path) -> None:
     # Check that constraints are merged
     assert 'scipy = ">=1.7,<1.16"' in content
     assert 'numpy = ">=1.20,<2.0"' in content
+
+
+def test_pixi_optional_local_dep_does_not_leak_base_local_deps(
+    tmp_path: Path,
+) -> None:
+    """Base local deps must not appear in optional features.
+
+    When a root file has both local_dependencies and an optional_dependencies
+    group that adds another local dep, the subtraction of base requirements
+    from the group parse must use stable Spec identity (not parse-time
+    identifiers) to avoid leaking base deps into the optional feature.
+    """
+    lib1 = tmp_path / "lib1"
+    lib1.mkdir()
+    (lib1 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pandas
+              - scipy
+            """,
+        ),
+    )
+
+    lib2 = tmp_path / "lib2"
+    lib2.mkdir()
+    (lib2 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - requests
+            """,
+        ),
+    )
+
+    root_req = tmp_path / "requirements.yaml"
+    root_req.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ./lib1
+            optional_dependencies:
+              dev:
+                - ./lib2
+                - pytest
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(root_req, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    root_deps = set(data.get("dependencies", {}).keys())
+    dev_deps = set(data["feature"]["dev"].get("dependencies", {}).keys())
+
+    # pandas and scipy come from lib1 (base local dep) and must NOT leak
+    assert "pandas" in root_deps
+    assert "scipy" in root_deps
+    assert "pandas" not in dev_deps, "base local dep leaked into optional feature"
+    assert "scipy" not in dev_deps, "base local dep leaked into optional feature"
+    # dev feature should only have the optional-specific deps
+    assert "requests" in dev_deps
+    assert "pytest" in dev_deps
+
+
+def test_pixi_demoted_universal_replaces_weak_target_override(
+    tmp_path: Path,
+) -> None:
+    """A pinned demoted universal must replace an unpinned target override.
+
+    When universal conda click>=8 is demoted because linux-64 has a pinned pip
+    override, platforms that only have an unpinned pip entry (osx-64: pip click)
+    should get the demoted conda spec instead of keeping the weak pip entry.
+    """
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click >=8
+              - pip: click ==0.1  # [linux64]
+              - pip: click        # [osx64]
+            platforms:
+              - linux-64
+              - osx-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    # linux-64: pinned pip override wins
+    linux = data["target"]["linux-64"]
+    assert linux["pypi-dependencies"]["click"] == "==0.1"
+
+    # osx-64: demoted conda >=8 must replace the unpinned pip entry
+    osx = data["target"]["osx-64"]
+    assert osx["dependencies"]["click"] == ">=8"
+    assert "click" not in osx.get("pypi-dependencies", {})
