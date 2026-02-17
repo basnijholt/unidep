@@ -13,6 +13,7 @@ from unidep._conflicts import (
     _is_redundant,
     _is_valid_pinning,
     _parse_pinning,
+    _reconcile_conda_pip_pair,
     combine_version_pinnings,
 )
 from unidep.platform_definitions import Spec
@@ -74,6 +75,47 @@ def test_choose_conda_pip_source(
         )
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        (
+            (False, False, False, "both"),
+            ("conda", "pip"),
+        ),
+        (
+            (False, False, False, "conda"),
+            ("conda", None),
+        ),
+        (
+            (True, False, False, "both"),
+            ("conda", None),
+        ),
+        (
+            (False, True, False, "both"),
+            (None, "pip"),
+        ),
+        (
+            (True, True, True, "conda"),
+            (None, "pip"),
+        ),
+    ],
+)
+def test_reconcile_conda_pip_pair(
+    case: tuple[bool, bool, bool, Literal["conda", "pip", "both"]],
+    expected: tuple[str | None, str | None],
+) -> None:
+    conda_pinned, pip_pinned, pip_has_extras, on_tie = case
+    conda, pip = _reconcile_conda_pip_pair(
+        conda="conda",
+        pip="pip",
+        conda_pinned=conda_pinned,
+        pip_pinned=pip_pinned,
+        pip_has_extras=pip_has_extras,
+        on_tie=on_tie,
+    )
+    assert (conda, pip) == expected
 
 
 @pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])

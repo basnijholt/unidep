@@ -25,7 +25,7 @@ from ruamel.yaml import YAML
 
 from unidep._conflicts import (
     VersionConflictError,
-    _choose_conda_pip_source,
+    _reconcile_conda_pip_pair,
     combine_version_pinnings,
 )
 from unidep._dependencies_parsing import (
@@ -260,16 +260,18 @@ def _resolve_conda_pip_conflict(
     if conda_spec is None or pip_spec is None:
         return
 
-    decision = _choose_conda_pip_source(
+    conda_kept, pip_kept = _reconcile_conda_pip_pair(
+        conda=conda_spec,
+        pip=pip_spec,
         conda_pinned=_version_spec_is_pinned(conda_spec),
         pip_pinned=_version_spec_is_pinned(pip_spec),
         pip_has_extras=bool(isinstance(pip_spec, dict) and pip_spec.get("extras")),
         on_tie="conda",
     )
-    if decision == "conda":
+    if pip_kept is None:
         pip_deps.pop(base_name, None)
         return
-    if decision == "pip":
+    if conda_kept is None:
         conda_deps.pop(base_name, None)
         return
 
