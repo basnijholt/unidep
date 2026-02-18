@@ -76,6 +76,29 @@ def test_reconcile_conda_pip_pair(
     assert (conda, pip) == expected
 
 
+@pytest.mark.parametrize(
+    ("conda", "pip", "expected"),
+    [
+        (None, "pip", (None, "pip")),
+        ("conda", None, ("conda", None)),
+    ],
+)
+def test_reconcile_conda_pip_pair_with_missing_source(
+    conda: str | None,
+    pip: str | None,
+    expected: tuple[str | None, str | None],
+) -> None:
+    assert (
+        _reconcile_conda_pip_pair(
+            conda=conda,
+            pip=pip,
+            conda_pinned=False,
+            pip_pinned=False,
+        )
+        == expected
+    )
+
+
 @pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])
 @pytest.mark.parametrize("version", ["1", "1.0", "1.0.0", "1.0.0rc1"])
 def test_is_valid_pinning(operator: str, version: str) -> None:
