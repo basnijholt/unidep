@@ -6,7 +6,7 @@ import copy
 import os
 import re
 import sys
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Mapping
 from pathlib import Path
 from typing import (
@@ -48,6 +48,8 @@ from unidep.utils import (
 )
 
 if TYPE_CHECKING:
+    from unidep._dependencies_parsing import ParsedRequirements
+
     if sys.version_info >= (3, 10):
         from typing import TypeAlias
     else:
@@ -386,10 +388,10 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
     optional_group_graph: dict[PathWithExtras, dict[str, list[PathWithExtras]]] = {}
     seen: set[PathWithExtras] = set()
     roots_set = set(roots)
-    queue = list(roots)
+    queue = deque(roots)
 
     while queue:
-        node = queue.pop(0)
+        node = queue.popleft()
         if node in seen:
             continue
         seen.add(node)
@@ -472,7 +474,7 @@ def _parse_direct_requirements_for_node(
     skip_dependencies: list[str] | None,
     overwrite_pins: list[str] | None,
     include_all_optional_groups: bool = False,
-) -> Any:
+) -> ParsedRequirements:
     """Parse a requirements node without recursively flattening local deps."""
     extras: list[list[str]] | Literal["*"] | None
     if node.extras:
@@ -524,10 +526,10 @@ def _collect_transitive_nodes(
     """Collect transitive local dependency nodes in deterministic order."""
     collected: list[PathWithExtras] = []
     seen: set[PathWithExtras] = set()
-    queue = list(graph.get(node, []))
+    queue = deque(graph.get(node, []))
 
     while queue:
-        current = queue.pop(0)
+        current = queue.popleft()
         if current in seen:
             continue
         seen.add(current)
@@ -540,6 +542,28 @@ def _collect_transitive_nodes(
 def _with_unique_order(items: list[str]) -> list[str]:
     """Return unique items while preserving order."""
     return list(dict.fromkeys(items))
+
+
+def _unique_optional_feature_name(
+    *,
+    parent_feature: str,
+    group_name: str,
+    taken_names: set[str],
+) -> str:
+    """Generate a non-colliding optional sub-feature name."""
+    candidate = f"{parent_feature}-{group_name}"
+    if candidate not in taken_names:
+        taken_names.add(candidate)
+        return candidate
+
+    suffix_base = f"{candidate}-opt"
+    unique_candidate = suffix_base
+    suffix = 2
+    while unique_candidate in taken_names:
+        unique_candidate = f"{suffix_base}-{suffix}"
+        suffix += 1
+    taken_names.add(unique_candidate)
+    return unique_candidate
 
 
 def _spec_key(spec: Spec) -> tuple[str, str, str | None, str | None]:
@@ -721,6 +745,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         )
         feature_names = _derive_feature_names([node.path for node in discovered_nodes])
         feature_name_by_node = dict(zip(discovered_nodes, feature_names))
+        taken_optional_feature_names: set[str] = set(feature_names)
         root_nodes_set = set(root_nodes)
         base_feature_nodes: dict[str, PathWithExtras] = {}
         optional_feature_parents: dict[str, str] = {}
@@ -782,13 +807,25 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             # Handle optional dependencies as sub-features for root features.
             if feature_name not in pixi_data["feature"]:
                 continue
-            for group_name, group_specs in req.optional_dependencies.items():
+            parsed_group_names = list(req.optional_dependencies)
+            local_only_group_names = list(optional_group_graph.get(node, {}))
+            all_group_names = parsed_group_names + [
+                group_name
+                for group_name in local_only_group_names
+                if group_name not in req.optional_dependencies
+            ]
+            for group_name in all_group_names:
+                group_specs = req.optional_dependencies.get(group_name, {})
                 group_platform_deps, group_demoted = _extract_dependencies(group_specs)
                 discovered_target_platforms.update(
                     platform for platform in group_platform_deps if platform is not None
                 )
                 opt_feature = _build_feature_dict(group_platform_deps)
-                opt_feature_name = f"{feature_name}-{group_name}"
+                opt_feature_name = _unique_optional_feature_name(
+                    parent_feature=feature_name,
+                    group_name=group_name,
+                    taken_names=taken_optional_feature_names,
+                )
                 optional_local_nodes = optional_group_graph.get(node, {}).get(
                     group_name,
                     [],
@@ -926,6 +963,13 @@ def _reconcile_with_universal_deps(
     promote it to explicit target entries for platforms that don't override it.
     """
     if platform is None:
+        for specific_platform in [p for p in platform_deps if p is not None]:
+            _reconcile_with_universal_deps(
+                platform_deps,
+                platform=cast("Platform", specific_platform),
+                base_name=base_name,
+                demoted=demoted,
+            )
         return
 
     universal_conda, universal_pip = platform_deps.get(None, ({}, {}))

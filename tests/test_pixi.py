@@ -476,6 +476,55 @@ def test_pixi_reconciles_universal_pinned_conda_and_target_pinned_pip_prefers_ta
     assert linux_target["pypi-dependencies"]["click"] == "==0.1"
 
 
+def test_pixi_reconcile_is_order_independent_for_universal_and_target_conflicts(
+    tmp_path: Path,
+) -> None:
+    """Universal/target conflict reconciliation should not depend on declaration order."""
+    req_target_then_universal = tmp_path / "target_then_universal.yaml"
+    req_target_then_universal.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: click ==0.1 # [linux64]
+              - conda: click >=8
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    req_universal_then_target = tmp_path / "universal_then_target.yaml"
+    req_universal_then_target.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: click >=8
+              - pip: click ==0.1 # [linux64]
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    out1 = tmp_path / "pixi-target-then-universal.toml"
+    out2 = tmp_path / "pixi-universal-then-target.toml"
+    generate_pixi_toml(req_target_then_universal, output_file=out1, verbose=False)
+    generate_pixi_toml(req_universal_then_target, output_file=out2, verbose=False)
+
+    with out1.open("rb") as f:
+        data1 = tomllib.load(f)
+    with out2.open("rb") as f:
+        data2 = tomllib.load(f)
+
+    assert data1 == data2
+    assert "click" not in data1.get("dependencies", {})
+    assert data1["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+
+
 def test_pixi_reconciles_universal_conda_and_target_pip_prefers_conda_when_target_unpinned(
     tmp_path: Path,
 ) -> None:
@@ -1924,6 +1973,126 @@ def test_pixi_monorepo_optional_local_dependency_is_only_in_optional_env(
     envs = data["environments"]
     assert "lib" not in envs["default"]
     assert "lib" in envs["app-dev"]
+
+
+def test_pixi_monorepo_optional_group_with_only_local_deps_creates_env(
+    tmp_path: Path,
+) -> None:
+    """Local-only optional groups should still create optional environments."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    app_req = app_dir / "requirements.yaml"
+    app_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            optional_dependencies:
+              dev:
+                - ../lib
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    lib_req = lib_dir / "requirements.yaml"
+    lib_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other_req = other_dir / "requirements.yaml"
+    other_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - scipy
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(app_req, other_req, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    envs = data["environments"]
+
+    assert "app" in features
+    assert "lib" in features
+    assert "other" in features
+    # Local-only optional groups should not need their own dependency feature.
+    assert "app-dev" not in features
+    assert "app-dev" in envs
+    assert "lib" not in envs["default"]
+    assert "lib" in envs["app-dev"]
+
+
+def test_pixi_monorepo_optional_feature_name_collision_does_not_overwrite_base_feature(
+    tmp_path: Path,
+) -> None:
+    """Optional feature names must not overwrite existing base feature keys."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    project_req = project_dir / "requirements.yaml"
+    project_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+            """,
+        ),
+    )
+
+    project_dev_dir = tmp_path / "project-dev"
+    project_dev_dir.mkdir()
+    project_dev_req = project_dev_dir / "requirements.yaml"
+    project_dev_req.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        project_req,
+        project_dev_req,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    features = data["feature"]
+    assert features["project-dev"]["dependencies"]["pandas"] == "*"
+    assert features["project-dev-opt"]["dependencies"]["pytest"] == "*"
+    assert data["environments"]["project-dev-opt"] == ["project", "project-dev-opt"]
 
 
 def test_pixi_monorepo_default_env_excludes_optional_features(
