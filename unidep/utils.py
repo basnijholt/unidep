@@ -5,7 +5,10 @@ This module provides utility functions used throughout the package.
 
 from __future__ import annotations
 
+import ast
 import codecs
+import configparser
+import contextlib
 import platform
 import re
 import sys
@@ -211,7 +214,7 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
 
         if selector is not None:
             for s in selector.split():
-                validate_selector(cast(Selector, s))
+                validate_selector(cast("Selector", s))
 
         return ParsedPackageStr(
             package_name,
@@ -221,6 +224,75 @@ def parse_package_str(package_str: str) -> ParsedPackageStr:
 
     msg = f"Invalid package string: '{package_str}'"
     raise ValueError(msg)
+
+
+def package_name_from_setup_cfg(file_path: Path) -> str:
+    """Read the package name from ``setup.cfg`` metadata."""
+    config = configparser.ConfigParser()
+    config.read(file_path)
+    name = config.get("metadata", "name", fallback=None)
+    if name is None:
+        msg = "Could not find the package name in the setup.cfg file."
+        raise KeyError(msg)
+    return name
+
+
+def package_name_from_setup_py(file_path: Path) -> str:
+    """Read the package name from a simple ``setup.py`` AST."""
+    with file_path.open() as f:
+        file_content = f.read()
+
+    tree = ast.parse(file_content)
+
+    class SetupVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.package_name = None
+
+        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+            if isinstance(node.func, ast.Name) and node.func.id == "setup":
+                for keyword in node.keywords:
+                    if keyword.arg == "name":
+                        self.package_name = keyword.value.value  # type: ignore[attr-defined]
+
+    visitor = SetupVisitor()
+    visitor.visit(tree)
+    if visitor.package_name is None:
+        msg = "Could not find the package name in the setup.py file."
+        raise KeyError(msg)
+    assert isinstance(visitor.package_name, str)
+    return visitor.package_name
+
+
+def package_name_from_pyproject_toml(file_path: Path) -> str:
+    """Read project name from ``pyproject.toml`` (PEP 621 or Poetry)."""
+    with file_path.open("rb") as f:
+        data = tomllib.load(f)
+    with contextlib.suppress(KeyError):
+        return data["project"]["name"]
+    with contextlib.suppress(KeyError):
+        return data["tool"]["poetry"]["name"]
+    msg = f"Could not find the package name in the pyproject.toml file: {data}."
+    raise KeyError(msg)
+
+
+def package_name_from_path(path: Path) -> str:
+    """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
+    pyproject_toml = path / "pyproject.toml"
+    if pyproject_toml.exists():
+        with contextlib.suppress(Exception):
+            return package_name_from_pyproject_toml(pyproject_toml)
+
+    setup_cfg = path / "setup.cfg"
+    if setup_cfg.exists():
+        with contextlib.suppress(Exception):
+            return package_name_from_setup_cfg(setup_cfg)
+
+    setup_py = path / "setup.py"
+    if setup_py.exists():
+        with contextlib.suppress(Exception):
+            return package_name_from_setup_py(setup_py)
+
+    return path.name
 
 
 def _simple_warning_format(
@@ -267,7 +339,7 @@ def selector_from_comment(comment: str) -> str | None:
         return None
     selectors = m.group(1).strip().split()
     for s in selectors:
-        validate_selector(cast(Selector, s))
+        validate_selector(cast("Selector", s))
     return " ".join(selectors)
 
 

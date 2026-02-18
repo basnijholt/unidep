@@ -55,29 +55,6 @@ def _reconcile_conda_pip_pair(
     return conda, pip
 
 
-def _choose_conda_pip_source(
-    *,
-    conda_pinned: bool,
-    pip_pinned: bool,
-    pip_has_extras: bool = False,
-    on_tie: CondaPip | Literal["both"] = "both",
-) -> CondaPip | Literal["both"]:
-    """Return winner for conda/pip pair: conda, pip, or both on tie."""
-    conda, pip = _reconcile_conda_pip_pair(
-        conda="conda",
-        pip="pip",
-        conda_pinned=conda_pinned,
-        pip_pinned=pip_pinned,
-        pip_has_extras=pip_has_extras,
-        on_tie=on_tie,
-    )
-    if conda is None:
-        return "pip"
-    if pip is None:
-        return "conda"
-    return "both"
-
-
 def _prepare_specs_for_conflict_resolution(
     requirements: dict[str, list[Spec]],
 ) -> dict[str, dict[Platform | None, dict[CondaPip, list[Spec]]]]:

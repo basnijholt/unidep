@@ -41,6 +41,7 @@ from unidep.utils import (
     LocalDependency,
     PathWithExtras,
     is_pip_installable,
+    package_name_from_path,
     parse_folder_or_filename,
     resolve_platforms,
     split_path_and_extras,
@@ -63,15 +64,6 @@ if TYPE_CHECKING:
         Optional[str],
         Tuple[Dict[str, VersionSpec], Dict[str, VersionSpec]],
     ]
-
-try:
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        import tomli as tomllib  # pragma: no cover
-    HAS_TOML = True
-except ImportError:  # pragma: no cover
-    HAS_TOML = False
 
 
 def _parse_version_build(pin: str | None) -> str | dict[str, str]:
@@ -274,19 +266,10 @@ def _resolve_conda_pip_conflict(
         conda_deps.pop(base_name, None)
 
 
-def _get_package_name(project_dir: Path) -> str | None:
-    """Get the package name from pyproject.toml or setup.py."""
-    pyproject_path = project_dir / "pyproject.toml"
-    if pyproject_path.exists() and HAS_TOML:
-        with pyproject_path.open("rb") as f:
-            data = tomllib.load(f)
-            if "project" in data and "name" in data["project"]:
-                # Normalize package name for use in dependencies
-                # Replace dots and hyphens with underscores
-                name = data["project"]["name"]
-                return name.replace("-", "_").replace(".", "_")
-    # Fallback to directory name
-    return project_dir.name
+def _get_package_name(project_dir: Path) -> str:
+    """Get a pixi dependency key for an editable local package."""
+    name = package_name_from_path(project_dir)
+    return name.replace("-", "_").replace(".", "_")
 
 
 def _normalize_feature_name(name: str) -> str:
@@ -688,7 +671,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if "pypi-dependencies" not in pixi_data:
                 pixi_data["pypi-dependencies"] = {}
             # Get the actual package name from pyproject.toml
-            package_name = _get_package_name(req_dir) or req_dir.name
+            package_name = _get_package_name(req_dir)
             pixi_data["pypi-dependencies"][package_name] = {
                 "path": _editable_dependency_path(req_dir, output_file),
                 "editable": True,
@@ -802,7 +785,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 if "pypi-dependencies" not in feature:
                     feature["pypi-dependencies"] = {}
                 # Get the actual package name from pyproject.toml
-                package_name = _get_package_name(req_dir) or feature_name
+                package_name = _get_package_name(req_dir)
                 # Use relative path from the output file location
                 rel_path = _editable_dependency_path(req_dir, output_file)
                 feature["pypi-dependencies"][package_name] = {
