@@ -58,6 +58,14 @@ def test_combining_versions() -> None:
             (True, True, True, "conda"),
             (None, "pip"),
         ),
+        (
+            (True, True, False, "both"),
+            ("conda", "pip"),
+        ),
+        (
+            (True, True, False, "pip"),
+            (None, "pip"),
+        ),
     ],
 )
 def test_reconcile_conda_pip_pair(
