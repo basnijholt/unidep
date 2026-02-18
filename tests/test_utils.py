@@ -124,7 +124,7 @@ def test_detect_platform() -> None:
         identify_current_platform()
 
 
-def test_collect_selector_platforms() -> None:
+def test_collect_selector_platforms_with_optional_dependencies() -> None:
     requirements = {
         "numpy": [
             Spec(name="numpy", which="conda"),
