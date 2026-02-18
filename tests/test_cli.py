@@ -26,6 +26,7 @@ from unidep._cli import (
     _install_command,
     _maybe_conda_run,
     _maybe_create_conda_env_args,
+    _merge_command,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
@@ -214,6 +215,44 @@ def test_unidep_conda() -> None:
     # Check the output
     assert result.returncode == 0, "Command failed to execute successfully"
     assert "pandas" in result.stdout
+
+
+def test_merge_uses_selector_platforms_when_no_platforms_declared(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - cuda-toolkit  # [linux64]
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    with patch("unidep.utils.identify_current_platform", return_value="osx-arm64"):
+        _merge_command(
+            depth=1,
+            directory=tmp_path,
+            files=[req_file],
+            name="myenv",
+            output=output_file,
+            stdout=False,
+            selector="comment",
+            platforms=[],
+            ignore_pins=[],
+            skip_dependencies=[],
+            overwrite_pins=[],
+            verbose=False,
+        )
+
+    content = output_file.read_text()
+    assert "platforms:" in content
+    assert "  - linux-64" in content
+    assert "  - osx-arm64" not in content
 
 
 def test_unidep_file_not_found_error() -> None:

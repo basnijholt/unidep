@@ -139,6 +139,40 @@ def test_conda_lock_command_pip_package_with_conda_dependency(tmp_path: Path) ->
     ]
 
 
+def test_conda_lock_global_infers_selector_platforms(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+channels:
+  - conda-forge
+dependencies:
+  - cuda-toolkit  # [linux64]
+""",
+    )
+    with patch("unidep._conda_lock._run_conda_lock", return_value=None), patch(
+        "unidep.utils.identify_current_platform",
+        return_value="osx-arm64",
+    ):
+        conda_lock_command(
+            depth=1,
+            directory=tmp_path,
+            files=[req_file],
+            platforms=[],
+            verbose=False,
+            only_global=True,
+            check_input_hash=False,
+            ignore_pins=[],
+            overwrite_pins=[],
+            skip_dependencies=[],
+            extra_flags=[],
+        )
+
+    tmp_env = tmp_path / "tmp.environment.yaml"
+    with YAML(typ="safe") as yaml, tmp_env.open() as f:
+        data = yaml.load(f)
+    assert data["platforms"] == ["linux-64"]
+
+
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_conda_lock_command_pip_and_conda_different_name(
     tmp_path: Path,
