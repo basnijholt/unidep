@@ -34,6 +34,7 @@ from unidep._dependencies_parsing import (
     _load,
     _move_local_optional_dependencies_to_local_dependencies,
     _str_is_path_like,
+    _try_parse_local_dependency_requirement_file,
     parse_requirements,
 )
 from unidep.platform_definitions import Spec, platforms_from_selector
@@ -44,7 +45,6 @@ from unidep.utils import (
     package_name_from_path,
     parse_folder_or_filename,
     resolve_platforms,
-    split_path_and_extras,
 )
 
 if TYPE_CHECKING:
@@ -357,13 +357,7 @@ def _editable_dependency_path(req_dir: Path, output_file: str | Path | None) -> 
     return f"./{rel_path}"
 
 
-def _canonical_path_with_extras(path_with_extras: PathWithExtras) -> PathWithExtras:
-    """Normalize a requirements path for deterministic graph keys."""
-    extras = sorted(set(path_with_extras.extras))
-    return PathWithExtras(path_with_extras.path.resolve(), extras)
-
-
-def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
+def _discover_local_dependency_graph(  # noqa: PLR0912
     requirements_files: Sequence[Path],
 ) -> tuple[
     list[PathWithExtras],
@@ -384,7 +378,7 @@ def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
     local_dependency_overrides: dict[Path, LocalDependency] = {}
 
     roots = [
-        _canonical_path_with_extras(parse_folder_or_filename(req_file))
+        parse_folder_or_filename(req_file).canonicalized()
         for req_file in requirements_files
     ]
     discovered: list[PathWithExtras] = []
@@ -429,17 +423,15 @@ def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
                         )
                         if effective_local_dep.use != "local":
                             continue
-                        local_path, _ = split_path_and_extras(effective_local_dep.local)
-                        abs_local = (node.path.parent / local_path).resolve()
-                        if abs_local.suffix in (".whl", ".zip"):
-                            continue
-                        try:
-                            requirements_dep_file = parse_folder_or_filename(
-                                node.path.parent / effective_local_dep.local,
+                        requirements_dep_file = (
+                            _try_parse_local_dependency_requirement_file(
+                                base_dir=node.path.parent,
+                                local_dependency=effective_local_dep.local,
                             )
-                        except FileNotFoundError:
+                        )
+                        if requirements_dep_file is None:
                             continue
-                        child = _canonical_path_with_extras(requirements_dep_file)
+                        child = requirements_dep_file.canonicalized()
                         group_edges = optional_group_graph.setdefault(
                             node,
                             {},
@@ -453,21 +445,15 @@ def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
         for effective_local_dep in effective_local_dependencies:
             if effective_local_dep.use != "local":
                 continue
-            local_path, _ = split_path_and_extras(effective_local_dep.local)
-            abs_local = (node.path.parent / local_path).resolve()
-            if abs_local.suffix in (".whl", ".zip"):
-                # Keep parity with parse_requirements(): wheel/zip entries are
-                # installable artifacts, not requirement files to recurse into.
-                continue
-            try:
-                requirements_dep_file = parse_folder_or_filename(
-                    node.path.parent / effective_local_dep.local,
-                )
-            except FileNotFoundError:
+            requirements_dep_file = _try_parse_local_dependency_requirement_file(
+                base_dir=node.path.parent,
+                local_dependency=effective_local_dep.local,
+            )
+            if requirements_dep_file is None:
                 # Local dependency can be an unmanaged package; keep parity with
                 # parse_requirements() behavior by skipping it here.
                 continue
-            child = _canonical_path_with_extras(requirements_dep_file)
+            child = requirements_dep_file.canonicalized()
             if child not in direct_nodes:
                 direct_nodes.append(child)
             if child not in seen:

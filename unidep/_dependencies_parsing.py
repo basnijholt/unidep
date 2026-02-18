@@ -416,6 +416,21 @@ def _resolve_local_dependency_path(base_dir: Path, local: str) -> Path:
     return (base_dir / local_path).resolve()
 
 
+def _try_parse_local_dependency_requirement_file(
+    *,
+    base_dir: Path,
+    local_dependency: str,
+) -> PathWithExtras | None:
+    """Return managed requirements file for a local dependency, if present."""
+    try:
+        requirements_dep_file = parse_folder_or_filename(base_dir / local_dependency)
+    except FileNotFoundError:
+        return None
+    if requirements_dep_file.path.suffix in (".whl", ".zip"):
+        return None
+    return requirements_dep_file
+
+
 def _apply_local_dependency_override(
     *,
     local_dependency: LocalDependency,
@@ -491,16 +506,14 @@ def _add_local_dependencies(
     include_local_dependencies: bool = True,
     verbose: bool = False,
 ) -> None:
-    try:
-        requirements_dep_file = parse_folder_or_filename(
-            path_with_extras.path.parent / local_dependency,
-        )
-    except FileNotFoundError:
-        # Means that this is a local package that is not managed by unidep.
-        # We do not need to do anything here, just in `unidep install`.
-        return
-    if requirements_dep_file.path.suffix in (".whl", ".zip"):
-        if verbose:
+    requirements_dep_file = _try_parse_local_dependency_requirement_file(
+        base_dir=path_with_extras.path.parent,
+        local_dependency=local_dependency,
+    )
+    if requirements_dep_file is None:
+        local_path, _ = split_path_and_extras(local_dependency)
+        abs_local = (path_with_extras.path.parent / local_path).resolve()
+        if verbose and abs_local.suffix in (".whl", ".zip") and abs_local.exists():
             print(
                 f"⚠️  Local dependency `{local_dependency}` is a wheel or zip file. "
                 "Skipping parsing, but it will be installed by pip if "
