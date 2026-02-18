@@ -244,22 +244,28 @@ def package_name_from_setup_py(file_path: Path) -> str:
 
     tree = ast.parse(file_content)
 
+    def _string_literal(node: ast.expr) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
     class SetupVisitor(ast.NodeVisitor):
         def __init__(self) -> None:
-            self.package_name = None
+            self.package_name: str | None = None
 
         def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
             if isinstance(node.func, ast.Name) and node.func.id == "setup":
                 for keyword in node.keywords:
                     if keyword.arg == "name":
-                        self.package_name = keyword.value.value  # type: ignore[attr-defined]
+                        self.package_name = _string_literal(keyword.value)
+                        if self.package_name is not None:
+                            return
 
     visitor = SetupVisitor()
     visitor.visit(tree)
     if visitor.package_name is None:
         msg = "Could not find the package name in the setup.py file."
         raise KeyError(msg)
-    assert isinstance(visitor.package_name, str)
     return visitor.package_name
 
 
@@ -279,17 +285,34 @@ def package_name_from_path(path: Path) -> str:
     """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
     pyproject_toml = path / "pyproject.toml"
     if pyproject_toml.exists():
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(
+            KeyError,
+            OSError,
+            TypeError,
+            UnicodeError,
+            tomllib.TOMLDecodeError,
+        ):
             return package_name_from_pyproject_toml(pyproject_toml)
 
     setup_cfg = path / "setup.cfg"
     if setup_cfg.exists():
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(
+            KeyError,
+            OSError,
+            UnicodeError,
+            configparser.Error,
+        ):
             return package_name_from_setup_cfg(setup_cfg)
 
     setup_py = path / "setup.py"
     if setup_py.exists():
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(
+            KeyError,
+            OSError,
+            SyntaxError,
+            UnicodeError,
+            ValueError,
+        ):
             return package_name_from_setup_py(setup_py)
 
     return path.name
