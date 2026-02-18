@@ -30,10 +30,10 @@ from unidep._conflicts import (
 )
 from unidep._dependencies_parsing import (
     _apply_local_dependency_override,
+    _effective_local_dependencies,
     _load,
     _move_local_optional_dependencies_to_local_dependencies,
     _str_is_path_like,
-    get_local_dependencies,
     parse_requirements,
 )
 from unidep.platform_definitions import Spec, platforms_from_selector
@@ -407,15 +407,11 @@ def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
             path_with_extras=node,
             verbose=False,
         )
-        local_dependencies = get_local_dependencies(data)
-
-        for local_dep_obj in local_dependencies:
-            if local_dep_obj.use != "local":
-                _apply_local_dependency_override(
-                    local_dependency=local_dep_obj,
-                    base_dir=node.path.parent,
-                    overrides=local_dependency_overrides,
-                )
+        effective_local_dependencies = _effective_local_dependencies(
+            data=data,
+            base_dir=node.path.parent,
+            overrides=local_dependency_overrides,
+        )
 
         if node in roots_set:
             optional_groups = data.get("optional_dependencies", {})
@@ -454,12 +450,7 @@ def _discover_local_dependency_graph(  # noqa: C901, PLR0912, PLR0915
                             queue.append(child)
 
         direct_nodes: list[PathWithExtras] = []
-        for local_dep_obj in local_dependencies:
-            effective_local_dep = _apply_local_dependency_override(
-                local_dependency=local_dep_obj,
-                base_dir=node.path.parent,
-                overrides=local_dependency_overrides,
-            )
+        for effective_local_dep in effective_local_dependencies:
             if effective_local_dep.use != "local":
                 continue
             local_path, _ = split_path_and_extras(effective_local_dep.local)
