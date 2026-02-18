@@ -270,10 +270,8 @@ def _resolve_conda_pip_conflict(
     )
     if pip_kept is None:
         pip_deps.pop(base_name, None)
-        return
-    if conda_kept is None:
+    elif conda_kept is None:
         conda_deps.pop(base_name, None)
-        return
 
 
 def _get_package_name(project_dir: Path) -> str | None:

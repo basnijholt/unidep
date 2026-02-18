@@ -28,33 +28,6 @@ _REPO_URL = "https://github.com/basnijholt/unidep"
 TSourceSpec = TypeVar("TSourceSpec")
 
 
-def _choose_conda_pip_source(
-    *,
-    conda_pinned: bool,
-    pip_pinned: bool,
-    pip_has_extras: bool = False,
-    on_tie: CondaPip | Literal["both"] = "both",
-) -> CondaPip | Literal["both"]:
-    """Choose source preference for a conda/pip package name collision.
-
-    Rules:
-    - Pip with extras wins (extras cannot be represented in conda deps).
-    - If exactly one side is pinned, pinned side wins.
-    - If both sides are pinned or both are unpinned, use *on_tie*.
-
-    The caller decides tie behavior to match command semantics:
-    - ``on_tie="both"`` keeps both entries.
-    - ``on_tie="conda"`` or ``on_tie="pip"`` selects one.
-    """
-    if pip_has_extras:
-        return "pip"
-    if conda_pinned and not pip_pinned:
-        return "conda"
-    if pip_pinned and not conda_pinned:
-        return "pip"
-    return on_tie
-
-
 def _reconcile_conda_pip_pair(
     *,
     conda: TSourceSpec | None,
@@ -64,24 +37,45 @@ def _reconcile_conda_pip_pair(
     pip_has_extras: bool = False,
     on_tie: CondaPip | Literal["both"] = "both",
 ) -> tuple[TSourceSpec | None, TSourceSpec | None]:
-    """Reconcile one conda/pip pair and return surviving entries.
-
-    This is the backend-agnostic core for pairwise source reconciliation.
-    Callers provide only booleans for pin/extras and a tie policy.
-    """
+    """Reconcile one conda/pip pair and return surviving entries."""
     if conda is None or pip is None:
         return conda, pip
-    decision = _choose_conda_pip_source(
-        conda_pinned=conda_pinned,
-        pip_pinned=pip_pinned,
-        pip_has_extras=pip_has_extras,
-        on_tie=on_tie,
-    )
+    if pip_has_extras:
+        decision: CondaPip | Literal["both"] = "pip"
+    elif conda_pinned and not pip_pinned:
+        decision = "conda"
+    elif pip_pinned and not conda_pinned:
+        decision = "pip"
+    else:
+        decision = on_tie
     if decision == "conda":
         return conda, None
     if decision == "pip":
         return None, pip
     return conda, pip
+
+
+def _choose_conda_pip_source(
+    *,
+    conda_pinned: bool,
+    pip_pinned: bool,
+    pip_has_extras: bool = False,
+    on_tie: CondaPip | Literal["both"] = "both",
+) -> CondaPip | Literal["both"]:
+    """Return winner for conda/pip pair: conda, pip, or both on tie."""
+    conda, pip = _reconcile_conda_pip_pair(
+        conda="conda",
+        pip="pip",
+        conda_pinned=conda_pinned,
+        pip_pinned=pip_pinned,
+        pip_has_extras=pip_has_extras,
+        on_tie=on_tie,
+    )
+    if conda is None:
+        return "pip"
+    if pip is None:
+        return "conda"
+    return "both"
 
 
 def _prepare_specs_for_conflict_resolution(
@@ -186,18 +180,13 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip
     if pip_kept is None:
         return {"conda": conda_spec}
 
-    assert conda_kept is not None
-    assert pip_kept is not None
-    if conda_spec.pin == pip_spec.pin:
-        return {"conda": conda_kept, "pip": pip_kept}
-
-    # Handle conflict where both conda and pip have different pins
-    warn(
-        "Version Pinning Conflict:\n"
-        f"Different version specifications for Conda ('{conda_spec.pin}') and Pip"
-        f" ('{pip_spec.pin}'). Both versions are retained.",
-        stacklevel=2,
-    )
+    if conda_spec.pin != pip_spec.pin:
+        warn(
+            "Version Pinning Conflict:\n"
+            f"Different version specifications for Conda ('{conda_spec.pin}') and Pip"
+            f" ('{pip_spec.pin}'). Both versions are retained.",
+            stacklevel=2,
+        )
     return {"conda": conda_kept, "pip": pip_kept}
 
 
