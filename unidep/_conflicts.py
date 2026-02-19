@@ -24,8 +24,35 @@ if TYPE_CHECKING:
     from unidep.platform_definitions import CondaPip
 
 VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
+
+# Full PEP 440 + conda operator set, ordered longest-prefix-first for matching
+ALL_VERSION_OPERATORS: tuple[str, ...] = (
+    "===",
+    "==",
+    "~=",
+    ">=",
+    "<=",
+    "!=",
+    ">",
+    "<",
+    "=",
+)
+
 _REPO_URL = "https://github.com/basnijholt/unidep"
 TSourceSpec = TypeVar("TSourceSpec")
+
+
+def extract_version_operator(constraint: str) -> str:
+    """Extract the version operator prefix from a constraint string.
+
+    Returns the matched operator or "" if none matches.
+    This is a pure extraction helper — it does not validate.
+    """
+    constraint = constraint.strip()
+    return next(
+        (op for op in ALL_VERSION_OPERATORS if constraint.startswith(op)),
+        "",
+    )
 
 
 def _reconcile_conda_pip_pair(
@@ -236,16 +263,14 @@ def resolve_conflicts(
 def _parse_pinning(pinning: str) -> tuple[str, version.Version]:
     """Separates the operator and the version number."""
     pinning = pinning.strip()
-    for operator in VALID_OPERATORS:
-        if pinning.startswith(operator):
-            version_part = pinning[len(operator) :].strip()
-            if version_part:
-                try:
-                    return operator, version.parse(version_part)
-                except version.InvalidVersion:
-                    break
-            else:
-                break  # Empty version string
+    operator = extract_version_operator(pinning)
+    if operator and operator in VALID_OPERATORS:
+        version_part = pinning[len(operator) :].strip()
+        if version_part:
+            try:
+                return operator, version.parse(version_part)
+            except version.InvalidVersion:
+                pass
 
     msg = f"Invalid version pinning: '{pinning}', must start with one of {VALID_OPERATORS}"  # noqa: E501
     raise VersionConflictError(msg)

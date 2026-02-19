@@ -7,6 +7,7 @@ from typing import Literal
 import pytest
 
 from unidep._conflicts import (
+    ALL_VERSION_OPERATORS,
     VersionConflictError,
     _combine_pinning_within_platform,
     _is_redundant,
@@ -14,6 +15,7 @@ from unidep._conflicts import (
     _parse_pinning,
     _reconcile_conda_pip_pair,
     combine_version_pinnings,
+    extract_version_operator,
 )
 from unidep.platform_definitions import Spec
 
@@ -230,3 +232,40 @@ def test_invalid_parse_pinning(pinning: str) -> None:
         match=f"Invalid version pinning: '{pinning}'",
     ):
         _parse_pinning(pinning)
+
+
+@pytest.mark.parametrize("op", ALL_VERSION_OPERATORS)
+def test_extract_version_operator_all_operators(op: str) -> None:
+    assert extract_version_operator(f"{op}1.0") == op
+
+
+@pytest.mark.parametrize(
+    ("constraint", "expected"),
+    [
+        ("==1.0", "=="),
+        ("===1.0", "==="),
+        ("~=1.0", "~="),
+        (">=1.0", ">="),
+        ("<=1.0", "<="),
+        ("!=1.0", "!="),
+        (">1.0", ">"),
+        ("<1.0", "<"),
+        ("=1.0", "="),
+    ],
+)
+def test_extract_version_operator_pep440(constraint: str, expected: str) -> None:
+    assert extract_version_operator(constraint) == expected
+
+
+@pytest.mark.parametrize(
+    "constraint",
+    ["1.0", "abc", "", "hello world"],
+)
+def test_extract_version_operator_no_operator(constraint: str) -> None:
+    assert extract_version_operator(constraint) == ""
+
+
+def test_extract_version_operator_strips_whitespace() -> None:
+    assert extract_version_operator("  >=1.0  ") == ">="
+    assert extract_version_operator("  <2.0") == "<"
+    assert extract_version_operator("  1.0  ") == ""
