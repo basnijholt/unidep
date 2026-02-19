@@ -24,6 +24,7 @@ from typing import (
 from ruamel.yaml import YAML
 
 from unidep._conflicts import (
+    ALL_VERSION_OPERATORS,
     VersionConflictError,
     _reconcile_conda_pip_pair,
     combine_version_pinnings,
@@ -150,22 +151,12 @@ def _canonicalize_version_spec(version_spec: str) -> str:
     if "," not in version_spec:
         return version_spec
 
-    operator_order = {
-        "==": 0,
-        "===": 0,
-        "~=": 1,
-        ">=": 2,
-        ">": 3,
-        "<=": 4,
-        "<": 5,
-        "!=": 6,
-        "=": 7,
-    }
+    operator_order = {op: i for i, op in enumerate(ALL_VERSION_OPERATORS)}
 
     def _constraint_key(constraint: str) -> tuple[int, str]:
         token = constraint.strip()
         op = extract_version_operator(token)
-        return (operator_order.get(op, 8), token)
+        return (operator_order.get(op, len(ALL_VERSION_OPERATORS)), token)
 
     parts = [part.strip() for part in version_spec.split(",") if part.strip()]
     return ",".join(sorted(parts, key=_constraint_key))
