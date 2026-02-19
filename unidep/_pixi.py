@@ -45,6 +45,7 @@ from unidep.utils import (
     package_name_from_path,
     parse_folder_or_filename,
     resolve_platforms,
+    split_path_and_extras,
 )
 
 if TYPE_CHECKING:
@@ -359,13 +360,63 @@ def _editable_dependency_path(req_dir: Path, output_file: str | Path | None) -> 
     return f"./{rel_path}"
 
 
-def _discover_local_dependency_graph(  # noqa: PLR0912
+def _with_unique_order_paths(items: Sequence[Path]) -> list[Path]:
+    """Return unique paths while preserving order."""
+    unique_items: list[Path] = []
+    seen: set[Path] = set()
+    for item in items:
+        resolved = item.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique_items.append(item)
+    return unique_items
+
+
+def _add_editable_local_dependencies(
+    section: dict[str, Any],
+    local_projects: Sequence[Path],
+    *,
+    output_file: str | Path | None,
+) -> None:
+    """Add local projects to a pixi section as editable pip dependencies."""
+    unique_projects = _with_unique_order_paths(list(local_projects))
+    if not unique_projects:
+        return
+    pypi_deps = section.setdefault("pypi-dependencies", {})
+    assert isinstance(pypi_deps, dict)
+    for project_dir in unique_projects:
+        package_name = _get_package_name(project_dir)
+        pypi_deps[package_name] = {
+            "path": _editable_dependency_path(project_dir, output_file),
+            "editable": True,
+        }
+
+
+def _unmanaged_installable_local_project_dir(
+    *,
+    base_dir: Path,
+    local_dependency: str,
+) -> Path | None:
+    """Resolve an unmanaged local dependency to an installable project directory."""
+    local_path, _extras = split_path_and_extras(local_dependency)
+    abs_local = (base_dir / local_path).resolve()
+    if abs_local.suffix in (".whl", ".zip"):
+        return None
+    if is_pip_installable(abs_local):
+        return abs_local
+    return None
+
+
+def _discover_local_dependency_graph(  # noqa: PLR0912, C901, PLR0915
     requirements_files: Sequence[Path],
 ) -> tuple[
     list[PathWithExtras],
     list[PathWithExtras],
     dict[PathWithExtras, list[PathWithExtras]],
     dict[PathWithExtras, dict[str, list[PathWithExtras]]],
+    dict[PathWithExtras, list[Path]],
+    dict[PathWithExtras, dict[str, list[Path]]],
 ]:
     """Discover requirement files reachable via local_dependencies.
 
@@ -374,6 +425,8 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
         - All discovered requirement files (roots + reachable local deps).
         - A direct dependency graph between discovered requirement files.
         - Optional-group local dependency edges for root files.
+        - Direct unmanaged installable local dependencies for each node.
+        - Optional-group unmanaged installable local dependencies for root files.
 
     """
     yaml = YAML(typ="rt")
@@ -386,6 +439,8 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
     discovered: list[PathWithExtras] = []
     graph: dict[PathWithExtras, list[PathWithExtras]] = {}
     optional_group_graph: dict[PathWithExtras, dict[str, list[PathWithExtras]]] = {}
+    unmanaged_local_graph: dict[PathWithExtras, list[Path]] = {}
+    optional_group_unmanaged_graph: dict[PathWithExtras, dict[str, list[Path]]] = {}
     seen: set[PathWithExtras] = set()
     roots_set = set(roots)
     queue = deque(roots)
@@ -432,6 +487,22 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
                             )
                         )
                         if requirements_dep_file is None:
+                            unmanaged_local_dir = (
+                                _unmanaged_installable_local_project_dir(
+                                    base_dir=node.path.parent,
+                                    local_dependency=effective_local_dep.local,
+                                )
+                            )
+                            if unmanaged_local_dir is None:
+                                continue
+                            unmanaged_group_edges = (
+                                optional_group_unmanaged_graph.setdefault(
+                                    node,
+                                    {},
+                                ).setdefault(group_name, [])
+                            )
+                            if unmanaged_local_dir not in unmanaged_group_edges:
+                                unmanaged_group_edges.append(unmanaged_local_dir)
                             continue
                         child = requirements_dep_file.canonicalized()
                         group_edges = optional_group_graph.setdefault(
@@ -444,6 +515,7 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
                             queue.append(child)
 
         direct_nodes: list[PathWithExtras] = []
+        direct_unmanaged_nodes: list[Path] = []
         for effective_local_dep in effective_local_dependencies:
             if effective_local_dep.use != "local":
                 continue
@@ -452,8 +524,15 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
                 local_dependency=effective_local_dep.local,
             )
             if requirements_dep_file is None:
-                # Local dependency can be an unmanaged package; keep parity with
-                # parse_requirements() behavior by skipping it here.
+                unmanaged_local_dir = _unmanaged_installable_local_project_dir(
+                    base_dir=node.path.parent,
+                    local_dependency=effective_local_dep.local,
+                )
+                if (
+                    unmanaged_local_dir is not None
+                    and unmanaged_local_dir not in direct_unmanaged_nodes
+                ):
+                    direct_unmanaged_nodes.append(unmanaged_local_dir)
                 continue
             child = requirements_dep_file.canonicalized()
             if child not in direct_nodes:
@@ -462,8 +541,16 @@ def _discover_local_dependency_graph(  # noqa: PLR0912
                 queue.append(child)
 
         graph[node] = direct_nodes
+        unmanaged_local_graph[node] = direct_unmanaged_nodes
 
-    return roots, discovered, graph, optional_group_graph
+    return (
+        roots,
+        discovered,
+        graph,
+        optional_group_graph,
+        unmanaged_local_graph,
+        optional_group_unmanaged_graph,
+    )
 
 
 def _parse_direct_requirements_for_node(
@@ -665,18 +752,37 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         # Add platform-specific dependencies as target sections
         _add_target_sections(pixi_data, platform_deps)
 
-        # Check if there's a local package in the same directory
+        (
+            root_nodes,
+            discovered_nodes,
+            local_dependency_graph,
+            optional_group_graph,
+            unmanaged_local_graph,
+            optional_group_unmanaged_graph,
+        ) = _discover_local_dependency_graph([requirements_file])
+        root_node = root_nodes[0]
+
+        # Collect editable packages from the root project and all required local deps.
         req_dir = _project_dir_from_requirement_file(req_file)
+        local_editable_projects: list[Path] = []
         if is_pip_installable(req_dir):
-            # Add the local package as an editable dependency
-            if "pypi-dependencies" not in pixi_data:
-                pixi_data["pypi-dependencies"] = {}
-            # Get the actual package name from pyproject.toml
-            package_name = _get_package_name(req_dir)
-            pixi_data["pypi-dependencies"][package_name] = {
-                "path": _editable_dependency_path(req_dir, output_file),
-                "editable": True,
-            }
+            local_editable_projects.append(req_dir)
+        for node in discovered_nodes:
+            if node == root_node:
+                continue
+            node_project_dir = _project_dir_from_requirement_file(node.path)
+            if is_pip_installable(node_project_dir):
+                local_editable_projects.append(node_project_dir)
+            local_editable_projects.extend(unmanaged_local_graph.get(node, []))
+        local_editable_projects.extend(unmanaged_local_graph.get(root_node, []))
+        _add_editable_local_dependencies(
+            pixi_data,
+            local_editable_projects,
+            output_file=output_file,
+        )
+        base_local_editable_set = {
+            path.resolve() for path in _with_unique_order_paths(local_editable_projects)
+        }
 
         # Handle optional dependencies as features
         optional_data = _load(req_file, YAML(typ="rt")).get("optional_dependencies", {})
@@ -717,6 +823,48 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     platform for platform in opt_platform_deps if platform is not None
                 )
                 feature = _build_feature_dict(opt_platform_deps)
+                optional_group_projects: list[Path] = list(
+                    optional_group_unmanaged_graph.get(root_node, {}).get(
+                        group_name,
+                        [],
+                    ),
+                )
+                optional_local_nodes = optional_group_graph.get(root_node, {}).get(
+                    group_name,
+                    [],
+                )
+                seen_optional_nodes: set[PathWithExtras] = set()
+                for optional_local_node in optional_local_nodes:
+                    for candidate_node in [
+                        optional_local_node,
+                        *(
+                            _collect_transitive_nodes(
+                                optional_local_node,
+                                local_dependency_graph,
+                            )
+                        ),
+                    ]:
+                        if candidate_node in seen_optional_nodes:
+                            continue
+                        seen_optional_nodes.add(candidate_node)
+                        optional_project_dir = _project_dir_from_requirement_file(
+                            candidate_node.path,
+                        )
+                        if is_pip_installable(optional_project_dir):
+                            optional_group_projects.append(optional_project_dir)
+                        optional_group_projects.extend(
+                            unmanaged_local_graph.get(candidate_node, []),
+                        )
+                optional_group_specific_projects = [
+                    path
+                    for path in _with_unique_order_paths(optional_group_projects)
+                    if path.resolve() not in base_local_editable_set
+                ]
+                _add_editable_local_dependencies(
+                    feature,
+                    optional_group_specific_projects,
+                    output_file=output_file,
+                )
                 if feature:
                     pixi_data["feature"][group_name] = feature
                     opt_features.append(group_name)
@@ -740,9 +888,14 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         # local-dependency relationships in environments instead of flattening.
         pixi_data["feature"] = {}
         pixi_data["environments"] = {}
-        root_nodes, discovered_nodes, local_dependency_graph, optional_group_graph = (
-            _discover_local_dependency_graph(requirements_files)
-        )
+        (
+            root_nodes,
+            discovered_nodes,
+            local_dependency_graph,
+            optional_group_graph,
+            unmanaged_local_graph,
+            optional_group_unmanaged_graph,
+        ) = _discover_local_dependency_graph(requirements_files)
         feature_names = _derive_feature_names([node.path for node in discovered_nodes])
         feature_name_by_node = dict(zip(discovered_nodes, feature_names))
         taken_optional_feature_names: set[str] = set(feature_names)
@@ -782,18 +935,15 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 "requirements.yaml",
                 "pyproject.toml",
             }
+            node_editable_projects: list[Path] = []
             if should_add_editable and is_pip_installable(req_dir):
-                # Add the local package as an editable dependency
-                if "pypi-dependencies" not in feature:
-                    feature["pypi-dependencies"] = {}
-                # Get the actual package name from pyproject.toml
-                package_name = _get_package_name(req_dir)
-                # Use relative path from the output file location
-                rel_path = _editable_dependency_path(req_dir, output_file)
-                feature["pypi-dependencies"][package_name] = {
-                    "path": rel_path,
-                    "editable": True,
-                }
+                node_editable_projects.append(req_dir)
+            node_editable_projects.extend(unmanaged_local_graph.get(node, []))
+            _add_editable_local_dependencies(
+                feature,
+                node_editable_projects,
+                output_file=output_file,
+            )
 
             if feature:  # Only add non-empty features
                 pixi_data["feature"][feature_name] = feature
@@ -830,7 +980,20 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                     group_name,
                     [],
                 )
-                if not opt_feature and not optional_local_nodes:
+                optional_unmanaged_local_projects = optional_group_unmanaged_graph.get(
+                    node,
+                    {},
+                ).get(group_name, [])
+                _add_editable_local_dependencies(
+                    opt_feature,
+                    optional_unmanaged_local_projects,
+                    output_file=output_file,
+                )
+                if (
+                    not opt_feature
+                    and not optional_local_nodes
+                    and not optional_unmanaged_local_projects
+                ):
                     continue
                 if opt_feature:
                     pixi_data["feature"][opt_feature_name] = opt_feature

@@ -783,6 +783,61 @@ def test_pixi_single_file_editable_path_relative_to_output(tmp_path: Path) -> No
     assert editable_dep["path"] == "./services/api"
 
 
+def test_pixi_single_file_includes_local_dependency_package_as_editable(
+    tmp_path: Path,
+) -> None:
+    """Single-file mode should install local dependency projects as editable packages."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    req_file = app_dir / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../lib
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+    (lib_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "lib"
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["dependencies"]["numpy"] == "*"
+    assert data["dependencies"]["pandas"] == "*"
+    lib_editable = data["pypi-dependencies"]["lib"]
+    assert lib_editable["editable"] is True
+    assert lib_editable["path"] == "./lib"
+
+
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:
     """Test handling of requirements file with no dependencies."""
     req_file = tmp_path / "requirements.yaml"
@@ -1062,6 +1117,66 @@ def test_pixi_monorepo_with_local_packages(tmp_path: Path) -> None:
     assert 'path = "./project1"' in content
     assert 'path = "./project2"' in content
     assert "editable = true" in content
+
+
+def test_pixi_monorepo_keeps_unmanaged_local_dependency_as_editable(
+    tmp_path: Path,
+) -> None:
+    """Monorepo mode should keep unmanaged but installable local packages."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    req_app = app_dir / "requirements.yaml"
+    req_app.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../lib
+            """,
+        ),
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    req_other = other_dir / "requirements.yaml"
+    req_other.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "lib-pkg"
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_app, req_other, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert "lib" not in data["feature"]
+    app_editable = data["feature"]["app"]["pypi-dependencies"]["lib_pkg"]
+    assert app_editable["editable"] is True
+    assert app_editable["path"] == "./lib"
 
 
 def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
@@ -2382,11 +2497,20 @@ def test_discover_local_dependency_graph_skips_non_local_and_missing(
         ),
     )
 
-    roots, discovered, graph, optional_graph = _discover_local_dependency_graph([req])
+    (
+        roots,
+        discovered,
+        graph,
+        optional_graph,
+        unmanaged_graph,
+        optional_unmanaged_graph,
+    ) = _discover_local_dependency_graph([req])
     assert roots == discovered
     assert len(roots) == 1
     assert graph[roots[0]] == []
     assert optional_graph == {}
+    assert unmanaged_graph[roots[0]] == []
+    assert optional_unmanaged_graph == {}
 
 
 def test_parse_direct_requirements_for_node_with_extras(tmp_path: Path) -> None:
