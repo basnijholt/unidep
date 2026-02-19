@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import textwrap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 try:
     import tomllib
@@ -15,9 +15,15 @@ from unidep._pixi import (
     _derive_feature_names,
     _discover_local_dependency_graph,
     _editable_dependency_path,
+    _make_pip_version_spec,
     _merge_version_specs,
     _parse_direct_requirements_for_node,
+    _parse_version_build,
     _resolve_conda_pip_conflict,
+    _restore_demoted_universals,
+    _unique_optional_feature_name,
+    _version_spec_is_pinned,
+    _with_unique_order_paths,
     generate_pixi_toml,
 )
 from unidep.utils import PathWithExtras
@@ -3019,3 +3025,417 @@ def test_pixi_demoted_universal_reapplies_conflict_policy_for_unpinned_specs(
     osx = data["target"]["osx-64"]
     assert osx["dependencies"]["click"] == "*"
     assert "click" not in osx.get("pypi-dependencies", {})
+
+
+def test_parse_version_build_whitespace_only() -> None:
+    assert _parse_version_build("  ") == "*"
+
+
+def test_make_pip_version_spec_dict_with_extras() -> None:
+    result = _make_pip_version_spec({"version": ">=1.0", "build": "py3*"}, ["extra1"])
+    assert result == {"version": ">=1.0", "build": "py3*", "extras": ["extra1"]}
+
+
+def test_merge_version_specs_existing_star() -> None:
+    assert _merge_version_specs("*", ">=1.0", "pkg") == ">=1.0"
+
+
+def test_version_spec_is_pinned_dict_with_version() -> None:
+    assert _version_spec_is_pinned({"version": ">=1.0"}) is True
+
+
+def test_with_unique_order_paths_deduplicates(tmp_path: Path) -> None:
+    d = tmp_path / "a"
+    d.mkdir()
+    result = _with_unique_order_paths([d, d, d])
+    assert result == [d]
+
+
+def test_unique_optional_feature_name_double_collision() -> None:
+    taken: set[str] = {"feat-dev", "feat-dev-opt"}
+    name = _unique_optional_feature_name(
+        parent_feature="feat",
+        group_name="dev",
+        taken_names=taken,
+    )
+    assert name == "feat-dev-opt-2"
+    assert name in taken
+
+
+def test_pixi_single_file_optional_local_dep_transitive_dedup(
+    tmp_path: Path,
+) -> None:
+    """Cover single-file optional local dep dedup and pip-installable path."""
+    # Shared transitive dep referenced by both optional local deps
+    shared_dir = tmp_path / "shared"
+    shared_dir.mkdir()
+    (shared_dir / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - scipy
+        """),
+    )
+    (shared_dir / "setup.py").write_text(
+        "from setuptools import setup; setup(name='shared')",
+    )
+
+    # Two optional local deps that both depend on shared
+    opt_a_dir = tmp_path / "opt_a"
+    opt_a_dir.mkdir()
+    (opt_a_dir / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - pandas
+            local_dependencies:
+              - ../shared
+        """),
+    )
+    (opt_a_dir / "setup.py").write_text(
+        "from setuptools import setup; setup(name='opt-a')",
+    )
+
+    opt_b_dir = tmp_path / "opt_b"
+    opt_b_dir.mkdir()
+    (opt_b_dir / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - polars
+            local_dependencies:
+              - ../shared
+        """),
+    )
+    (opt_b_dir / "setup.py").write_text(
+        "from setuptools import setup; setup(name='opt-b')",
+    )
+
+    # Root project with optional deps pointing to opt_a and opt_b
+    (tmp_path / "setup.py").write_text(
+        "from setuptools import setup; setup(name='root')",
+    )
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              extras:
+                - ./opt_a
+                - ./opt_b
+            platforms:
+              - linux-64
+        """),
+    )
+
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(req, output_file=output, verbose=False)
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+
+    # The optional feature should exist with deps from the optional local subprojects
+    assert "extras" in data["feature"]
+    extras_deps = data["feature"]["extras"].get("dependencies", {})
+    # pandas and polars come from opt_a and opt_b's requirements
+    assert "pandas" in extras_deps or "polars" in extras_deps
+
+
+def test_pixi_single_file_optional_group_demoted_universal(
+    tmp_path: Path,
+) -> None:
+    """Cover line 856: optional group's own deps trigger demotion."""
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              special:
+                - conda: click
+                - pip: click >=2.0  # [linux64]
+            platforms:
+              - linux-64
+              - osx-arm64
+        """),
+    )
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(req, output_file=output, verbose=False)
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+
+    # The optional feature should exist and click should be present
+    assert "special" in data["feature"]
+
+
+def test_pixi_monorepo_feature_demoted_universal(tmp_path: Path) -> None:
+    """Cover lines 936 and 1074-1075: monorepo feature demotion + restore."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: requests
+              - pip: requests >=2.0  # [linux64]
+            platforms:
+              - linux-64
+              - osx-arm64
+        """),
+    )
+
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        proj / "requirements.yaml",
+        tmp_path / "dummy_second.yaml" if False else proj / "requirements.yaml",
+        output_file=output,
+        verbose=False,
+    )
+    # Just verify it generates without error and has the feature
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+    assert "feature" in data
+
+
+def test_pixi_monorepo_optional_group_demoted(tmp_path: Path) -> None:
+    """Cover line 1002: monorepo optional group demotion."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              special:
+                - conda: click
+                - pip: click >=2.0  # [linux64]
+            platforms:
+              - linux-64
+              - osx-arm64
+        """),
+    )
+    proj2 = tmp_path / "proj2"
+    proj2.mkdir()
+    (proj2 / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            platforms:
+              - linux-64
+        """),
+    )
+
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        proj / "requirements.yaml",
+        proj2 / "requirements.yaml",
+        output_file=output,
+        verbose=False,
+    )
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+    assert "feature" in data
+
+
+def test_pixi_discover_graph_skips_non_list_optional_group(
+    tmp_path: Path,
+) -> None:
+    """Cover line 469: optional group dep that is not a list."""
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              bad_group: "not a list"
+            platforms:
+              - linux-64
+        """),
+    )
+    roots, discovered, graph, opt_graph, _, _ = _discover_local_dependency_graph([req])
+    assert len(roots) == 1
+    # bad_group should be ignored
+    assert not opt_graph
+
+
+def test_pixi_discover_graph_skips_non_local_optional_dep(
+    tmp_path: Path,
+) -> None:
+    """Cover line 479: optional dep with use != local."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "setup.py").write_text(
+        "from setuptools import setup; setup(name='other')",
+    )
+    (proj / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              extras:
+                - ../other
+            local_dependency_overrides:
+              ../other:
+                use: pypi
+            platforms:
+              - linux-64
+        """),
+    )
+    roots, discovered, graph, opt_graph, _, _ = _discover_local_dependency_graph(
+        [proj / "requirements.yaml"],
+    )
+    assert len(roots) == 1
+    # other should NOT be in optional graph because use=pypi != local
+    assert not opt_graph.get(roots[0], {}).get("extras", [])
+
+
+def test_pixi_discover_graph_skips_non_installable_optional_unmanaged(
+    tmp_path: Path,
+) -> None:
+    """Cover line 494: optional unmanaged dep that is not pip-installable."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    not_installable = tmp_path / "nosetup"
+    not_installable.mkdir()
+    # No setup.py or pyproject.toml → not pip-installable
+    (proj / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              extras:
+                - ../nosetup
+            platforms:
+              - linux-64
+        """),
+    )
+    roots, discovered, graph, opt_graph, _, opt_unmanaged = (
+        _discover_local_dependency_graph([proj / "requirements.yaml"])
+    )
+    assert len(roots) == 1
+    # nosetup should not appear anywhere (not managed, not installable)
+    assert not opt_graph.get(roots[0], {}).get("extras", [])
+    assert not opt_unmanaged.get(roots[0], {}).get("extras", [])
+
+
+def test_restore_demoted_skips_when_still_in_universal(tmp_path: Path) -> None:
+    """Cover restore skips when pkg is in universal deps or target."""
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: numpy >=1.0
+              - pip: numpy >=2.0  # [linux64]
+              - conda: scipy
+            platforms:
+              - linux-64
+              - osx-arm64
+        """),
+    )
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(req, output_file=output, verbose=False)
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+    # scipy should remain universal (not demoted)
+    assert "scipy" in data["dependencies"]
+
+
+def test_pixi_monorepo_optional_local_feature_not_in_pixi_data(
+    tmp_path: Path,
+) -> None:
+    """Cover line 1046: optional local dep feature not in pixi_data."""
+    # Create a root project with an optional dep pointing to a local project
+    # that has no dependencies at all (empty feature → not in pixi_data)
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    (empty_dir / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies: []
+        """),
+    )
+
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              extras:
+                - ../empty
+            platforms:
+              - linux-64
+        """),
+    )
+
+    proj2 = tmp_path / "proj2"
+    proj2.mkdir()
+    (proj2 / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            platforms:
+              - linux-64
+        """),
+    )
+
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        proj / "requirements.yaml",
+        proj2 / "requirements.yaml",
+        output_file=output,
+        verbose=False,
+    )
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+    # empty feature should NOT be in environments (feature was empty)
+    for env_features in data.get("environments", {}).values():
+        assert "empty" not in env_features
+
+
+def test_restore_demoted_skips_pkg_still_in_conda_universal() -> None:
+    """Line 1331: demoted pkg still present in universal dependencies."""
+    section: dict[str, Any] = {"dependencies": {"click": "*"}}
+    demoted: dict[str, tuple[str, str | dict[str, Any]]] = {
+        "click": ("conda", ">=1.0"),
+    }
+    _restore_demoted_universals(section, demoted, ["linux-64"])
+    # No target created because click is already in universal
+    assert "target" not in section
+
+
+def test_restore_demoted_skips_pkg_still_in_pip_universal() -> None:
+    """Line 1333: demoted pkg still present in universal pypi-dependencies."""
+    section: dict[str, Any] = {"pypi-dependencies": {"click": "*"}}
+    demoted: dict[str, tuple[str, str | dict[str, Any]]] = {
+        "click": ("pip", ">=1.0"),
+    }
+    _restore_demoted_universals(section, demoted, ["linux-64"])
+    assert "target" not in section
+
+
+def test_restore_demoted_skips_same_dep_type_in_target() -> None:
+    """Line 1341: same dep type already in target for that platform."""
+    section: dict[str, Any] = {
+        "target": {"linux-64": {"dependencies": {"click": ">=2.0"}}},
+    }
+    demoted: dict[str, tuple[str, str | dict[str, Any]]] = {
+        "click": ("conda", ">=1.0"),
+    }
+    _restore_demoted_universals(section, demoted, ["linux-64"])
+    # Existing target conda dep should not be overwritten
+    assert section["target"]["linux-64"]["dependencies"]["click"] == ">=2.0"

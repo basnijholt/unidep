@@ -12,12 +12,8 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     Literal,
-    Optional,
     Sequence,
-    Tuple,
-    Union,
     cast,
 )
 
@@ -51,6 +47,8 @@ from unidep.utils import (
 )
 
 if TYPE_CHECKING:
+    from typing import Dict, Optional, Tuple, Union
+
     from unidep._dependencies_parsing import ParsedRequirements
 
     if sys.version_info >= (3, 10):
@@ -742,16 +740,7 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         if base_req.platforms and not use_platforms_override:
             all_platforms.update(base_req.platforms)
 
-        # Get universal (non-platform-specific) dependencies
-        conda_deps, pip_deps = platform_deps.get(None, ({}, {}))
-
-        if conda_deps:
-            pixi_data["dependencies"] = conda_deps
-        if pip_deps:
-            pixi_data["pypi-dependencies"] = pip_deps
-
-        # Add platform-specific dependencies as target sections
-        _add_target_sections(pixi_data, platform_deps)
+        pixi_data.update(_build_feature_dict(platform_deps))
 
         (
             root_nodes,
@@ -1284,31 +1273,6 @@ def _build_feature_dict(platform_deps: PlatformDeps) -> dict[str, Any]:
             feature["target"][platform]["pypi-dependencies"] = plat_pip
 
     return feature
-
-
-def _add_target_sections(
-    pixi_data: dict[str, Any],
-    platform_deps: PlatformDeps,
-) -> None:
-    """Add target.<platform>.dependencies sections for platform-specific deps."""
-    for platform, (conda_deps, pip_deps) in platform_deps.items():
-        if platform is None:
-            # Universal deps are handled separately
-            continue
-        # Note: platforms only exist in platform_deps if they have deps,
-        # so we don't need to check for empty conda_deps/pip_deps
-
-        # Initialize target section if needed
-        if "target" not in pixi_data:
-            pixi_data["target"] = {}
-        if platform not in pixi_data["target"]:
-            pixi_data["target"][platform] = {}
-
-        target = pixi_data["target"][platform]
-        if conda_deps:
-            target["dependencies"] = conda_deps
-        if pip_deps:
-            target["pypi-dependencies"] = pip_deps
 
 
 def _filter_section_targets(
