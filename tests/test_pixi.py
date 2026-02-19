@@ -3258,7 +3258,7 @@ def test_pixi_discover_graph_skips_non_list_optional_group(
               - linux-64
         """),
     )
-    roots, discovered, graph, opt_graph, _, _ = _discover_local_dependency_graph([req])
+    roots, _, _, opt_graph, _, _ = _discover_local_dependency_graph([req])
     assert len(roots) == 1
     # bad_group should be ignored
     assert not opt_graph
@@ -3267,7 +3267,7 @@ def test_pixi_discover_graph_skips_non_list_optional_group(
 def test_pixi_discover_graph_skips_non_local_optional_dep(
     tmp_path: Path,
 ) -> None:
-    """Cover line 479: optional dep with use != local."""
+    """Cover line 481: optional dep with use != local via override side-effect."""
     proj = tmp_path / "proj"
     proj.mkdir()
     other = tmp_path / "other"
@@ -3275,21 +3275,31 @@ def test_pixi_discover_graph_skips_non_local_optional_dep(
     (other / "setup.py").write_text(
         "from setuptools import setup; setup(name='other')",
     )
+    (other / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - scipy
+        """),
+    )
+    # local_dependencies with use:pypi populates the overrides dict via
+    # _effective_local_dependencies, so the same dep in optional_dependencies
+    # is resolved with use=pypi and skipped (line 481).
     (proj / "requirements.yaml").write_text(
         textwrap.dedent("""\
             dependencies:
               - numpy
+            local_dependencies:
+              - local: ../other
+                use: pypi
+                pypi: other-pkg
             optional_dependencies:
               extras:
                 - ../other
-            local_dependency_overrides:
-              ../other:
-                use: pypi
             platforms:
               - linux-64
         """),
     )
-    roots, discovered, graph, opt_graph, _, _ = _discover_local_dependency_graph(
+    roots, _, _, opt_graph, _, _ = _discover_local_dependency_graph(
         [proj / "requirements.yaml"],
     )
     assert len(roots) == 1
@@ -3317,8 +3327,8 @@ def test_pixi_discover_graph_skips_non_installable_optional_unmanaged(
               - linux-64
         """),
     )
-    roots, discovered, graph, opt_graph, _, opt_unmanaged = (
-        _discover_local_dependency_graph([proj / "requirements.yaml"])
+    roots, _, _, opt_graph, _, opt_unmanaged = _discover_local_dependency_graph(
+        [proj / "requirements.yaml"],
     )
     assert len(roots) == 1
     # nosetup should not appear anywhere (not managed, not installable)

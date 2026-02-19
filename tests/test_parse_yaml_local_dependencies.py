@@ -576,3 +576,27 @@ def test_parse_local_dependencies_without_local_deps_themselves(
     r2.write_text("")
     with pytest.raises(RuntimeError, match="is not pip installable"):
         parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
+
+
+def test_parse_requirements_unmanaged_local_dependency(tmp_path: Path) -> None:
+    """Local dep without requirements.yaml hits the None branch in _add_local_dependencies."""
+    project = tmp_path / "project"
+    project.mkdir()
+    unmanaged = tmp_path / "unmanaged"
+    unmanaged.mkdir()
+    # pip-installable but not unidep-managed
+    (unmanaged / "setup.py").write_text(
+        "from setuptools import setup; setup(name='unmanaged')",
+    )
+    req = project / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../unmanaged
+        """),
+    )
+    result = parse_requirements(req, verbose=False)
+    # Parsing succeeds; unmanaged dep is silently skipped
+    assert "numpy" in result.requirements

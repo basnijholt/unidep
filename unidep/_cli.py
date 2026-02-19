@@ -30,6 +30,7 @@ from unidep._dependencies_parsing import (
     parse_local_dependencies,
     parse_requirements,
 )
+from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
@@ -137,7 +138,8 @@ def _add_common_args(  # noqa: PLR0912, C901
             choices=get_args(Platform),
             help="The platform(s) to get the requirements for. "
             "Multiple platforms can be specified. "
-            "If omitted, platforms are inferred from the requirements file(s).",
+            "If omitted, behavior is command-specific: platforms may be inferred "
+            "from requirements files, otherwise the current platform is used.",
         )
     if "editable" in options:
         sub_parser.add_argument(
@@ -1392,8 +1394,6 @@ def _pixi_command(
     verbose: bool,
 ) -> None:  # pragma: no cover
     """Generate a pixi.toml file from requirements files."""
-    from unidep._pixi import generate_pixi_toml
-
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
     if output is None:
