@@ -240,24 +240,6 @@ def test_extract_version_operator_all_operators(op: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("constraint", "expected"),
-    [
-        ("==1.0", "=="),
-        ("===1.0", "==="),
-        ("~=1.0", "~="),
-        (">=1.0", ">="),
-        ("<=1.0", "<="),
-        ("!=1.0", "!="),
-        (">1.0", ">"),
-        ("<1.0", "<"),
-        ("=1.0", "="),
-    ],
-)
-def test_extract_version_operator_pep440(constraint: str, expected: str) -> None:
-    assert extract_version_operator(constraint) == expected
-
-
-@pytest.mark.parametrize(
     "constraint",
     ["1.0", "abc", "", "hello world"],
 )

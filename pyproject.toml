@@ -28,9 +28,10 @@ conda-lock = ["conda-lock", "conda-package-handling"]
 pip-compile = ["pip-tools"]
 pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
+pixi = ["pixi-to-conda-lock; python_version >= '3.9'", "tomli_w"]
 # Everything except 'test' and 'docs'
 all = [
-    "unidep[toml,conda-lock,pip-compile,pytest,rich]",
+    "unidep[toml,conda-lock,pip-compile,pytest,rich,pixi]",
 ]
 docs = [
     "myst-parser",
@@ -120,6 +121,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"unidep/_pixi.py" = ["PLC0415"]
 "tests/*" = ["SLF001", "D103", "E501", "PLR2004"]
 "tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
