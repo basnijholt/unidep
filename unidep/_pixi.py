@@ -378,16 +378,31 @@ def _add_editable_local_dependencies(
     local_projects: Sequence[Path],
     *,
     output_file: str | Path | None,
+    exclude: set[Path] | None = None,
 ) -> None:
-    """Add local projects to a pixi section as editable pip dependencies."""
+    """Add local projects to a pixi section as editable pip dependencies.
+
+    Parameters
+    ----------
+    section
+        The pixi data dict to add ``pypi-dependencies`` entries to.
+    local_projects
+        Directories of installable Python projects.
+    output_file
+        Path to the generated pixi.toml (used to compute relative paths).
+    exclude
+        Resolved paths to skip (used to avoid duplicating editables that
+        already appear in a parent/base section).
+
+    """
     unique_projects = _with_unique_order_paths(list(local_projects))
     if not unique_projects:
         return
-    pypi_deps = section.setdefault("pypi-dependencies", {})
-    assert isinstance(pypi_deps, dict)
     for project_dir in unique_projects:
+        if exclude and project_dir.resolve() in exclude:
+            continue
         package_name = _get_package_name(project_dir)
-        pypi_deps[package_name] = {
+        section.setdefault("pypi-dependencies", {})[package_name] = {
             "path": _editable_dependency_path(project_dir, output_file),
             "editable": True,
         }
@@ -855,15 +870,11 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                         optional_group_projects.extend(
                             unmanaged_local_graph.get(candidate_node, []),
                         )
-                optional_group_specific_projects = [
-                    path
-                    for path in _with_unique_order_paths(optional_group_projects)
-                    if path.resolve() not in base_local_editable_set
-                ]
                 _add_editable_local_dependencies(
                     feature,
-                    optional_group_specific_projects,
+                    optional_group_projects,
                     output_file=output_file,
+                    exclude=base_local_editable_set,
                 )
                 if feature:
                     pixi_data["feature"][group_name] = feature
@@ -954,6 +965,12 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if node not in root_nodes_set:
                 continue
 
+            # Build set of editables already in the base feature so optional
+            # sub-features don't duplicate them (mirrors single-file behavior).
+            base_editable_set = {
+                p.resolve() for p in _with_unique_order_paths(node_editable_projects)
+            }
+
             # Handle optional dependencies as sub-features for root features.
             if feature_name not in pixi_data["feature"]:
                 continue
@@ -983,11 +1000,15 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
                 optional_unmanaged_local_projects = optional_group_unmanaged_graph.get(
                     node,
                     {},
-                ).get(group_name, [])
+                ).get(
+                    group_name,
+                    [],
+                )
                 _add_editable_local_dependencies(
                     opt_feature,
                     optional_unmanaged_local_projects,
                     output_file=output_file,
+                    exclude=base_editable_set,
                 )
                 if (
                     not opt_feature

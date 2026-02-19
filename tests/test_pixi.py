@@ -1179,6 +1179,74 @@ def test_pixi_monorepo_keeps_unmanaged_local_dependency_as_editable(
     assert app_editable["path"] == "./lib"
 
 
+def test_pixi_monorepo_optional_unmanaged_deduped_against_base(
+    tmp_path: Path,
+) -> None:
+    """Unmanaged local dep in both base and optional should only appear in base feature."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    req_app = app_dir / "requirements.yaml"
+    req_app.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../lib
+            optional_dependencies:
+              dev:
+                - ../lib
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "lib-pkg"
+            """,
+        ),
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    req_other = other_dir / "requirements.yaml"
+    req_other.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(req_app, req_other, output_file=output_file, verbose=False)
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    # lib should be in the base feature
+    assert "lib_pkg" in data["feature"]["app"]["pypi-dependencies"]
+    # lib should NOT be duplicated in the optional sub-feature
+    opt_feature_name = "app-dev"
+    if opt_feature_name in data.get("feature", {}):
+        opt_pypi = data["feature"][opt_feature_name].get("pypi-dependencies", {})
+        assert "lib_pkg" not in opt_pypi, (
+            "Unmanaged local dep should be deduped from optional feature"
+        )
+
+
 def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
     """Editable paths should point to project dirs, not derived feature names."""
     apps_api_dir = tmp_path / "apps" / "api"
