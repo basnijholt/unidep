@@ -71,6 +71,9 @@ if TYPE_CHECKING:
     ]
 
 
+_OPERATOR_ORDER: dict[str, int] = {op: i for i, op in enumerate(ALL_VERSION_OPERATORS)}
+
+
 def _parse_version_build(pin: str | None) -> str | dict[str, str]:
     """Parse a version pin that may contain a build string.
 
@@ -151,12 +154,10 @@ def _canonicalize_version_spec(version_spec: str) -> str:
     if "," not in version_spec:
         return version_spec
 
-    operator_order = {op: i for i, op in enumerate(ALL_VERSION_OPERATORS)}
-
     def _constraint_key(constraint: str) -> tuple[int, str]:
         token = constraint.strip()
         op = extract_version_operator(token)
-        return (operator_order.get(op, len(ALL_VERSION_OPERATORS)), token)
+        return (_OPERATOR_ORDER.get(op, len(ALL_VERSION_OPERATORS)), token)
 
     parts = [part.strip() for part in version_spec.split(",") if part.strip()]
     return ",".join(sorted(parts, key=_constraint_key))
