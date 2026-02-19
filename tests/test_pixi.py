@@ -3136,7 +3136,12 @@ def test_pixi_single_file_optional_local_dep_transitive_dedup(
 def test_pixi_single_file_optional_group_demoted_universal(
     tmp_path: Path,
 ) -> None:
-    """Cover line 856: optional group's own deps trigger demotion."""
+    """Cover line 856: optional group's own deps trigger demotion.
+
+    When an optional group has both ``conda: click`` (universal) and
+    ``pip: click >=2.0 # [linux64]``, the universal conda entry is demoted
+    and restored as an explicit target for platforms that don't override it.
+    """
     req = tmp_path / "requirements.yaml"
     req.write_text(
         textwrap.dedent("""\
@@ -3158,12 +3163,23 @@ def test_pixi_single_file_optional_group_demoted_universal(
     with output.open("rb") as f:
         data = tomllib.load(f)
 
-    # The optional feature should exist and click should be present
-    assert "special" in data["feature"]
+    special = data["feature"]["special"]
+    # linux-64 should get pip click (the target-specific override)
+    assert special["target"]["linux-64"]["pypi-dependencies"]["click"] == ">=2.0"
+    # osx-arm64 should get conda click (restored from demotion)
+    assert special["target"]["osx-arm64"]["dependencies"]["click"] == "*"
+    # click should NOT appear in universal deps (it was demoted)
+    assert "click" not in special.get("dependencies", {})
+    assert "click" not in special.get("pypi-dependencies", {})
 
 
 def test_pixi_monorepo_feature_demoted_universal(tmp_path: Path) -> None:
-    """Cover lines 936 and 1074-1075: monorepo feature demotion + restore."""
+    """Cover lines 936 and 1074-1075: monorepo feature demotion + restore.
+
+    When a monorepo feature has ``conda: requests`` (universal) and
+    ``pip: requests >=2.0 # [linux64]``, the universal conda entry is demoted
+    and restored as an explicit osx-arm64 target.
+    """
     proj = tmp_path / "proj"
     proj.mkdir()
     (proj / "requirements.yaml").write_text(
@@ -3178,22 +3194,50 @@ def test_pixi_monorepo_feature_demoted_universal(tmp_path: Path) -> None:
               - osx-arm64
         """),
     )
+    proj2 = tmp_path / "proj2"
+    proj2.mkdir()
+    (proj2 / "requirements.yaml").write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            platforms:
+              - linux-64
+        """),
+    )
 
     output = tmp_path / "pixi.toml"
     generate_pixi_toml(
         proj / "requirements.yaml",
-        tmp_path / "dummy_second.yaml" if False else proj / "requirements.yaml",
+        proj2 / "requirements.yaml",
         output_file=output,
         verbose=False,
     )
-    # Just verify it generates without error and has the feature
     with output.open("rb") as f:
         data = tomllib.load(f)
-    assert "feature" in data
+
+    proj_feature = data["feature"]["proj"]
+    # linux-64 should get pip requests (the target-specific override)
+    assert (
+        proj_feature["target"]["linux-64"]["pypi-dependencies"]["requests"] == ">=2.0"
+    )
+    # osx-arm64 should get conda requests (restored from demotion)
+    assert proj_feature["target"]["osx-arm64"]["dependencies"]["requests"] == "*"
+    # requests should NOT appear in universal deps (it was demoted)
+    assert "requests" not in proj_feature.get("dependencies", {})
+    assert "requests" not in proj_feature.get("pypi-dependencies", {})
+    # Second project should be present as a separate feature
+    assert "pandas" in data["feature"]["proj2"]["dependencies"]
 
 
 def test_pixi_monorepo_optional_group_demoted(tmp_path: Path) -> None:
-    """Cover line 1002: monorepo optional group demotion."""
+    """Cover line 1002: monorepo optional group demotion.
+
+    When a monorepo optional group has ``conda: click`` (universal) and
+    ``pip: click >=2.0 # [linux64]``, the universal conda entry is demoted
+    and restored as an explicit osx-arm64 target within the optional feature.
+    """
     proj = tmp_path / "proj"
     proj.mkdir()
     (proj / "requirements.yaml").write_text(
@@ -3233,7 +3277,19 @@ def test_pixi_monorepo_optional_group_demoted(tmp_path: Path) -> None:
     )
     with output.open("rb") as f:
         data = tomllib.load(f)
-    assert "feature" in data
+
+    opt_feature = data["feature"]["proj-special"]
+    # linux-64 should get pip click (the target-specific override)
+    assert opt_feature["target"]["linux-64"]["pypi-dependencies"]["click"] == ">=2.0"
+    # osx-arm64 should get conda click (restored from demotion)
+    assert opt_feature["target"]["osx-arm64"]["dependencies"]["click"] == "*"
+    # click should NOT appear in universal deps (it was demoted)
+    assert "click" not in opt_feature.get("dependencies", {})
+    assert "click" not in opt_feature.get("pypi-dependencies", {})
+    # The optional feature environment should compose correctly
+    assert "proj-special" in data["environments"]
+    assert "proj" in data["environments"]["proj-special"]
+    assert "proj-special" in data["environments"]["proj-special"]
 
 
 def test_pixi_discover_graph_skips_non_list_optional_group(
