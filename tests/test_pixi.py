@@ -1247,6 +1247,79 @@ def test_pixi_monorepo_optional_unmanaged_deduped_against_base(
         )
 
 
+def test_pixi_monorepo_optional_unmanaged_only_group_creates_feature(
+    tmp_path: Path,
+) -> None:
+    """An optional group with only unmanaged local deps should still create a feature."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    (app_dir / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - ../lib
+            """,
+        ),
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools"]
+
+            [project]
+            name = "lib-pkg"
+            """,
+        ),
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    (other_dir / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pandas
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        app_dir / "requirements.yaml",
+        other_dir / "requirements.yaml",
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    # The optional sub-feature should exist with the editable
+    opt_feature_name = "app-dev"
+    assert opt_feature_name in data["feature"], (
+        f"Expected feature '{opt_feature_name}' for unmanaged-only optional group"
+    )
+    opt_pypi = data["feature"][opt_feature_name].get("pypi-dependencies", {})
+    assert "lib_pkg" in opt_pypi
+    assert opt_pypi["lib_pkg"]["editable"] is True
+
+    # An environment referencing the optional feature should exist
+    env_name = opt_feature_name.replace("_", "-")
+    assert env_name in data["environments"]
+    assert opt_feature_name in data["environments"][env_name]
+
+
 def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
     """Editable paths should point to project dirs, not derived feature names."""
     apps_api_dir = tmp_path / "apps" / "api"

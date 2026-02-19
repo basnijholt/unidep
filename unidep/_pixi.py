@@ -975,10 +975,12 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
             if feature_name not in pixi_data["feature"]:
                 continue
             parsed_group_names = list(req.optional_dependencies)
-            local_only_group_names = list(optional_group_graph.get(node, {}))
+            local_only_group_names = set(optional_group_graph.get(node, {})) | set(
+                optional_group_unmanaged_graph.get(node, {}),
+            )
             all_group_names = parsed_group_names + [
                 group_name
-                for group_name in local_only_group_names
+                for group_name in sorted(local_only_group_names)
                 if group_name not in req.optional_dependencies
             ]
             for group_name in all_group_names:
