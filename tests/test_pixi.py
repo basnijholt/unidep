@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import textwrap
 from typing import TYPE_CHECKING, Any
 
@@ -2620,6 +2621,32 @@ def test_editable_dependency_path_relative_forms(tmp_path: Path) -> None:
     assert _editable_dependency_path(project_dir, nested_output) == "../pkg"
 
 
+def test_editable_dependency_path_cross_drive(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """On Windows, cross-drive paths should fall back to absolute instead of crashing."""
+    project_dir = tmp_path / "pkg"
+    project_dir.mkdir()
+    output = tmp_path / "pixi.toml"
+
+    # Simulate ValueError from os.path.relpath on cross-drive paths
+    original_relpath = os.path.relpath
+
+    def raising_relpath(_path: Any, _start: Any = None) -> str:
+        msg = "path is on mount 'C:', start on mount 'D:'"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(os.path, "relpath", raising_relpath)
+    result = _editable_dependency_path(project_dir, output)
+    # Should return an absolute posix path instead of raising
+    assert project_dir.resolve().as_posix() == result
+
+    # Restore and verify normal behavior still works
+    monkeypatch.setattr(os.path, "relpath", original_relpath)
+    assert _editable_dependency_path(project_dir, output) == "./pkg"
+
+
 def test_discover_local_dependency_graph_skips_non_local_and_missing(
     tmp_path: Path,
 ) -> None:
@@ -3290,6 +3317,44 @@ def test_pixi_monorepo_optional_group_demoted(tmp_path: Path) -> None:
     assert "proj-special" in data["environments"]
     assert "proj" in data["environments"]["proj-special"]
     assert "proj-special" in data["environments"]["proj-special"]
+
+
+def test_pixi_single_file_env_name_collision(tmp_path: Path) -> None:
+    """Optional groups whose names collide after underscore-to-hyphen normalization.
+
+    Two groups ``foo_bar`` and ``foo-bar`` both normalize to ``foo-bar``.
+    The second should get a disambiguated environment name instead of
+    silently overwriting the first.
+    """
+    req = tmp_path / "requirements.yaml"
+    req.write_text(
+        textwrap.dedent("""\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            optional_dependencies:
+              foo_bar:
+                - pandas
+              foo-bar:
+                - polars
+            platforms:
+              - linux-64
+        """),
+    )
+    output = tmp_path / "pixi.toml"
+    generate_pixi_toml(req, output_file=output, verbose=False)
+    with output.open("rb") as f:
+        data = tomllib.load(f)
+
+    envs = data["environments"]
+    # Both features should be reachable via distinct environment names
+    env_feature_lists = [v for k, v in envs.items() if k not in ("default", "all")]
+    flat_features = [feat for lst in env_feature_lists for feat in lst]
+    assert "foo_bar" in flat_features
+    assert "foo-bar" in flat_features
+    # There should be two separate environment entries (not one overwritten)
+    assert len(env_feature_lists) == 2
 
 
 def test_pixi_discover_graph_skips_non_list_optional_group(

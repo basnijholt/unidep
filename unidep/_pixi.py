@@ -337,7 +337,12 @@ def _editable_dependency_path(req_dir: Path, output_file: str | Path | None) -> 
         if output_file is None
         else Path(output_file).resolve().parent
     )
-    rel_path = Path(os.path.relpath(req_dir.resolve(), output_dir)).as_posix()
+    try:
+        rel_path = Path(os.path.relpath(req_dir.resolve(), output_dir)).as_posix()
+    except ValueError:
+        # On Windows, os.path.relpath raises ValueError when paths are on
+        # different drives (e.g. C:\ vs D:\).  Fall back to an absolute path.
+        return req_dir.resolve().as_posix()
     if rel_path == ".":
         return "."
     if rel_path.startswith("."):
@@ -657,6 +662,29 @@ def _unique_optional_feature_name(
     return unique_candidate
 
 
+def _unique_env_name(
+    feature_name: str,
+    taken_env_names: set[str],
+) -> str:
+    """Generate a non-colliding pixi environment name from a feature name.
+
+    Pixi environment names cannot contain underscores, so we replace them
+    with hyphens.  When this normalization causes a collision (e.g. both
+    ``foo_bar`` and ``foo-bar`` exist), a numeric suffix is appended.
+    """
+    candidate = feature_name.replace("_", "-")
+    if candidate not in taken_env_names:
+        taken_env_names.add(candidate)
+        return candidate
+
+    suffix = 2
+    while f"{candidate}-{suffix}" in taken_env_names:
+        suffix += 1
+    result = f"{candidate}-{suffix}"
+    taken_env_names.add(result)
+    return result
+
+
 def _spec_key(spec: Spec) -> tuple[str, str, str | None, str | None]:
     """Return the stable identity of a Spec (excludes parse-time identifier)."""
     return (spec.name, spec.which, spec.pin, spec.selector)
@@ -811,9 +839,9 @@ def _process_single_file_optional_groups(
     if opt_features:
         # Default environment has no optional features
         pixi_data["environments"]["default"] = []
+        taken_env_names: set[str] = {"default"}
         for feat in opt_features:
-            # Environment names can't have underscores
-            env_name = feat.replace("_", "-")
+            env_name = _unique_env_name(feat, taken_env_names)
             pixi_data["environments"][env_name] = [feat]
         # "all" environment includes all optional features
         if len(opt_features) > 1:
@@ -1085,8 +1113,9 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
             default_features.extend(transitive_features.get(feature_name, []))
         pixi_data["environments"]["default"] = _with_unique_order(default_features)
 
+        taken_env_names: set[str] = {"default"}
         for opt_feature_name, parent_feature in optional_feature_parents.items():
-            env_name = opt_feature_name.replace("_", "-")
+            env_name = _unique_env_name(opt_feature_name, taken_env_names)
             env_features = [
                 parent_feature,
                 *transitive_features.get(parent_feature, []),
