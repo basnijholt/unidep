@@ -27,6 +27,7 @@ from unidep._conflicts import (
     VersionConflictError,
     _reconcile_conda_pip_pair,
     combine_version_pinnings,
+    extract_version_operator,
 )
 from unidep._dependencies_parsing import (
     _apply_local_dependency_override,
@@ -163,14 +164,7 @@ def _canonicalize_version_spec(version_spec: str) -> str:
 
     def _constraint_key(constraint: str) -> tuple[int, str]:
         token = constraint.strip()
-        op = next(
-            (
-                candidate
-                for candidate in ("===", "==", "~=", ">=", "<=", "!=", ">", "<", "=")
-                if token.startswith(candidate)
-            ),
-            "",
-        )
+        op = extract_version_operator(token)
         return (operator_order.get(op, 8), token)
 
     parts = [part.strip() for part in version_spec.split(",") if part.strip()]
