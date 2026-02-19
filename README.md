@@ -719,9 +719,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
@@ -990,9 +991,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
@@ -1079,9 +1081,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
@@ -1157,9 +1160,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
@@ -1215,9 +1219,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
@@ -1275,9 +1280,10 @@ options:
   -v, --verbose         Print verbose output
   -p, --platform {linux-64,linux-aarch64,linux-ppc64le,osx-64,osx-arm64,win-64}
                         The platform(s) to get the requirements for. Multiple
-                        platforms can be specified. If omitted, behavior is command-specific:
-                        platforms may be inferred from requirements files,
-                        otherwise the current platform is used.
+                        platforms can be specified. If omitted, behavior is
+                        command-specific: platforms may be inferred from
+                        requirements files, otherwise the current platform is
+                        used.
   --skip-dependency SKIP_DEPENDENCY
                         Skip installing a specific dependency that is in one
                         of the `requirements.yaml` or `pyproject.toml` files.
