@@ -1411,26 +1411,11 @@ def _pixi_command(
             print(f"❌ No {_DEP_FILES} files found in {directory}")
             sys.exit(1)
 
-    requirements = parse_requirements(
-        *found_files,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
-    )
-    effective_platforms: list[Platform] | None = resolve_platforms(
-        requested_platforms=platforms,
-        declared_platforms=requirements.platforms,
-        default_current=False,
-    )
-    if not effective_platforms:
-        effective_platforms = None
     output_file = None if stdout else output
     generate_pixi_toml(
         *found_files,
         project_name=name,
-        channels=requirements.channels,
-        platforms=effective_platforms,
+        platforms=platforms,
         output_file=output_file,
         verbose=verbose,
         ignore_pins=ignore_pins,

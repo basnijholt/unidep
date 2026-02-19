@@ -2644,20 +2644,13 @@ def test_discover_local_dependency_graph_skips_non_local_and_missing(
         ),
     )
 
-    (
-        roots,
-        discovered,
-        graph,
-        optional_graph,
-        unmanaged_graph,
-        optional_unmanaged_graph,
-    ) = _discover_local_dependency_graph([req])
-    assert roots == discovered
-    assert len(roots) == 1
-    assert graph[roots[0]] == []
-    assert optional_graph == {}
-    assert unmanaged_graph[roots[0]] == []
-    assert optional_unmanaged_graph == {}
+    result = _discover_local_dependency_graph([req])
+    assert result.roots == result.discovered
+    assert len(result.roots) == 1
+    assert result.graph[result.roots[0]] == []
+    assert result.optional_group_graph == {}
+    assert result.unmanaged_local_graph[result.roots[0]] == []
+    assert result.optional_group_unmanaged_graph == {}
 
 
 def test_parse_direct_requirements_for_node_with_extras(tmp_path: Path) -> None:
@@ -3258,10 +3251,10 @@ def test_pixi_discover_graph_skips_non_list_optional_group(
               - linux-64
         """),
     )
-    roots, _, _, opt_graph, _, _ = _discover_local_dependency_graph([req])
-    assert len(roots) == 1
+    result = _discover_local_dependency_graph([req])
+    assert len(result.roots) == 1
     # bad_group should be ignored
-    assert not opt_graph
+    assert not result.optional_group_graph
 
 
 def test_pixi_discover_graph_skips_non_local_optional_dep(
@@ -3299,12 +3292,12 @@ def test_pixi_discover_graph_skips_non_local_optional_dep(
               - linux-64
         """),
     )
-    roots, _, _, opt_graph, _, _ = _discover_local_dependency_graph(
+    result = _discover_local_dependency_graph(
         [proj / "requirements.yaml"],
     )
-    assert len(roots) == 1
+    assert len(result.roots) == 1
     # other should NOT be in optional graph because use=pypi != local
-    assert not opt_graph.get(roots[0], {}).get("extras", [])
+    assert not result.optional_group_graph.get(result.roots[0], {}).get("extras", [])
 
 
 def test_pixi_discover_graph_skips_non_installable_optional_unmanaged(
@@ -3327,13 +3320,16 @@ def test_pixi_discover_graph_skips_non_installable_optional_unmanaged(
               - linux-64
         """),
     )
-    roots, _, _, opt_graph, _, opt_unmanaged = _discover_local_dependency_graph(
+    result = _discover_local_dependency_graph(
         [proj / "requirements.yaml"],
     )
-    assert len(roots) == 1
+    assert len(result.roots) == 1
     # nosetup should not appear anywhere (not managed, not installable)
-    assert not opt_graph.get(roots[0], {}).get("extras", [])
-    assert not opt_unmanaged.get(roots[0], {}).get("extras", [])
+    assert not result.optional_group_graph.get(result.roots[0], {}).get("extras", [])
+    assert not result.optional_group_unmanaged_graph.get(result.roots[0], {}).get(
+        "extras",
+        [],
+    )
 
 
 def test_restore_demoted_skips_when_still_in_universal(tmp_path: Path) -> None:

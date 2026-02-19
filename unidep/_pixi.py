@@ -13,6 +13,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Literal,
+    NamedTuple,
     Sequence,
     cast,
 )
@@ -407,16 +408,20 @@ def _unmanaged_installable_local_project_dir(
     return None
 
 
+class LocalDependencyGraph(NamedTuple):
+    """Result of discovering local dependency relationships."""
+
+    roots: list[PathWithExtras]
+    discovered: list[PathWithExtras]
+    graph: dict[PathWithExtras, list[PathWithExtras]]
+    optional_group_graph: dict[PathWithExtras, dict[str, list[PathWithExtras]]]
+    unmanaged_local_graph: dict[PathWithExtras, list[Path]]
+    optional_group_unmanaged_graph: dict[PathWithExtras, dict[str, list[Path]]]
+
+
 def _discover_local_dependency_graph(  # noqa: PLR0912, C901, PLR0915
     requirements_files: Sequence[Path],
-) -> tuple[
-    list[PathWithExtras],
-    list[PathWithExtras],
-    dict[PathWithExtras, list[PathWithExtras]],
-    dict[PathWithExtras, dict[str, list[PathWithExtras]]],
-    dict[PathWithExtras, list[Path]],
-    dict[PathWithExtras, dict[str, list[Path]]],
-]:
+) -> LocalDependencyGraph:
     """Discover requirement files reachable via local_dependencies.
 
     Returns:
@@ -542,13 +547,13 @@ def _discover_local_dependency_graph(  # noqa: PLR0912, C901, PLR0915
         graph[node] = direct_nodes
         unmanaged_local_graph[node] = direct_unmanaged_nodes
 
-    return (
-        roots,
-        discovered,
-        graph,
-        optional_group_graph,
-        unmanaged_local_graph,
-        optional_group_unmanaged_graph,
+    return LocalDependencyGraph(
+        roots=roots,
+        discovered=discovered,
+        graph=graph,
+        optional_group_graph=optional_group_graph,
+        unmanaged_local_graph=unmanaged_local_graph,
+        optional_group_unmanaged_graph=optional_group_unmanaged_graph,
     )
 
 
@@ -684,7 +689,432 @@ def _subtract_requirements(
     return diff
 
 
-def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
+class _PixiGenerationResult(NamedTuple):
+    """Intermediate result from single-file or multi-file pixi generation."""
+
+    pixi_data: dict[str, Any]
+    all_channels: set[str]
+    all_platforms: set[str]
+    discovered_target_platforms: set[str]
+    root_demoted: dict[str, tuple[str, VersionSpec]]
+    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]]
+
+
+def _process_single_file_optional_groups(
+    pixi_data: dict[str, Any],
+    *,
+    requirements_file: Path,
+    req_file: Path,
+    base_req: ParsedRequirements,
+    dep_graph: LocalDependencyGraph,
+    root_node: PathWithExtras,
+    base_local_editable_set: set[Path],
+    output_file: str | Path | None,
+    verbose: bool,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
+) -> tuple[set[str], dict[str, dict[str, tuple[str, VersionSpec]]]]:
+    """Process optional dependency groups for single-file pixi generation.
+
+    Returns discovered target platforms and feature demoted map.
+    """
+    discovered_target_platforms: set[str] = set()
+    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
+
+    optional_data = _load(req_file, YAML(typ="rt")).get("optional_dependencies", {})
+    optional_groups = list(optional_data) if isinstance(optional_data, Mapping) else []
+    if not optional_groups:
+        return discovered_target_platforms, feature_demoted_map
+
+    pixi_data["feature"] = {}
+    pixi_data["environments"] = {}
+    opt_features = []
+
+    for group_name in optional_groups:
+        group_req = parse_requirements(
+            requirements_file,
+            verbose=verbose,
+            extras=[[group_name]],
+            ignore_pins=ignore_pins,
+            overwrite_pins=overwrite_pins,
+            skip_dependencies=skip_dependencies,
+            include_local_dependencies=True,
+        )
+        # A group parse contains the base requirements plus group-selected
+        # optional local dependencies. Keep only the delta to preserve
+        # optional semantics.
+        group_feature_requirements = _subtract_requirements(
+            group_req.requirements,
+            base_req.requirements,
+        )
+        for dep_name, specs in group_req.optional_dependencies.get(
+            group_name,
+            {},
+        ).items():
+            group_feature_requirements.setdefault(dep_name, []).extend(specs)
+        opt_platform_deps, opt_demoted = _extract_dependencies(
+            group_feature_requirements,
+        )
+        discovered_target_platforms.update(
+            platform for platform in opt_platform_deps if platform is not None
+        )
+        feature = _build_feature_dict(opt_platform_deps)
+        optional_group_projects: list[Path] = list(
+            dep_graph.optional_group_unmanaged_graph.get(root_node, {}).get(
+                group_name,
+                [],
+            ),
+        )
+        optional_local_nodes = dep_graph.optional_group_graph.get(
+            root_node,
+            {},
+        ).get(
+            group_name,
+            [],
+        )
+        seen_optional_nodes: set[PathWithExtras] = set()
+        for optional_local_node in optional_local_nodes:
+            for candidate_node in [
+                optional_local_node,
+                *(
+                    _collect_transitive_nodes(
+                        optional_local_node,
+                        dep_graph.graph,
+                    )
+                ),
+            ]:
+                if candidate_node in seen_optional_nodes:
+                    continue
+                seen_optional_nodes.add(candidate_node)
+                optional_project_dir = _project_dir_from_requirement_file(
+                    candidate_node.path,
+                )
+                if is_pip_installable(optional_project_dir):
+                    optional_group_projects.append(optional_project_dir)
+                optional_group_projects.extend(
+                    dep_graph.unmanaged_local_graph.get(candidate_node, []),
+                )
+        _add_editable_local_dependencies(
+            feature,
+            optional_group_projects,
+            output_file=output_file,
+            exclude=base_local_editable_set,
+        )
+        if feature:
+            pixi_data["feature"][group_name] = feature
+            opt_features.append(group_name)
+        if opt_demoted:
+            feature_demoted_map[group_name] = opt_demoted
+
+    # Create environments for optional dependencies
+    if opt_features:
+        # Default environment has no optional features
+        pixi_data["environments"]["default"] = []
+        for feat in opt_features:
+            # Environment names can't have underscores
+            env_name = feat.replace("_", "-")
+            pixi_data["environments"][env_name] = [feat]
+        # "all" environment includes all optional features
+        if len(opt_features) > 1:
+            pixi_data["environments"]["all"] = opt_features
+
+    return discovered_target_platforms, feature_demoted_map
+
+
+def _generate_single_file_pixi(
+    requirements_file: Path,
+    *,
+    use_platforms_override: bool,
+    output_file: str | Path | None,
+    verbose: bool,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
+) -> _PixiGenerationResult:
+    """Generate pixi data for a single requirements file."""
+    pixi_data: dict[str, Any] = {}
+    all_channels: set[str] = set()
+    all_platforms: set[str] = set()
+    discovered_target_platforms: set[str] = set()
+
+    req_file = parse_folder_or_filename(requirements_file).path
+    base_req = parse_requirements(
+        requirements_file,
+        verbose=verbose,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        include_local_dependencies=True,
+    )
+    platform_deps, root_demoted = _extract_dependencies(base_req.requirements)
+    discovered_target_platforms.update(
+        platform for platform in platform_deps if platform is not None
+    )
+
+    # Use channels and platforms from the requirements file
+    if base_req.channels:
+        all_channels.update(base_req.channels)
+    if base_req.platforms and not use_platforms_override:
+        all_platforms.update(base_req.platforms)
+
+    pixi_data.update(_build_feature_dict(platform_deps))
+
+    dep_graph = _discover_local_dependency_graph([requirements_file])
+    root_node = dep_graph.roots[0]
+
+    # Collect editable packages from the root project and all required local deps.
+    req_dir = _project_dir_from_requirement_file(req_file)
+    local_editable_projects: list[Path] = []
+    if is_pip_installable(req_dir):
+        local_editable_projects.append(req_dir)
+    for node in dep_graph.discovered:
+        if node == root_node:
+            continue
+        node_project_dir = _project_dir_from_requirement_file(node.path)
+        if is_pip_installable(node_project_dir):
+            local_editable_projects.append(node_project_dir)
+        local_editable_projects.extend(dep_graph.unmanaged_local_graph.get(node, []))
+    local_editable_projects.extend(dep_graph.unmanaged_local_graph.get(root_node, []))
+    _add_editable_local_dependencies(
+        pixi_data,
+        local_editable_projects,
+        output_file=output_file,
+    )
+    base_local_editable_set = {
+        path.resolve() for path in _with_unique_order_paths(local_editable_projects)
+    }
+
+    # Handle optional dependencies as features
+    opt_target_platforms, feature_demoted_map = _process_single_file_optional_groups(
+        pixi_data,
+        requirements_file=requirements_file,
+        req_file=req_file,
+        base_req=base_req,
+        dep_graph=dep_graph,
+        root_node=root_node,
+        base_local_editable_set=base_local_editable_set,
+        output_file=output_file,
+        verbose=verbose,
+        ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
+    )
+    discovered_target_platforms.update(opt_target_platforms)
+
+    return _PixiGenerationResult(
+        pixi_data=pixi_data,
+        all_channels=all_channels,
+        all_platforms=all_platforms,
+        discovered_target_platforms=discovered_target_platforms,
+        root_demoted=root_demoted,
+        feature_demoted_map=feature_demoted_map,
+    )
+
+
+def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
+    requirements_files: Sequence[Path],
+    *,
+    use_platforms_override: bool,
+    output_file: str | Path | None,
+    verbose: bool,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
+) -> _PixiGenerationResult:
+    """Generate pixi data for multiple requirements files."""
+    pixi_data: dict[str, Any] = {"feature": {}, "environments": {}}
+    all_channels: set[str] = set()
+    all_platforms: set[str] = set()
+    discovered_target_platforms: set[str] = set()
+    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
+
+    dep_graph = _discover_local_dependency_graph(requirements_files)
+    feature_names = _derive_feature_names(
+        [node.path for node in dep_graph.discovered],
+    )
+    feature_name_by_node = dict(zip(dep_graph.discovered, feature_names))
+    taken_optional_feature_names: set[str] = set(feature_names)
+    root_nodes_set = set(dep_graph.roots)
+    base_feature_nodes: dict[str, PathWithExtras] = {}
+    optional_feature_parents: dict[str, str] = {}
+    optional_feature_has_feature: dict[str, bool] = {}
+    optional_feature_local_nodes: dict[str, list[PathWithExtras]] = {}
+
+    for node in dep_graph.discovered:
+        req = _parse_direct_requirements_for_node(
+            node,
+            verbose=verbose,
+            ignore_pins=ignore_pins,
+            skip_dependencies=skip_dependencies,
+            overwrite_pins=overwrite_pins,
+            include_all_optional_groups=node in root_nodes_set,
+        )
+        platform_deps, node_demoted = _extract_dependencies(req.requirements)
+        discovered_target_platforms.update(
+            platform for platform in platform_deps if platform is not None
+        )
+        feature_name = feature_name_by_node[node]
+
+        # Collect channels and platforms
+        if req.channels:
+            all_channels.update(req.channels)
+        if req.platforms and not use_platforms_override:
+            all_platforms.update(req.platforms)
+
+        # Build the feature dict from platform deps
+        feature = _build_feature_dict(platform_deps)
+
+        # Add editable dependency for standard project requirement files.
+        req_dir = _project_dir_from_requirement_file(node.path)
+        should_add_editable = node.path.name in {
+            "requirements.yaml",
+            "pyproject.toml",
+        }
+        node_editable_projects: list[Path] = []
+        if should_add_editable and is_pip_installable(req_dir):
+            node_editable_projects.append(req_dir)
+        node_editable_projects.extend(dep_graph.unmanaged_local_graph.get(node, []))
+        _add_editable_local_dependencies(
+            feature,
+            node_editable_projects,
+            output_file=output_file,
+        )
+
+        if feature:  # Only add non-empty features
+            pixi_data["feature"][feature_name] = feature
+            base_feature_nodes[feature_name] = node
+        if node_demoted:
+            feature_demoted_map[feature_name] = node_demoted
+
+        if node not in root_nodes_set:
+            continue
+
+        # Build set of editables already in the base feature so optional
+        # sub-features don't duplicate them (mirrors single-file behavior).
+        base_editable_set = {
+            p.resolve() for p in _with_unique_order_paths(node_editable_projects)
+        }
+
+        # Handle optional dependencies as sub-features for root features.
+        if feature_name not in pixi_data["feature"]:
+            continue
+        parsed_group_names = list(req.optional_dependencies)
+        local_only_group_names = set(
+            dep_graph.optional_group_graph.get(node, {}),
+        ) | set(
+            dep_graph.optional_group_unmanaged_graph.get(node, {}),
+        )
+        all_group_names = parsed_group_names + [
+            group_name
+            for group_name in sorted(local_only_group_names)
+            if group_name not in req.optional_dependencies
+        ]
+        for group_name in all_group_names:
+            group_specs = req.optional_dependencies.get(group_name, {})
+            group_platform_deps, group_demoted = _extract_dependencies(group_specs)
+            discovered_target_platforms.update(
+                platform for platform in group_platform_deps if platform is not None
+            )
+            opt_feature = _build_feature_dict(group_platform_deps)
+            opt_feature_name = _unique_optional_feature_name(
+                parent_feature=feature_name,
+                group_name=group_name,
+                taken_names=taken_optional_feature_names,
+            )
+            optional_local_nodes = dep_graph.optional_group_graph.get(
+                node,
+                {},
+            ).get(
+                group_name,
+                [],
+            )
+            optional_unmanaged_local_projects = (
+                dep_graph.optional_group_unmanaged_graph.get(
+                    node,
+                    {},
+                ).get(
+                    group_name,
+                    [],
+                )
+            )
+            _add_editable_local_dependencies(
+                opt_feature,
+                optional_unmanaged_local_projects,
+                output_file=output_file,
+                exclude=base_editable_set,
+            )
+            if (
+                not opt_feature
+                and not optional_local_nodes
+                and not optional_unmanaged_local_projects
+            ):
+                continue
+            if opt_feature:
+                pixi_data["feature"][opt_feature_name] = opt_feature
+                optional_feature_has_feature[opt_feature_name] = True
+            else:
+                optional_feature_has_feature[opt_feature_name] = False
+            optional_feature_parents[opt_feature_name] = feature_name
+            optional_feature_local_nodes[opt_feature_name] = optional_local_nodes
+            if group_demoted:
+                feature_demoted_map[opt_feature_name] = group_demoted
+
+    # Create environments
+    if pixi_data["feature"]:
+        transitive_features: dict[str, list[str]] = {}
+        for feature_name, node in base_feature_nodes.items():
+            dep_features = [
+                feature_name_by_node[dep_node]
+                for dep_node in _collect_transitive_nodes(
+                    node,
+                    dep_graph.graph,
+                )
+                if feature_name_by_node.get(dep_node) in pixi_data["feature"]
+            ]
+            transitive_features[feature_name] = _with_unique_order(dep_features)
+
+        root_base_features = [
+            feature_name_by_node[node]
+            for node in dep_graph.roots
+            if feature_name_by_node.get(node) in pixi_data["feature"]
+        ]
+        default_features: list[str] = []
+        for feature_name in root_base_features:
+            default_features.append(feature_name)
+            default_features.extend(transitive_features.get(feature_name, []))
+        pixi_data["environments"]["default"] = _with_unique_order(default_features)
+
+        for opt_feature_name, parent_feature in optional_feature_parents.items():
+            env_name = opt_feature_name.replace("_", "-")
+            env_features = [
+                parent_feature,
+                *transitive_features.get(parent_feature, []),
+            ]
+            if optional_feature_has_feature.get(opt_feature_name, False):
+                env_features.append(opt_feature_name)
+            for local_node in optional_feature_local_nodes.get(
+                opt_feature_name,
+                [],
+            ):
+                local_feature = feature_name_by_node.get(local_node)
+                if local_feature is None or local_feature not in pixi_data["feature"]:
+                    continue
+                env_features.append(local_feature)
+                env_features.extend(transitive_features.get(local_feature, []))
+            pixi_data["environments"][env_name] = _with_unique_order(env_features)
+
+    return _PixiGenerationResult(
+        pixi_data=pixi_data,
+        all_channels=all_channels,
+        all_platforms=all_platforms,
+        discovered_target_platforms=discovered_target_platforms,
+        root_demoted={},
+        feature_demoted_map=feature_demoted_map,
+    )
+
+
+def generate_pixi_toml(
     *requirements_files: Path,
     project_name: str | None = None,
     channels: list[str] | None = None,
@@ -706,359 +1136,40 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
         platforms = None
     use_platforms_override = platforms is not None
 
-    # Initialize pixi structure
-    pixi_data: dict[str, Any] = {}
-
-    # Collect channels and platforms from all requirements files
-    all_channels = set()
-    all_platforms = set()
-    discovered_target_platforms: set[str] = set()
-    # Track demoted universal entries for post-resolution fixup
-    root_demoted: dict[str, tuple[str, VersionSpec]] = {}
-    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
-
-    # If single file, put dependencies at root level
     if len(requirements_files) == 1:
-        requirements_file = requirements_files[0]
-        req_file = parse_folder_or_filename(requirements_file).path
-        base_req = parse_requirements(
+        result = _generate_single_file_pixi(
             requirements_files[0],
+            use_platforms_override=use_platforms_override,
+            output_file=output_file,
             verbose=verbose,
             ignore_pins=ignore_pins,
-            overwrite_pins=overwrite_pins,
             skip_dependencies=skip_dependencies,
-            include_local_dependencies=True,
+            overwrite_pins=overwrite_pins,
         )
-        platform_deps, root_demoted = _extract_dependencies(base_req.requirements)
-        discovered_target_platforms.update(
-            platform for platform in platform_deps if platform is not None
-        )
-
-        # Use channels and platforms from the requirements file
-        if base_req.channels:
-            all_channels.update(base_req.channels)
-        if base_req.platforms and not use_platforms_override:
-            all_platforms.update(base_req.platforms)
-
-        pixi_data.update(_build_feature_dict(platform_deps))
-
-        (
-            root_nodes,
-            discovered_nodes,
-            local_dependency_graph,
-            optional_group_graph,
-            unmanaged_local_graph,
-            optional_group_unmanaged_graph,
-        ) = _discover_local_dependency_graph([requirements_file])
-        root_node = root_nodes[0]
-
-        # Collect editable packages from the root project and all required local deps.
-        req_dir = _project_dir_from_requirement_file(req_file)
-        local_editable_projects: list[Path] = []
-        if is_pip_installable(req_dir):
-            local_editable_projects.append(req_dir)
-        for node in discovered_nodes:
-            if node == root_node:
-                continue
-            node_project_dir = _project_dir_from_requirement_file(node.path)
-            if is_pip_installable(node_project_dir):
-                local_editable_projects.append(node_project_dir)
-            local_editable_projects.extend(unmanaged_local_graph.get(node, []))
-        local_editable_projects.extend(unmanaged_local_graph.get(root_node, []))
-        _add_editable_local_dependencies(
-            pixi_data,
-            local_editable_projects,
-            output_file=output_file,
-        )
-        base_local_editable_set = {
-            path.resolve() for path in _with_unique_order_paths(local_editable_projects)
-        }
-
-        # Handle optional dependencies as features
-        optional_data = _load(req_file, YAML(typ="rt")).get("optional_dependencies", {})
-        optional_groups = (
-            list(optional_data) if isinstance(optional_data, Mapping) else []
-        )
-        if optional_groups:
-            pixi_data["feature"] = {}
-            pixi_data["environments"] = {}
-            opt_features = []
-
-            for group_name in optional_groups:
-                group_req = parse_requirements(
-                    requirements_file,
-                    verbose=verbose,
-                    extras=[[group_name]],
-                    ignore_pins=ignore_pins,
-                    overwrite_pins=overwrite_pins,
-                    skip_dependencies=skip_dependencies,
-                    include_local_dependencies=True,
-                )
-                # A group parse contains the base requirements plus group-selected
-                # optional local dependencies. Keep only the delta to preserve
-                # optional semantics.
-                group_feature_requirements = _subtract_requirements(
-                    group_req.requirements,
-                    base_req.requirements,
-                )
-                for dep_name, specs in group_req.optional_dependencies.get(
-                    group_name,
-                    {},
-                ).items():
-                    group_feature_requirements.setdefault(dep_name, []).extend(specs)
-                opt_platform_deps, opt_demoted = _extract_dependencies(
-                    group_feature_requirements,
-                )
-                discovered_target_platforms.update(
-                    platform for platform in opt_platform_deps if platform is not None
-                )
-                feature = _build_feature_dict(opt_platform_deps)
-                optional_group_projects: list[Path] = list(
-                    optional_group_unmanaged_graph.get(root_node, {}).get(
-                        group_name,
-                        [],
-                    ),
-                )
-                optional_local_nodes = optional_group_graph.get(root_node, {}).get(
-                    group_name,
-                    [],
-                )
-                seen_optional_nodes: set[PathWithExtras] = set()
-                for optional_local_node in optional_local_nodes:
-                    for candidate_node in [
-                        optional_local_node,
-                        *(
-                            _collect_transitive_nodes(
-                                optional_local_node,
-                                local_dependency_graph,
-                            )
-                        ),
-                    ]:
-                        if candidate_node in seen_optional_nodes:
-                            continue
-                        seen_optional_nodes.add(candidate_node)
-                        optional_project_dir = _project_dir_from_requirement_file(
-                            candidate_node.path,
-                        )
-                        if is_pip_installable(optional_project_dir):
-                            optional_group_projects.append(optional_project_dir)
-                        optional_group_projects.extend(
-                            unmanaged_local_graph.get(candidate_node, []),
-                        )
-                _add_editable_local_dependencies(
-                    feature,
-                    optional_group_projects,
-                    output_file=output_file,
-                    exclude=base_local_editable_set,
-                )
-                if feature:
-                    pixi_data["feature"][group_name] = feature
-                    opt_features.append(group_name)
-                if opt_demoted:
-                    feature_demoted_map[group_name] = opt_demoted
-
-            # Create environments for optional dependencies
-            if opt_features:
-                # Default environment has no optional features
-                pixi_data["environments"]["default"] = []
-                for feat in opt_features:
-                    # Environment names can't have underscores
-                    env_name = feat.replace("_", "-")
-                    pixi_data["environments"][env_name] = [feat]
-                # "all" environment includes all optional features
-                if len(opt_features) > 1:
-                    pixi_data["environments"]["all"] = opt_features
-
     else:
-        # Multiple files: create one feature per requirement file and compose
-        # local-dependency relationships in environments instead of flattening.
-        pixi_data["feature"] = {}
-        pixi_data["environments"] = {}
-        (
-            root_nodes,
-            discovered_nodes,
-            local_dependency_graph,
-            optional_group_graph,
-            unmanaged_local_graph,
-            optional_group_unmanaged_graph,
-        ) = _discover_local_dependency_graph(requirements_files)
-        feature_names = _derive_feature_names([node.path for node in discovered_nodes])
-        feature_name_by_node = dict(zip(discovered_nodes, feature_names))
-        taken_optional_feature_names: set[str] = set(feature_names)
-        root_nodes_set = set(root_nodes)
-        base_feature_nodes: dict[str, PathWithExtras] = {}
-        optional_feature_parents: dict[str, str] = {}
-        optional_feature_has_feature: dict[str, bool] = {}
-        optional_feature_local_nodes: dict[str, list[PathWithExtras]] = {}
+        result = _generate_multi_file_pixi(
+            requirements_files,
+            use_platforms_override=use_platforms_override,
+            output_file=output_file,
+            verbose=verbose,
+            ignore_pins=ignore_pins,
+            skip_dependencies=skip_dependencies,
+            overwrite_pins=overwrite_pins,
+        )
 
-        for node in discovered_nodes:
-            req = _parse_direct_requirements_for_node(
-                node,
-                verbose=verbose,
-                ignore_pins=ignore_pins,
-                skip_dependencies=skip_dependencies,
-                overwrite_pins=overwrite_pins,
-                include_all_optional_groups=node in root_nodes_set,
-            )
-            platform_deps, node_demoted = _extract_dependencies(req.requirements)
-            discovered_target_platforms.update(
-                platform for platform in platform_deps if platform is not None
-            )
-            feature_name = feature_name_by_node[node]
-
-            # Collect channels and platforms
-            if req.channels:
-                all_channels.update(req.channels)
-            if req.platforms and not use_platforms_override:
-                all_platforms.update(req.platforms)
-
-            # Build the feature dict from platform deps
-            feature = _build_feature_dict(platform_deps)
-
-            # Add editable dependency for standard project requirement files.
-            req_dir = _project_dir_from_requirement_file(node.path)
-            should_add_editable = node.path.name in {
-                "requirements.yaml",
-                "pyproject.toml",
-            }
-            node_editable_projects: list[Path] = []
-            if should_add_editable and is_pip_installable(req_dir):
-                node_editable_projects.append(req_dir)
-            node_editable_projects.extend(unmanaged_local_graph.get(node, []))
-            _add_editable_local_dependencies(
-                feature,
-                node_editable_projects,
-                output_file=output_file,
-            )
-
-            if feature:  # Only add non-empty features
-                pixi_data["feature"][feature_name] = feature
-                base_feature_nodes[feature_name] = node
-            if node_demoted:
-                feature_demoted_map[feature_name] = node_demoted
-
-            if node not in root_nodes_set:
-                continue
-
-            # Build set of editables already in the base feature so optional
-            # sub-features don't duplicate them (mirrors single-file behavior).
-            base_editable_set = {
-                p.resolve() for p in _with_unique_order_paths(node_editable_projects)
-            }
-
-            # Handle optional dependencies as sub-features for root features.
-            if feature_name not in pixi_data["feature"]:
-                continue
-            parsed_group_names = list(req.optional_dependencies)
-            local_only_group_names = set(optional_group_graph.get(node, {})) | set(
-                optional_group_unmanaged_graph.get(node, {}),
-            )
-            all_group_names = parsed_group_names + [
-                group_name
-                for group_name in sorted(local_only_group_names)
-                if group_name not in req.optional_dependencies
-            ]
-            for group_name in all_group_names:
-                group_specs = req.optional_dependencies.get(group_name, {})
-                group_platform_deps, group_demoted = _extract_dependencies(group_specs)
-                discovered_target_platforms.update(
-                    platform for platform in group_platform_deps if platform is not None
-                )
-                opt_feature = _build_feature_dict(group_platform_deps)
-                opt_feature_name = _unique_optional_feature_name(
-                    parent_feature=feature_name,
-                    group_name=group_name,
-                    taken_names=taken_optional_feature_names,
-                )
-                optional_local_nodes = optional_group_graph.get(node, {}).get(
-                    group_name,
-                    [],
-                )
-                optional_unmanaged_local_projects = optional_group_unmanaged_graph.get(
-                    node,
-                    {},
-                ).get(
-                    group_name,
-                    [],
-                )
-                _add_editable_local_dependencies(
-                    opt_feature,
-                    optional_unmanaged_local_projects,
-                    output_file=output_file,
-                    exclude=base_editable_set,
-                )
-                if (
-                    not opt_feature
-                    and not optional_local_nodes
-                    and not optional_unmanaged_local_projects
-                ):
-                    continue
-                if opt_feature:
-                    pixi_data["feature"][opt_feature_name] = opt_feature
-                    optional_feature_has_feature[opt_feature_name] = True
-                else:
-                    optional_feature_has_feature[opt_feature_name] = False
-                optional_feature_parents[opt_feature_name] = feature_name
-                optional_feature_local_nodes[opt_feature_name] = optional_local_nodes
-                if group_demoted:
-                    feature_demoted_map[opt_feature_name] = group_demoted
-
-        # Create environments
-        if pixi_data["feature"]:
-            transitive_features: dict[str, list[str]] = {}
-            for feature_name, node in base_feature_nodes.items():
-                dep_features = [
-                    feature_name_by_node[dep_node]
-                    for dep_node in _collect_transitive_nodes(
-                        node,
-                        local_dependency_graph,
-                    )
-                    if feature_name_by_node.get(dep_node) in pixi_data["feature"]
-                ]
-                transitive_features[feature_name] = _with_unique_order(dep_features)
-
-            root_base_features = [
-                feature_name_by_node[node]
-                for node in root_nodes
-                if feature_name_by_node.get(node) in pixi_data["feature"]
-            ]
-            default_features: list[str] = []
-            for feature_name in root_base_features:
-                default_features.append(feature_name)
-                default_features.extend(transitive_features.get(feature_name, []))
-            pixi_data["environments"]["default"] = _with_unique_order(default_features)
-
-            for opt_feature_name, parent_feature in optional_feature_parents.items():
-                env_name = opt_feature_name.replace("_", "-")
-                env_features = [
-                    parent_feature,
-                    *transitive_features.get(parent_feature, []),
-                ]
-                if optional_feature_has_feature.get(opt_feature_name, False):
-                    env_features.append(opt_feature_name)
-                for local_node in optional_feature_local_nodes.get(
-                    opt_feature_name,
-                    [],
-                ):
-                    local_feature = feature_name_by_node.get(local_node)
-                    if (
-                        local_feature is None
-                        or local_feature not in pixi_data["feature"]
-                    ):
-                        continue
-                    env_features.append(local_feature)
-                    env_features.extend(transitive_features.get(local_feature, []))
-                pixi_data["environments"][env_name] = _with_unique_order(env_features)
+    pixi_data = result.pixi_data
 
     # Set workspace metadata with collected channels and platforms
     # Sort for deterministic output
     final_platforms = resolve_platforms(
         requested_platforms=platforms,
-        declared_platforms=cast("set[Platform]", all_platforms),
-        selector_platforms=cast("set[Platform]", discovered_target_platforms),
+        declared_platforms=cast("set[Platform]", result.all_platforms),
+        selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
     )
     final_channels = sorted(
-        list(all_channels) if all_channels else (channels or ["conda-forge"]),
+        list(result.all_channels)
+        if result.all_channels
+        else (channels or ["conda-forge"]),
     )
     pixi_data["workspace"] = {
         "name": project_name or Path.cwd().name,
@@ -1070,9 +1181,9 @@ def generate_pixi_toml(  # noqa: PLR0912, C901, PLR0915
     _filter_targets_by_platforms(pixi_data, set(final_platforms))
 
     # Restore demoted universal entries as explicit targets for uncovered platforms
-    if root_demoted:
-        _restore_demoted_universals(pixi_data, root_demoted, final_platforms)
-    for feat_name, feat_demoted in feature_demoted_map.items():
+    if result.root_demoted:
+        _restore_demoted_universals(pixi_data, result.root_demoted, final_platforms)
+    for feat_name, feat_demoted in result.feature_demoted_map.items():
         if feat_name in pixi_data.get("feature", {}):
             _restore_demoted_universals(
                 pixi_data["feature"][feat_name],
