@@ -528,6 +528,14 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         action="store_true",
         help="Output to stdout instead of a file",
     )
+    parser_pixi.add_argument(
+        "-c",
+        "--channel",
+        action="append",
+        help="Conda channel to include. Can be repeated. Overrides channels"
+        " declared in requirements files. If omitted, channels are read from"
+        " the requirements files (defaulting to conda-forge).",
+    )
     _add_common_args(
         parser_pixi,
         {
@@ -1387,6 +1395,7 @@ def _pixi_command(
     name: str | None,
     output: Path | None,
     stdout: bool,
+    channels: list[str] | None,
     platforms: list[Platform] | None,
     ignore_pins: list[str],
     skip_dependencies: list[str],
@@ -1415,6 +1424,7 @@ def _pixi_command(
     generate_pixi_toml(
         *found_files,
         project_name=name,
+        channels=channels,
         platforms=platforms,
         output_file=output_file,
         verbose=verbose,
@@ -1712,6 +1722,7 @@ def main() -> None:  # noqa: PLR0912
             name=args.name,
             output=args.output,
             stdout=args.stdout,
+            channels=args.channel or None,
             platforms=args.platform or None,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,

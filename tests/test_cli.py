@@ -279,6 +279,48 @@ def test_unidep_pixi_cli_respects_overrides(tmp_path: Path) -> None:
     assert "target" not in data or "osx-arm64" not in data["target"]
 
 
+def test_unidep_pixi_cli_channel_override(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    result = subprocess.run(
+        [  # noqa: S607
+            "unidep",
+            "pixi",
+            "--file",
+            str(req_file),
+            "--output",
+            str(output_file),
+            "--channel",
+            "defaults",
+            "--channel",
+            "bioconda",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["channels"] == ["bioconda", "defaults"]
+
+
 def test_unidep_pixi_cli_ranged_build_string(tmp_path: Path) -> None:
     req_file = tmp_path / "requirements.yaml"
     req_file.write_text(
