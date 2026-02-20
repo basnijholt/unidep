@@ -138,6 +138,36 @@ def test_channels_fallback_when_files_have_none(tmp_path: Path) -> None:
     assert data["workspace"]["channels"] == ["conda-forge"]
 
 
+def test_channels_empty_list_overrides_file_channels(tmp_path: Path) -> None:
+    """Explicit channels=[] should override file channels, not fall back."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        channels=[],
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["channels"] == []
+
+
 def test_monorepo_pixi_generation(tmp_path: Path) -> None:
     """Test pixi.toml generation with features for multiple requirements files."""
     # Create project1

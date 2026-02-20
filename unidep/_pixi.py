@@ -1221,11 +1221,12 @@ def generate_pixi_toml(
         declared_platforms=cast("set[Platform]", result.all_platforms),
         selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
     )
-    final_channels = sorted(
-        channels
-        if channels
-        else (list(result.all_channels) if result.all_channels else ["conda-forge"]),
-    )
+    if channels is not None:
+        final_channels = sorted(channels)
+    elif result.all_channels:
+        final_channels = sorted(result.all_channels)
+    else:
+        final_channels = ["conda-forge"]
     pixi_data["workspace"] = {
         "name": project_name or Path.cwd().name,
         "channels": final_channels,
