@@ -22,6 +22,7 @@ from unidep._pixi import (
     _parse_version_build,
     _resolve_conda_pip_conflict,
     _restore_demoted_universals,
+    _unique_env_name,
     _unique_optional_feature_name,
     _version_spec_is_pinned,
     _with_unique_order_paths,
@@ -33,6 +34,26 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
+
+
+_UNSET = object()
+
+
+def _write_file(path: Path, content: str) -> Path:
+    path.write_text(textwrap.dedent(content))
+    return path
+
+
+def _generate_and_load(
+    output_file: Path,
+    *requirements_files: Path,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    if "verbose" not in kwargs:
+        kwargs["verbose"] = False
+    generate_pixi_toml(*requirements_files, output_file=output_file, **kwargs)
+    with output_file.open("rb") as f:
+        return tomllib.load(f)
 
 
 def test_simple_pixi_generation(tmp_path: Path) -> None:
@@ -81,11 +102,11 @@ def test_simple_pixi_generation(tmp_path: Path) -> None:
     assert 'requests = "*"' in content
 
 
-def test_channels_override_file_declared_channels(tmp_path: Path) -> None:
-    """Explicit channels= argument overrides channels declared in requirement files."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
+def test_channels_resolution_behaviors(tmp_path: Path) -> None:
+    """Explicit channels override file/default channels, while None falls back."""
+    cases: list[tuple[str, str, object, list[str]]] = [
+        (
+            "override",
             """\
             channels:
               - conda-forge
@@ -94,55 +115,22 @@ def test_channels_override_file_declared_channels(tmp_path: Path) -> None:
             platforms:
               - linux-64
             """,
+            ["defaults", "bioconda"],
+            ["bioconda", "defaults"],
         ),
-    )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
-        req_file,
-        channels=["defaults", "bioconda"],
-        output_file=output_file,
-        verbose=False,
-    )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
-
-    assert data["workspace"]["channels"] == ["bioconda", "defaults"]
-
-
-def test_channels_fallback_when_files_have_none(tmp_path: Path) -> None:
-    """When no channels in files and no explicit channels, fall back to conda-forge."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
+        (
+            "fallback",
             """\
             dependencies:
               - numpy
             platforms:
               - linux-64
             """,
+            _UNSET,
+            ["conda-forge"],
         ),
-    )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
-        req_file,
-        output_file=output_file,
-        verbose=False,
-    )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
-
-    assert data["workspace"]["channels"] == ["conda-forge"]
-
-
-def test_channels_empty_list_overrides_file_channels(tmp_path: Path) -> None:
-    """Explicit channels=[] should override file channels, not fall back."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
+        (
+            "empty-explicit",
             """\
             channels:
               - conda-forge
@@ -151,21 +139,22 @@ def test_channels_empty_list_overrides_file_channels(tmp_path: Path) -> None:
             platforms:
               - linux-64
             """,
+            [],
+            [],
         ),
-    )
+    ]
 
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
-        req_file,
-        channels=[],
-        output_file=output_file,
-        verbose=False,
-    )
+    for case_name, req_content, channels_arg, expected in cases:
+        case_dir = tmp_path / case_name
+        case_dir.mkdir()
+        req_file = _write_file(case_dir / "requirements.yaml", req_content)
+        output_file = case_dir / "pixi.toml"
+        kwargs: dict[str, Any] = {}
+        if channels_arg is not _UNSET:
+            kwargs["channels"] = channels_arg
 
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
-
-    assert data["workspace"]["channels"] == []
+        data = _generate_and_load(output_file, req_file, **kwargs)
+        assert data["workspace"]["channels"] == expected
 
 
 def test_monorepo_pixi_generation(tmp_path: Path) -> None:
@@ -387,56 +376,40 @@ def test_pixi_with_version_pins(tmp_path: Path) -> None:
 
 def test_pixi_normalizes_single_equals_for_pip_pins(tmp_path: Path) -> None:
     """Pip pins with single '=' should be normalized to '=='."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - pip: pygsti =0.9.13.3
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: pygsti =0.9.13.3
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     assert data["pypi-dependencies"]["pygsti"] == "==0.9.13.3"
 
 
 def test_pixi_prefers_pip_pin_over_unpinned_conda(tmp_path: Path) -> None:
     """Pinned pip spec should override unpinned conda spec."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - numpy
-              - pip: foo >=1.2
-                conda: foo
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+          - pip: foo >=1.2
+            conda: foo
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     assert data["dependencies"].get("foo") is None
     assert data["pypi-dependencies"]["foo"] == ">=1.2"
@@ -444,28 +417,20 @@ def test_pixi_prefers_pip_pin_over_unpinned_conda(tmp_path: Path) -> None:
 
 def test_pixi_prefers_conda_for_unpinned_both_sources(tmp_path: Path) -> None:
     """Unpinned dependencies available in both sources should use conda only."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - numpy
-              - pandas
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+          - pandas
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     deps = data["dependencies"]
     assert deps["numpy"] == "*"
@@ -475,27 +440,19 @@ def test_pixi_prefers_conda_for_unpinned_both_sources(tmp_path: Path) -> None:
 
 def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> None:
     """When conda and pip have the same pin, use conda only."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - scipy >=1.10
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - scipy >=1.10
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     assert data["dependencies"]["scipy"] == ">=1.10"
     assert "pypi-dependencies" not in data
@@ -505,30 +462,22 @@ def test_pixi_reconciles_universal_conda_and_target_pip_conflict(
     tmp_path: Path,
 ) -> None:
     """Target pip pins should reconcile against universal conda entries."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - click
-              - pip: click ==0.1 # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - click
+          - pip: click ==0.1 # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     assert "click" not in data.get("dependencies", {})
     assert "click" not in data.get("pypi-dependencies", {})
@@ -540,30 +489,22 @@ def test_pixi_reconciles_universal_pinned_conda_and_target_pinned_pip_prefers_ta
     tmp_path: Path,
 ) -> None:
     """Target pinned pip should override universal pinned conda entries."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - conda: click >=8
-              - pip: click ==0.1 # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1 # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
         req_file,
-        output_file=output_file,
-        verbose=False,
     )
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
 
     assert "click" not in data.get("dependencies", {})
     linux_target = data["target"]["linux-64"]
@@ -574,45 +515,36 @@ def test_pixi_reconcile_is_order_independent_for_universal_and_target_conflicts(
     tmp_path: Path,
 ) -> None:
     """Universal/target conflict reconciliation should not depend on declaration order."""
-    req_target_then_universal = tmp_path / "target_then_universal.yaml"
-    req_target_then_universal.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - pip: click ==0.1 # [linux64]
-              - conda: click >=8
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_target_then_universal = _write_file(
+        tmp_path / "target_then_universal.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: click ==0.1 # [linux64]
+          - conda: click >=8
+        platforms:
+          - linux-64
+        """,
     )
 
-    req_universal_then_target = tmp_path / "universal_then_target.yaml"
-    req_universal_then_target.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - conda: click >=8
-              - pip: click ==0.1 # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_universal_then_target = _write_file(
+        tmp_path / "universal_then_target.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1 # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
 
     out1 = tmp_path / "pixi-target-then-universal.toml"
     out2 = tmp_path / "pixi-universal-then-target.toml"
-    generate_pixi_toml(req_target_then_universal, output_file=out1, verbose=False)
-    generate_pixi_toml(req_universal_then_target, output_file=out2, verbose=False)
-
-    with out1.open("rb") as f:
-        data1 = tomllib.load(f)
-    with out2.open("rb") as f:
-        data2 = tomllib.load(f)
+    data1 = _generate_and_load(out1, req_target_then_universal)
+    data2 = _generate_and_load(out2, req_universal_then_target)
 
     assert data1 == data2
     assert "click" not in data1.get("dependencies", {})
@@ -623,26 +555,19 @@ def test_pixi_reconciles_universal_conda_and_target_pip_prefers_conda_when_targe
     tmp_path: Path,
 ) -> None:
     """Universal pinned conda should drop target-unpinned pip duplicates."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - conda: click >=8
-              - pip: click # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     assert data["dependencies"]["click"] == ">=8"
     linux_target = data["target"]["linux-64"]
@@ -653,26 +578,19 @@ def test_pixi_reconciles_universal_pip_and_target_conda_prefers_conda_when_pinne
     tmp_path: Path,
 ) -> None:
     """Universal pip should be removed when target conda has a stronger pin."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - pip: click
-              - conda: click >=8 # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: click
+          - conda: click >=8 # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     assert "pypi-dependencies" not in data
     assert data["target"]["linux-64"]["dependencies"]["click"] == ">=8"
@@ -682,27 +600,20 @@ def test_pixi_reconciles_universal_conda_and_target_pip_multiplatform(
     tmp_path: Path,
 ) -> None:
     """Universal conda should be promoted to non-overriding target platforms."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - conda: click >=8
-              - pip: click ==0.1 # [linux64]
-            platforms:
-              - linux-64
-              - osx-arm64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1 # [linux64]
+        platforms:
+          - linux-64
+          - osx-arm64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     # click must NOT be in universal deps (conflict on at least one platform)
     assert "click" not in data.get("dependencies", {})
@@ -721,27 +632,20 @@ def test_pixi_reconciles_universal_pip_and_target_conda_multiplatform(
     tmp_path: Path,
 ) -> None:
     """Universal pip should be promoted to non-overriding target platforms."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - pip: click ==0.1
-              - conda: click >=8 # [linux64]
-            platforms:
-              - linux-64
-              - osx-arm64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: click ==0.1
+          - conda: click >=8 # [linux64]
+        platforms:
+          - linux-64
+          - osx-arm64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     # click must NOT be in universal deps
     assert "click" not in data.get("dependencies", {})
@@ -760,26 +664,19 @@ def test_pixi_reconciles_universal_pip_and_target_conda_prefers_pip_when_pinned(
     tmp_path: Path,
 ) -> None:
     """Target conda should be removed when universal pip has the stronger pin."""
-    req_file = tmp_path / "requirements.yaml"
-    req_file.write_text(
-        textwrap.dedent(
-            """\
-            channels:
-              - conda-forge
-            dependencies:
-              - pip: click ==0.1
-              - conda: click # [linux64]
-            platforms:
-              - linux-64
-            """,
-        ),
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: click ==0.1
+          - conda: click # [linux64]
+        platforms:
+          - linux-64
+        """,
     )
-
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(req_file, output_file=output_file, verbose=False)
-
-    with output_file.open("rb") as f:
-        data = tomllib.load(f)
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     assert data["pypi-dependencies"]["click"] == "==0.1"
     assert "dependencies" not in data["target"]["linux-64"]
@@ -3167,6 +3064,11 @@ def test_unique_optional_feature_name_double_collision() -> None:
     )
     assert name == "feat-dev-opt-2"
     assert name in taken
+
+
+def test_unique_env_name_triple_collision() -> None:
+    taken: set[str] = {"foo-bar", "foo-bar-2"}
+    assert _unique_env_name("foo_bar", taken) == "foo-bar-3"
 
 
 def test_pixi_single_file_optional_local_dep_transitive_dedup(
