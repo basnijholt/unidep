@@ -23,8 +23,6 @@ else:  # pragma: no cover
 if TYPE_CHECKING:
     from unidep.platform_definitions import CondaPip
 
-VALID_OPERATORS = ["<=", ">=", "<", ">", "=", "!="]
-
 # Full PEP 440 + conda operator set, ordered longest-prefix-first for matching
 ALL_VERSION_OPERATORS: tuple[str, ...] = (
     "===",
@@ -37,6 +35,9 @@ ALL_VERSION_OPERATORS: tuple[str, ...] = (
     "<",
     "=",
 )
+
+# Subset used for conflict resolution (excludes PEP 440-only operators)
+VALID_OPERATORS = [op for op in ALL_VERSION_OPERATORS if op not in ("===", "==", "~=")]
 
 _REPO_URL = "https://github.com/basnijholt/unidep"
 TSourceSpec = TypeVar("TSourceSpec")
