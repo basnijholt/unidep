@@ -1158,6 +1158,32 @@ def generate_pixi_toml(
 
     This function creates a pixi.toml with features for each requirements file,
     letting Pixi handle all dependency resolution and conflict management.
+
+    Parameters
+    ----------
+    requirements_files
+        One or more requirement file paths to process.
+    project_name
+        Name for the ``[workspace]`` section. Defaults to the current
+        directory name.
+    channels
+        Conda channels for the workspace.  When provided, these **override**
+        any channels declared in the requirement files (consistent with how
+        *platforms* behaves).  When ``None``, channels are read from the
+        requirement files, falling back to ``["conda-forge"]``.
+    platforms
+        Target platforms.  When provided, overrides file-declared platforms.
+    output_file
+        Path to write the generated TOML.  ``None`` writes to stdout.
+    verbose
+        Print progress information.
+    ignore_pins
+        Package names whose version pins should be stripped.
+    skip_dependencies
+        Package names to omit entirely.
+    overwrite_pins
+        Pin overrides in ``"pkg>=version"`` format.
+
     """
     if not requirements_files:
         requirements_files = (Path.cwd(),)
@@ -1196,9 +1222,9 @@ def generate_pixi_toml(
         selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
     )
     final_channels = sorted(
-        list(result.all_channels)
-        if result.all_channels
-        else (channels or ["conda-forge"]),
+        channels
+        if channels
+        else (list(result.all_channels) if result.all_channels else ["conda-forge"]),
     )
     pixi_data["workspace"] = {
         "name": project_name or Path.cwd().name,

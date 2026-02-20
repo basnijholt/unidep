@@ -81,6 +81,63 @@ def test_simple_pixi_generation(tmp_path: Path) -> None:
     assert 'requests = "*"' in content
 
 
+def test_channels_override_file_declared_channels(tmp_path: Path) -> None:
+    """Explicit channels= argument overrides channels declared in requirement files."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        channels=["defaults", "bioconda"],
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["channels"] == ["bioconda", "defaults"]
+
+
+def test_channels_fallback_when_files_have_none(tmp_path: Path) -> None:
+    """When no channels in files and no explicit channels, fall back to conda-forge."""
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "pixi.toml"
+    generate_pixi_toml(
+        req_file,
+        output_file=output_file,
+        verbose=False,
+    )
+
+    with output_file.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert data["workspace"]["channels"] == ["conda-forge"]
+
+
 def test_monorepo_pixi_generation(tmp_path: Path) -> None:
     """Test pixi.toml generation with features for multiple requirements files."""
     # Create project1
