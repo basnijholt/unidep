@@ -1098,6 +1098,7 @@ Representative output shape (`pixi.toml`):
 
 ```toml
 [workspace]
+name = "my-project"
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-64"]
 
