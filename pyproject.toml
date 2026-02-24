@@ -28,9 +28,10 @@ conda-lock = ["conda-lock", "conda-package-handling"]
 pip-compile = ["pip-tools"]
 pytest = ["pytest", "GitPython"] # The pytest plugin
 rich = ["rich-argparse"]
+pixi = ["pixi-to-conda-lock; python_version >= '3.9'", "tomli_w"]
 # Everything except 'test' and 'docs'
 all = [
-    "unidep[toml,conda-lock,pip-compile,pytest,rich]",
+    "unidep[toml,conda-lock,pip-compile,pytest,rich,pixi]",
 ]
 docs = [
     "myst-parser",

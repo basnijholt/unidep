@@ -424,6 +424,10 @@ class PathWithExtras(NamedTuple):
         """Resolve the path and extras."""
         return PathWithExtras(self.path.resolve(), self.extras)
 
+    def canonicalized(self) -> PathWithExtras:
+        """Resolve path and normalize extras for deterministic graph keys."""
+        return PathWithExtras(self.path.resolve(), sorted(set(self.extras)))
+
     def __hash__(self) -> int:
         """Hash the path and extras."""
         return hash((self.path, tuple(sorted(self.extras))))
