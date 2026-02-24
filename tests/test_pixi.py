@@ -2686,6 +2686,39 @@ def test_pixi_demoted_universal_weak_target(
     assert "click" not in osx.get("pypi-dependencies", {})
 
 
+def test_pixi_demoted_universal_uses_latest_merged_constraint(
+    tmp_path: Path,
+) -> None:
+    """Repeated universal specs must not leave a stale weaker constraint in demoted."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1  # [linux64]
+          - conda: click >=9
+        platforms:
+          - linux-64
+          - osx-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    # linux-64 should keep the target-specific pip override
+    assert data["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+
+    # osx-64 must get the final merged constraint (>=9), NOT the stale first (>=8)
+    assert data["target"]["osx-64"]["dependencies"]["click"] == ">=9"
+    assert "click" not in data["target"]["osx-64"].get("pypi-dependencies", {})
+
+    # Universal should be empty (demoted to per-platform targets)
+    assert "click" not in data.get("dependencies", {})
+    assert "click" not in data.get("pypi-dependencies", {})
+
+
 def test_parse_version_build_whitespace_only() -> None:
     assert _parse_version_build("  ") == "*"
 

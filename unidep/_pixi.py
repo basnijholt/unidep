@@ -1342,7 +1342,7 @@ def _reconcile_with_universal_deps(
             and _version_spec_is_pinned(conda_scope[base_name])
             and _version_spec_is_pinned(pip_scope[base_name])
         ):
-            if demoted is not None and base_name not in demoted:
+            if demoted is not None:
                 demoted[base_name] = ("conda", copy.deepcopy(conda_scope[base_name]))
             conda_scope.pop(base_name, None)
             continue
@@ -1350,22 +1350,14 @@ def _reconcile_with_universal_deps(
         pip_probe = {base_name: pip_scope[base_name]}
         _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
         if base_name not in conda_probe:
-            if (
-                demoted is not None
-                and conda_scope is universal_conda
-                and base_name not in demoted
-            ):
+            if demoted is not None and conda_scope is universal_conda:
                 demoted[base_name] = (
                     "conda",
                     copy.deepcopy(conda_scope[base_name]),
                 )
             conda_scope.pop(base_name, None)
         if base_name not in pip_probe:
-            if (
-                demoted is not None
-                and pip_scope is universal_pip
-                and base_name not in demoted
-            ):
+            if demoted is not None and pip_scope is universal_pip:
                 demoted[base_name] = (
                     "pip",
                     copy.deepcopy(pip_scope[base_name]),
