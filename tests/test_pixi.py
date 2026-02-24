@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import os
 import textwrap
+from itertools import permutations
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -626,6 +627,42 @@ def test_pixi_reconcile_is_order_independent_for_universal_and_target_conflicts(
     assert data1 == data2
     assert "click" not in data1.get("dependencies", {})
     assert data1["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+
+
+def test_pixi_demoted_reconciliation_is_order_independent_with_repeated_universals(
+    tmp_path: Path,
+) -> None:
+    """All declaration orders should yield the same reconciled demoted result."""
+    deps = [
+        "- conda: click >=8",
+        "- pip: click ==0.1 # [linux64]",
+        "- conda: click >=9",
+    ]
+
+    results = []
+    for i, dep_order in enumerate(permutations(deps)):
+        deps_block = "\n".join(f"  {dep}" for dep in dep_order)
+        req_file = _write_file(
+            tmp_path / f"requirements-{i}.yaml",
+            (
+                "channels:\n"
+                "  - conda-forge\n"
+                "dependencies:\n"
+                f"{deps_block}\n"
+                "platforms:\n"
+                "  - linux-64\n"
+                "  - osx-64\n"
+            ),
+        )
+        data = _generate_and_load(tmp_path / f"pixi-{i}.toml", req_file)
+
+        assert data["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+        assert data["target"]["osx-64"]["dependencies"]["click"] == ">=9"
+        assert "click" not in data.get("dependencies", {})
+        assert "click" not in data.get("pypi-dependencies", {})
+        results.append(data)
+
+    assert all(result == results[0] for result in results[1:])
 
 
 # --- Parametrized multiplatform conflict resolution tests ---
