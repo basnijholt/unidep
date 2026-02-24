@@ -3120,3 +3120,119 @@ def test_restore_demoted_universals(
     elif expected_behavior == "not-overwritten":
         # For the target case, verify click was not overwritten
         assert section["target"]["linux-64"]["dependencies"]["click"] == ">=2.0"
+
+
+def test_pixi_single_file_installable_optional_local_dep_not_in_root(
+    tmp_path: Path,
+) -> None:
+    """Pip-installable optional local deps must NOT leak into root pypi-dependencies."""
+    localdep_dir = tmp_path / "localdep"
+    localdep_dir.mkdir()
+    _write_file(
+        localdep_dir / "requirements.yaml",
+        """\
+        dependencies:
+          - pandas
+        """,
+    )
+    (localdep_dir / "setup.py").write_text(
+        "from setuptools import setup; setup(name='localdep')",
+    )
+
+    root_req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          dev:
+            - ./localdep
+        platforms:
+          - linux-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", root_req)
+
+    # localdep must NOT appear in root pypi-dependencies
+    root_pypi = data.get("pypi-dependencies", {})
+    assert "localdep" not in root_pypi, (
+        "pip-installable optional local dep leaked into root pypi-dependencies"
+    )
+
+    # localdep MUST appear in the dev feature
+    dev_pypi = data["feature"]["dev"].get("pypi-dependencies", {})
+    assert "localdep" in dev_pypi, "optional local dep missing from dev feature"
+    assert dev_pypi["localdep"]["editable"] is True
+
+
+def test_pixi_monorepo_optional_aggregator_transitive_deps_in_env(
+    tmp_path: Path,
+) -> None:
+    """Empty aggregator in optional group must still pull transitive features into env."""
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    _write_file(
+        lib_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - scipy
+        """,
+    )
+
+    agg_dir = tmp_path / "agg"
+    agg_dir.mkdir()
+    _write_file(
+        agg_dir / "requirements.yaml",
+        """\
+        dependencies: []
+        local_dependencies:
+          - ../lib
+        """,
+    )
+
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    _write_file(
+        app_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          extras:
+            - ../agg
+        platforms:
+          - linux-64
+        """,
+    )
+
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    _write_file(
+        other_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pandas
+        platforms:
+          - linux-64
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        app_dir / "requirements.yaml",
+        other_dir / "requirements.yaml",
+    )
+
+    app_extras_env = data["environments"].get("app-extras", [])
+    assert "lib" in app_extras_env, (
+        f"transitive dep 'lib' missing from app-extras env: {app_extras_env}"
+    )

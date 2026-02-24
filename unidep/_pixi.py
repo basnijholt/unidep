@@ -890,13 +890,15 @@ def _generate_single_file_pixi(
     dep_graph = _discover_local_dependency_graph([requirements_file])
     root_node = dep_graph.roots[0]
 
-    # Collect editable packages from the root project and all required local deps.
+    # Collect editable packages from the root project and required local deps
+    # only (NOT optional-only local deps, which belong in optional features).
+    required_nodes = set(_collect_transitive_nodes(root_node, dep_graph.graph))
     req_dir = _project_dir_from_requirement_file(req_file)
     local_editable_projects: list[Path] = []
     if is_pip_installable(req_dir):
         local_editable_projects.append(req_dir)
     for node in dep_graph.discovered:
-        if node == root_node:
+        if node == root_node or node not in required_nodes:
             continue
         node_project_dir = _project_dir_from_requirement_file(node.path)
         should_add_editable = node.path.name in {
@@ -1135,9 +1137,13 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
                 [],
             ):
                 local_feature = feature_name_by_node.get(local_node)
-                if local_feature is None or local_feature not in pixi_data["feature"]:
+                if local_feature is None:
                     continue
-                env_features.append(local_feature)
+                # Include the local node's own feature if it's non-empty.
+                if local_feature in pixi_data["feature"]:
+                    env_features.append(local_feature)
+                # Always traverse transitive deps even when the local node
+                # itself is empty (aggregator pattern).
                 env_features.extend(transitive_features.get(local_feature, []))
             pixi_data["environments"][env_name] = _with_unique_order(env_features)
 
