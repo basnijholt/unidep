@@ -1302,6 +1302,33 @@ def _add_dep(
         _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
 
 
+def _record_demoted_universal(
+    demoted: dict[str, tuple[str, VersionSpec]] | None,
+    *,
+    base_name: str,
+    dep_type: Literal["conda", "pip"],
+    spec: VersionSpec,
+) -> None:
+    """Record a demoted universal dependency, merging repeated constraints."""
+    if demoted is None:
+        return
+
+    spec_copy = copy.deepcopy(spec)
+    existing = demoted.get(base_name)
+    if existing is None:
+        demoted[base_name] = (dep_type, spec_copy)
+        return
+
+    existing_type, existing_spec = existing
+    if existing_type != dep_type:
+        # Dependency source changed; keep the latest demoted source/spec.
+        demoted[base_name] = (dep_type, spec_copy)
+        return
+
+    merged = _merge_version_specs(existing_spec, spec_copy, base_name)
+    demoted[base_name] = (dep_type, merged)
+
+
 def _reconcile_with_universal_deps(
     platform_deps: PlatformDeps,
     *,
@@ -1342,25 +1369,33 @@ def _reconcile_with_universal_deps(
             and _version_spec_is_pinned(conda_scope[base_name])
             and _version_spec_is_pinned(pip_scope[base_name])
         ):
-            if demoted is not None:
-                demoted[base_name] = ("conda", copy.deepcopy(conda_scope[base_name]))
+            _record_demoted_universal(
+                demoted,
+                base_name=base_name,
+                dep_type="conda",
+                spec=conda_scope[base_name],
+            )
             conda_scope.pop(base_name, None)
             continue
         conda_probe = {base_name: conda_scope[base_name]}
         pip_probe = {base_name: pip_scope[base_name]}
         _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
         if base_name not in conda_probe:
-            if demoted is not None and conda_scope is universal_conda:
-                demoted[base_name] = (
-                    "conda",
-                    copy.deepcopy(conda_scope[base_name]),
+            if conda_scope is universal_conda:
+                _record_demoted_universal(
+                    demoted,
+                    base_name=base_name,
+                    dep_type="conda",
+                    spec=conda_scope[base_name],
                 )
             conda_scope.pop(base_name, None)
         if base_name not in pip_probe:
-            if demoted is not None and pip_scope is universal_pip:
-                demoted[base_name] = (
-                    "pip",
-                    copy.deepcopy(pip_scope[base_name]),
+            if pip_scope is universal_pip:
+                _record_demoted_universal(
+                    demoted,
+                    base_name=base_name,
+                    dep_type="pip",
+                    spec=pip_scope[base_name],
                 )
             pip_scope.pop(base_name, None)
 

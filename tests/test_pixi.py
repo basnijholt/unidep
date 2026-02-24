@@ -2719,6 +2719,33 @@ def test_pixi_demoted_universal_uses_latest_merged_constraint(
     assert "click" not in data.get("pypi-dependencies", {})
 
 
+def test_pixi_demoted_universal_merges_constraints_across_demotions(
+    tmp_path: Path,
+) -> None:
+    """Demoted universal constraints should keep cumulative merged bounds."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1  # [linux64]
+          - conda: click <=10
+        platforms:
+          - linux-64
+          - osx-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+    expected = _merge_version_specs(">=8", "<=10", "click")
+    assert isinstance(expected, str)
+    assert data["target"]["osx-64"]["dependencies"]["click"] == expected
+
+
 def test_parse_version_build_whitespace_only() -> None:
     assert _parse_version_build("  ") == "*"
 
