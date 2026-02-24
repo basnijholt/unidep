@@ -1853,6 +1853,39 @@ def test_pixi_optional_dependencies_single_group(tmp_path: Path) -> None:
     assert "all = [" not in content
 
 
+def test_pixi_single_file_optional_group_named_all_keeps_unique_env(
+    tmp_path: Path,
+) -> None:
+    """A user-defined optional group named 'all' should not be overwritten."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          all:
+            - pandas
+          dev:
+            - pytest
+        platforms:
+          - linux-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert "all" in data["feature"]
+    assert "dev" in data["feature"]
+
+    envs = data["environments"]
+    assert envs["all"] == ["all", "dev"]
+    user_all_envs = [name for name, feats in envs.items() if feats == ["all"]]
+    assert len(user_all_envs) == 1
+    assert user_all_envs[0] != "all"
+
+
 def test_pixi_single_file_optional_local_dependency_stays_optional(
     tmp_path: Path,
 ) -> None:
@@ -2114,10 +2147,10 @@ def test_pixi_empty_platform_override_uses_file_platforms(tmp_path: Path) -> Non
     assert set(data["workspace"]["platforms"]) == {"linux-64", "osx-arm64"}
 
 
-def test_pixi_monorepo_skips_optional_groups_when_base_feature_empty(
+def test_pixi_monorepo_keeps_optional_groups_when_base_feature_empty(
     tmp_path: Path,
 ) -> None:
-    """Optional sub-features should be skipped when a root has no base feature."""
+    """Optional sub-features should be preserved even when base feature is empty."""
     project1 = tmp_path / "project1"
     project1.mkdir()
     req1 = _write_file(
@@ -2148,8 +2181,12 @@ def test_pixi_monorepo_skips_optional_groups_when_base_feature_empty(
 
     features = data["feature"]
     assert "project1" not in features
-    assert "project1-docs" not in features
+    assert features["project1-docs"]["dependencies"]["sphinx"] == "*"
     assert "project2" in features
+
+    envs = data["environments"]
+    assert envs["default"] == ["project2"]
+    assert envs["project1-docs"] == ["project1-docs"]
 
 
 def test_pixi_monorepo_skips_empty_optional_feature_group(tmp_path: Path) -> None:

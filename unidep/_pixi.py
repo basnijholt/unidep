@@ -685,6 +685,28 @@ def _unique_env_name(
     return result
 
 
+def _add_single_file_optional_environments(
+    pixi_data: dict[str, Any],
+    opt_features: list[str],
+) -> None:
+    """Add single-file optional environments, avoiding `all` name collisions."""
+    if not opt_features:
+        return
+
+    pixi_data["environments"]["default"] = []
+    create_aggregate_all_env = len(opt_features) > 1
+    taken_env_names: set[str] = {"default"} | (
+        {"all"} if create_aggregate_all_env else set()
+    )
+
+    for feat in opt_features:
+        env_name = _unique_env_name(feat, taken_env_names)
+        pixi_data["environments"][env_name] = [feat]
+
+    if create_aggregate_all_env:
+        pixi_data["environments"]["all"] = opt_features
+
+
 def _spec_key(spec: Spec) -> tuple[str, str, str | None, str | None]:
     """Return the stable identity of a Spec (excludes parse-time identifier)."""
     return (spec.name, spec.which, spec.pin, spec.selector)
@@ -835,16 +857,7 @@ def _process_single_file_optional_groups(
             feature_demoted_map[group_name] = opt_demoted
 
     # Create environments for optional dependencies
-    if opt_features:
-        # Default environment has no optional features
-        pixi_data["environments"]["default"] = []
-        taken_env_names: set[str] = {"default"}
-        for feat in opt_features:
-            env_name = _unique_env_name(feat, taken_env_names)
-            pixi_data["environments"][env_name] = [feat]
-        # "all" environment includes all optional features
-        if len(opt_features) > 1:
-            pixi_data["environments"]["all"] = opt_features
+    _add_single_file_optional_environments(pixi_data, opt_features)
 
     return discovered_target_platforms, feature_demoted_map
 
@@ -1031,10 +1044,8 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         }
 
         # Handle optional dependencies as sub-features for root features.
-        if feature_name not in pixi_data["feature"]:
-            # Root has no direct deps/editables — skip optional group processing
-            # but transitive deps are still pulled into environments below.
-            continue
+        # Even when a root has no direct deps/editables (so no base feature),
+        # its optional groups may still carry real dependencies and must be kept.
         parsed_group_names = list(req.optional_dependencies)
         local_only_group_names = set(
             dep_graph.optional_group_graph.get(node, {}),
@@ -1126,10 +1137,10 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         taken_env_names: set[str] = {"default"}
         for opt_feature_name, parent_feature in optional_feature_parents.items():
             env_name = _unique_env_name(opt_feature_name, taken_env_names)
-            env_features = [
-                parent_feature,
-                *transitive_features.get(parent_feature, []),
-            ]
+            env_features = []
+            if parent_feature in pixi_data["feature"]:
+                env_features.append(parent_feature)
+            env_features.extend(transitive_features.get(parent_feature, []))
             if optional_feature_has_feature.get(opt_feature_name, False):
                 env_features.append(opt_feature_name)
             for local_node in optional_feature_local_nodes.get(
