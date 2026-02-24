@@ -1018,28 +1018,101 @@ options:
 ### `unidep pixi`
 
 Use `unidep pixi` to generate a `pixi.toml` file from your `requirements.yaml` or `pyproject.toml` files.
-This enables using [Pixi](https://pixi.sh/) for dependency management while keeping UniDep as your single source of truth for dependencies.
+This enables using [Pixi](https://pixi.sh/) for solving/locking/installing while keeping UniDep as your source of truth.
 
-The philosophy is **"Let UniDep translate, let Pixi resolve"** - UniDep translates your dependency files to `pixi.toml` format, and Pixi handles all dependency resolution, conflict management, and lock file generation.
+The philosophy is **"Let UniDep translate, let Pixi resolve"**.
 
 **Workflow:**
 ```bash
 # 1. Generate pixi.toml from your requirements
 unidep pixi
 
-# 2. Use pixi directly for installation and lock files
-pixi install       # Install dependencies
-pixi lock          # Generate pixi.lock
-pixi run <cmd>     # Run commands in the environment
+# 2. Use pixi directly
+pixi install
+pixi lock
+pixi run <cmd>
 ```
 
-**Features:**
-- **Single file mode**: Dependencies go to root-level `[dependencies]` section
-- **Monorepo mode**: Each subproject becomes a Pixi feature with its own environment
-- **Platform selectors**: `# [linux64]` becomes `[target.linux-64.dependencies]`
-- **Optional dependencies**: Become Pixi features (e.g., `[feature.dev.dependencies]`)
-- **Local packages**: Automatically added as editable pip dependencies
-- **Version constraint merging**: Multiple constraints are merged (e.g., `>=1.7,<2` + `<1.16` → `>=1.7,<1.16`)
+#### What `unidep pixi` generates
+
+- A `[workspace]` section with `name`, `channels`, and `platforms`
+- Conda deps in `[dependencies]`
+- PyPI deps in `[pypi-dependencies]`
+- Selector/platform-specific deps in `[target.<platform>.dependencies]` and/or `[target.<platform>.pypi-dependencies]`
+- Optional dependency groups as Pixi features (`[feature.<group>.*]`)
+- Local installable projects as editable path deps:
+  ```toml
+  [pypi-dependencies]
+  my_pkg = { path = "./relative/path", editable = true }
+  ```
+
+In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
+
+#### Dependency reconciliation rules (important)
+
+When the same package appears from both conda and pip, UniDep applies deterministic rules before writing `pixi.toml`:
+
+1. If pip has extras (`foo[bar]`), pip wins.
+2. If only one side is pinned, pinned wins.
+3. On ties (both pinned or both unpinned), conda wins.
+4. For **universal conda vs target-specific pip** where both are pinned, target-specific pip intent is preserved on that target; the demoted universal entry is restored to other platforms as explicit target deps.
+
+Version pins from repeated entries are merged when possible (for example `>=1.7,<2` + `<1.16` → `>=1.7,<1.16`).
+
+#### Channels/platforms precedence
+
+- **Channels**
+  - If `--channel` is passed: use only CLI-provided channels.
+  - Else: collect channels from requirement files.
+  - Else fallback: `conda-forge`.
+- **Platforms**
+  - If `--platform` is passed: use CLI-provided platforms.
+  - Else: use platforms declared in files.
+  - Else: infer from selectors in dependencies.
+  - Else fallback: current platform.
+
+#### Example (single-file)
+
+Input (`requirements.yaml`):
+
+```yaml
+channels:
+  - conda-forge
+dependencies:
+  - numpy >=1.26
+  - pip: rich
+  - pip: uvloop  # [linux64]
+optional_dependencies:
+  dev:
+    - pytest
+platforms:
+  - linux-64
+  - osx-64
+```
+
+Representative output shape (`pixi.toml`):
+
+```toml
+[workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64"]
+
+[dependencies]
+numpy = ">=1.26"
+
+[pypi-dependencies]
+rich = "*"
+
+[target.linux-64.pypi-dependencies]
+uvloop = "*"
+
+[feature.dev.dependencies]
+pytest = "*"
+
+[environments]
+default = []
+dev = ["dev"]
+```
 
 See `unidep pixi -h` for more information:
 
@@ -1111,7 +1184,7 @@ options:
 <!-- OUTPUT:END -->
 
 > [!TIP]
-> Install the pixi extras for lock file conversion: `pip install "unidep[pixi]"`
+> Install Pixi-related optional dependencies with: `pip install "unidep[pixi]"`
 
 ### `unidep pip-compile`
 
