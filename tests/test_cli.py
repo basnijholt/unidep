@@ -318,7 +318,7 @@ def test_unidep_pixi_cli_channel_override(tmp_path: Path) -> None:
     with output_file.open("rb") as f:
         data = tomllib.load(f)
 
-    assert data["workspace"]["channels"] == ["bioconda", "defaults"]
+    assert data["workspace"]["channels"] == ["defaults", "bioconda"]
 
 
 def test_unidep_pixi_cli_ranged_build_string(tmp_path: Path) -> None:

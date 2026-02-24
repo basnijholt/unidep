@@ -162,7 +162,7 @@ def test_channels_resolution_behaviors(tmp_path: Path) -> None:
               - linux-64
             """,
             ["defaults", "bioconda"],
-            ["bioconda", "defaults"],
+            ["defaults", "bioconda"],
         ),
         (
             "fallback",

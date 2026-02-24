@@ -899,7 +899,11 @@ def _generate_single_file_pixi(
         if node == root_node:
             continue
         node_project_dir = _project_dir_from_requirement_file(node.path)
-        if is_pip_installable(node_project_dir):
+        should_add_editable = node.path.name in {
+            "requirements.yaml",
+            "pyproject.toml",
+        }
+        if should_add_editable and is_pip_installable(node_project_dir):
             local_editable_projects.append(node_project_dir)
         local_editable_projects.extend(dep_graph.unmanaged_local_graph.get(node, []))
     local_editable_projects.extend(dep_graph.unmanaged_local_graph.get(root_node, []))
@@ -1226,7 +1230,7 @@ def generate_pixi_toml(
         selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
     )
     if channels is not None:
-        final_channels = sorted(channels)
+        final_channels = list(channels)
     elif result.all_channels:
         final_channels = sorted(result.all_channels)
     else:
