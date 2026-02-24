@@ -24,6 +24,7 @@ from unidep._pixi import (
     _merge_version_specs,
     _parse_direct_requirements_for_node,
     _parse_version_build,
+    _reconcile_with_universal_deps,
     _resolve_conda_pip_conflict,
     _restore_demoted_universals,
     _unique_env_name,
@@ -2783,6 +2784,52 @@ def test_pixi_demoted_universal_merges_constraints_across_demotions(
     assert data["target"]["osx-64"]["dependencies"]["click"] == expected
 
 
+def test_pixi_demoted_universal_switches_source_when_conflict_direction_flips(
+    tmp_path: Path,
+) -> None:
+    """Later demotion of same package from the other source should replace source type."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - conda: click >=8
+          - pip: click ==0.1 # [linux64]
+          - pip: click >=8
+          - conda: click >=9 # [linux64]
+        platforms:
+          - linux-64
+          - osx-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    # linux keeps the stronger target-specific conda override
+    assert data["target"]["linux-64"]["dependencies"]["click"] == ">=9"
+    # osx restores the latest demoted universal pip spec
+    assert data["target"]["osx-64"]["pypi-dependencies"]["click"] == ">=8"
+    assert "click" not in data["target"]["osx-64"].get("dependencies", {})
+
+
+def test_reconcile_with_universal_deps_without_demotion_tracking() -> None:
+    """Reconciliation should work even when demotion tracking is disabled."""
+    platform_deps: Any = {
+        None: ({"click": ">=8"}, {}),
+        "linux-64": ({}, {"click": "==0.1"}),
+    }
+
+    _reconcile_with_universal_deps(
+        platform_deps,
+        platform=None,
+        base_name="click",
+    )
+
+    assert "click" not in platform_deps[None][0]
+    assert platform_deps["linux-64"][1]["click"] == "==0.1"
+
+
 def test_parse_version_build_whitespace_only() -> None:
     assert _parse_version_build("  ") == "*"
 
@@ -3209,6 +3256,91 @@ def test_pixi_monorepo_optional_local_feature_not_in_pixi_data(
     )
     for env_features in data.get("environments", {}).values():
         assert "empty" not in env_features
+
+
+def test_pixi_monorepo_skips_unknown_root_feature_when_building_default_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generation should tolerate a discovered-graph root missing feature mapping."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    req1 = _write_file(
+        tmp_path / "a" / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        platforms:
+          - linux-64
+        """,
+    )
+    req2 = _write_file(
+        tmp_path / "b" / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pandas
+        platforms:
+          - linux-64
+        """,
+    )
+
+    original_discover = _discover_local_dependency_graph
+
+    def _patched_discover(requirements_files: Any) -> Any:
+        graph = original_discover(requirements_files)
+        ghost = PathWithExtras(tmp_path / "ghost" / "requirements.yaml", [])
+        return graph._replace(roots=[*graph.roots, ghost])
+
+    monkeypatch.setattr(
+        "unidep._pixi._discover_local_dependency_graph",
+        _patched_discover,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req1, req2)
+    assert "default" in data["environments"]
+    assert data["environments"]["default"]
+
+
+def test_pixi_monorepo_optional_env_skips_unknown_local_feature(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optional env composition should ignore optional local nodes without mapping."""
+    app_req, other_req = _setup_app_lib_other(
+        tmp_path,
+        """\
+        - ../lib
+        - pytest
+        """,
+    )
+
+    original_discover = _discover_local_dependency_graph
+
+    def _patched_discover(requirements_files: Any) -> Any:
+        graph = original_discover(requirements_files)
+        mutated_optional = {
+            node: {group: list(nodes) for group, nodes in groups.items()}
+            for node, groups in graph.optional_group_graph.items()
+        }
+        ghost = PathWithExtras(tmp_path / "ghost_local" / "requirements.yaml", [])
+        for groups in mutated_optional.values():
+            for group_name, nodes in groups.items():
+                groups[group_name] = [*nodes, ghost]
+                return graph._replace(optional_group_graph=mutated_optional)
+        return graph
+
+    monkeypatch.setattr(
+        "unidep._pixi._discover_local_dependency_graph",
+        _patched_discover,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", app_req, other_req)
+    assert "default" in data["environments"]
+    assert any(name != "default" for name in data["environments"])
 
 
 # --- Parametrized _restore_demoted_universals unit tests ---
