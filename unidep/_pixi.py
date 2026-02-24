@@ -731,7 +731,6 @@ class _PixiGenerationResult(NamedTuple):
 def _process_single_file_optional_groups(
     pixi_data: dict[str, Any],
     *,
-    requirements_file: Path,
     req_file: Path,
     base_req: ParsedRequirements,
     dep_graph: LocalDependencyGraph,
@@ -761,7 +760,7 @@ def _process_single_file_optional_groups(
 
     for group_name in optional_groups:
         group_req = parse_requirements(
-            requirements_file,
+            req_file,
             verbose=verbose,
             extras=[[group_name]],
             ignore_pins=ignore_pins,
@@ -916,7 +915,6 @@ def _generate_single_file_pixi(
     # Handle optional dependencies as features
     opt_target_platforms, feature_demoted_map = _process_single_file_optional_groups(
         pixi_data,
-        requirements_file=requirements_file,
         req_file=req_file,
         base_req=base_req,
         dep_graph=dep_graph,
@@ -1011,7 +1009,9 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
 
         if feature:  # Only add non-empty features
             pixi_data["feature"][feature_name] = feature
-            base_feature_nodes[feature_name] = node
+        # Always track the node so transitive deps are computed even when
+        # the root itself has no direct dependencies (aggregator pattern).
+        base_feature_nodes[feature_name] = node
         if node_demoted:
             feature_demoted_map[feature_name] = node_demoted
 
@@ -1026,6 +1026,8 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
 
         # Handle optional dependencies as sub-features for root features.
         if feature_name not in pixi_data["feature"]:
+            # Root has no direct deps/editables — skip optional group processing
+            # but transitive deps are still pulled into environments below.
             continue
         parsed_group_names = list(req.optional_dependencies)
         local_only_group_names = set(
@@ -1102,15 +1104,17 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
             ]
             transitive_features[feature_name] = _with_unique_order(dep_features)
 
-        root_base_features = [
-            feature_name_by_node[node]
-            for node in dep_graph.roots
-            if feature_name_by_node.get(node) in pixi_data["feature"]
-        ]
         default_features: list[str] = []
-        for feature_name in root_base_features:
-            default_features.append(feature_name)
-            default_features.extend(transitive_features.get(feature_name, []))
+        for root_node in dep_graph.roots:
+            root_feature = feature_name_by_node.get(root_node)
+            if root_feature is None:
+                continue
+            # Include the root's own feature only if it's non-empty.
+            if root_feature in pixi_data["feature"]:
+                default_features.append(root_feature)
+            # Always include transitive deps (supports aggregator roots
+            # that have no direct deps but pull in local_dependencies).
+            default_features.extend(transitive_features.get(root_feature, []))
         pixi_data["environments"]["default"] = _with_unique_order(default_features)
 
         taken_env_names: set[str] = {"default"}

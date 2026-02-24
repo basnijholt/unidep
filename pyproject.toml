@@ -121,7 +121,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"unidep/_pixi.py" = ["PLC0415"]
 "tests/*" = ["SLF001", "D103", "E501", "PLR2004"]
 "tests/test_examples.py" = ["E501"]
 ".github/*" = ["INP001"]
