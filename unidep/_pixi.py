@@ -1124,8 +1124,10 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         default_features: list[str] = []
         for root_node in dep_graph.roots:
             root_feature = feature_name_by_node.get(root_node)
-            if root_feature is None:
-                continue
+            assert root_feature is not None, (
+                "Internal error: missing feature name for discovered root "
+                f"{root_node.path}"
+            )
             # Include the root's own feature only if it's non-empty.
             if root_feature in pixi_data["feature"]:
                 default_features.append(root_feature)
@@ -1148,8 +1150,10 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
                 [],
             ):
                 local_feature = feature_name_by_node.get(local_node)
-                if local_feature is None:
-                    continue
+                assert local_feature is not None, (
+                    "Internal error: missing feature name for optional local node "
+                    f"{local_node.path}"
+                )
                 # Include the local node's own feature if it's non-empty.
                 if local_feature in pixi_data["feature"]:
                     env_features.append(local_feature)
