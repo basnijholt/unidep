@@ -7,6 +7,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,15 +21,21 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from unidep._artifact_metadata import (
+    PlatformDependencySet,
+    UnidepMetadata,
+)
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _classify_install_targets,
     _conda_env_list,
     _conda_root_prefix,
     _find_windows_path,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
+    _install_package_specs_command,
     _maybe_conda_run,
     _maybe_create_conda_env_args,
     _merge_command,
@@ -620,7 +627,10 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 
 def test_install_non_existing_file() -> None:
-    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+    with pytest.raises(
+        FileNotFoundError,
+        match=r"File `does_not_exist` not found\.",
+    ):
         _install_command(
             Path("does_not_exist"),
             conda_executable="",  # type: ignore[arg-type]
@@ -650,6 +660,177 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             dry_run=True,
             editable=True,
             verbose=True,
+        )
+
+
+def test_classify_install_targets(tmp_path: Path) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    local_targets, package_specs = _classify_install_targets(
+        [requirements_file, Path("demo-package==1.2.3")],
+    )
+    assert local_targets == [requirements_file]
+    assert package_specs == ["demo-package==1.2.3"]
+
+
+def test_classify_install_targets_invalid_specifier() -> None:
+    with pytest.raises(
+        ValueError,
+        match="neither a valid package requirement specifier nor an existing local path",
+    ):
+        _classify_install_targets([Path("not a valid requirement")])
+
+
+def test_install_package_specs_command_with_unidep_metadata(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    metadata = UnidepMetadata(
+        schema_version=1,
+        project="demo-package",
+        version="1.2.3",
+        channels=["conda-forge"],
+        platforms={
+            "linux-64": PlatformDependencySet(
+                conda=["qsimcirq * cuda*"],
+                pip=["requests>=2"],
+            ),
+        },
+        extras={},
+    )
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._cli.identify_current_platform",
+        return_value="linux-64",
+    ), patch(
+        "unidep._cli._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._cli.extract_unidep_metadata_from_wheel",
+        return_value=metadata,
+    ), patch(
+        "unidep._cli._maybe_exe",
+        return_value="conda",
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable="conda",
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
+        )
+
+    captured = capsys.readouterr().out
+    assert "Installing conda dependencies" in captured
+    assert "Installing pip dependencies from UniDep metadata" in captured
+    assert "Installing package specs (with UniDep metadata)" in captured
+    assert any(cmd[:3] == ["conda", "install", "--yes"] for cmd in calls)
+    assert any(
+        cmd[:4] == [sys.executable, "-m", "pip", "install"] and "requests>=2" in cmd
+        for cmd in calls
+    )
+    assert any(
+        cmd[:4] == [sys.executable, "-m", "pip", "install"]
+        and "--no-deps" in cmd
+        and "demo-package==1.2.3" in cmd
+        for cmd in calls
+    )
+
+
+def test_install_package_specs_command_fallback_to_pip_only() -> None:
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._cli._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._cli.extract_unidep_metadata_from_wheel",
+        return_value=None,
+    ), patch(
+        "unidep._cli._maybe_conda_executable",
+        return_value=None,
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
+        )
+
+    assert calls == [[sys.executable, "-m", "pip", "install", "demo-package==1.2.3"]]
+
+
+def test_install_package_specs_command_requires_conda_for_metadata() -> None:
+    metadata = UnidepMetadata(
+        schema_version=1,
+        project="demo-package",
+        version="1.2.3",
+        channels=["conda-forge"],
+        platforms={
+            "linux-64": PlatformDependencySet(conda=["qsimcirq * cuda*"], pip=[]),
+        },
+        extras={},
+    )
+    with patch(
+        "unidep._cli.identify_current_platform",
+        return_value="linux-64",
+    ), patch(
+        "unidep._cli._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._cli.extract_unidep_metadata_from_wheel",
+        return_value=metadata,
+    ), patch(
+        "unidep._cli._maybe_conda_executable",
+        return_value=None,
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), pytest.raises(SystemExit, match="1"):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
         )
 
 
@@ -717,7 +898,7 @@ def test_find_conda_windows() -> None:
     """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
-        match="Could not find conda.",
+        match=r"Could not find conda\.",
     ) as excinfo:
         _find_windows_path("conda")
     # This Windows hell... 🤦‍♂️

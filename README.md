@@ -577,6 +577,7 @@ For projects using `setuptools`, configure `unidep` in `pyproject.toml` and eith
 
 - **Using `pyproject.toml` only**: The `[project.dependencies]` field in `pyproject.toml` gets automatically populated from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
 - **Using `setup.py`**: The `install_requires` field in `setup.py` automatically reflects dependencies specified in `requirements.yaml` or `pyproject.toml`.
+- **Wheel metadata**: UniDep also writes `unidep.json` into wheel metadata (`.dist-info`) so `unidep install "pkg==x.y"` can install Conda + pip dependencies directly from the published artifact.
 
 **Example `pyproject.toml` Configuration**:
 
@@ -592,6 +593,7 @@ dynamic = ["dependencies"]
 ### Hatchling Integration
 
 For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process the dependencies from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
+For wheel builds, the UniDep build hook stores `unidep.json` in `.dist-info/extra_metadata`.
 
 **Example Configuration for Hatch**:
 
@@ -606,6 +608,9 @@ dynamic = ["dependencies"]
 
 [tool.hatch.metadata.hooks.unidep]
 # Enable the unidep plugin
+
+[tool.hatch.build.hooks.unidep]
+# Embed unidep.json in wheel metadata
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -750,6 +755,13 @@ options:
 ### `unidep install`
 
 Use `unidep install` on one or more `requirements.yaml` files and install the dependencies on the current platform using conda, then install the remaining dependencies with pip, and finally install the current package with `pip install [-e] .`.
+It can also install from package requirement specifiers such as `unidep install "example-package==2026.02.25a1"` or `unidep install "example-package[dev]==2026.02.25a1"`.
+
+When installing from package specifiers, UniDep downloads the wheel and looks for embedded `unidep.json` metadata in `.dist-info` (or Hatch's `.dist-info/extra_metadata`). If found, it installs the Conda + pip dependencies from that metadata first, then installs the package itself with `--no-deps`. If no metadata is found, UniDep falls back to a regular pip install for that package.
+
+> [!NOTE]
+> `unidep install` does not allow mixing local requirement paths and package specifiers in one command.
+
 See `unidep install -h` for more information:
 
 <!-- CODE:BASH:START -->

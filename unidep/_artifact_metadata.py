@@ -1,0 +1,331 @@
+"""Helpers for UniDep artifact metadata embedded in built distributions."""
+
+from __future__ import annotations
+
+import copy
+import json
+import sys
+import zipfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
+
+from unidep._conda_env import create_conda_env_specification
+from unidep._conflicts import resolve_conflicts
+from unidep._dependencies_parsing import parse_requirements
+from unidep.platform_definitions import Platform, Spec
+from unidep.utils import collect_selector_platforms, resolve_platforms
+
+if TYPE_CHECKING:
+    from unidep._dependencies_parsing import ParsedRequirements
+
+if sys.version_info >= (3, 8):
+    from typing import get_args
+else:  # pragma: no cover
+    from typing_extensions import get_args
+
+
+UNIDEP_METADATA_FILENAME = "unidep.json"
+UNIDEP_SCHEMA_VERSION = 1
+
+
+class UnidepMetadataError(ValueError):
+    """Raised when UniDep artifact metadata is invalid."""
+
+
+@dataclass(frozen=True)
+class PlatformDependencySet:
+    """Resolved dependencies for a single platform."""
+
+    conda: list[str]
+    pip: list[str]
+
+
+@dataclass(frozen=True)
+class UnidepMetadata:
+    """Validated UniDep metadata loaded from a distribution artifact."""
+
+    schema_version: int
+    project: str
+    version: str
+    channels: list[str]
+    platforms: dict[Platform, PlatformDependencySet]
+    extras: dict[str, dict[Platform, PlatformDependencySet]]
+
+
+@dataclass(frozen=True)
+class SelectedMetadataDependencies:
+    """Dependencies selected from metadata for one platform and extra set."""
+
+    channels: list[str]
+    conda: list[str]
+    pip: list[str]
+    missing_extras: list[str]
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
+
+
+def _as_str_list(value: Any, *, field: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        msg = f"`{field}` must be a list of strings."
+        raise UnidepMetadataError(msg)
+    return value
+
+
+def _parse_platform_deps(
+    value: Any,
+    *,
+    field: str,
+) -> dict[Platform, PlatformDependencySet]:
+    if not isinstance(value, dict):
+        msg = f"`{field}` must be a mapping of platforms."
+        raise UnidepMetadataError(msg)
+
+    valid_platforms = set(get_args(Platform))
+    parsed: dict[Platform, PlatformDependencySet] = {}
+    for raw_platform, raw_deps in value.items():
+        if raw_platform not in valid_platforms:
+            msg = f"Unsupported platform `{raw_platform}` in `{field}`."
+            raise UnidepMetadataError(msg)
+        if not isinstance(raw_deps, dict):
+            msg = f"Platform entry `{raw_platform}` in `{field}` must be an object."
+            raise UnidepMetadataError(msg)
+        conda_deps = _as_str_list(
+            raw_deps.get("conda", []),
+            field=f"{field}.{raw_platform}.conda",
+        )
+        pip_deps = _as_str_list(
+            raw_deps.get("pip", []),
+            field=f"{field}.{raw_platform}.pip",
+        )
+        parsed[cast("Platform", raw_platform)] = PlatformDependencySet(
+            conda=_dedupe(conda_deps),
+            pip=_dedupe(pip_deps),
+        )
+    return parsed
+
+
+def parse_unidep_metadata(data: Any) -> UnidepMetadata:
+    """Validate and parse raw UniDep metadata."""
+    if not isinstance(data, dict):
+        msg = "UniDep metadata must be a JSON object."
+        raise UnidepMetadataError(msg)
+
+    schema_version = data.get("schema_version")
+    if schema_version != UNIDEP_SCHEMA_VERSION:
+        msg = (
+            f"Unsupported UniDep metadata schema `{schema_version}`."
+            f" Expected `{UNIDEP_SCHEMA_VERSION}`."
+        )
+        raise UnidepMetadataError(msg)
+
+    project = data.get("project")
+    version = data.get("version")
+    if not isinstance(project, str) or not project:
+        msg = "`project` must be a non-empty string."
+        raise UnidepMetadataError(msg)
+    if not isinstance(version, str) or not version:
+        msg = "`version` must be a non-empty string."
+        raise UnidepMetadataError(msg)
+
+    channels = _as_str_list(data.get("channels", []), field="channels")
+    platforms = _parse_platform_deps(data.get("platforms"), field="platforms")
+
+    extras_raw = data.get("extras", {})
+    if not isinstance(extras_raw, dict):
+        msg = "`extras` must be an object mapping extra names to platforms."
+        raise UnidepMetadataError(msg)
+    extras: dict[str, dict[Platform, PlatformDependencySet]] = {}
+    for extra_name, extra_platform_data in extras_raw.items():
+        if not isinstance(extra_name, str) or not extra_name:
+            msg = "`extras` keys must be non-empty strings."
+            raise UnidepMetadataError(msg)
+        extras[extra_name] = _parse_platform_deps(
+            extra_platform_data,
+            field=f"extras.{extra_name}",
+        )
+
+    return UnidepMetadata(
+        schema_version=schema_version,
+        project=project,
+        version=version,
+        channels=channels,
+        platforms=platforms,
+        extras=extras,
+    )
+
+
+def extract_unidep_metadata_from_wheel(wheel: str | Path) -> UnidepMetadata | None:
+    """Read UniDep metadata from a wheel if present."""
+    wheel_path = Path(wheel)
+    with zipfile.ZipFile(wheel_path) as zf:
+        names = zf.namelist()
+        primary = [
+            n for n in names if n.endswith(f".dist-info/{UNIDEP_METADATA_FILENAME}")
+        ]
+        fallback = [
+            n
+            for n in names
+            if n.endswith(f".dist-info/extra_metadata/{UNIDEP_METADATA_FILENAME}")
+        ]
+        candidates = sorted(primary) or sorted(fallback)
+        if not candidates:
+            return None
+        raw = json.loads(zf.read(candidates[0]).decode("utf-8"))
+    return parse_unidep_metadata(raw)
+
+
+def select_unidep_dependencies(
+    metadata: UnidepMetadata,
+    *,
+    platform: Platform,
+    extras: list[str] | None = None,
+) -> SelectedMetadataDependencies:
+    """Select dependencies for a specific platform and optional extras."""
+    try:
+        base = metadata.platforms[platform]
+    except KeyError as exc:
+        msg = f"Platform `{platform}` is not present in UniDep metadata."
+        raise UnidepMetadataError(msg) from exc
+
+    conda = list(base.conda)
+    pip = list(base.pip)
+    missing_extras: list[str] = []
+    for extra in sorted(set(extras or [])):
+        extra_platforms = metadata.extras.get(extra)
+        if extra_platforms is None:
+            missing_extras.append(extra)
+            continue
+        extra_deps = extra_platforms.get(platform)
+        if extra_deps is None:
+            missing_extras.append(extra)
+            continue
+        conda.extend(extra_deps.conda)
+        pip.extend(extra_deps.pip)
+
+    return SelectedMetadataDependencies(
+        channels=list(metadata.channels),
+        conda=_dedupe(conda),
+        pip=_dedupe(pip),
+        missing_extras=missing_extras,
+    )
+
+
+def _metadata_payload(
+    *,
+    project: str,
+    version: str,
+    channels: list[str],
+    platforms: dict[Platform, PlatformDependencySet],
+    extras: dict[str, dict[Platform, PlatformDependencySet]],
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": UNIDEP_SCHEMA_VERSION,
+        "project": project,
+        "version": version,
+        "channels": channels,
+        "platforms": {
+            platform: {
+                "conda": deps.conda,
+                "pip": deps.pip,
+            }
+            for platform, deps in platforms.items()
+        },
+    }
+    if extras:
+        payload["extras"] = {
+            extra: {
+                platform: {
+                    "conda": deps.conda,
+                    "pip": deps.pip,
+                }
+                for platform, deps in platform_map.items()
+            }
+            for extra, platform_map in extras.items()
+        }
+    return payload
+
+
+def _resolve_platform_specs(
+    requirements: ParsedRequirements,
+    *,
+    platforms: list[Platform],
+    optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
+) -> dict[Platform, PlatformDependencySet]:
+    resolved = resolve_conflicts(
+        copy.deepcopy(requirements.requirements),
+        platforms,
+        optional_dependencies=copy.deepcopy(optional_dependencies),
+    )
+    by_platform: dict[Platform, PlatformDependencySet] = {}
+    for platform in platforms:
+        env_spec = create_conda_env_specification(
+            resolved,
+            requirements.channels,
+            platforms=[platform],
+        )
+        conda = [dep for dep in env_spec.conda if isinstance(dep, str)]
+        by_platform[platform] = PlatformDependencySet(
+            conda=_dedupe(conda),
+            pip=_dedupe(list(env_spec.pip)),
+        )
+    return by_platform
+
+
+def build_unidep_metadata(
+    requirements_file: str | Path,
+    *,
+    project: str,
+    version: str,
+    verbose: bool = False,
+) -> dict[str, Any]:
+    """Build UniDep artifact metadata from local requirements configuration."""
+    requirements_path = Path(requirements_file)
+    requirements = parse_requirements(
+        requirements_path,
+        verbose=verbose,
+        extras="*",
+    )
+    platforms = resolve_platforms(
+        requested_platforms=None,
+        declared_platforms=requirements.platforms,
+        selector_platforms=collect_selector_platforms(
+            requirements.requirements,
+            requirements.optional_dependencies,
+        ),
+        default_current=False,
+    )
+    if not platforms:
+        platforms = sorted(get_args(Platform))
+
+    base_by_platform = _resolve_platform_specs(requirements, platforms=platforms)
+    extras_payload: dict[str, dict[Platform, PlatformDependencySet]] = {}
+    for extra, extra_specs in requirements.optional_dependencies.items():
+        with_extra = _resolve_platform_specs(
+            requirements,
+            platforms=platforms,
+            optional_dependencies={extra: extra_specs},
+        )
+        extra_platform_payload: dict[Platform, PlatformDependencySet] = {}
+        for platform in platforms:
+            base = base_by_platform[platform]
+            enriched = with_extra[platform]
+            extra_conda = [dep for dep in enriched.conda if dep not in set(base.conda)]
+            extra_pip = [dep for dep in enriched.pip if dep not in set(base.pip)]
+            if extra_conda or extra_pip:
+                extra_platform_payload[platform] = PlatformDependencySet(
+                    conda=extra_conda,
+                    pip=extra_pip,
+                )
+        if extra_platform_payload:
+            extras_payload[extra] = extra_platform_payload
+
+    return _metadata_payload(
+        project=project,
+        version=version,
+        channels=_dedupe(list(requirements.channels)),
+        platforms=base_by_platform,
+        extras=extras_payload,
+    )
