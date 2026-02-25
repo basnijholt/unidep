@@ -20,6 +20,8 @@ allow-direct-references = true
 
 [tool.hatch.metadata.hooks.unidep]
 
+[tool.hatch.build.hooks.unidep]
+
 [tool.unidep]
 channels = ["conda-forge"]
 dependencies = [
