@@ -16,9 +16,18 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
+from packaging.requirements import InvalidRequirement, Requirement
+
+from unidep._artifact_metadata import (
+    UnidepMetadata,
+    UnidepMetadataError,
+    extract_unidep_metadata_from_wheel,
+    select_unidep_dependencies,
+)
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -351,7 +360,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         " This command first installs dependencies"
         " with Conda, then with Pip. Finally, it installs local packages"
         f" (those containing the {_DEP_FILES} files)"
-        " using `pip install [-e] ./project`."
+        " using `pip install [-e] ./project`. It can also install from package"
+        ' requirement specifiers, e.g. `unidep install "pkg==1.2.3"`.'
     )
     install_example = (
         " Example usage: `unidep install .` for a single project."
@@ -360,7 +370,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         f" a {_DEP_FILES} file. Use `--editable` or"
         " `-e` to install the local packages in editable mode. See"
         f" `unidep install-all` to install all {_DEP_FILES} files in and below the"
-        " current folder."
+        " current folder. For package artifacts, use `unidep install"
+        ' "pkg[extra]==1.2.3"`.'
     )
 
     parser_install = subparsers.add_parser(
@@ -948,6 +959,53 @@ def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
     return shutil.which("uv") is not None
 
 
+def _dedupe(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
+
+
+def _build_pip_install_command(
+    *,
+    python_executable: str,
+    conda_run: list[str],
+    no_uv: bool,
+) -> list[str]:
+    if _use_uv(no_uv):
+        return [
+            *conda_run,
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python_executable,
+        ]
+    return [*conda_run, python_executable, "-m", "pip", "install"]
+
+
+def _pip_install_packages(
+    *packages: str,
+    dry_run: bool,
+    python_executable: str,
+    conda_run: list[str],
+    no_uv: bool,
+    flags: list[str] | None = None,
+    description: str = "pip dependencies",
+) -> None:
+    """Install package specs with pip/uv."""
+    if not packages:
+        return
+    pip_command = _build_pip_install_command(
+        python_executable=python_executable,
+        conda_run=conda_run,
+        no_uv=no_uv,
+    )
+    if flags:
+        pip_command.extend(flags)
+    pip_command.extend(packages)
+    print(f"📦 Installing {description} with `{' '.join(pip_command)}`\n")
+    if not dry_run:
+        subprocess.run(pip_command, check=True)
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
@@ -957,17 +1015,11 @@ def _pip_install_local(
     no_uv: bool,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    if _use_uv(no_uv):
-        pip_command = [
-            *conda_run,
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            python_executable,
-        ]
-    else:
-        pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
+    pip_command = _build_pip_install_command(
+        python_executable=python_executable,
+        conda_run=conda_run,
+        no_uv=no_uv,
+    )
 
     if flags:
         pip_command.extend(flags)
@@ -989,6 +1041,357 @@ def _pip_install_local(
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)
+
+
+def _classify_install_targets(files: list[Path]) -> tuple[list[Path], list[str]]:
+    """Classify install targets as local requirement files or package specs."""
+    local_targets: list[Path] = []
+    package_specs: list[str] = []
+    for file in files:
+        candidate = str(file)
+        try:
+            parse_folder_or_filename(candidate)
+        except FileNotFoundError:
+            try:
+                Requirement(candidate)
+            except InvalidRequirement as exc:
+                msg = (
+                    f"`{candidate}` is neither a valid package requirement specifier"
+                    " nor an existing local path."
+                )
+                raise ValueError(msg) from exc
+            package_specs.append(candidate)
+        else:
+            local_targets.append(file)
+    return local_targets, package_specs
+
+
+def _download_package_artifact(
+    package_spec: str,
+    *,
+    destination: Path,
+    python_executable: str,
+    conda_run: list[str],
+    dry_run: bool,
+) -> Path | None:
+    """Download a package artifact with pip for metadata inspection."""
+    download_command = [
+        *conda_run,
+        python_executable,
+        "-m",
+        "pip",
+        "download",
+        "--no-deps",
+        "--dest",
+        str(destination),
+        package_spec,
+    ]
+    print(f"📦 Downloading package artifact with `{' '.join(download_command)}`\n")
+    if dry_run:
+        return None
+    subprocess.run(download_command, check=True)
+
+    wheels = sorted(destination.glob("*.whl"))
+    if wheels:
+        return wheels[-1]
+
+    source_dists = sorted(
+        [
+            *destination.glob("*.tar.gz"),
+            *destination.glob("*.zip"),
+            *destination.glob("*.tar.bz2"),
+            *destination.glob("*.tar.xz"),
+        ],
+    )
+    if source_dists:
+        return source_dists[-1]
+
+    msg = (
+        f"Could not find a downloaded artifact for `{package_spec}` in `{destination}`."
+    )
+    raise RuntimeError(msg)
+
+
+def _parse_requirement_or_none(spec: str) -> Requirement | None:
+    try:
+        return Requirement(spec)
+    except InvalidRequirement:
+        return None
+
+
+def _parse_package_requirements(package_specs: tuple[str, ...]) -> list[Requirement]:
+    requirements: list[Requirement] = []
+    invalid_specs: list[str] = []
+    for spec in package_specs:
+        requirement = _parse_requirement_or_none(spec)
+        if requirement is None:
+            invalid_specs.append(spec)
+            continue
+        requirements.append(requirement)
+    if invalid_specs:
+        msg = f"Invalid package requirement specifier(s): {', '.join(invalid_specs)}."
+        raise ValueError(msg)
+    return requirements
+
+
+def _warn_ignored_package_install_flags(
+    *,
+    editable: bool,
+    skip_local: bool,
+    ignore_pins: list[str] | None,
+    overwrite_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+) -> None:
+    if editable:
+        print("⚠️  `--editable` is ignored for package-spec installs.")
+    if skip_local:
+        print("⚠️  `--skip-local` is ignored for package-spec installs.")
+    if ignore_pins:
+        print("⚠️  `--ignore-pin` is ignored for package-spec installs.")
+    if overwrite_pins:
+        print("⚠️  `--overwrite-pin` is ignored for package-spec installs.")
+    if skip_dependencies:
+        print("⚠️  `--skip-dependency` is ignored for package-spec installs.")
+
+
+def _load_unidep_metadata_for_spec(
+    package_spec: str,
+    *,
+    destination: Path,
+    python_executable: str,
+    conda_run: list[str],
+    dry_run: bool,
+) -> UnidepMetadata | None:
+    artifact = _download_package_artifact(
+        package_spec,
+        destination=destination,
+        python_executable=python_executable,
+        conda_run=conda_run,
+        dry_run=dry_run,
+    )
+    if artifact is None:
+        return None
+
+    if artifact.suffix != ".whl":
+        print(
+            f"⚠️  Downloaded source distribution `{artifact.name}` for"
+            f" `{package_spec}`. UniDep metadata inspection requires a wheel;"
+            " falling back to pip-only install.",
+        )
+        return None
+
+    try:
+        metadata = extract_unidep_metadata_from_wheel(artifact)
+    except (OSError, json.JSONDecodeError, UnidepMetadataError) as exc:
+        print(
+            f"⚠️  Invalid UniDep metadata in `{artifact.name}` ({exc})."
+            " Falling back to pip-only install.",
+        )
+        return None
+    if metadata is None:
+        print(
+            f"⚠️  No UniDep metadata found in `{artifact.name}`."
+            " Falling back to pip-only install.",
+        )
+        return None
+    return metadata
+
+
+def _install_conda_dependencies(
+    conda_dependencies: list[str],
+    *,
+    channels: list[str],
+    conda_executable: CondaExecutable,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    dry_run: bool,
+) -> None:
+    channel_args = ["--override-channels"] if channels else []
+    for channel in channels:
+        channel_args.extend(["--channel", channel])
+    conda_env_args = _maybe_create_conda_env_args(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    conda_command = [
+        _maybe_exe(conda_executable),
+        "install",
+        "--yes",
+        *channel_args,
+        *conda_env_args,
+    ]
+    to_print = [_format_inline_conda_package(pkg) for pkg in conda_dependencies]
+    conda_command_str = " ".join((*conda_command, *to_print))
+    print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")
+    if not dry_run:
+        subprocess.run((*conda_command, *conda_dependencies), check=True)
+
+
+def _install_package_specs_command(  # noqa: PLR0912, PLR0915
+    *package_specs: str,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    conda_lock_file: Path | None,
+    dry_run: bool,
+    editable: bool,
+    skip_local: bool = False,
+    skip_pip: bool = False,
+    skip_conda: bool = False,
+    no_dependencies: bool = False,
+    ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
+    no_uv: bool = True,
+    verbose: bool = False,
+) -> None:
+    """Install dependencies and package specs from package index artifacts."""
+    del verbose  # currently unused for package-spec installs
+    start_time = time.time()
+    if conda_lock_file is not None:
+        print(
+            "❌ `--conda-lock-file` is only supported for local requirements installs.",
+        )
+        sys.exit(1)
+    _warn_ignored_package_install_flags(
+        editable=editable,
+        skip_local=skip_local,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+    )
+    if no_dependencies:
+        skip_pip = True
+        skip_conda = True
+
+    requirements = _parse_package_requirements(package_specs)
+
+    if not conda_executable:
+        conda_executable = _maybe_conda_executable()
+    platform_name = identify_current_platform()
+    python_executable = _python_executable(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
+
+    channels: list[str] = []
+    conda_deps: list[str] = []
+    pip_deps: list[str] = []
+    with_metadata: list[str] = []
+    fallback_to_pip: list[str] = []
+
+    with tempfile.TemporaryDirectory(prefix="unidep-download-") as tmpdir:
+        download_root = Path(tmpdir)
+        for index, req in enumerate(requirements):
+            package_spec = package_specs[index]
+            destination = download_root / f"pkg-{index}"
+            destination.mkdir(parents=True, exist_ok=True)
+            metadata = _load_unidep_metadata_for_spec(
+                package_spec,
+                destination=destination,
+                python_executable=python_executable,
+                conda_run=conda_run,
+                dry_run=dry_run,
+            )
+
+            if metadata is None:
+                fallback_to_pip.append(package_spec)
+                continue
+
+            try:
+                selected = select_unidep_dependencies(
+                    metadata,
+                    platform=platform_name,
+                    extras=sorted(req.extras),
+                )
+            except UnidepMetadataError as exc:
+                print(
+                    "⚠️  UniDep metadata for"
+                    f" `{package_spec}` is unusable on `{platform_name}` ({exc})."
+                    " Falling back to pip-only install.",
+                )
+                fallback_to_pip.append(package_spec)
+                continue
+
+            if selected.missing_extras:
+                print(
+                    "⚠️  UniDep metadata for"
+                    f" `{package_spec}` does not define extra(s):"
+                    f" {', '.join(selected.missing_extras)}.",
+                )
+            channels.extend(selected.channels)
+            conda_deps.extend(selected.conda)
+            pip_deps.extend(selected.pip)
+            with_metadata.append(package_spec)
+
+    channels = _dedupe(channels)
+    conda_deps = _dedupe(conda_deps)
+    pip_deps = _dedupe(pip_deps)
+    with_metadata = _dedupe(with_metadata)
+    fallback_to_pip = _dedupe(fallback_to_pip)
+
+    if conda_deps and skip_conda:
+        print("⚠️  Skipping UniDep Conda dependencies because `--skip-conda` is set.")
+    if conda_deps and not skip_conda:
+        if conda_executable is None:
+            print(
+                "❌ UniDep metadata requires Conda dependencies, but no conda"
+                " executable was found (`conda`, `mamba`, or `micromamba`).",
+            )
+            print(
+                "Install micromamba/conda and retry, or rerun with `--skip-conda` to"
+                " force a pip-only attempt.",
+            )
+            sys.exit(1)
+        _install_conda_dependencies(
+            conda_deps,
+            channels=channels,
+            conda_executable=conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+            dry_run=dry_run,
+        )
+
+    if pip_deps and not skip_pip:
+        _pip_install_packages(
+            *pip_deps,
+            dry_run=dry_run,
+            python_executable=python_executable,
+            conda_run=conda_run,
+            no_uv=no_uv,
+            description="pip dependencies from UniDep metadata",
+        )
+
+    if with_metadata:
+        _pip_install_packages(
+            *with_metadata,
+            dry_run=dry_run,
+            python_executable=python_executable,
+            conda_run=conda_run,
+            no_uv=no_uv,
+            flags=["--no-deps"],
+            description="package specs (with UniDep metadata)",
+        )
+
+    fallback_flags = ["--no-deps"] if skip_pip else None
+    if fallback_to_pip:
+        _pip_install_packages(
+            *fallback_to_pip,
+            dry_run=dry_run,
+            python_executable=python_executable,
+            conda_run=conda_run,
+            no_uv=no_uv,
+            flags=fallback_flags,
+            description="package specs (pip fallback)",
+        )
+
+    if not dry_run:
+        total_time = time.time() - start_time
+        msg = f"✅ All dependencies installed successfully in {total_time:.2f} seconds."
+        print(msg)
 
 
 def _install_command(  # noqa: PLR0912, PLR0915
@@ -1657,26 +2060,64 @@ def main() -> None:  # noqa: PLR0912
 
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
-        if args.conda_env_name is None and args.conda_env_prefix is None:
-            _check_conda_prefix()
-        _install_command(
-            *(args.files or [Path()]),
-            conda_executable=args.conda_executable,
-            conda_env_name=args.conda_env_name,
-            conda_env_prefix=args.conda_env_prefix,
-            conda_lock_file=args.conda_lock_file,
-            dry_run=args.dry_run,
-            editable=args.editable,
-            skip_local=args.skip_local,
-            skip_pip=args.skip_pip,
-            skip_conda=args.skip_conda,
-            no_dependencies=args.no_dependencies,
-            ignore_pins=args.ignore_pin,
-            skip_dependencies=args.skip_dependency,
-            overwrite_pins=args.overwrite_pin,
-            no_uv=args.no_uv,
-            verbose=args.verbose,
-        )
+        install_targets = list(args.files or [Path()])
+        try:
+            local_targets, package_specs = _classify_install_targets(install_targets)
+        except ValueError as exc:
+            print(f"❌ {exc}")
+            sys.exit(1)
+
+        if local_targets and package_specs:
+            print(
+                "❌ Cannot mix local requirement paths and package specifiers in one"
+                " `unidep install` command.",
+            )
+            print(
+                "Use separate commands, e.g. `unidep install .` and then"
+                " package specs.",
+            )
+            sys.exit(1)
+
+        if package_specs:
+            _install_package_specs_command(
+                *package_specs,
+                conda_executable=args.conda_executable,
+                conda_env_name=args.conda_env_name,
+                conda_env_prefix=args.conda_env_prefix,
+                conda_lock_file=args.conda_lock_file,
+                dry_run=args.dry_run,
+                editable=args.editable,
+                skip_local=args.skip_local,
+                skip_pip=args.skip_pip,
+                skip_conda=args.skip_conda,
+                no_dependencies=args.no_dependencies,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
+                no_uv=args.no_uv,
+                verbose=args.verbose,
+            )
+        else:
+            if args.conda_env_name is None and args.conda_env_prefix is None:
+                _check_conda_prefix()
+            _install_command(
+                *local_targets,
+                conda_executable=args.conda_executable,
+                conda_env_name=args.conda_env_name,
+                conda_env_prefix=args.conda_env_prefix,
+                conda_lock_file=args.conda_lock_file,
+                dry_run=args.dry_run,
+                editable=args.editable,
+                skip_local=args.skip_local,
+                skip_pip=args.skip_pip,
+                skip_conda=args.skip_conda,
+                no_dependencies=args.no_dependencies,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
+                no_uv=args.no_uv,
+                verbose=args.verbose,
+            )
     elif args.command == "install-all":
         if args.conda_env_name is None and args.conda_env_prefix is None:
             _check_conda_prefix()
