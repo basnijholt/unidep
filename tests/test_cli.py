@@ -707,10 +707,10 @@ def test_install_package_specs_command_with_unidep_metadata(
         "unidep._cli.identify_current_platform",
         return_value="linux-64",
     ), patch(
-        "unidep._cli._download_package_artifact",
+        "unidep._index_install._download_package_artifact",
         return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
     ), patch(
-        "unidep._cli.extract_unidep_metadata_from_wheel",
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
         return_value=metadata,
     ), patch(
         "unidep._cli._maybe_exe",
@@ -760,10 +760,10 @@ def test_install_package_specs_command_fallback_to_pip_only() -> None:
         calls.append([str(c) for c in cmd])
 
     with patch(
-        "unidep._cli._download_package_artifact",
+        "unidep._index_install._download_package_artifact",
         return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
     ), patch(
-        "unidep._cli.extract_unidep_metadata_from_wheel",
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
         return_value=None,
     ), patch(
         "unidep._cli._maybe_conda_executable",
@@ -807,10 +807,10 @@ def test_install_package_specs_command_requires_conda_for_metadata() -> None:
         "unidep._cli.identify_current_platform",
         return_value="linux-64",
     ), patch(
-        "unidep._cli._download_package_artifact",
+        "unidep._index_install._download_package_artifact",
         return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
     ), patch(
-        "unidep._cli.extract_unidep_metadata_from_wheel",
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
         return_value=metadata,
     ), patch(
         "unidep._cli._maybe_conda_executable",
