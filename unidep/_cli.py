@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+from unidep import _index_install
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -29,15 +30,6 @@ from unidep._dependencies_parsing import (
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
-)
-from unidep._index_install import (
-    InstallRuntime as _InstallRuntime,
-)
-from unidep._index_install import (
-    classify_install_targets as _classify_install_targets_impl,
-)
-from unidep._index_install import (
-    install_package_specs_command as _install_package_specs_command_impl,
 )
 from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
@@ -75,13 +67,6 @@ try:  # pragma: no cover
             return None
 except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
-
-try:  # pragma: no cover
-    from rich.console import Console as RichConsole
-    from rich.table import Table as RichTable
-except ImportError:  # pragma: no cover
-    RichConsole = None
-    RichTable = None
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
 CondaExecutable = Literal["conda", "mamba", "micromamba"]
@@ -1040,7 +1025,7 @@ def _install_package_specs_command(
     verbose: bool = False,
 ) -> None:
     """Install dependencies and package specs from package index artifacts."""
-    runtime = _InstallRuntime(
+    runtime = _index_install.InstallRuntime(
         maybe_conda_executable=_maybe_conda_executable,
         maybe_conda_run=_maybe_conda_run,
         python_executable=_python_executable,
@@ -1051,7 +1036,7 @@ def _install_package_specs_command(
         identify_current_platform=identify_current_platform,
         run_subprocess=subprocess.run,
     )
-    _install_package_specs_command_impl(
+    _index_install.install_package_specs_command(
         *package_specs,
         conda_executable=conda_executable,
         conda_env_name=conda_env_name,
@@ -1074,7 +1059,7 @@ def _install_package_specs_command(
 
 def _classify_install_targets(files: list[Path]) -> tuple[list[Path], list[str]]:
     """Classify install targets as local requirement files or package specs."""
-    return _classify_install_targets_impl(files)
+    return _index_install.classify_install_targets(files)
 
 
 def _install_command(  # noqa: PLR0912, PLR0915
@@ -1643,10 +1628,11 @@ def _print_versions() -> None:  # pragma: no cover
 
 def _print_with_rich(data: list) -> None:
     """Print data as a table using rich, if it's installed."""
-    assert RichConsole is not None
-    assert RichTable is not None
-    console = RichConsole()
-    table = RichTable(show_header=False)
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    table = Table(show_header=False)
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="magenta")
     for line in data:
