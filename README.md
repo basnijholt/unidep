@@ -648,7 +648,9 @@ positional arguments:
                         then with Pip. Finally, it installs local packages
                         (those containing the `requirements.yaml` or
                         `pyproject.toml` files) using `pip install [-e]
-                        ./project`.
+                        ./project`. It can also install from package
+                        requirement specifiers, e.g. `unidep install
+                        "pkg==1.2.3"`.
     install-all         Install dependencies from all `requirements.yaml` or
                         `pyproject.toml` files found in the current directory
                         or specified directory. This command first installs
@@ -786,12 +788,15 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install .` for a single project. For
-multiple projects: `unidep install ./project1 ./project2`. The command accepts
-both file paths and directories containing a `requirements.yaml` or
-`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
-in editable mode. See `unidep install-all` to install all `requirements.yaml`
-or `pyproject.toml` files in and below the current folder.
+./project`. It can also install from package requirement specifiers, e.g.
+`unidep install "pkg==1.2.3"`. Example usage: `unidep install .` for a single
+project. For multiple projects: `unidep install ./project1 ./project2`. The
+command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder. For package artifacts, use `unidep install
+"pkg[extra]==1.2.3"`.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
@@ -878,12 +883,15 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install .` for a single project. For
-multiple projects: `unidep install ./project1 ./project2`. The command accepts
-both file paths and directories containing a `requirements.yaml` or
-`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
-in editable mode. See `unidep install-all` to install all `requirements.yaml`
-or `pyproject.toml` files in and below the current folder.
+./project`. It can also install from package requirement specifiers, e.g.
+`unidep install "pkg==1.2.3"`. Example usage: `unidep install .` for a single
+project. For multiple projects: `unidep install ./project1 ./project2`. The
+command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder. For package artifacts, use `unidep install
+"pkg[extra]==1.2.3"`.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
