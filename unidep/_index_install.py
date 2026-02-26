@@ -317,7 +317,7 @@ def _install_conda_dependencies(
         run_subprocess((*conda_command, *conda_dependencies), check=True)
 
 
-def install_package_specs_command(  # noqa: PLR0912, PLR0915
+def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
     *package_specs: str,
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
@@ -433,13 +433,16 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
             channels.extend(selected.channels)
             conda_deps.extend(selected.conda)
             pip_deps.extend(selected.pip)
-            # Pin to the exact version from the inspected metadata so that
-            # the ``--no-deps`` install uses the same artifact whose metadata
-            # we read (avoids version drift for range specifiers).
-            pinned_spec = f"{metadata.project}=={metadata.version}"
-            with_metadata.append(pinned_spec)
+            # Preserve direct references (``name @ url`` / ``name @ file://``)
+            # so installation uses the exact artifact that was inspected.
+            # For non-direct specs (e.g. ranges), pin to the inspected version
+            # to avoid drift between inspection and final ``--no-deps`` install.
+            install_spec = package_spec
+            if req.url is None:
+                install_spec = f"{metadata.project}=={metadata.version}"
+            with_metadata.append(install_spec)
             if selected.conda:
-                with_metadata_has_conda.append(pinned_spec)
+                with_metadata_has_conda.append(install_spec)
 
     channels = dedupe(channels)
     conda_deps = dedupe(conda_deps)
