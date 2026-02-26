@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -98,15 +99,19 @@ def _pip_install_packages(
         run_subprocess(pip_command, check=True)
 
 
-def classify_install_targets(files: list[Path]) -> tuple[list[Path], list[str]]:
-    """Classify install targets as local requirement files or package specs."""
+def classify_install_targets(targets: list[str]) -> tuple[list[Path], list[str]]:
+    """Classify install targets as local requirement files or package specs.
+
+    Accepts raw strings so that PEP 508 specifiers (e.g. URLs with ``://``)
+    are not corrupted by ``Path`` normalisation.  Local targets are converted
+    to ``Path`` only after classification.
+    """
     local_targets: list[Path] = []
     package_specs: list[str] = []
-    for file in files:
-        candidate = str(file)
+    for candidate in targets:
         try:
             parse_folder_or_filename(candidate)
-        except FileNotFoundError:
+        except FileNotFoundError:  # noqa: PERF203
             try:
                 Requirement(candidate)
             except InvalidRequirement as exc:
@@ -117,7 +122,7 @@ def classify_install_targets(files: list[Path]) -> tuple[list[Path], list[str]]:
                 raise ValueError(msg) from exc
             package_specs.append(candidate)
         else:
-            local_targets.append(file)
+            local_targets.append(Path(candidate))
     return local_targets, package_specs
 
 
@@ -167,10 +172,10 @@ def _download_package_artifact(
     if source_dists:
         return source_dists[-1]
 
-    msg = (
-        f"Could not find a downloaded artifact for `{package_spec}` in `{destination}`."
-    )
-    raise RuntimeError(msg)
+    # pip may download nothing when environment markers evaluate to false
+    # (e.g. ``pkg; sys_platform == "win32"`` on Linux).  Treat this as a
+    # non-fatal case: the caller will fall back to a plain pip install.
+    return None
 
 
 def _parse_requirement_or_none(spec: str) -> Requirement | None:
@@ -245,7 +250,12 @@ def _load_unidep_metadata_for_spec(
 
     try:
         metadata = extract_unidep_metadata_from_wheel(artifact)
-    except (OSError, json.JSONDecodeError, UnidepMetadataError) as exc:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        zipfile.BadZipFile,
+        UnidepMetadataError,
+    ) as exc:
         print(
             f"⚠️  Invalid UniDep metadata in `{artifact.name}` ({exc})."
             " Falling back to pip-only install.",

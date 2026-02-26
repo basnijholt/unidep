@@ -668,10 +668,18 @@ def test_classify_install_targets(tmp_path: Path) -> None:
     requirements_file.write_text("dependencies: []\n")
 
     local_targets, package_specs = classify_install_targets(
-        [requirements_file, Path("demo-package==1.2.3")],
+        [str(requirements_file), "demo-package==1.2.3"],
     )
     assert local_targets == [requirements_file]
     assert package_specs == ["demo-package==1.2.3"]
+
+
+def test_classify_install_targets_preserves_url_specifiers() -> None:
+    """URL specifiers must not be corrupted (Path would collapse ``://``)."""
+    url_spec = "demo @ https://example.com/demo-1.0-py3-none-any.whl"
+    _, package_specs = classify_install_targets([url_spec])
+    assert package_specs == [url_spec]
+    assert "://" in package_specs[0]  # double-slash preserved
 
 
 def test_classify_install_targets_invalid_specifier() -> None:
@@ -679,7 +687,7 @@ def test_classify_install_targets_invalid_specifier() -> None:
         ValueError,
         match="neither a valid package requirement specifier nor an existing local path",
     ):
-        classify_install_targets([Path("not a valid requirement")])
+        classify_install_targets(["not a valid requirement"])
 
 
 def test_install_package_specs_command_with_unidep_metadata(

@@ -164,21 +164,22 @@ def test_download_package_artifact_returns_sdist(tmp_path: Path) -> None:
     assert artifact.name.endswith(".tar.gz")
 
 
-def test_download_package_artifact_raises_when_nothing_downloaded(
+def test_download_package_artifact_returns_none_when_nothing_downloaded(
     tmp_path: Path,
 ) -> None:
+    """Pip may download nothing for marker-gated requirements; return None."""
     destination = tmp_path / "download"
     destination.mkdir()
 
-    with pytest.raises(RuntimeError, match="Could not find a downloaded artifact"):
-        _download_package_artifact(
-            "demo-package==1.2.3",
-            destination=destination,
-            python_executable="python",
-            conda_run=[],
-            dry_run=False,
-            run_subprocess=lambda *_args, **_kwargs: None,
-        )
+    artifact = _download_package_artifact(
+        "demo-package==1.2.3",
+        destination=destination,
+        python_executable="python",
+        conda_run=[],
+        dry_run=False,
+        run_subprocess=lambda *_args, **_kwargs: None,
+    )
+    assert artifact is None
 
 
 def test_parse_requirement_or_none_invalid() -> None:
@@ -365,3 +366,58 @@ def test_install_package_specs_warns_missing_extras_and_skips_conda(
     out = capsys.readouterr().out
     assert "does not define extra(s): dev" in out
     assert "Skipping UniDep Conda dependencies because `--skip-conda` is set." in out
+
+
+def test_load_unidep_metadata_for_spec_bad_zip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A corrupt .whl (BadZipFile) should fall back gracefully."""
+    artifact = tmp_path / "demo-package-1.2.3-py3-none-any.whl"
+    artifact.write_text("this is not a zip file")
+
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=artifact,
+    ):
+        metadata = _load_unidep_metadata_for_spec(
+            "demo-package==1.2.3",
+            destination=tmp_path,
+            python_executable="python",
+            conda_run=[],
+            dry_run=False,
+            run_subprocess=lambda *_args, **_kwargs: None,
+        )
+    assert metadata is None
+    assert "Invalid UniDep metadata" in capsys.readouterr().out
+
+
+def test_marker_gated_requirement_falls_back_to_pip() -> None:
+    """A requirement whose marker is false produces no download; should not crash."""
+    calls: list[list[str]] = []
+
+    # Simulate pip downloading nothing (marker false → exit 0, empty dir)
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=None,
+    ):
+        install_package_specs_command(
+            'demo-package==1.2.3; python_version < "2"',
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    # Should fall back to pip install without crashing
+    assert calls == [
+        [
+            "python",
+            "-m",
+            "pip",
+            "install",
+            'demo-package==1.2.3; python_version < "2"',
+        ],
+    ]

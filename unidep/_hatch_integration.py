@@ -62,6 +62,7 @@ class UnidepBuildHook(BuildHookInterface):
     PLUGIN_NAME = "unidep"
 
     def initialize(self, version: str, build_data: dict) -> None:
+        del version  # build variant ("standard"/"editable"), not project version
         project_root = Path(self.root)
         try:
             requirements_file = parse_folder_or_filename(project_root).path
@@ -71,7 +72,7 @@ class UnidepBuildHook(BuildHookInterface):
         payload = build_unidep_metadata(
             requirements_file,
             project=package_name_from_path(project_root),
-            version=version,
+            version=self.metadata.version,
             verbose=bool(os.getenv("UNIDEP_VERBOSE")),
         )
         output_dir = Path(self.directory) / ".unidep"

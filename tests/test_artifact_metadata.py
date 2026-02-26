@@ -256,3 +256,30 @@ dependencies:
     )
 
     assert set(metadata["platforms"]) == set(get_args(Platform))
+
+
+def test_select_unidep_dependencies_extras_normalisation() -> None:
+    """Extras lookup should be case-/separator-insensitive (PEP 685)."""
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": [], "pip": ["requests>=2"]},
+        },
+        "extras": {
+            "dev_extra": {
+                "linux-64": {"conda": [], "pip": ["pytest>=8"]},
+            },
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    # Request using different casing/separators — should still match.
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["Dev-Extra"],
+    )
+    assert selected.pip == ["requests>=2", "pytest>=8"]
+    assert selected.missing_extras == []

@@ -190,6 +190,11 @@ def extract_unidep_metadata_from_wheel(wheel: str | Path) -> UnidepMetadata | No
     return parse_unidep_metadata(raw)
 
 
+def _normalise_extra_name(name: str) -> str:
+    """Normalise an extra name per PEP 685 (lowercase, collapse ``[-_.]``)."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def select_unidep_dependencies(
     metadata: UnidepMetadata,
     *,
@@ -203,11 +208,17 @@ def select_unidep_dependencies(
         msg = f"Platform `{platform}` is not present in UniDep metadata."
         raise UnidepMetadataError(msg) from exc
 
+    # Build a normalised lookup for extras so that ``Dev``, ``dev``, and
+    # ``dev_extra`` all match regardless of casing/separator style (PEP 685).
+    normalised_extras: dict[str, dict[Platform, PlatformDependencySet]] = {
+        _normalise_extra_name(k): v for k, v in metadata.extras.items()
+    }
+
     conda = list(base.conda)
     pip = list(base.pip)
     missing_extras: list[str] = []
     for extra in sorted(set(extras or [])):
-        extra_platforms = metadata.extras.get(extra)
+        extra_platforms = normalised_extras.get(_normalise_extra_name(extra))
         if extra_platforms is None:
             missing_extras.append(extra)
             continue
@@ -219,19 +230,12 @@ def select_unidep_dependencies(
         pip.extend(extra_deps.pip)
 
     # An extra may move a dependency from pip→conda (or vice versa).  Filter
-    # out pip entries that are now provided by conda and conda entries that are
-    # now provided by pip so we never install the same package from both
-    # channels.  We compare by normalised package name (lowercased, with
-    # hyphens/underscores collapsed).
+    # out pip entries that are now provided by conda so we never install the
+    # same package from both channels.  We compare by normalised package name
+    # (lowercased, with hyphens/underscores collapsed).  Conda is preferred
+    # when a name appears in both lists.
     conda_names = {_normalise_dep_name(d) for d in conda}
-    pip_names = {_normalise_dep_name(d) for d in pip}
-    # Prefer conda when a name appears in both lists.
     pip = [d for d in pip if _normalise_dep_name(d) not in conda_names]
-    # Remove stale pip names set since we just filtered.
-    pip_names = {_normalise_dep_name(d) for d in pip}
-    # Drop any conda entry whose name only appears because of pip (shouldn't
-    # happen in practice, but keeps the invariant symmetric).
-    _ = pip_names  # used above, keep linter happy
 
     return SelectedMetadataDependencies(
         channels=list(metadata.channels),

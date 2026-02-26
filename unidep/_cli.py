@@ -116,7 +116,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "*files" in options:
         sub_parser.add_argument(
             "files",
-            type=Path,
+            type=str,
             nargs="+",
             help=f"The {_DEP_FILES} file(s) to parse"
             " or folder(s) that contain those file(s), by default `.`",
@@ -1719,10 +1719,10 @@ def main() -> None:  # noqa: PLR0912
 
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
-        install_targets = list(args.files or [Path()])
+        raw_targets = list(args.files or ["."])
         try:
             local_targets, package_specs = _index_install.classify_install_targets(
-                install_targets,
+                raw_targets,
             )
         except ValueError as exc:
             print(f"❌ {exc}")
