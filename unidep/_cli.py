@@ -1739,6 +1739,9 @@ def main() -> None:  # noqa: PLR0912
             )
             sys.exit(1)
 
+        if args.conda_env_name is None and args.conda_env_prefix is None:
+            _check_conda_prefix()
+
         if package_specs:
             _install_package_specs_command(
                 *package_specs,
@@ -1759,8 +1762,6 @@ def main() -> None:  # noqa: PLR0912
                 verbose=args.verbose,
             )
         else:
-            if args.conda_env_name is None and args.conda_env_prefix is None:
-                _check_conda_prefix()
             _install_command(
                 *local_targets,
                 conda_executable=args.conda_executable,

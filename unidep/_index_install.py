@@ -22,7 +22,7 @@ from unidep._artifact_metadata import (
     extract_unidep_metadata_from_wheel,
     select_unidep_dependencies,
 )
-from unidep.utils import parse_folder_or_filename
+from unidep.utils import parse_folder_or_filename, split_path_and_extras
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import Platform
@@ -111,15 +111,19 @@ def classify_install_targets(targets: list[str]) -> tuple[list[Path], list[str]]
     for candidate in targets:
         try:
             parse_folder_or_filename(candidate)
-        except FileNotFoundError:  # noqa: PERF203
+        except FileNotFoundError as exc:  # noqa: PERF203
+            candidate_path, _extras = split_path_and_extras(candidate)
+            if candidate_path.exists():
+                # Existing local paths should never be interpreted as package specs.
+                raise ValueError(str(exc)) from exc
             try:
                 Requirement(candidate)
-            except InvalidRequirement as exc:
+            except InvalidRequirement as requirement_exc:
                 msg = (
                     f"`{candidate}` is neither a valid package requirement specifier"
                     " nor an existing local path."
                 )
-                raise ValueError(msg) from exc
+                raise ValueError(msg) from requirement_exc
             package_specs.append(candidate)
         else:
             local_targets.append(Path(candidate))
@@ -252,6 +256,7 @@ def _load_unidep_metadata_for_spec(
         metadata = extract_unidep_metadata_from_wheel(artifact)
     except (
         OSError,
+        UnicodeDecodeError,
         json.JSONDecodeError,
         zipfile.BadZipFile,
         UnidepMetadataError,

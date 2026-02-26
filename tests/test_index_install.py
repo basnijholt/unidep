@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -375,6 +376,30 @@ def test_load_unidep_metadata_for_spec_bad_zip(
     """A corrupt .whl (BadZipFile) should fall back gracefully."""
     artifact = tmp_path / "demo-package-1.2.3-py3-none-any.whl"
     artifact.write_text("this is not a zip file")
+
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=artifact,
+    ):
+        metadata = _load_unidep_metadata_for_spec(
+            "demo-package==1.2.3",
+            destination=tmp_path,
+            python_executable="python",
+            conda_run=[],
+            dry_run=False,
+            run_subprocess=lambda *_args, **_kwargs: None,
+        )
+    assert metadata is None
+    assert "Invalid UniDep metadata" in capsys.readouterr().out
+
+
+def test_load_unidep_metadata_for_spec_invalid_utf8(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifact = tmp_path / "demo-package-1.2.3-py3-none-any.whl"
+    with zipfile.ZipFile(artifact, "w") as zf:
+        zf.writestr("demo-package-1.2.3.dist-info/unidep.json", b"\xff\xfe")
 
     with patch(
         "unidep._index_install._download_package_artifact",

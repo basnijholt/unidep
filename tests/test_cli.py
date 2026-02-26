@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import platform
 import re
@@ -41,6 +42,7 @@ from unidep._cli import (
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
+    main,
 )
 from unidep._index_install import classify_install_targets
 
@@ -688,6 +690,49 @@ def test_classify_install_targets_invalid_specifier() -> None:
         match="neither a valid package requirement specifier nor an existing local path",
     ):
         classify_install_targets(["not a valid requirement"])
+
+
+def test_classify_install_targets_existing_directory_without_unidep_file_errors(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    with pytest.raises(ValueError, match="not found in"):
+        classify_install_targets([str(project_dir)])
+
+
+def test_main_install_package_specs_checks_conda_prefix() -> None:
+    args = argparse.Namespace(
+        command="install",
+        files=["demo-package==1.2.3"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        return_value=([], ["demo-package==1.2.3"]),
+    ), patch("unidep._cli._check_conda_prefix") as check_prefix, patch(
+        "unidep._cli._install_package_specs_command",
+    ) as install_package_specs:
+        main()
+
+    check_prefix.assert_called_once()
+    install_package_specs.assert_called_once()
 
 
 def test_install_package_specs_command_with_unidep_metadata(

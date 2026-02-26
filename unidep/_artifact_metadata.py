@@ -76,7 +76,8 @@ def _normalise_dep_name(dep: str) -> str:
     Returns a lowercase name with runs of ``[-_.]`` collapsed to ``-``.
     """
     # Split on the first whitespace (conda) or version operator (pip).
-    name = re.split(r"[\s>=<!;@\[]", dep, maxsplit=1)[0]
+    # Include ``~`` so compatible-release pins (e.g. ``pkg~=1.2``) are parsed.
+    name = re.split(r"[\s~>=<!;@\[]", dep, maxsplit=1)[0]
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
