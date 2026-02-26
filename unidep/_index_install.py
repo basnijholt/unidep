@@ -18,11 +18,15 @@ from unidep._artifact_metadata import (
     CondaExecutable,
     UnidepMetadata,
     UnidepMetadataError,
-    _dedupe,
     extract_unidep_metadata_from_wheel,
     select_unidep_dependencies,
 )
-from unidep.utils import parse_folder_or_filename, split_path_and_extras
+from unidep.utils import (
+    dedupe,
+    identify_current_platform,
+    parse_folder_or_filename,
+    split_path_and_extras,
+)
 
 if TYPE_CHECKING:
     from unidep.platform_definitions import Platform
@@ -342,7 +346,7 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
         maybe_exe=lambda c: c,
         format_inline_conda_package=lambda p: p,
         use_uv=lambda _no_uv: False,
-        identify_current_platform=lambda: "linux-64",
+        identify_current_platform=identify_current_platform,
     )
     start_time = time.time()
     if conda_lock_file is not None:
@@ -376,6 +380,9 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
     conda_deps: list[str] = []
     pip_deps: list[str] = []
     with_metadata: list[str] = []
+    # Specs whose metadata contained conda deps — tracked separately so we
+    # can move them to fallback when ``--skip-conda`` is set.
+    with_metadata_has_conda: list[str] = []
     fallback_to_pip: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix="unidep-download-") as tmpdir:
@@ -426,16 +433,30 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
             channels.extend(selected.channels)
             conda_deps.extend(selected.conda)
             pip_deps.extend(selected.pip)
-            with_metadata.append(package_spec)
+            # Pin to the exact version from the inspected metadata so that
+            # the ``--no-deps`` install uses the same artifact whose metadata
+            # we read (avoids version drift for range specifiers).
+            pinned_spec = f"{metadata.project}=={metadata.version}"
+            with_metadata.append(pinned_spec)
+            if selected.conda:
+                with_metadata_has_conda.append(pinned_spec)
 
-    channels = _dedupe(channels)
-    conda_deps = _dedupe(conda_deps)
-    pip_deps = _dedupe(pip_deps)
-    with_metadata = _dedupe(with_metadata)
-    fallback_to_pip = _dedupe(fallback_to_pip)
+    channels = dedupe(channels)
+    conda_deps = dedupe(conda_deps)
+    pip_deps = dedupe(pip_deps)
+    with_metadata = dedupe(with_metadata)
+    fallback_to_pip = dedupe(fallback_to_pip)
 
     if conda_deps and skip_conda:
         print("⚠️  Skipping UniDep Conda dependencies because `--skip-conda` is set.")
+        # Packages whose metadata required conda deps cannot be safely
+        # installed with ``--no-deps`` when conda is skipped.  Move them to
+        # the pip fallback list so pip can resolve their dependencies.
+        for spec in with_metadata_has_conda:
+            if spec in with_metadata:
+                with_metadata.remove(spec)
+                fallback_to_pip.append(spec)
+        fallback_to_pip = dedupe(fallback_to_pip)
     if conda_deps and not skip_conda:
         if conda_executable is None:
             print(

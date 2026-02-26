@@ -472,6 +472,11 @@ def parse_folder_or_filename(folder_or_file: str | Path) -> PathWithExtras:
     return PathWithExtras(path, extras)
 
 
+def dedupe(items: list[str]) -> list[str]:
+    """Remove duplicates from a list while preserving order."""
+    return list(dict.fromkeys(items))
+
+
 def defaultdict_to_dict(d: defaultdict | Any) -> dict:
     """Convert (nested) defaultdict to (nested) dict."""
     if isinstance(d, defaultdict):

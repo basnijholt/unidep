@@ -447,3 +447,58 @@ def test_marker_gated_requirement_falls_back_to_pip() -> None:
             'demo-package==1.2.3; python_version < "2"',
         ],
     ]
+
+
+def test_install_package_specs_pins_to_metadata_version() -> None:
+    """The --no-deps install should use the exact version from metadata."""
+    calls: list[list[str]] = []
+    # User passes a range spec, but metadata resolves to 1.2.3
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(pip=["requests>=2"]),
+    ):
+        install_package_specs_command(
+            "demo-package>=1.0",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    # Must pin to metadata version, not the original range spec
+    assert ["python", "-m", "pip", "install", "--no-deps", "demo-package==1.2.3"] in (
+        calls
+    )
+    # The original range spec should NOT appear in any --no-deps call
+    assert not any("demo-package>=1.0" in cmd for cmd in calls if "--no-deps" in cmd)
+
+
+def test_install_package_specs_skip_conda_moves_to_fallback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When --skip-conda is set, packages with conda deps use pip fallback."""
+    calls: list[list[str]] = []
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(conda=["qsimcirq * cuda*"], pip=["requests>=2"]),
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            skip_conda=True,
+            runtime=_make_runtime(calls=calls),
+        )
+    out = capsys.readouterr().out
+    assert "Skipping UniDep Conda dependencies" in out
+    # Package should be installed via pip fallback (without --no-deps)
+    # so pip can resolve the conda deps that were skipped
+    assert ["python", "-m", "pip", "install", "demo-package==1.2.3"] in calls
+    # Should NOT have a --no-deps install for this package
+    assert not any("--no-deps" in cmd and "demo-package==1.2.3" in cmd for cmd in calls)

@@ -23,6 +23,40 @@ from unidep.utils import (
 REPO_ROOT = Path(__file__).parent.parent
 
 
+class _StubMetadata:
+    """Minimal setuptools Distribution.metadata stand-in for tests."""
+
+    @staticmethod
+    def get_name() -> str:
+        return "demo-package"
+
+    @staticmethod
+    def get_version() -> str:
+        return "1.2.3"
+
+
+class _StubDistribution:
+    """Minimal setuptools Distribution stand-in for tests."""
+
+    metadata = _StubMetadata()
+
+
+class _StubCmd:
+    """Minimal setuptools egg_info command stand-in for tests."""
+
+    distribution = _StubDistribution()
+    written: str | None = None
+
+    def write_or_delete_file(
+        self,
+        what: str,  # noqa: ARG002
+        filename: str,  # noqa: ARG002
+        data: str,
+        force: bool,  # noqa: FBT001, ARG002
+    ) -> None:
+        self.written = data
+
+
 def test_package_name_from_path() -> None:
     example = REPO_ROOT / "example"
     # Could not find the package name, so it uses the folder name
@@ -157,33 +191,8 @@ def test_write_unidep_metadata_egg_info(
         ),
     )
 
-    class _Metadata:
-        @staticmethod
-        def get_name() -> str:
-            return "demo-package"
-
-        @staticmethod
-        def get_version() -> str:
-            return "1.2.3"
-
-    class _Distribution:
-        metadata = _Metadata()
-
-    class _Cmd:
-        distribution = _Distribution()
-        written: str | None = None
-
-        def write_or_delete_file(
-            self,
-            what: str,  # noqa: ARG002
-            filename: str,  # noqa: ARG002
-            data: str,
-            force: bool,  # noqa: FBT001, ARG002
-        ) -> None:
-            self.written = data
-
     monkeypatch.chdir(tmp_path)
-    cmd = _Cmd()
+    cmd = _StubCmd()
     _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
     assert cmd.written is not None
     payload = json.loads(cmd.written)
@@ -210,33 +219,8 @@ def test_setuptools_metadata_written_to_wheel_is_used_by_package_install(
         ),
     )
 
-    class _Metadata:
-        @staticmethod
-        def get_name() -> str:
-            return "demo-package"
-
-        @staticmethod
-        def get_version() -> str:
-            return "1.2.3"
-
-    class _Distribution:
-        metadata = _Metadata()
-
-    class _Cmd:
-        distribution = _Distribution()
-        written: str | None = None
-
-        def write_or_delete_file(
-            self,
-            what: str,  # noqa: ARG002
-            filename: str,  # noqa: ARG002
-            data: str,
-            force: bool,  # noqa: FBT001, ARG002
-        ) -> None:
-            self.written = data
-
     monkeypatch.chdir(tmp_path)
-    cmd = _Cmd()
+    cmd = _StubCmd()
     _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
     assert cmd.written is not None
 

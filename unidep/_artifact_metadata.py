@@ -15,7 +15,7 @@ from unidep._conda_env import create_conda_env_specification
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import parse_requirements
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import collect_selector_platforms, resolve_platforms
+from unidep.utils import collect_selector_platforms, dedupe, resolve_platforms
 
 if TYPE_CHECKING:
     from unidep._dependencies_parsing import ParsedRequirements
@@ -65,10 +65,6 @@ class SelectedMetadataDependencies:
     missing_extras: list[str]
 
 
-def _dedupe(items: list[str]) -> list[str]:
-    return list(dict.fromkeys(items))
-
-
 def _normalise_dep_name(dep: str) -> str:
     """Extract and normalise the package name from a dependency string.
 
@@ -115,8 +111,8 @@ def _parse_platform_deps(
             field=f"{field}.{raw_platform}.pip",
         )
         parsed[cast("Platform", raw_platform)] = PlatformDependencySet(
-            conda=_dedupe(conda_deps),
-            pip=_dedupe(pip_deps),
+            conda=dedupe(conda_deps),
+            pip=dedupe(pip_deps),
         )
     return parsed
 
@@ -240,8 +236,8 @@ def select_unidep_dependencies(
 
     return SelectedMetadataDependencies(
         channels=list(metadata.channels),
-        conda=_dedupe(conda),
-        pip=_dedupe(pip),
+        conda=dedupe(conda),
+        pip=dedupe(pip),
         missing_extras=missing_extras,
     )
 
@@ -303,8 +299,8 @@ def _resolve_platform_specs(
         )
         conda = [dep for dep in env_spec.conda if isinstance(dep, str)]
         by_platform[platform] = PlatformDependencySet(
-            conda=_dedupe(conda),
-            pip=_dedupe(list(env_spec.pip)),
+            conda=dedupe(conda),
+            pip=dedupe(list(env_spec.pip)),
         )
     return by_platform
 
@@ -360,7 +356,7 @@ def build_unidep_metadata(
     return _metadata_payload(
         project=project,
         version=version,
-        channels=_dedupe(list(requirements.channels)),
+        channels=dedupe(list(requirements.channels)),
         platforms=base_by_platform,
         extras=extras_payload,
     )
