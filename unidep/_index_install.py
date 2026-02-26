@@ -416,8 +416,13 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
                 print(
                     "⚠️  UniDep metadata for"
                     f" `{package_spec}` does not define extra(s):"
-                    f" {', '.join(selected.missing_extras)}.",
+                    f" {', '.join(selected.missing_extras)}."
+                    " Falling back to pip-only install so pip can resolve"
+                    " those extras.",
                 )
+                fallback_to_pip.append(package_spec)
+                continue
+
             channels.extend(selected.channels)
             conda_deps.extend(selected.conda)
             pip_deps.extend(selected.pip)

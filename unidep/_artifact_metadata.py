@@ -287,13 +287,15 @@ def _resolve_platform_specs(
     platforms: list[Platform],
     optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
 ) -> dict[Platform, PlatformDependencySet]:
-    resolved = resolve_conflicts(
-        copy.deepcopy(requirements.requirements),
-        platforms,
-        optional_dependencies=copy.deepcopy(optional_dependencies),
-    )
     by_platform: dict[Platform, PlatformDependencySet] = {}
     for platform in platforms:
+        # Resolve once per platform so the emitted metadata for that platform
+        # never includes dependencies selected only for other platforms.
+        resolved = resolve_conflicts(
+            copy.deepcopy(requirements.requirements),
+            [platform],
+            optional_dependencies=copy.deepcopy(optional_dependencies),
+        )
         env_spec = create_conda_env_specification(
             resolved,
             requirements.channels,

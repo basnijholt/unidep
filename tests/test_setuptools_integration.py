@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import textwrap
+import zipfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
+from unidep._index_install import InstallRuntime, install_package_specs_command
 from unidep._setuptools_integration import _write_unidep_metadata_egg_info
 from unidep.utils import (
     package_name_from_path,
@@ -187,3 +190,98 @@ def test_write_unidep_metadata_egg_info(
     assert payload["schema_version"] == 1
     assert payload["project"] == "demo-package"
     assert payload["version"] == "1.2.3"
+
+
+def test_setuptools_metadata_written_to_wheel_is_used_by_package_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end: setuptools metadata writer output is consumed by index install."""
+    (tmp_path / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: requests >=2
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    class _Metadata:
+        @staticmethod
+        def get_name() -> str:
+            return "demo-package"
+
+        @staticmethod
+        def get_version() -> str:
+            return "1.2.3"
+
+    class _Distribution:
+        metadata = _Metadata()
+
+    class _Cmd:
+        distribution = _Distribution()
+        written: str | None = None
+
+        def write_or_delete_file(
+            self,
+            what: str,  # noqa: ARG002
+            filename: str,  # noqa: ARG002
+            data: str,
+            force: bool,  # noqa: FBT001, ARG002
+        ) -> None:
+            self.written = data
+
+    monkeypatch.chdir(tmp_path)
+    cmd = _Cmd()
+    _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
+    assert cmd.written is not None
+
+    wheel = tmp_path / "demo_package-1.2.3-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr("demo_package-1.2.3.dist-info/unidep.json", cmd.written)
+
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: Any) -> None:
+        calls.append([str(c) for c in cmd])
+
+    runtime = InstallRuntime(
+        maybe_conda_executable=lambda: None,
+        maybe_conda_run=lambda *_args, **_kwargs: [],
+        python_executable=lambda *_args, **_kwargs: "python",
+        maybe_create_conda_env_args=lambda *_args, **_kwargs: [],
+        maybe_exe=lambda conda_executable: conda_executable,
+        format_inline_conda_package=lambda pkg: pkg,
+        use_uv=lambda _no_uv: False,
+        identify_current_platform=lambda: "linux-64",
+        run_subprocess=_run_capture,
+    )
+
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=wheel,
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=runtime,
+        )
+
+    assert ["python", "-m", "pip", "install", "requests >=2"] in calls
+    assert [
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "--no-deps",
+        "demo-package==1.2.3",
+    ] in calls

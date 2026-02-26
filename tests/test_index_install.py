@@ -337,9 +337,10 @@ def test_install_package_specs_unusable_metadata_falls_back_to_pip(
     assert calls == [["python", "-m", "pip", "install", "demo-package==1.2.3"]]
 
 
-def test_install_package_specs_warns_missing_extras_and_skips_conda(
+def test_install_package_specs_missing_extras_falls_back_to_plain_pip(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    calls: list[list[str]] = []
     selected = SelectedMetadataDependencies(
         channels=["conda-forge"],
         conda=["qsimcirq * cuda*"],
@@ -359,14 +360,14 @@ def test_install_package_specs_warns_missing_extras_and_skips_conda(
             conda_env_name=None,
             conda_env_prefix=None,
             conda_lock_file=None,
-            dry_run=True,
+            dry_run=False,
             editable=False,
-            skip_conda=True,
-            runtime=_make_runtime(),
+            runtime=_make_runtime(calls=calls),
         )
     out = capsys.readouterr().out
     assert "does not define extra(s): dev" in out
-    assert "Skipping UniDep Conda dependencies because `--skip-conda` is set." in out
+    assert "Falling back to pip-only install" in out
+    assert calls == [["python", "-m", "pip", "install", "demo-package[dev]==1.2.3"]]
 
 
 def test_load_unidep_metadata_for_spec_bad_zip(

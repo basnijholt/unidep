@@ -264,6 +264,37 @@ platforms:
     assert "dev" in metadata.get("extras", {})
 
 
+def test_build_unidep_metadata_keeps_platform_specific_deps_isolated(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+dependencies:
+  - conda: linux-only-pkg  # [linux64]
+  - conda: osx-only-pkg  # [arm64]
+  - pip: linux-only-pip >=1  # [linux64]
+  - pip: osx-only-pip >=1  # [arm64]
+platforms:
+  - linux-64
+  - osx-arm64
+""",
+    )
+
+    metadata = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+
+    linux = metadata["platforms"]["linux-64"]
+    osx = metadata["platforms"]["osx-arm64"]
+    assert linux["conda"] == ["linux-only-pkg"]
+    assert linux["pip"] == ["linux-only-pip >=1"]
+    assert osx["conda"] == ["osx-only-pkg"]
+    assert osx["pip"] == ["osx-only-pip >=1"]
+
+
 def test_build_unidep_metadata_defaults_to_all_platforms(tmp_path: Path) -> None:
     req_file = tmp_path / "requirements.yaml"
     req_file.write_text(
