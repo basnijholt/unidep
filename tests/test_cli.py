@@ -28,7 +28,6 @@ from unidep._artifact_metadata import (
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
-    _classify_install_targets,
     _conda_env_list,
     _conda_root_prefix,
     _find_windows_path,
@@ -43,6 +42,7 @@ from unidep._cli import (
     _pip_subcommand,
     _print_versions,
 )
+from unidep._index_install import classify_install_targets
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -667,7 +667,7 @@ def test_classify_install_targets(tmp_path: Path) -> None:
     requirements_file = tmp_path / "requirements.yaml"
     requirements_file.write_text("dependencies: []\n")
 
-    local_targets, package_specs = _classify_install_targets(
+    local_targets, package_specs = classify_install_targets(
         [requirements_file, Path("demo-package==1.2.3")],
     )
     assert local_targets == [requirements_file]
@@ -679,7 +679,7 @@ def test_classify_install_targets_invalid_specifier() -> None:
         ValueError,
         match="neither a valid package requirement specifier nor an existing local path",
     ):
-        _classify_install_targets([Path("not a valid requirement")])
+        classify_install_targets([Path("not a valid requirement")])
 
 
 def test_install_package_specs_command_with_unidep_metadata(

@@ -179,6 +179,33 @@ def test_select_unidep_dependencies_marks_extra_missing_platform() -> None:
     assert selected.missing_extras == ["dev"]
 
 
+def test_select_unidep_dependencies_extra_moves_pip_to_conda() -> None:
+    """When an extra moves a dep from pip to conda, the pip entry should be removed."""
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": [], "pip": ["demofoo>=1"]},
+        },
+        "extras": {
+            "gpu": {
+                "linux-64": {"conda": ["demofoo>=1"], "pip": []},
+            },
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["gpu"],
+    )
+    # demofoo should only appear in conda, not both conda and pip
+    assert selected.conda == ["demofoo>=1"]
+    assert selected.pip == []
+
+
 def test_build_unidep_metadata(tmp_path: Path) -> None:
     req_file = tmp_path / "requirements.yaml"
     req_file.write_text(

@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from unidep import _index_install
+from unidep._artifact_metadata import CondaExecutable  # noqa: TC001  # re-exported
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -69,7 +70,6 @@ except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
-CondaExecutable = Literal["conda", "mamba", "micromamba"]
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -957,16 +957,12 @@ def _build_pip_install_command(
     conda_run: list[str],
     no_uv: bool,
 ) -> list[str]:
-    if _use_uv(no_uv):
-        return [
-            *conda_run,
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            python_executable,
-        ]
-    return [*conda_run, python_executable, "-m", "pip", "install"]
+    return _index_install._build_pip_install_command(
+        python_executable=python_executable,
+        conda_run=conda_run,
+        no_uv=no_uv,
+        use_uv=_use_uv,
+    )
 
 
 def _pip_install_local(
@@ -1055,11 +1051,6 @@ def _install_package_specs_command(
         verbose=verbose,
         runtime=runtime,
     )
-
-
-def _classify_install_targets(files: list[Path]) -> tuple[list[Path], list[str]]:
-    """Classify install targets as local requirement files or package specs."""
-    return _index_install.classify_install_targets(files)
 
 
 def _install_command(  # noqa: PLR0912, PLR0915
@@ -1730,7 +1721,9 @@ def main() -> None:  # noqa: PLR0912
     elif args.command == "install":
         install_targets = list(args.files or [Path()])
         try:
-            local_targets, package_specs = _classify_install_targets(install_targets)
+            local_targets, package_specs = _index_install.classify_install_targets(
+                install_targets,
+            )
         except ValueError as exc:
             print(f"❌ {exc}")
             sys.exit(1)

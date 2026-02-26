@@ -14,22 +14,17 @@ from typing import TYPE_CHECKING, Any, Callable
 from packaging.requirements import InvalidRequirement, Requirement
 
 from unidep._artifact_metadata import (
+    CondaExecutable,
     UnidepMetadata,
     UnidepMetadataError,
+    _dedupe,
     extract_unidep_metadata_from_wheel,
     select_unidep_dependencies,
 )
 from unidep.utils import parse_folder_or_filename
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:  # pragma: no cover
-    from typing_extensions import Literal
-
 if TYPE_CHECKING:
     from unidep.platform_definitions import Platform
-
-CondaExecutable = Literal["conda", "mamba", "micromamba"]
 
 
 @dataclass(frozen=True)
@@ -54,10 +49,6 @@ class InstallRuntime:
     use_uv: Callable[[bool], bool]
     identify_current_platform: Callable[[], Platform]
     run_subprocess: Callable[..., Any] = subprocess.run
-
-
-def _dedupe(items: list[str]) -> list[str]:
-    return list(dict.fromkeys(items))
 
 
 def _build_pip_install_command(
@@ -153,6 +144,11 @@ def _download_package_artifact(
     ]
     print(f"📦 Downloading package artifact with `{' '.join(download_command)}`\n")
     if dry_run:
+        print(
+            "⚠️  Dry-run: skipping download. UniDep metadata cannot be inspected"
+            " without downloading the artifact; the install plan shown below may"
+            " differ from an actual run (e.g. conda dependencies may be missing).",
+        )
         return None
     run_subprocess(download_command, check=True)
 
@@ -355,16 +351,11 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
     if not conda_executable:
         conda_executable = runtime.maybe_conda_executable()
     platform_name = runtime.identify_current_platform()
-    python_executable = runtime.python_executable(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
-    conda_run = runtime.maybe_conda_run(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
+
+    # Use the *current* interpreter for the download/inspection phase so that
+    # we don't require the target conda env to exist yet.  The target env's
+    # python is resolved later, after conda install may have created it.
+    download_python = sys.executable
 
     channels: list[str] = []
     conda_deps: list[str] = []
@@ -381,8 +372,8 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
             metadata = _load_unidep_metadata_for_spec(
                 package_spec,
                 destination=destination,
-                python_executable=python_executable,
-                conda_run=conda_run,
+                python_executable=download_python,
+                conda_run=[],
                 dry_run=dry_run,
                 run_subprocess=runtime.run_subprocess,
             )
@@ -449,6 +440,19 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
             run_subprocess=runtime.run_subprocess,
         )
 
+    # Resolve the target env's python *after* conda install, which may have
+    # created the environment.
+    python_executable = runtime.python_executable(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    conda_run = runtime.maybe_conda_run(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+
     if pip_deps and not skip_pip:
         _pip_install_packages(
             *pip_deps,
@@ -474,7 +478,11 @@ def install_package_specs_command(  # noqa: PLR0912, PLR0915
             description="package specs (with UniDep metadata)",
         )
 
-    fallback_flags = ["--no-deps"] if skip_pip else None
+    # Only pass --no-deps for fallback packages when the user explicitly asked
+    # to skip *all* dependencies (--no-dependencies).  A bare --skip-pip only
+    # suppresses pip deps from UniDep metadata; it should not prevent pip from
+    # resolving transitive dependencies for non-UniDep packages.
+    fallback_flags = ["--no-deps"] if no_dependencies else None
     if fallback_to_pip:
         _pip_install_packages(
             *fallback_to_pip,

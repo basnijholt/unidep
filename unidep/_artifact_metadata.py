@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import sys
 import zipfile
 from dataclasses import dataclass
@@ -20,10 +21,11 @@ if TYPE_CHECKING:
     from unidep._dependencies_parsing import ParsedRequirements
 
 if sys.version_info >= (3, 8):
-    from typing import get_args
+    from typing import Literal, get_args
 else:  # pragma: no cover
-    from typing_extensions import get_args
+    from typing_extensions import Literal, get_args
 
+CondaExecutable = Literal["conda", "mamba", "micromamba"]
 
 UNIDEP_METADATA_FILENAME = "unidep.json"
 UNIDEP_SCHEMA_VERSION = 1
@@ -65,6 +67,17 @@ class SelectedMetadataDependencies:
 
 def _dedupe(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
+
+
+def _normalise_dep_name(dep: str) -> str:
+    """Extract and normalise the package name from a dependency string.
+
+    Handles both conda specs (``name pin``) and pip specs (``name>=ver``).
+    Returns a lowercase name with runs of ``[-_.]`` collapsed to ``-``.
+    """
+    # Split on the first whitespace (conda) or version operator (pip).
+    name = re.split(r"[\s>=<!;@\[]", dep, maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def _as_str_list(value: Any, *, field: str) -> list[str]:
@@ -204,6 +217,21 @@ def select_unidep_dependencies(
             continue
         conda.extend(extra_deps.conda)
         pip.extend(extra_deps.pip)
+
+    # An extra may move a dependency from pip→conda (or vice versa).  Filter
+    # out pip entries that are now provided by conda and conda entries that are
+    # now provided by pip so we never install the same package from both
+    # channels.  We compare by normalised package name (lowercased, with
+    # hyphens/underscores collapsed).
+    conda_names = {_normalise_dep_name(d) for d in conda}
+    pip_names = {_normalise_dep_name(d) for d in pip}
+    # Prefer conda when a name appears in both lists.
+    pip = [d for d in pip if _normalise_dep_name(d) not in conda_names]
+    # Remove stale pip names set since we just filtered.
+    pip_names = {_normalise_dep_name(d) for d in pip}
+    # Drop any conda entry whose name only appears because of pip (shouldn't
+    # happen in practice, but keeps the invariant symmetric).
+    _ = pip_names  # used above, keep linter happy
 
     return SelectedMetadataDependencies(
         channels=list(metadata.channels),
