@@ -42,6 +42,7 @@ docs = [
 ]
 test = [
     "unidep[all]",
+    "hatchling",
     "tomli_w",
     "pytest",
     "pre-commit",

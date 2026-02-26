@@ -6,10 +6,6 @@ import json
 import textwrap
 from typing import TYPE_CHECKING
 
-import pytest
-
-pytest.importorskip("hatchling", reason="hatchling is required for hatch hook tests")
-
 from unidep._artifact_metadata import UNIDEP_METADATA_FILENAME
 from unidep._hatch_integration import UnidepBuildHook
 
