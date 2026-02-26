@@ -201,6 +201,41 @@ def test_write_unidep_metadata_egg_info(
     assert payload["version"] == "1.2.3"
 
 
+def test_write_unidep_metadata_egg_info_missing_requirements_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Metadata:
+        @staticmethod
+        def get_name() -> str:
+            return "demo-package"
+
+        @staticmethod
+        def get_version() -> str:
+            return "1.2.3"
+
+    class _Distribution:
+        metadata = _Metadata()
+
+    class _Cmd:
+        distribution = _Distribution()
+        written = False
+
+        def write_or_delete_file(
+            self,
+            what: str,  # noqa: ARG002
+            filename: str,  # noqa: ARG002
+            data: str,  # noqa: ARG002
+            force: bool,  # noqa: FBT001, ARG002
+        ) -> None:
+            self.written = True
+
+    monkeypatch.chdir(tmp_path)
+    cmd = _Cmd()
+    _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
+    assert cmd.written is False
+
+
 def test_setuptools_metadata_written_to_wheel_is_used_by_package_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -735,6 +735,73 @@ def test_main_install_package_specs_checks_conda_prefix() -> None:
     install_package_specs.assert_called_once()
 
 
+def test_main_install_invalid_target_exits(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = argparse.Namespace(
+        command="install",
+        files=["bad-target"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        side_effect=ValueError("bad input"),
+    ), pytest.raises(SystemExit, match="1"):
+        main()
+
+    assert "❌ bad input" in capsys.readouterr().out
+
+
+def test_main_install_mixed_local_and_package_specs_exits(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    local_target = tmp_path / "requirements.yaml"
+    local_target.write_text("dependencies: []\n")
+    args = argparse.Namespace(
+        command="install",
+        files=[str(local_target), "demo-package==1.2.3"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        return_value=([local_target], ["demo-package==1.2.3"]),
+    ), pytest.raises(SystemExit, match="1"):
+        main()
+
+    out = capsys.readouterr().out
+    assert "Cannot mix local requirement paths and package specifiers" in out
+    assert "Use separate commands" in out
+
+
 def test_install_package_specs_command_with_unidep_metadata(
     capsys: pytest.CaptureFixture,
 ) -> None:
