@@ -475,6 +475,30 @@ def test_install_package_specs_pins_to_metadata_version() -> None:
     assert not any("demo-package>=1.0" in cmd for cmd in calls if "--no-deps" in cmd)
 
 
+def test_install_package_specs_preserves_direct_reference_spec() -> None:
+    """Direct URL requirements should not be rewritten to ``name==version``."""
+    calls: list[list[str]] = []
+    direct_spec = (
+        "demo-package @ https://example.com/demo-package-1.2.3-py3-none-any.whl"
+    )
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(pip=["requests>=2"]),
+    ):
+        install_package_specs_command(
+            direct_spec,
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    assert ["python", "-m", "pip", "install", "--no-deps", direct_spec] in calls
+    assert not any("demo-package==1.2.3" in cmd for cmd in calls if "--no-deps" in cmd)
+
+
 def test_install_package_specs_skip_conda_moves_to_fallback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
