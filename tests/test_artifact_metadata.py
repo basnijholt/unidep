@@ -361,3 +361,49 @@ def test_select_unidep_dependencies_extras_normalisation() -> None:
     )
     assert selected.pip == ["requests>=2", "pytest>=8"]
     assert selected.missing_extras == []
+
+
+def test_build_unidep_metadata_zero_delta_extra_preserved(tmp_path: Path) -> None:
+    """An extra whose deps duplicate the base set must still appear in metadata.
+
+    Otherwise install-time selection treats it as undefined, falls back to
+    pip-only, and silently drops base conda deps.
+    """
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+channels:
+  - conda-forge
+dependencies:
+  - conda: numpy >=1.0
+  - pip: requests >=2
+optional_dependencies:
+  noop:
+    - conda: numpy >=1.0
+platforms:
+  - linux-64
+""",
+    )
+
+    metadata_dict = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+    # The extra must be present (even though its delta is empty).
+    assert "noop" in metadata_dict.get("extras", {}), (
+        "Zero-delta extra 'noop' must not be dropped from metadata"
+    )
+
+    # Round-trip: parse the emitted metadata and select with the extra.
+    metadata = parse_unidep_metadata(metadata_dict)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["noop"],
+    )
+    # The extra is NOT missing — it simply contributes nothing.
+    assert selected.missing_extras == []
+    # Base deps must still be present.
+    assert selected.conda == ["numpy >=1.0"]
+    assert selected.pip == ["requests >=2"]

@@ -325,7 +325,22 @@ def build_unidep_metadata(
     version: str,
     verbose: bool = False,
 ) -> dict[str, Any]:
-    """Build UniDep artifact metadata from local requirements configuration."""
+    """Build UniDep artifact metadata from local requirements configuration.
+
+    .. note::
+
+       ``local_dependencies`` entries with ``pypi:`` alternatives are handled
+       differently here than in ``get_python_dependencies`` (which populates
+       ``install_requires``).  This function always resolves local deps
+       recursively (``include_local_dependencies=True``) and merges their
+       conda/pip specs into the metadata, but it does **not** emit the PyPI
+       alternative package reference itself.  When the wheel is later
+       installed with ``--no-deps``, the PyPI alternative will therefore be
+       absent.  For monorepo projects that rely on ``UNIDEP_SKIP_LOCAL_DEPS``
+       and publish individual packages to PyPI, the ``install_requires``
+       metadata (populated by ``_deps``) remains the authoritative source for
+       inter-project PyPI references.
+    """
     requirements_path = Path(requirements_file)
     requirements = parse_requirements(
         requirements_path,
@@ -363,8 +378,10 @@ def build_unidep_metadata(
                     conda=extra_conda,
                     pip=extra_pip,
                 )
-        if extra_platform_payload:
-            extras_payload[extra] = extra_platform_payload
+        # Always record the extra — even when the delta is empty on every
+        # platform — so that install-time selection can distinguish "extra
+        # exists but contributes nothing" from "extra is truly undefined".
+        extras_payload[extra] = extra_platform_payload
 
     return _metadata_payload(
         project=project,
