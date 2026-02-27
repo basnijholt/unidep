@@ -56,10 +56,11 @@ def _metadata(
     *,
     conda: list[str] | None = None,
     pip: list[str] | None = None,
+    project: str = "demo-package",
 ) -> UnidepMetadata:
     return UnidepMetadata(
         schema_version=1,
-        project="demo-package",
+        project=project,
         version="1.2.3",
         channels=["conda-forge"],
         platforms={
@@ -542,6 +543,62 @@ def test_install_package_specs_preserves_direct_reference_spec() -> None:
         )
     assert ["python", "-m", "pip", "install", "--no-deps", direct_spec] in calls
     assert not any("demo-package==1.2.3" in cmd for cmd in calls if "--no-deps" in cmd)
+
+
+def test_install_package_specs_metadata_project_mismatch_falls_back(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Metadata project name mismatch must fall back to pip, not install wrong pkg."""
+    calls: list[list[str]] = []
+    # Metadata claims to be "wrong-package" but user asked for "demo-package"
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(pip=["requests>=2"], project="wrong-package"),
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    out = capsys.readouterr().out
+    assert "does not match requested package" in out
+    # Must fall back to plain pip install, NOT use the mismatched project name
+    assert ["python", "-m", "pip", "install", "demo-package==1.2.3"] in calls
+    # Must NOT have a --no-deps install with the wrong package name
+    assert not any("wrong-package" in cmd for cmd in calls)
+
+
+def test_install_package_specs_metadata_project_normalisation_match() -> None:
+    """Normalisation differences (underscores vs hyphens) must NOT cause fallback."""
+    calls: list[list[str]] = []
+    # Metadata uses underscores, user uses hyphens — should still match
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(pip=["requests>=2"], project="demo_package"),
+    ):
+        install_package_specs_command(
+            "demo-package>=1.0",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    # Should use the user's requested name, pinned to metadata version
+    assert ["python", "-m", "pip", "install", "--no-deps", "demo-package==1.2.3"] in (
+        calls
+    )
+    # Should NOT fall back to plain pip
+    assert not any(
+        cmd == ["python", "-m", "pip", "install", "demo-package>=1.0"] for cmd in calls
+    )
 
 
 def test_install_package_specs_skip_conda_moves_to_fallback(

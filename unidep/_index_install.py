@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 
 from unidep._artifact_metadata import (
     CondaExecutable,
@@ -432,6 +433,19 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
                 fallback_to_pip.append(package_spec)
                 continue
 
+            # Validate that the metadata project name matches the requested
+            # package.  A mismatch (even just normalisation, e.g. ``my_pkg``
+            # vs ``my-pkg``) could cause ``pip install --no-deps`` to resolve
+            # a different package on PyPI.
+            if canonicalize_name(req.name) != canonicalize_name(metadata.project):
+                print(
+                    f"⚠️  UniDep metadata project name `{metadata.project}` does not"
+                    f" match requested package `{req.name}`."
+                    " Falling back to pip-only install.",
+                )
+                fallback_to_pip.append(package_spec)
+                continue
+
             channels.extend(selected.channels)
             conda_deps.extend(selected.conda)
             pip_deps.extend(selected.pip)
@@ -439,9 +453,12 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
             # so installation uses the exact artifact that was inspected.
             # For non-direct specs (e.g. ranges), pin to the inspected version
             # to avoid drift between inspection and final ``--no-deps`` install.
+            # Use ``req.name`` (the user's requested name) rather than
+            # ``metadata.project`` so the pinned spec always matches the
+            # canonical PyPI package name the user asked for.
             install_spec = package_spec
             if req.url is None:
-                install_spec = f"{metadata.project}=={metadata.version}"
+                install_spec = f"{req.name}=={metadata.version}"
             with_metadata.append(install_spec)
             if selected.conda:
                 with_metadata_has_conda.append((install_spec, package_spec))
