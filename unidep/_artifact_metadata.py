@@ -223,6 +223,11 @@ def select_unidep_dependencies(
     conda = list(base.conda)
     pip = list(base.pip)
     missing_extras: list[str] = []
+    # Track normalised names that extras explicitly contributed to each
+    # channel so that we can detect when an extra intentionally moves a
+    # dependency from one channel to the other (e.g. conda → pip).
+    extra_added_conda_names: set[str] = set()
+    extra_added_pip_names: set[str] = set()
     for extra in sorted(set(extras or [])):
         extra_platforms = normalised_extras.get(_normalise_extra_name(extra))
         if extra_platforms is None:
@@ -238,14 +243,30 @@ def select_unidep_dependencies(
             continue
         conda.extend(extra_deps.conda)
         pip.extend(extra_deps.pip)
+        extra_added_conda_names.update(_normalise_dep_name(d) for d in extra_deps.conda)
+        extra_added_pip_names.update(_normalise_dep_name(d) for d in extra_deps.pip)
 
-    # An extra may move a dependency from pip→conda (or vice versa).  Filter
-    # out pip entries that are now provided by conda so we never install the
-    # same package from both channels.  We compare by normalised package name
-    # (lowercased, with hyphens/underscores collapsed).  Conda is preferred
-    # when a name appears in both lists.
-    conda_names = {_normalise_dep_name(d) for d in conda}
-    pip = [d for d in pip if _normalise_dep_name(d) not in conda_names]
+    # An extra may move a dependency between channels (pip↔conda).  When
+    # a normalised package name appears in both lists we must pick one:
+    #
+    #  • If an extra *added* the pip entry but did NOT add a conda entry
+    #    for the same name, the extra intentionally moved the dependency
+    #    from conda → pip.  Prefer pip (remove the base conda entry).
+    #  • Otherwise (extra moved pip→conda, both from base, or both from
+    #    extras) prefer conda (remove the pip entry).
+    all_conda_names = {_normalise_dep_name(d) for d in conda}
+    all_pip_names = {_normalise_dep_name(d) for d in pip}
+    overlap = all_conda_names & all_pip_names
+
+    moved_to_pip = {
+        n
+        for n in overlap
+        if n in extra_added_pip_names and n not in extra_added_conda_names
+    }
+    moved_to_conda = overlap - moved_to_pip
+
+    conda = [d for d in conda if _normalise_dep_name(d) not in moved_to_pip]
+    pip = [d for d in pip if _normalise_dep_name(d) not in moved_to_conda]
 
     return SelectedMetadataDependencies(
         channels=list(metadata.channels),
