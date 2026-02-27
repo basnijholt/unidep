@@ -111,6 +111,21 @@ def test_parse_unidep_metadata_rejects_non_object() -> None:
             ),
             r"`extras` keys must be non-empty strings",
         ),
+        (
+            lambda data: data.update(
+                {
+                    "extras": {
+                        "dev-extra": {
+                            "linux-64": {"conda": [], "pip": ["pytest"]},
+                        },
+                        "dev_extra": {
+                            "linux-64": {"conda": [], "pip": ["pytest"]},
+                        },
+                    },
+                },
+            ),
+            r"normalise to the same name.*PEP 685",
+        ),
     ],
 )
 def test_parse_unidep_metadata_rejects_invalid_fields(
@@ -163,7 +178,8 @@ def test_select_unidep_dependencies_missing_base_platform_raises() -> None:
         select_unidep_dependencies(metadata, platform="linux-aarch64")
 
 
-def test_select_unidep_dependencies_marks_extra_missing_platform() -> None:
+def test_select_unidep_dependencies_extra_no_delta_on_platform_is_not_missing() -> None:
+    """An extra that exists but has no deps on the current platform is NOT missing."""
     raw = _sample_metadata()
     raw["extras"] = {
         "dev": {
@@ -176,7 +192,12 @@ def test_select_unidep_dependencies_marks_extra_missing_platform() -> None:
         platform="linux-64",
         extras=["dev"],
     )
-    assert selected.missing_extras == ["dev"]
+    # The extra exists (on osx-arm64) but simply has no delta for linux-64.
+    # It must NOT be reported as missing — base deps must still be used.
+    assert selected.missing_extras == []
+    # Base deps for linux-64 are still present.
+    assert selected.conda == ["qsimcirq * cuda*"]
+    assert selected.pip == ["requests>=2"]
 
 
 def test_select_unidep_dependencies_extra_moves_pip_to_conda() -> None:

@@ -337,19 +337,56 @@ def test_install_package_specs_unusable_metadata_falls_back_to_pip(
     assert calls == [["python", "-m", "pip", "install", "demo-package==1.2.3"]]
 
 
-def test_install_package_specs_missing_extras_falls_back_to_plain_pip(
+def test_install_package_specs_truly_missing_extras_falls_back_to_plain_pip(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """When an extra is not defined at all in metadata, fall back to pip."""
     calls: list[list[str]] = []
     selected = SelectedMetadataDependencies(
         channels=["conda-forge"],
-        conda=["qsimcirq * cuda*"],
-        pip=["requests>=2"],
-        missing_extras=["dev"],
+        conda=[],
+        pip=[],
+        missing_extras=["nonexistent"],
     )
     with patch(
         "unidep._index_install._load_unidep_metadata_for_spec",
         return_value=_metadata(),
+    ), patch(
+        "unidep._index_install.select_unidep_dependencies",
+        return_value=selected,
+    ):
+        install_package_specs_command(
+            "demo-package[nonexistent]==1.2.3",
+            conda_executable="conda",
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=_make_runtime(calls=calls),
+        )
+    out = capsys.readouterr().out
+    assert "does not define extra(s): nonexistent" in out
+    assert "Falling back to pip-only install" in out
+    assert calls == [
+        ["python", "-m", "pip", "install", "demo-package[nonexistent]==1.2.3"],
+    ]
+
+
+def test_install_package_specs_extra_no_platform_delta_keeps_base_deps() -> None:
+    """An extra with no delta on the current platform must NOT discard base deps."""
+    calls: list[list[str]] = []
+    # select_unidep_dependencies returns base deps and no missing extras
+    # (the extra exists but simply has no contribution on this platform)
+    selected = SelectedMetadataDependencies(
+        channels=["conda-forge"],
+        conda=["qsimcirq * cuda*"],
+        pip=["requests>=2"],
+        missing_extras=[],
+    )
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(conda=["qsimcirq * cuda*"], pip=["requests>=2"]),
     ), patch(
         "unidep._index_install.select_unidep_dependencies",
         return_value=selected,
@@ -364,10 +401,18 @@ def test_install_package_specs_missing_extras_falls_back_to_plain_pip(
             editable=False,
             runtime=_make_runtime(calls=calls),
         )
-    out = capsys.readouterr().out
-    assert "does not define extra(s): dev" in out
-    assert "Falling back to pip-only install" in out
-    assert calls == [["python", "-m", "pip", "install", "demo-package[dev]==1.2.3"]]
+    # Base conda deps must be installed, NOT discarded
+    assert any("conda" in cmd[0] and "qsimcirq * cuda*" in cmd for cmd in calls), (
+        f"Expected conda install with base deps, got: {calls}"
+    )
+    # Pip deps from metadata must be installed
+    assert any("requests>=2" in cmd for cmd in calls), (
+        f"Expected pip install with base deps, got: {calls}"
+    )
+    # The package itself must be installed with --no-deps
+    assert any("--no-deps" in cmd and "demo-package==1.2.3" in cmd for cmd in calls), (
+        f"Expected --no-deps install, got: {calls}"
+    )
 
 
 def test_load_unidep_metadata_for_spec_bad_zip(

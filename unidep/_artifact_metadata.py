@@ -148,10 +148,19 @@ def parse_unidep_metadata(data: Any) -> UnidepMetadata:
         msg = "`extras` must be an object mapping extra names to platforms."
         raise UnidepMetadataError(msg)
     extras: dict[str, dict[Platform, PlatformDependencySet]] = {}
+    seen_normalised_extras: dict[str, str] = {}  # normalised → original
     for extra_name, extra_platform_data in extras_raw.items():
         if not isinstance(extra_name, str) or not extra_name:
             msg = "`extras` keys must be non-empty strings."
             raise UnidepMetadataError(msg)
+        norm = _normalise_extra_name(extra_name)
+        if norm in seen_normalised_extras:
+            msg = (
+                f"Extras `{seen_normalised_extras[norm]}` and `{extra_name}`"
+                f" normalise to the same name `{norm}` (PEP 685)."
+            )
+            raise UnidepMetadataError(msg)
+        seen_normalised_extras[norm] = extra_name
         extras[extra_name] = _parse_platform_deps(
             extra_platform_data,
             field=f"extras.{extra_name}",
@@ -217,11 +226,15 @@ def select_unidep_dependencies(
     for extra in sorted(set(extras or [])):
         extra_platforms = normalised_extras.get(_normalise_extra_name(extra))
         if extra_platforms is None:
+            # Extra is not defined at all in the metadata — truly missing.
             missing_extras.append(extra)
             continue
         extra_deps = extra_platforms.get(platform)
         if extra_deps is None:
-            missing_extras.append(extra)
+            # Extra exists but has no dependencies on this platform (the
+            # build step only emits a platform entry when there is a non-empty
+            # delta).  This is *not* a missing extra — it simply contributes
+            # nothing on this platform.
             continue
         conda.extend(extra_deps.conda)
         pip.extend(extra_deps.pip)
