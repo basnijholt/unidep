@@ -571,3 +571,30 @@ def test_install_package_specs_skip_conda_moves_to_fallback(
     assert ["python", "-m", "pip", "install", "demo-package==1.2.3"] in calls
     # Should NOT have a --no-deps install for this package
     assert not any("--no-deps" in cmd and "demo-package==1.2.3" in cmd for cmd in calls)
+
+
+def test_install_package_specs_skip_conda_preserves_extras_and_markers() -> None:
+    """Fallback must keep the original requirement string (extras/markers intact)."""
+    calls: list[list[str]] = []
+    user_spec = 'demo-package[dev]>=1.0; python_version >= "3.8"'
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=_metadata(conda=["qsimcirq * cuda*"], pip=[]),
+    ):
+        install_package_specs_command(
+            user_spec,
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            skip_conda=True,
+            runtime=_make_runtime(calls=calls),
+        )
+
+    assert ["python", "-m", "pip", "install", user_spec] in calls
+    assert not any(
+        cmd[:4] == ["python", "-m", "pip", "install"] and "demo-package==1.2.3" in cmd
+        for cmd in calls
+    )

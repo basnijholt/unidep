@@ -380,9 +380,11 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
     conda_deps: list[str] = []
     pip_deps: list[str] = []
     with_metadata: list[str] = []
-    # Specs whose metadata contained conda deps — tracked separately so we
-    # can move them to fallback when ``--skip-conda`` is set.
-    with_metadata_has_conda: list[str] = []
+    # Specs whose metadata contained conda deps — tracked as
+    # (no-deps-install-spec, original-user-spec) pairs so that when
+    # ``--skip-conda`` is set we can move the package to pip fallback
+    # *without* losing extras/markers from the original requirement.
+    with_metadata_has_conda: list[tuple[str, str]] = []
     fallback_to_pip: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix="unidep-download-") as tmpdir:
@@ -442,7 +444,7 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
                 install_spec = f"{metadata.project}=={metadata.version}"
             with_metadata.append(install_spec)
             if selected.conda:
-                with_metadata_has_conda.append(install_spec)
+                with_metadata_has_conda.append((install_spec, package_spec))
 
     channels = dedupe(channels)
     conda_deps = dedupe(conda_deps)
@@ -453,12 +455,20 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
     if conda_deps and skip_conda:
         print("⚠️  Skipping UniDep Conda dependencies because `--skip-conda` is set.")
         # Packages whose metadata required conda deps cannot be safely
-        # installed with ``--no-deps`` when conda is skipped.  Move them to
+        # installed with ``--no-deps`` when conda is skipped. Move them to
         # the pip fallback list so pip can resolve their dependencies.
-        for spec in with_metadata_has_conda:
-            if spec in with_metadata:
-                with_metadata.remove(spec)
-                fallback_to_pip.append(spec)
+        #
+        # Use the original requirement specifier for fallback so extras and
+        # markers are preserved (e.g. ``pkg[dev]>=1; python_version>='3.10'``).
+        removed_no_deps_specs: set[str] = set()
+        for install_spec, original_spec in with_metadata_has_conda:
+            fallback_to_pip.append(original_spec)
+            if (
+                install_spec in with_metadata
+                and install_spec not in removed_no_deps_specs
+            ):
+                with_metadata.remove(install_spec)
+                removed_no_deps_specs.add(install_spec)
         fallback_to_pip = dedupe(fallback_to_pip)
     if conda_deps and not skip_conda:
         if conda_executable is None:
