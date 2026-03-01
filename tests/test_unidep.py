@@ -194,6 +194,7 @@ def test_generate_conda_env_file(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
 
@@ -218,6 +219,7 @@ def test_generate_conda_env_stdout(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     write_conda_environment_file(env_spec, output_file=None)
@@ -254,6 +256,7 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [
@@ -277,6 +280,7 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms,
     )
     assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
@@ -286,6 +290,7 @@ def test_create_conda_env_specification_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms,
         selector="comment",
     )
@@ -320,7 +325,13 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert str(f) in captured.out
 
     write_conda_environment_file(
-        CondaEnvironmentSpec(channels=[], platforms=[], conda=[], pip=[]),
+        CondaEnvironmentSpec(
+            channels=[],
+            pip_indices=[],
+            platforms=[],
+            conda=[],
+            pip=[],
+        ),
         verbose=True,
     )
     captured = capsys.readouterr()
@@ -754,6 +765,7 @@ def test_filter_pip_and_conda(
     conda_env_spec = create_conda_env_specification(
         resolved,
         channels=requirements.channels,
+        pip_indices=requirements.pip_indices,
         platforms=requirements.platforms,
     )
 
@@ -874,6 +886,7 @@ def test_duplicates_with_version(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
@@ -989,6 +1002,7 @@ def test_duplicates_different_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [{"sel(linux)": "foo >1,<=2"}]
@@ -1007,6 +1021,7 @@ def test_duplicates_different_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms,
     )
     assert env_spec.conda == ["foo >1,<=2"]
@@ -1152,6 +1167,7 @@ def test_expand_none_with_different_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == [
@@ -1229,6 +1245,7 @@ def test_different_pins_on_conda_and_pip(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["foo <1"]
@@ -1260,6 +1277,7 @@ def test_pip_pinned_conda_not(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == []
@@ -1291,6 +1309,7 @@ def test_conda_pinned_pip_not(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["foo >1"]
@@ -1344,6 +1363,7 @@ def test_conda_with_comments(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1375,6 +1395,7 @@ def test_duplicate_names(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
@@ -1405,6 +1426,7 @@ def test_conflicts_when_selector_comment(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1436,6 +1458,7 @@ def test_conflicts_when_selector_comment(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1485,6 +1508,7 @@ def test_platforms_section_in_yaml(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="sel",
     )
@@ -1524,6 +1548,7 @@ def test_platforms_section_in_yaml_similar_platforms(
         env_spec = create_conda_env_specification(
             resolved,
             requirements.channels,
+            requirements.pip_indices,
             requirements.platforms,
             selector="sel",
         )
@@ -1541,6 +1566,7 @@ def test_platforms_section_in_yaml_similar_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1581,6 +1607,7 @@ def test_conda_with_non_platform_comment(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
         selector="comment",
     )
@@ -1665,6 +1692,7 @@ def test_pip_and_conda_different_name_on_linux64(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == ["cuquantum-python"]
@@ -1873,6 +1901,7 @@ def test_duplicate_names_different_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms_arm64,
     )
     assert env_spec.conda == []
@@ -1883,6 +1912,7 @@ def test_duplicate_names_different_platforms(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms_linux64,
     )
     assert env_spec.conda == ["ray-core"]
@@ -1913,6 +1943,7 @@ def test_with_unused_platform(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         platforms,
         selector="comment",
     )
@@ -1963,6 +1994,7 @@ def test_pip_with_pinning(
     env_spec = create_conda_env_specification(
         resolved,
         requirements.channels,
+        requirements.pip_indices,
         requirements.platforms,
     )
     assert env_spec.conda == []
