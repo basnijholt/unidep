@@ -895,11 +895,13 @@ def _maybe_create_conda_env_args(
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
 ) -> list[str]:
-    if not conda_env_name and not conda_env_prefix:
-        return []
-    conda_env_args = []
+    conda_env_args = _index_install._conda_env_args(
+        conda_env_name,
+        conda_env_prefix,
+    )
+    if not conda_env_args:
+        return conda_env_args
     if conda_env_name:
-        conda_env_args = ["--name", conda_env_name]
         prefix = _conda_env_name_to_prefix(
             conda_executable,
             conda_env_name,
@@ -908,7 +910,6 @@ def _maybe_create_conda_env_args(
         if prefix is None:
             _create_conda_environment(conda_executable, *conda_env_args)
     elif conda_env_prefix:
-        conda_env_args = ["--prefix", str(conda_env_prefix)]
         if not conda_env_prefix.exists():
             _create_conda_environment(conda_executable, *conda_env_args)
     return conda_env_args
@@ -918,9 +919,16 @@ def _create_conda_environment(
     conda_executable: CondaExecutable,
     *args: str,
 ) -> None:  # pragma: no cover
-    """Create an empty conda environment."""
-    conda_command = [_maybe_exe(conda_executable), "create", "--yes", *args]
-    print(f"📦 Creating empty conda environment with `{' '.join(conda_command)}`\n")
+    """Create a conda environment with a Python interpreter available."""
+    python_spec = f"python={sys.version_info.major}.{sys.version_info.minor}"
+    conda_command = [
+        _maybe_exe(conda_executable),
+        "create",
+        "--yes",
+        *args,
+        python_spec,
+    ]
+    print(f"📦 Creating conda environment with `{' '.join(conda_command)}`\n")
     subprocess.run(conda_command, check=True)
 
 
@@ -1126,8 +1134,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
-        conda_env_args = _maybe_create_conda_env_args(
-            conda_executable,
+        conda_env_args = _index_install._conda_env_args(
             conda_env_name,
             conda_env_prefix,
         )

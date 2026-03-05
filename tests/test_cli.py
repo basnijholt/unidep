@@ -32,6 +32,7 @@ from unidep._cli import (
     _capitalize_dir,
     _conda_env_list,
     _conda_root_prefix,
+    _create_conda_environment,
     _find_windows_path,
     _identify_conda_executable,
     _install_all_command,
@@ -817,6 +818,65 @@ def test_install_command_dry_run_does_not_create_target_env(
     ) in out
 
 
+def test_install_command_dry_run_with_conda_deps_does_not_create_target_env(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], ["numpy"], [])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=AssertionError("dry-run must not create the target env"),
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=ValueError("env does not exist yet"),
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "unidep._cli._maybe_exe",
+        return_value="micromamba",
+    ), patch(
+        "subprocess.run",
+        side_effect=AssertionError("dry-run must not execute subprocesses"),
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    out = capsys.readouterr().out
+    assert (
+        "Installing conda dependencies with"
+        " `micromamba install --yes --name fresh-env numpy`"
+    ) in out
+
+
 def test_classify_install_targets(tmp_path: Path) -> None:
     requirements_file = tmp_path / "requirements.yaml"
     requirements_file.write_text("dependencies: []\n")
@@ -1391,3 +1451,22 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_create_conda_environment_installs_python() -> None:
+    calls: list[list[str]] = []
+    python_spec = f"python={sys.version_info.major}.{sys.version_info.minor}"
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._cli._maybe_exe",
+        return_value="conda",
+    ), patch(
+        "unidep._cli.subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _create_conda_environment("conda", "--name", "fresh-env")
+
+    assert calls == [["conda", "create", "--yes", "--name", "fresh-env", python_spec]]

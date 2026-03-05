@@ -135,6 +135,18 @@ def classify_install_targets(targets: list[str]) -> tuple[list[Path], list[str]]
     return local_targets, package_specs
 
 
+def _conda_env_args(
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> list[str]:
+    """Build side-effect-free Conda environment selection arguments."""
+    if conda_env_name is not None:
+        return ["--name", conda_env_name]
+    if conda_env_prefix is not None:
+        return ["--prefix", str(conda_env_prefix)]
+    return []
+
+
 def _download_package_artifact(
     package_spec: str,
     *,
@@ -285,13 +297,8 @@ def _install_conda_dependencies(
     *,
     channels: list[str],
     conda_executable: CondaExecutable,
-    conda_env_name: str | None,
-    conda_env_prefix: Path | None,
+    conda_env_args: list[str],
     dry_run: bool,
-    maybe_create_conda_env_args: Callable[
-        [CondaExecutable, str | None, Path | None],
-        list[str],
-    ],
     maybe_exe: Callable[[CondaExecutable], str],
     format_inline_conda_package: Callable[[str], str],
     run_subprocess: Callable[..., Any],
@@ -299,11 +306,6 @@ def _install_conda_dependencies(
     channel_args = ["--override-channels"] if channels else []
     for channel in channels:
         channel_args.extend(["--channel", channel])
-    conda_env_args = maybe_create_conda_env_args(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
     conda_command = [
         maybe_exe(conda_executable),
         "install",
@@ -566,10 +568,11 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
             conda_deps,
             channels=channels,
             conda_executable=conda_executable,
-            conda_env_name=conda_env_name,
-            conda_env_prefix=conda_env_prefix,
+            conda_env_args=_conda_env_args(
+                conda_env_name,
+                conda_env_prefix,
+            ),
             dry_run=dry_run,
-            maybe_create_conda_env_args=runtime.maybe_create_conda_env_args,
             maybe_exe=runtime.maybe_exe,
             format_inline_conda_package=runtime.format_inline_conda_package,
             run_subprocess=runtime.run_subprocess,
