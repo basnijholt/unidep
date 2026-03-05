@@ -12,6 +12,7 @@ import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Generator
 from unittest.mock import patch
 
@@ -44,6 +45,7 @@ from unidep._cli import (
     _print_versions,
     main,
 )
+from unidep._conda_env import CondaEnvironmentSpec
 from unidep._index_install import classify_install_targets
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -663,6 +665,100 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             editable=True,
             verbose=True,
         )
+
+
+def test_install_command_creates_new_target_env_before_python_lookup(
+    tmp_path: Path,
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    calls: list[list[str]] = []
+    created = False
+    target_python = "/envs/fresh-env/bin/python"
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    def _maybe_create(
+        conda_executable: CondaExecutable,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> list[str]:
+        nonlocal created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        created = True
+        return ["--name", "fresh-env"]
+
+    def _python(
+        conda_executable: CondaExecutable | None,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> str:
+        assert created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        return target_python
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], [], ["requests>=2"])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=_maybe_create,
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=_python,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    assert created
+    assert calls == [
+        [
+            "micromamba",
+            "run",
+            "--name",
+            "fresh-env",
+            target_python,
+            "-m",
+            "pip",
+            "install",
+            "requests>=2",
+        ],
+    ]
 
 
 def test_classify_install_targets(tmp_path: Path) -> None:

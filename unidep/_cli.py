@@ -1111,6 +1111,15 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_pip = True
         skip_conda = True
 
+    python_executable, conda_run = _index_install._resolve_target_python_context(
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+        maybe_conda_run=_maybe_conda_run,
+        python_executable=_python_executable,
+        maybe_create_conda_env_args=_maybe_create_conda_env_args,
+    )
+
     if env_spec.conda and not skip_conda:
         assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
@@ -1135,13 +1144,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
-    python_executable = _python_executable(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
     if env_spec.pip and not skip_pip:
-        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         if _use_uv(no_uv):
             pip_command = [
                 *conda_run,
@@ -1195,11 +1198,6 @@ def _install_command(  # noqa: PLR0912, PLR0915
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,

@@ -318,6 +318,55 @@ def _install_conda_dependencies(
         run_subprocess((*conda_command, *conda_dependencies), check=True)
 
 
+def _resolve_target_python_context(
+    *,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    maybe_conda_run: Callable[
+        [CondaExecutable | None, str | None, Path | None],
+        list[str],
+    ],
+    python_executable: Callable[
+        [CondaExecutable | None, str | None, Path | None],
+        str,
+    ],
+    maybe_create_conda_env_args: Callable[
+        [CondaExecutable, str | None, Path | None],
+        list[str],
+    ],
+) -> tuple[str, list[str]]:
+    """Resolve the Python/conda-run context for the target install environment."""
+    if conda_env_name is not None or conda_env_prefix is not None:
+        if conda_executable is not None:
+            maybe_create_conda_env_args(
+                conda_executable,
+                conda_env_name,
+                conda_env_prefix,
+            )
+        elif conda_env_name is not None or (
+            conda_env_prefix is not None and not conda_env_prefix.exists()
+        ):
+            print(
+                "❌ Targeting a conda environment requires a conda executable"
+                " (`conda`, `mamba`, or `micromamba`).",
+            )
+            sys.exit(1)
+
+    return (
+        python_executable(
+            conda_executable,
+            conda_env_name,
+            conda_env_prefix,
+        ),
+        maybe_conda_run(
+            conda_executable,
+            conda_env_name,
+            conda_env_prefix,
+        ),
+    )
+
+
 def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
     *package_specs: str,
     conda_executable: CondaExecutable | None,
@@ -372,10 +421,16 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
         conda_executable = runtime.maybe_conda_executable()
     platform_name = runtime.identify_current_platform()
 
-    # Use the *current* interpreter for the download/inspection phase so that
-    # we don't require the target conda env to exist yet.  The target env's
-    # python is resolved later, after conda install may have created it.
-    download_python = sys.executable
+    # Resolve the target environment up front so artifact inspection sees the
+    # same interpreter, wheel tags, and marker environment as the final install.
+    python_executable, conda_run = _resolve_target_python_context(
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+        maybe_conda_run=runtime.maybe_conda_run,
+        python_executable=runtime.python_executable,
+        maybe_create_conda_env_args=runtime.maybe_create_conda_env_args,
+    )
 
     channels: list[str] = []
     conda_deps: list[str] = []
@@ -397,8 +452,8 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
             metadata = _load_unidep_metadata_for_spec(
                 package_spec,
                 destination=destination,
-                python_executable=download_python,
-                conda_run=[],
+                python_executable=python_executable,
+                conda_run=conda_run,
                 dry_run=dry_run,
                 run_subprocess=runtime.run_subprocess,
             )
@@ -510,19 +565,6 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
             format_inline_conda_package=runtime.format_inline_conda_package,
             run_subprocess=runtime.run_subprocess,
         )
-
-    # Resolve the target env's python *after* conda install, which may have
-    # created the environment.
-    python_executable = runtime.python_executable(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
-    conda_run = runtime.maybe_conda_run(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
 
     if pip_deps and not skip_pip:
         _pip_install_packages(

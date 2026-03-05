@@ -495,6 +495,157 @@ def test_marker_gated_requirement_falls_back_to_pip() -> None:
     ]
 
 
+def test_install_package_specs_inspects_with_target_env_python() -> None:
+    calls: list[list[str]] = []
+    events: list[str] = []
+    target_python = "/envs/target-env/bin/python"
+
+    def _maybe_create_conda_env_args(
+        conda_executable: str,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> list[str]:
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "target-env"
+        assert conda_env_prefix is None
+        events.append("create")
+        return ["--name", "target-env"]
+
+    runtime = InstallRuntime(
+        maybe_conda_executable=lambda: "micromamba",
+        maybe_conda_run=lambda *_args, **_kwargs: [
+            "micromamba",
+            "run",
+            "--name",
+            "target-env",
+        ],
+        python_executable=lambda *_args, **_kwargs: target_python,
+        maybe_create_conda_env_args=_maybe_create_conda_env_args,
+        maybe_exe=lambda conda_executable: conda_executable,
+        format_inline_conda_package=lambda pkg: pkg,
+        use_uv=lambda _no_uv: False,
+        identify_current_platform=lambda: "linux-64",
+        run_subprocess=lambda cmd, **_: calls.append([str(c) for c in cmd]),
+    )
+
+    def _load_metadata(*_args: object, **kwargs: object) -> UnidepMetadata | None:
+        events.append("inspect")
+        assert kwargs["python_executable"] == target_python
+        assert kwargs["conda_run"] == [
+            "micromamba",
+            "run",
+            "--name",
+            "target-env",
+        ]
+        return None
+
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        side_effect=_load_metadata,
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable="micromamba",
+            conda_env_name="target-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=runtime,
+        )
+
+    assert events[:2] == ["create", "inspect"]
+    assert calls == [
+        [
+            "micromamba",
+            "run",
+            "--name",
+            "target-env",
+            target_python,
+            "-m",
+            "pip",
+            "install",
+            "demo-package==1.2.3",
+        ],
+    ]
+
+
+def test_install_package_specs_creates_new_target_env_before_python_lookup() -> None:
+    calls: list[list[str]] = []
+    created = False
+    target_python = "/envs/fresh-env/bin/python"
+
+    def _maybe_create_conda_env_args(
+        conda_executable: str,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> list[str]:
+        nonlocal created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        created = True
+        return ["--name", "fresh-env"]
+
+    def _python_executable(
+        conda_executable: str | None,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> str:
+        assert created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        return target_python
+
+    runtime = InstallRuntime(
+        maybe_conda_executable=lambda: "micromamba",
+        maybe_conda_run=lambda *_args, **_kwargs: [
+            "micromamba",
+            "run",
+            "--name",
+            "fresh-env",
+        ],
+        python_executable=_python_executable,
+        maybe_create_conda_env_args=_maybe_create_conda_env_args,
+        maybe_exe=lambda conda_executable: conda_executable,
+        format_inline_conda_package=lambda pkg: pkg,
+        use_uv=lambda _no_uv: False,
+        identify_current_platform=lambda: "linux-64",
+        run_subprocess=lambda cmd, **_: calls.append([str(c) for c in cmd]),
+    )
+
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        return_value=None,
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=runtime,
+        )
+
+    assert created
+    assert calls == [
+        [
+            "micromamba",
+            "run",
+            "--name",
+            "fresh-env",
+            target_python,
+            "-m",
+            "pip",
+            "install",
+            "demo-package==1.2.3",
+        ],
+    ]
+
+
 def test_install_package_specs_pins_to_metadata_version() -> None:
     """The --no-deps install should use the exact version from metadata."""
     calls: list[list[str]] = []
