@@ -761,6 +761,62 @@ def test_install_command_creates_new_target_env_before_python_lookup(
     ]
 
 
+def test_install_command_dry_run_does_not_create_target_env(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], [], ["requests>=2"])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=AssertionError("dry-run must not create the target env"),
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=ValueError("env does not exist yet"),
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "subprocess.run",
+        side_effect=AssertionError("dry-run must not execute subprocesses"),
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    out = capsys.readouterr().out
+    assert (
+        "Installing pip dependencies with"
+        " `micromamba run --name fresh-env python -m pip install requests>=2`"
+    ) in out
+
+
 def test_classify_install_targets(tmp_path: Path) -> None:
     requirements_file = tmp_path / "requirements.yaml"
     requirements_file.write_text("dependencies: []\n")

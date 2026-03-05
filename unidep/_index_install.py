@@ -323,6 +323,7 @@ def _resolve_target_python_context(
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
+    dry_run: bool,
     maybe_conda_run: Callable[
         [CondaExecutable | None, str | None, Path | None],
         list[str],
@@ -337,13 +338,20 @@ def _resolve_target_python_context(
     ],
 ) -> tuple[str, list[str]]:
     """Resolve the Python/conda-run context for the target install environment."""
-    if conda_env_name is not None or conda_env_prefix is not None:
+    conda_run = maybe_conda_run(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    target_env_requested = conda_env_name is not None or conda_env_prefix is not None
+    if target_env_requested:
         if conda_executable is not None:
-            maybe_create_conda_env_args(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
+            if not dry_run:
+                maybe_create_conda_env_args(
+                    conda_executable,
+                    conda_env_name,
+                    conda_env_prefix,
+                )
         elif conda_env_name is not None or (
             conda_env_prefix is not None and not conda_env_prefix.exists()
         ):
@@ -353,18 +361,18 @@ def _resolve_target_python_context(
             )
             sys.exit(1)
 
-    return (
-        python_executable(
+    try:
+        resolved_python = python_executable(
             conda_executable,
             conda_env_name,
             conda_env_prefix,
-        ),
-        maybe_conda_run(
-            conda_executable,
-            conda_env_name,
-            conda_env_prefix,
-        ),
-    )
+        )
+    except (AssertionError, FileNotFoundError, ValueError):
+        if dry_run and target_env_requested and conda_run:
+            return "python", conda_run
+        raise
+
+    return resolved_python, conda_run
 
 
 def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
@@ -427,6 +435,7 @@ def install_package_specs_command(  # noqa: C901, PLR0912, PLR0915
         conda_executable=conda_executable,
         conda_env_name=conda_env_name,
         conda_env_prefix=conda_env_prefix,
+        dry_run=dry_run,
         maybe_conda_run=runtime.maybe_conda_run,
         python_executable=runtime.python_executable,
         maybe_create_conda_env_args=runtime.maybe_create_conda_env_args,

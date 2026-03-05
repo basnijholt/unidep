@@ -646,6 +646,64 @@ def test_install_package_specs_creates_new_target_env_before_python_lookup() -> 
     ]
 
 
+def test_install_package_specs_dry_run_does_not_create_target_env() -> None:
+    seen: dict[str, object] = {}
+    missing_env_error = "env does not exist yet"
+
+    def _python_executable(
+        conda_executable: str | None,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> str:
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        raise ValueError(missing_env_error)
+
+    runtime = InstallRuntime(
+        maybe_conda_executable=lambda: "micromamba",
+        maybe_conda_run=lambda *_args, **_kwargs: [
+            "micromamba",
+            "run",
+            "--name",
+            "fresh-env",
+        ],
+        python_executable=_python_executable,
+        maybe_create_conda_env_args=lambda *_args, **_kwargs: pytest.fail(
+            "dry-run must not create the target env",
+        ),
+        maybe_exe=lambda conda_executable: conda_executable,
+        format_inline_conda_package=lambda pkg: pkg,
+        use_uv=lambda _no_uv: False,
+        identify_current_platform=lambda: "linux-64",
+        run_subprocess=lambda *_args, **_kwargs: pytest.fail(
+            "dry-run must not execute subprocesses",
+        ),
+    )
+
+    def _load_metadata(*_args: object, **kwargs: object) -> UnidepMetadata | None:
+        seen.update(kwargs)
+        return None
+
+    with patch(
+        "unidep._index_install._load_unidep_metadata_for_spec",
+        side_effect=_load_metadata,
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            runtime=runtime,
+        )
+
+    assert seen["python_executable"] == "python"
+    assert seen["conda_run"] == ["micromamba", "run", "--name", "fresh-env"]
+
+
 def test_install_package_specs_pins_to_metadata_version() -> None:
     """The --no-deps install should use the exact version from metadata."""
     calls: list[list[str]] = []

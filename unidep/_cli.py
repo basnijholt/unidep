@@ -1115,6 +1115,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_executable=conda_executable,
         conda_env_name=conda_env_name,
         conda_env_prefix=conda_env_prefix,
+        dry_run=dry_run,
         maybe_conda_run=_maybe_conda_run,
         python_executable=_python_executable,
         maybe_create_conda_env_args=_maybe_create_conda_env_args,
