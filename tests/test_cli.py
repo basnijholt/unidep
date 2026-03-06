@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import platform
 import re
 import shutil
 import subprocess
+import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Generator
 from unittest.mock import patch
 
@@ -20,22 +23,31 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from unidep._artifact_metadata import (
+    PlatformDependencySet,
+    UnidepMetadata,
+)
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
     _conda_env_list,
     _conda_root_prefix,
+    _create_conda_environment,
     _find_windows_path,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
+    _install_package_specs_command,
     _maybe_conda_run,
     _maybe_create_conda_env_args,
     _merge_command,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
+    main,
 )
+from unidep._conda_env import CondaEnvironmentSpec
+from unidep._index_install import classify_install_targets
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -620,7 +632,10 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 
 def test_install_non_existing_file() -> None:
-    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+    with pytest.raises(
+        FileNotFoundError,
+        match=r"File `does_not_exist` not found\.",
+    ):
         _install_command(
             Path("does_not_exist"),
             conda_executable="",  # type: ignore[arg-type]
@@ -650,6 +665,504 @@ def test_install_non_existing_folder(tmp_path: Path) -> None:
             dry_run=True,
             editable=True,
             verbose=True,
+        )
+
+
+def test_install_command_creates_new_target_env_before_python_lookup(
+    tmp_path: Path,
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    calls: list[list[str]] = []
+    created = False
+    target_python = "/envs/fresh-env/bin/python"
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    def _maybe_create(
+        conda_executable: CondaExecutable,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> list[str]:
+        nonlocal created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        created = True
+        return ["--name", "fresh-env"]
+
+    def _python(
+        conda_executable: CondaExecutable | None,
+        conda_env_name: str | None,
+        conda_env_prefix: Path | None,
+    ) -> str:
+        assert created
+        assert conda_executable == "micromamba"
+        assert conda_env_name == "fresh-env"
+        assert conda_env_prefix is None
+        return target_python
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], [], ["requests>=2"])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=_maybe_create,
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=_python,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    assert created
+    assert calls == [
+        [
+            "micromamba",
+            "run",
+            "--name",
+            "fresh-env",
+            target_python,
+            "-m",
+            "pip",
+            "install",
+            "requests>=2",
+        ],
+    ]
+
+
+def test_install_command_dry_run_does_not_create_target_env(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], [], ["requests>=2"])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=AssertionError("dry-run must not create the target env"),
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=ValueError("env does not exist yet"),
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "subprocess.run",
+        side_effect=AssertionError("dry-run must not execute subprocesses"),
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    out = capsys.readouterr().out
+    assert (
+        "Installing pip dependencies with"
+        " `micromamba run --name fresh-env python -m pip install requests>=2`"
+    ) in out
+
+
+def test_install_command_dry_run_with_conda_deps_does_not_create_target_env(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    requirements = SimpleNamespace(
+        requirements={},
+        optional_dependencies={},
+        channels=[],
+    )
+    env_spec = CondaEnvironmentSpec([], ["linux-64"], ["numpy"], [])
+
+    with patch(
+        "unidep._cli.parse_requirements",
+        return_value=requirements,
+    ), patch(
+        "unidep._cli.resolve_conflicts",
+        return_value={},
+    ), patch(
+        "unidep._cli.create_conda_env_specification",
+        return_value=env_spec,
+    ), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        side_effect=AssertionError("dry-run must not create the target env"),
+    ), patch(
+        "unidep._cli._python_executable",
+        side_effect=ValueError("env does not exist yet"),
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=["micromamba", "run", "--name", "fresh-env"],
+    ), patch(
+        "unidep._cli._maybe_exe",
+        return_value="micromamba",
+    ), patch(
+        "subprocess.run",
+        side_effect=AssertionError("dry-run must not execute subprocesses"),
+    ):
+        _install_command(
+            requirements_file,
+            conda_executable="micromamba",
+            conda_env_name="fresh-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=False,
+        )
+
+    out = capsys.readouterr().out
+    assert (
+        "Installing conda dependencies with"
+        " `micromamba install --yes --name fresh-env numpy`"
+    ) in out
+
+
+def test_classify_install_targets(tmp_path: Path) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text("dependencies: []\n")
+
+    local_targets, package_specs = classify_install_targets(
+        [str(requirements_file), "demo-package==1.2.3"],
+    )
+    assert local_targets == [requirements_file]
+    assert package_specs == ["demo-package==1.2.3"]
+
+
+def test_classify_install_targets_preserves_url_specifiers() -> None:
+    """URL specifiers must not be corrupted (Path would collapse ``://``)."""
+    url_spec = "demo @ https://example.com/demo-1.0-py3-none-any.whl"
+    _, package_specs = classify_install_targets([url_spec])
+    assert package_specs == [url_spec]
+    assert "://" in package_specs[0]  # double-slash preserved
+
+
+def test_classify_install_targets_invalid_specifier() -> None:
+    with pytest.raises(
+        ValueError,
+        match="neither a valid package requirement specifier nor an existing local path",
+    ):
+        classify_install_targets(["not a valid requirement"])
+
+
+def test_classify_install_targets_existing_directory_without_unidep_file_errors(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    with pytest.raises(ValueError, match="not found in"):
+        classify_install_targets([str(project_dir)])
+
+
+def test_main_install_package_specs_checks_conda_prefix() -> None:
+    args = argparse.Namespace(
+        command="install",
+        files=["demo-package==1.2.3"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        return_value=([], ["demo-package==1.2.3"]),
+    ), patch("unidep._cli._check_conda_prefix") as check_prefix, patch(
+        "unidep._cli._install_package_specs_command",
+    ) as install_package_specs:
+        main()
+
+    check_prefix.assert_called_once()
+    install_package_specs.assert_called_once()
+
+
+def test_main_install_invalid_target_exits(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = argparse.Namespace(
+        command="install",
+        files=["bad-target"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        side_effect=ValueError("bad input"),
+    ), pytest.raises(SystemExit, match="1"):
+        main()
+
+    assert "❌ bad input" in capsys.readouterr().out
+
+
+def test_main_install_mixed_local_and_package_specs_exits(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    local_target = tmp_path / "requirements.yaml"
+    local_target.write_text("dependencies: []\n")
+    args = argparse.Namespace(
+        command="install",
+        files=[str(local_target), "demo-package==1.2.3"],
+        conda_executable=None,
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+        skip_local=False,
+        skip_pip=False,
+        skip_conda=False,
+        no_dependencies=False,
+        ignore_pin=[],
+        skip_dependency=[],
+        overwrite_pin=[],
+        no_uv=True,
+        verbose=False,
+    )
+    with patch("unidep._cli._parse_args", return_value=args), patch(
+        "unidep._index_install.classify_install_targets",
+        return_value=([local_target], ["demo-package==1.2.3"]),
+    ), pytest.raises(SystemExit, match="1"):
+        main()
+
+    out = capsys.readouterr().out
+    assert "Cannot mix local requirement paths and package specifiers" in out
+    assert "Use separate commands" in out
+
+
+def test_install_package_specs_command_with_unidep_metadata(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    metadata = UnidepMetadata(
+        schema_version=1,
+        project="demo-package",
+        version="1.2.3",
+        channels=["conda-forge"],
+        platforms={
+            "linux-64": PlatformDependencySet(
+                conda=["qsimcirq * cuda*"],
+                pip=["requests>=2"],
+            ),
+        },
+        extras={},
+    )
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._cli.identify_current_platform",
+        return_value="linux-64",
+    ), patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
+        return_value=metadata,
+    ), patch(
+        "unidep._cli._maybe_exe",
+        return_value="conda",
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable="conda",
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
+        )
+
+    captured = capsys.readouterr().out
+    assert "Installing conda dependencies" in captured
+    assert "Installing pip dependencies from UniDep metadata" in captured
+    assert "Installing package specs (with UniDep metadata)" in captured
+    assert any(cmd[:3] == ["conda", "install", "--yes"] for cmd in calls)
+    assert any(
+        cmd[:4] == [sys.executable, "-m", "pip", "install"] and "requests>=2" in cmd
+        for cmd in calls
+    )
+    assert any(
+        cmd[:4] == [sys.executable, "-m", "pip", "install"]
+        and "--no-deps" in cmd
+        and "demo-package==1.2.3" in cmd
+        for cmd in calls
+    )
+
+
+def test_install_package_specs_command_fallback_to_pip_only() -> None:
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
+        return_value=None,
+    ), patch(
+        "unidep._cli._maybe_conda_executable",
+        return_value=None,
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), patch(
+        "subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
+        )
+
+    assert calls == [[sys.executable, "-m", "pip", "install", "demo-package==1.2.3"]]
+
+
+def test_install_package_specs_command_requires_conda_for_metadata() -> None:
+    metadata = UnidepMetadata(
+        schema_version=1,
+        project="demo-package",
+        version="1.2.3",
+        channels=["conda-forge"],
+        platforms={
+            "linux-64": PlatformDependencySet(conda=["qsimcirq * cuda*"], pip=[]),
+        },
+        extras={},
+    )
+    with patch(
+        "unidep._cli.identify_current_platform",
+        return_value="linux-64",
+    ), patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=Path("demo-package-1.2.3-py3-none-any.whl"),
+    ), patch(
+        "unidep._index_install.extract_unidep_metadata_from_wheel",
+        return_value=metadata,
+    ), patch(
+        "unidep._cli._maybe_conda_executable",
+        return_value=None,
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value=sys.executable,
+    ), patch(
+        "unidep._cli._maybe_conda_run",
+        return_value=[],
+    ), pytest.raises(SystemExit, match="1"):
+        _install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            no_uv=True,
         )
 
 
@@ -717,7 +1230,7 @@ def test_find_conda_windows() -> None:
     """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
-        match="Could not find conda.",
+        match=r"Could not find conda\.",
     ) as excinfo:
         _find_windows_path("conda")
     # This Windows hell... 🤦‍♂️
@@ -938,3 +1451,22 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_create_conda_environment_installs_python() -> None:
+    calls: list[list[str]] = []
+    python_spec = f"python={sys.version_info.major}.{sys.version_info.minor}"
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: object) -> None:
+        calls.append([str(c) for c in cmd])
+
+    with patch(
+        "unidep._cli._maybe_exe",
+        return_value="conda",
+    ), patch(
+        "unidep._cli.subprocess.run",
+        side_effect=_run_capture,
+    ):
+        _create_conda_environment("conda", "--name", "fresh-env")
+
+    assert calls == [["conda", "create", "--yes", "--name", "fresh-env", python_spec]]

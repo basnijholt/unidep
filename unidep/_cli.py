@@ -19,6 +19,8 @@ import sys
 import time
 from pathlib import Path
 
+from unidep import _index_install
+from unidep._artifact_metadata import CondaExecutable  # noqa: TC001  # re-exported
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -68,7 +70,6 @@ except ImportError:  # pragma: no cover
     from argparse import HelpFormatter as _HelpFormatter  # type: ignore[assignment]
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
-CondaExecutable = Literal["conda", "mamba", "micromamba"]
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -115,7 +116,7 @@ def _add_common_args(  # noqa: PLR0912, C901
     if "*files" in options:
         sub_parser.add_argument(
             "files",
-            type=Path,
+            type=str,
             nargs="+",
             help=f"The {_DEP_FILES} file(s) to parse"
             " or folder(s) that contain those file(s), by default `.`",
@@ -351,7 +352,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         " This command first installs dependencies"
         " with Conda, then with Pip. Finally, it installs local packages"
         f" (those containing the {_DEP_FILES} files)"
-        " using `pip install [-e] ./project`."
+        " using `pip install [-e] ./project`. It can also install from package"
+        ' requirement specifiers, e.g. `unidep install "pkg==1.2.3"`.'
     )
     install_example = (
         " Example usage: `unidep install .` for a single project."
@@ -360,7 +362,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         f" a {_DEP_FILES} file. Use `--editable` or"
         " `-e` to install the local packages in editable mode. See"
         f" `unidep install-all` to install all {_DEP_FILES} files in and below the"
-        " current folder."
+        " current folder. For package artifacts, use `unidep install"
+        ' "pkg[extra]==1.2.3"`.'
     )
 
     parser_install = subparsers.add_parser(
@@ -892,11 +895,13 @@ def _maybe_create_conda_env_args(
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
 ) -> list[str]:
-    if not conda_env_name and not conda_env_prefix:
-        return []
-    conda_env_args = []
+    conda_env_args = _index_install._conda_env_args(
+        conda_env_name,
+        conda_env_prefix,
+    )
+    if not conda_env_args:
+        return conda_env_args
     if conda_env_name:
-        conda_env_args = ["--name", conda_env_name]
         prefix = _conda_env_name_to_prefix(
             conda_executable,
             conda_env_name,
@@ -905,7 +910,6 @@ def _maybe_create_conda_env_args(
         if prefix is None:
             _create_conda_environment(conda_executable, *conda_env_args)
     elif conda_env_prefix:
-        conda_env_args = ["--prefix", str(conda_env_prefix)]
         if not conda_env_prefix.exists():
             _create_conda_environment(conda_executable, *conda_env_args)
     return conda_env_args
@@ -915,9 +919,16 @@ def _create_conda_environment(
     conda_executable: CondaExecutable,
     *args: str,
 ) -> None:  # pragma: no cover
-    """Create an empty conda environment."""
-    conda_command = [_maybe_exe(conda_executable), "create", "--yes", *args]
-    print(f"📦 Creating empty conda environment with `{' '.join(conda_command)}`\n")
+    """Create a conda environment with a Python interpreter available."""
+    python_spec = f"python={sys.version_info.major}.{sys.version_info.minor}"
+    conda_command = [
+        _maybe_exe(conda_executable),
+        "create",
+        "--yes",
+        *args,
+        python_spec,
+    ]
+    print(f"📦 Creating conda environment with `{' '.join(conda_command)}`\n")
     subprocess.run(conda_command, check=True)
 
 
@@ -948,6 +959,20 @@ def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
     return shutil.which("uv") is not None
 
 
+def _build_pip_install_command(
+    *,
+    python_executable: str,
+    conda_run: list[str],
+    no_uv: bool,
+) -> list[str]:
+    return _index_install._build_pip_install_command(
+        python_executable=python_executable,
+        conda_run=conda_run,
+        no_uv=no_uv,
+        use_uv=_use_uv,
+    )
+
+
 def _pip_install_local(
     *folders: str | Path,
     editable: bool,
@@ -957,17 +982,11 @@ def _pip_install_local(
     no_uv: bool,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
-    if _use_uv(no_uv):
-        pip_command = [
-            *conda_run,
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            python_executable,
-        ]
-    else:
-        pip_command = [*conda_run, python_executable, "-m", "pip", "install"]
+    pip_command = _build_pip_install_command(
+        python_executable=python_executable,
+        conda_run=conda_run,
+        no_uv=no_uv,
+    )
 
     if flags:
         pip_command.extend(flags)
@@ -989,6 +1008,57 @@ def _pip_install_local(
     print(f"📦 Installing project with `{' '.join(pip_command)}`\n")
     if not dry_run:
         subprocess.run(pip_command, check=True)
+
+
+def _install_package_specs_command(
+    *package_specs: str,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    conda_lock_file: Path | None,
+    dry_run: bool,
+    editable: bool,
+    skip_local: bool = False,
+    skip_pip: bool = False,
+    skip_conda: bool = False,
+    no_dependencies: bool = False,
+    ignore_pins: list[str] | None = None,
+    overwrite_pins: list[str] | None = None,
+    skip_dependencies: list[str] | None = None,
+    no_uv: bool = True,
+    verbose: bool = False,
+) -> None:
+    """Install dependencies and package specs from package index artifacts."""
+    runtime = _index_install.InstallRuntime(
+        maybe_conda_executable=_maybe_conda_executable,
+        maybe_conda_run=_maybe_conda_run,
+        python_executable=_python_executable,
+        maybe_create_conda_env_args=_maybe_create_conda_env_args,
+        maybe_exe=_maybe_exe,
+        format_inline_conda_package=_format_inline_conda_package,
+        use_uv=_use_uv,
+        identify_current_platform=identify_current_platform,
+        run_subprocess=subprocess.run,
+    )
+    _index_install.install_package_specs_command(
+        *package_specs,
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+        conda_lock_file=conda_lock_file,
+        dry_run=dry_run,
+        editable=editable,
+        skip_local=skip_local,
+        skip_pip=skip_pip,
+        skip_conda=skip_conda,
+        no_dependencies=no_dependencies,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        no_uv=no_uv,
+        verbose=verbose,
+        runtime=runtime,
+    )
 
 
 def _install_command(  # noqa: PLR0912, PLR0915
@@ -1049,13 +1119,22 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_pip = True
         skip_conda = True
 
+    python_executable, conda_run = _index_install._resolve_target_python_context(
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+        dry_run=dry_run,
+        maybe_conda_run=_maybe_conda_run,
+        python_executable=_python_executable,
+        maybe_create_conda_env_args=_maybe_create_conda_env_args,
+    )
+
     if env_spec.conda and not skip_conda:
         assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
-        conda_env_args = _maybe_create_conda_env_args(
-            conda_executable,
+        conda_env_args = _index_install._conda_env_args(
             conda_env_name,
             conda_env_prefix,
         )
@@ -1073,13 +1152,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
-    python_executable = _python_executable(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-    )
     if env_spec.pip and not skip_pip:
-        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         if _use_uv(no_uv):
             pip_command = [
                 *conda_run,
@@ -1133,11 +1206,6 @@ def _install_command(  # noqa: PLR0912, PLR0915
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
             _pip_install_local(
                 *sorted(installable),
                 editable=editable,
@@ -1657,26 +1725,67 @@ def main() -> None:  # noqa: PLR0912
 
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
+        raw_targets = list(args.files or ["."])
+        try:
+            local_targets, package_specs = _index_install.classify_install_targets(
+                raw_targets,
+            )
+        except ValueError as exc:
+            print(f"❌ {exc}")
+            sys.exit(1)
+
+        if local_targets and package_specs:
+            print(
+                "❌ Cannot mix local requirement paths and package specifiers in one"
+                " `unidep install` command.",
+            )
+            print(
+                "Use separate commands, e.g. `unidep install .` and then"
+                " package specs.",
+            )
+            sys.exit(1)
+
         if args.conda_env_name is None and args.conda_env_prefix is None:
             _check_conda_prefix()
-        _install_command(
-            *(args.files or [Path()]),
-            conda_executable=args.conda_executable,
-            conda_env_name=args.conda_env_name,
-            conda_env_prefix=args.conda_env_prefix,
-            conda_lock_file=args.conda_lock_file,
-            dry_run=args.dry_run,
-            editable=args.editable,
-            skip_local=args.skip_local,
-            skip_pip=args.skip_pip,
-            skip_conda=args.skip_conda,
-            no_dependencies=args.no_dependencies,
-            ignore_pins=args.ignore_pin,
-            skip_dependencies=args.skip_dependency,
-            overwrite_pins=args.overwrite_pin,
-            no_uv=args.no_uv,
-            verbose=args.verbose,
-        )
+
+        if package_specs:
+            _install_package_specs_command(
+                *package_specs,
+                conda_executable=args.conda_executable,
+                conda_env_name=args.conda_env_name,
+                conda_env_prefix=args.conda_env_prefix,
+                conda_lock_file=args.conda_lock_file,
+                dry_run=args.dry_run,
+                editable=args.editable,
+                skip_local=args.skip_local,
+                skip_pip=args.skip_pip,
+                skip_conda=args.skip_conda,
+                no_dependencies=args.no_dependencies,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
+                no_uv=args.no_uv,
+                verbose=args.verbose,
+            )
+        else:
+            _install_command(
+                *local_targets,
+                conda_executable=args.conda_executable,
+                conda_env_name=args.conda_env_name,
+                conda_env_prefix=args.conda_env_prefix,
+                conda_lock_file=args.conda_lock_file,
+                dry_run=args.dry_run,
+                editable=args.editable,
+                skip_local=args.skip_local,
+                skip_pip=args.skip_pip,
+                skip_conda=args.skip_conda,
+                no_dependencies=args.no_dependencies,
+                ignore_pins=args.ignore_pin,
+                skip_dependencies=args.skip_dependency,
+                overwrite_pins=args.overwrite_pin,
+                no_uv=args.no_uv,
+                verbose=args.verbose,
+            )
     elif args.command == "install-all":
         if args.conda_env_name is None and args.conda_env_prefix is None:
             _check_conda_prefix()

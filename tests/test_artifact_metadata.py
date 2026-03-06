@@ -1,0 +1,409 @@
+"""Tests for UniDep artifact metadata helpers."""
+
+from __future__ import annotations
+
+import json
+import zipfile
+from typing import TYPE_CHECKING, Any, get_args
+
+import pytest
+
+from unidep._artifact_metadata import (
+    UNIDEP_METADATA_FILENAME,
+    UnidepMetadataError,
+    build_unidep_metadata,
+    extract_unidep_metadata_from_wheel,
+    parse_unidep_metadata,
+    select_unidep_dependencies,
+)
+from unidep.platform_definitions import Platform
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def _sample_metadata() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": ["qsimcirq * cuda*"], "pip": ["requests>=2"]},
+            "osx-arm64": {"conda": [], "pip": ["requests>=2"]},
+        },
+        "extras": {
+            "dev": {
+                "linux-64": {"conda": [], "pip": ["pytest>=8"]},
+                "osx-arm64": {"conda": [], "pip": ["pytest>=8"]},
+            },
+        },
+    }
+
+
+def test_parse_and_select_unidep_metadata() -> None:
+    metadata = parse_unidep_metadata(_sample_metadata())
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["dev", "missing-extra"],
+    )
+    assert selected.channels == ["conda-forge"]
+    assert selected.conda == ["qsimcirq * cuda*"]
+    assert selected.pip == ["requests>=2", "pytest>=8"]
+    assert selected.missing_extras == ["missing-extra"]
+
+
+def test_parse_unidep_metadata_rejects_invalid_schema() -> None:
+    bad = _sample_metadata()
+    bad["schema_version"] = 999
+    with pytest.raises(UnidepMetadataError, match="Unsupported UniDep metadata schema"):
+        parse_unidep_metadata(bad)
+
+
+def test_parse_unidep_metadata_rejects_non_object() -> None:
+    with pytest.raises(UnidepMetadataError, match="must be a JSON object"):
+        parse_unidep_metadata([])
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error_match"),
+    [
+        (
+            lambda data: data.update({"project": ""}),
+            r"`project` must be a non-empty string",
+        ),
+        (
+            lambda data: data.update({"version": ""}),
+            r"`version` must be a non-empty string",
+        ),
+        (
+            lambda data: data.update({"channels": [1]}),
+            r"`channels` must be a list of strings",
+        ),
+        (
+            lambda data: data.update({"platforms": []}),
+            r"`platforms` must be a mapping of platforms",
+        ),
+        (
+            lambda data: data.update(
+                {"platforms": {"beos-1": {"conda": [], "pip": []}}},
+            ),
+            r"Unsupported platform `beos-1` in `platforms`",
+        ),
+        (
+            lambda data: data.update({"platforms": {"linux-64": []}}),
+            r"must be an object",
+        ),
+        (
+            lambda data: data.update(
+                {"platforms": {"linux-64": {"conda": [1], "pip": []}}},
+            ),
+            r"`platforms\.linux-64\.conda` must be a list of strings",
+        ),
+        (
+            lambda data: data.update({"extras": []}),
+            r"`extras` must be an object mapping extra names to platforms",
+        ),
+        (
+            lambda data: data.update(
+                {"extras": {"": {"linux-64": {"conda": [], "pip": []}}}},
+            ),
+            r"`extras` keys must be non-empty strings",
+        ),
+        (
+            lambda data: data.update(
+                {
+                    "extras": {
+                        "dev-extra": {
+                            "linux-64": {"conda": [], "pip": ["pytest"]},
+                        },
+                        "dev_extra": {
+                            "linux-64": {"conda": [], "pip": ["pytest"]},
+                        },
+                    },
+                },
+            ),
+            r"normalise to the same name.*PEP 685",
+        ),
+    ],
+)
+def test_parse_unidep_metadata_rejects_invalid_fields(
+    mutate: Any,
+    error_match: str,
+) -> None:
+    bad = _sample_metadata()
+    mutate(bad)
+    with pytest.raises(UnidepMetadataError, match=error_match):
+        parse_unidep_metadata(bad)
+
+
+def test_extract_unidep_metadata_from_wheel(tmp_path: Path) -> None:
+    wheel = tmp_path / "demo_package-1.2.3-py3-none-any.whl"
+    metadata_path = "demo_package-1.2.3.dist-info/unidep.json"
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr(metadata_path, json.dumps(_sample_metadata()))
+
+    metadata = extract_unidep_metadata_from_wheel(wheel)
+    assert metadata is not None
+    assert metadata.project == "demo-package"
+    assert metadata.version == "1.2.3"
+
+
+def test_extract_unidep_metadata_from_hatch_extra_metadata(tmp_path: Path) -> None:
+    wheel = tmp_path / "demo_package-1.2.3-py3-none-any.whl"
+    metadata_path = (
+        f"demo_package-1.2.3.dist-info/extra_metadata/{UNIDEP_METADATA_FILENAME}"
+    )
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr(metadata_path, json.dumps(_sample_metadata()))
+
+    metadata = extract_unidep_metadata_from_wheel(wheel)
+    assert metadata is not None
+    assert metadata.project == "demo-package"
+
+
+def test_extract_unidep_metadata_from_wheel_returns_none_when_missing(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "demo_package-1.2.3-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr("demo_package-1.2.3.dist-info/METADATA", "Name: demo-package")
+    assert extract_unidep_metadata_from_wheel(wheel) is None
+
+
+def test_select_unidep_dependencies_missing_base_platform_raises() -> None:
+    metadata = parse_unidep_metadata(_sample_metadata())
+    with pytest.raises(UnidepMetadataError, match="is not present in UniDep metadata"):
+        select_unidep_dependencies(metadata, platform="linux-aarch64")
+
+
+def test_select_unidep_dependencies_extra_no_delta_on_platform_is_not_missing() -> None:
+    """An extra that exists but has no deps on the current platform is NOT missing."""
+    raw = _sample_metadata()
+    raw["extras"] = {
+        "dev": {
+            "osx-arm64": {"conda": [], "pip": ["pytest>=8"]},
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["dev"],
+    )
+    # The extra exists (on osx-arm64) but simply has no delta for linux-64.
+    # It must NOT be reported as missing — base deps must still be used.
+    assert selected.missing_extras == []
+    # Base deps for linux-64 are still present.
+    assert selected.conda == ["qsimcirq * cuda*"]
+    assert selected.pip == ["requests>=2"]
+
+
+def test_select_unidep_dependencies_extra_moves_pip_to_conda() -> None:
+    """When an extra moves a dep from pip to conda, the pip entry should be removed."""
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": [], "pip": ["demofoo>=1"]},
+        },
+        "extras": {
+            "gpu": {
+                "linux-64": {"conda": ["demofoo>=1"], "pip": []},
+            },
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["gpu"],
+    )
+    # demofoo should only appear in conda, not both conda and pip
+    assert selected.conda == ["demofoo>=1"]
+    assert selected.pip == []
+
+
+def test_select_unidep_dependencies_dedupes_compatible_release_pins() -> None:
+    """`~=` pins should still dedupe against conda-provided package names."""
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": [], "pip": ["demofoo~=1"]},
+        },
+        "extras": {
+            "gpu": {
+                "linux-64": {"conda": ["demofoo>=1"], "pip": []},
+            },
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["gpu"],
+    )
+    assert selected.conda == ["demofoo>=1"]
+    assert selected.pip == []
+
+
+def test_build_unidep_metadata(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+channels:
+  - conda-forge
+dependencies:
+  - conda: qsimcirq * cuda*
+  - pip: requests >=2
+optional_dependencies:
+  dev:
+    - pip: pytest >=8
+platforms:
+  - linux-64
+  - osx-arm64
+""",
+    )
+
+    metadata = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+
+    assert metadata["schema_version"] == 1
+    assert metadata["project"] == "demo-package"
+    assert metadata["version"] == "1.2.3"
+    assert metadata["channels"] == ["conda-forge"]
+    assert set(metadata["platforms"]) == {"linux-64", "osx-arm64"}
+    assert "dev" in metadata.get("extras", {})
+
+
+def test_build_unidep_metadata_keeps_platform_specific_deps_isolated(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+dependencies:
+  - conda: linux-only-pkg  # [linux64]
+  - conda: osx-only-pkg  # [arm64]
+  - pip: linux-only-pip >=1  # [linux64]
+  - pip: osx-only-pip >=1  # [arm64]
+platforms:
+  - linux-64
+  - osx-arm64
+""",
+    )
+
+    metadata = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+
+    linux = metadata["platforms"]["linux-64"]
+    osx = metadata["platforms"]["osx-arm64"]
+    assert linux["conda"] == ["linux-only-pkg"]
+    assert linux["pip"] == ["linux-only-pip >=1"]
+    assert osx["conda"] == ["osx-only-pkg"]
+    assert osx["pip"] == ["osx-only-pip >=1"]
+
+
+def test_build_unidep_metadata_defaults_to_all_platforms(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+channels:
+  - conda-forge
+dependencies:
+  - pip: requests >=2
+""",
+    )
+
+    metadata = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+
+    assert set(metadata["platforms"]) == set(get_args(Platform))
+
+
+def test_select_unidep_dependencies_extras_normalisation() -> None:
+    """Extras lookup should be case-/separator-insensitive (PEP 685)."""
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "project": "demo-package",
+        "version": "1.2.3",
+        "channels": ["conda-forge"],
+        "platforms": {
+            "linux-64": {"conda": [], "pip": ["requests>=2"]},
+        },
+        "extras": {
+            "dev_extra": {
+                "linux-64": {"conda": [], "pip": ["pytest>=8"]},
+            },
+        },
+    }
+    metadata = parse_unidep_metadata(raw)
+    # Request using different casing/separators — should still match.
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["Dev-Extra"],
+    )
+    assert selected.pip == ["requests>=2", "pytest>=8"]
+    assert selected.missing_extras == []
+
+
+def test_build_unidep_metadata_zero_delta_extra_preserved(tmp_path: Path) -> None:
+    """An extra whose deps duplicate the base set must still appear in metadata.
+
+    Otherwise install-time selection treats it as undefined, falls back to
+    pip-only, and silently drops base conda deps.
+    """
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+channels:
+  - conda-forge
+dependencies:
+  - conda: numpy >=1.0
+  - pip: requests >=2
+optional_dependencies:
+  noop:
+    - conda: numpy >=1.0
+platforms:
+  - linux-64
+""",
+    )
+
+    metadata_dict = build_unidep_metadata(
+        req_file,
+        project="demo-package",
+        version="1.2.3",
+    )
+    # The extra must be present (even though its delta is empty).
+    assert "noop" in metadata_dict.get("extras", {}), (
+        "Zero-delta extra 'noop' must not be dropped from metadata"
+    )
+
+    # Round-trip: parse the emitted metadata and select with the extra.
+    metadata = parse_unidep_metadata(metadata_dict)
+    selected = select_unidep_dependencies(
+        metadata,
+        platform="linux-64",
+        extras=["noop"],
+    )
+    # The extra is NOT missing — it simply contributes nothing.
+    assert selected.missing_extras == []
+    # Base deps must still be present.
+    assert selected.conda == ["numpy >=1.0"]
+    assert selected.pip == ["requests >=2"]

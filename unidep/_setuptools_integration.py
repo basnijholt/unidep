@@ -6,12 +6,16 @@ This module provides setuptools integration for unidep.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, NamedTuple
 
 from ruamel.yaml import YAML
 
+from unidep._artifact_metadata import (
+    build_unidep_metadata,
+)
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     _load,
@@ -245,3 +249,30 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
 
     if deps.extras:
         dist.extras_require = deps.extras  # type: ignore[attr-defined]
+
+
+def _write_unidep_metadata_egg_info(cmd: object, basename: str, filename: str) -> None:
+    """Write `unidep.json` to `.egg-info` for wheel metadata embedding."""
+    del basename  # unused but part of setuptools hook signature
+    project_root = Path.cwd()
+    try:
+        requirements_file = parse_folder_or_filename(project_root).path
+    except FileNotFoundError:
+        return
+
+    distribution = cmd.distribution  # type: ignore[attr-defined]
+    project = distribution.metadata.get_name() or package_name_from_path(project_root)
+    version = distribution.metadata.get_version() or "0+unknown"
+    payload = build_unidep_metadata(
+        requirements_file,
+        project=project,
+        version=version,
+        verbose=bool(os.getenv("UNIDEP_VERBOSE")),
+    )
+    txt = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    cmd.write_or_delete_file(  # type: ignore[attr-defined]
+        "unidep metadata",
+        filename,
+        txt,
+        force=True,
+    )

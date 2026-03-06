@@ -42,6 +42,7 @@ docs = [
 ]
 test = [
     "unidep[all]",
+    "hatchling",
     "tomli_w",
     "pytest",
     "pre-commit",
@@ -57,6 +58,9 @@ unidep = "unidep:_cli.main"
 
 [project.entry-points."setuptools.finalize_distribution_options"]
 unidep = "unidep._setuptools_integration:_setuptools_finalizer"
+
+[project.entry-points."egg_info.writers"]
+"unidep.json" = "unidep._setuptools_integration:_write_unidep_metadata_egg_info"
 
 [project.entry-points.hatch]
 unidep = "unidep._hatch_integration"

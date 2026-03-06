@@ -1,11 +1,18 @@
 """Tests for setuptools integration."""
 
+from __future__ import annotations
+
+import json
 import textwrap
+import zipfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
+from unidep._index_install import InstallRuntime, install_package_specs_command
+from unidep._setuptools_integration import _write_unidep_metadata_egg_info
 from unidep.utils import (
     package_name_from_path,
     package_name_from_pyproject_toml,
@@ -14,6 +21,40 @@ from unidep.utils import (
 )
 
 REPO_ROOT = Path(__file__).parent.parent
+
+
+class _StubMetadata:
+    """Minimal setuptools Distribution.metadata stand-in for tests."""
+
+    @staticmethod
+    def get_name() -> str:
+        return "demo-package"
+
+    @staticmethod
+    def get_version() -> str:
+        return "1.2.3"
+
+
+class _StubDistribution:
+    """Minimal setuptools Distribution stand-in for tests."""
+
+    metadata = _StubMetadata()
+
+
+class _StubCmd:
+    """Minimal setuptools egg_info command stand-in for tests."""
+
+    distribution = _StubDistribution()
+    written: str | None = None
+
+    def write_or_delete_file(
+        self,
+        what: str,  # noqa: ARG002
+        filename: str,  # noqa: ARG002
+        data: str,
+        force: bool,  # noqa: FBT001, ARG002
+    ) -> None:
+        self.written = data
 
 
 def test_package_name_from_path() -> None:
@@ -101,7 +142,7 @@ def test_package_name_from_setup_py_requires_literal_name(tmp_path: Path) -> Non
 
     with pytest.raises(
         KeyError,
-        match="Could not find the package name in the setup.py",
+        match=r"Could not find the package name in the setup.py",
     ):
         package_name_from_setup_py(setup_py)
 
@@ -131,3 +172,135 @@ def test_package_name_from_path_does_not_suppress_unexpected_errors(
         side_effect=RuntimeError("boom"),
     ), pytest.raises(RuntimeError, match="boom"):
         package_name_from_path(tmp_path)
+
+
+def test_write_unidep_metadata_egg_info(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: requests >=2
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(tmp_path)
+    cmd = _StubCmd()
+    _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
+    assert cmd.written is not None
+    payload = json.loads(cmd.written)
+    assert payload["schema_version"] == 1
+    assert payload["project"] == "demo-package"
+    assert payload["version"] == "1.2.3"
+
+
+def test_write_unidep_metadata_egg_info_missing_requirements_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Metadata:
+        @staticmethod
+        def get_name() -> str:
+            return "demo-package"
+
+        @staticmethod
+        def get_version() -> str:
+            return "1.2.3"
+
+    class _Distribution:
+        metadata = _Metadata()
+
+    class _Cmd:
+        distribution = _Distribution()
+        written = False
+
+        def write_or_delete_file(
+            self,
+            what: str,  # noqa: ARG002
+            filename: str,  # noqa: ARG002
+            data: str,  # noqa: ARG002
+            force: bool,  # noqa: FBT001, ARG002
+        ) -> None:
+            self.written = True
+
+    monkeypatch.chdir(tmp_path)
+    cmd = _Cmd()
+    _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
+    assert cmd.written is False
+
+
+def test_setuptools_metadata_written_to_wheel_is_used_by_package_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end: setuptools metadata writer output is consumed by index install."""
+    (tmp_path / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: requests >=2
+            platforms:
+              - linux-64
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(tmp_path)
+    cmd = _StubCmd()
+    _write_unidep_metadata_egg_info(cmd, "unidep.json", str(tmp_path / "unidep.json"))
+    assert cmd.written is not None
+
+    wheel = tmp_path / "demo_package-1.2.3-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as zf:
+        zf.writestr("demo_package-1.2.3.dist-info/unidep.json", cmd.written)
+
+    calls: list[list[str]] = []
+
+    def _run_capture(cmd: list[str] | tuple[str, ...], **_: Any) -> None:
+        calls.append([str(c) for c in cmd])
+
+    runtime = InstallRuntime(
+        maybe_conda_executable=lambda: None,
+        maybe_conda_run=lambda *_args, **_kwargs: [],
+        python_executable=lambda *_args, **_kwargs: "python",
+        maybe_create_conda_env_args=lambda *_args, **_kwargs: [],
+        maybe_exe=lambda conda_executable: conda_executable,
+        format_inline_conda_package=lambda pkg: pkg,
+        use_uv=lambda _no_uv: False,
+        identify_current_platform=lambda: "linux-64",
+        run_subprocess=_run_capture,
+    )
+
+    with patch(
+        "unidep._index_install._download_package_artifact",
+        return_value=wheel,
+    ):
+        install_package_specs_command(
+            "demo-package==1.2.3",
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=False,
+            editable=False,
+            runtime=runtime,
+        )
+
+    assert ["python", "-m", "pip", "install", "requests >=2"] in calls
+    assert [
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "--no-deps",
+        "demo-package==1.2.3",
+    ] in calls

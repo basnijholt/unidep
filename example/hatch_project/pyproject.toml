@@ -19,3 +19,5 @@ version = "0.1.0"
 allow-direct-references = true
 
 [tool.hatch.metadata.hooks.unidep]
+
+[tool.hatch.build.hooks.unidep]

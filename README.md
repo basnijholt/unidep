@@ -84,6 +84,7 @@ Try it now and streamline your development process!
   - [**Q: How do I force PyPI instead of a local path for one dependency?**](#q-how-do-i-force-pypi-instead-of-a-local-path-for-one-dependency)
   - [**Q: How do I ignore a local dependency entirely?**](#q-how-do-i-ignore-a-local-dependency-entirely)
   - [**Q: A submodule brings its own copy of package X. How do I avoid conflicts?**](#q-a-submodule-brings-its-own-copy-of-package-x-how-do-i-avoid-conflicts)
+  - [**Q: How do I use UniDep with a private PyPI index and `uv`?**](#q-how-do-i-use-unidep-with-a-private-pypi-index-and-uv)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
@@ -577,6 +578,7 @@ For projects using `setuptools`, configure `unidep` in `pyproject.toml` and eith
 
 - **Using `pyproject.toml` only**: The `[project.dependencies]` field in `pyproject.toml` gets automatically populated from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
 - **Using `setup.py`**: The `install_requires` field in `setup.py` automatically reflects dependencies specified in `requirements.yaml` or `pyproject.toml`.
+- **Wheel metadata**: UniDep also writes `unidep.json` into wheel metadata (`.dist-info`) so `unidep install "pkg==x.y"` can install Conda + pip dependencies directly from the published artifact.
 
 **Example `pyproject.toml` Configuration**:
 
@@ -592,6 +594,7 @@ dynamic = ["dependencies"]
 ### Hatchling Integration
 
 For projects managed with [Hatch](https://hatch.pypa.io/), `unidep` can be configured in `pyproject.toml` to automatically process the dependencies from `requirements.yaml` or from the `[tool.unidep]` section in `pyproject.toml`.
+For wheel builds, the UniDep build hook stores `unidep.json` in `.dist-info/extra_metadata`.
 
 **Example Configuration for Hatch**:
 
@@ -606,6 +609,9 @@ dynamic = ["dependencies"]
 
 [tool.hatch.metadata.hooks.unidep]
 # Enable the unidep plugin
+
+[tool.hatch.build.hooks.unidep]
+# Embed unidep.json in wheel metadata
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -643,7 +649,9 @@ positional arguments:
                         then with Pip. Finally, it installs local packages
                         (those containing the `requirements.yaml` or
                         `pyproject.toml` files) using `pip install [-e]
-                        ./project`.
+                        ./project`. It can also install from package
+                        requirement specifiers, e.g. `unidep install
+                        "pkg==1.2.3"`.
     install-all         Install dependencies from all `requirements.yaml` or
                         `pyproject.toml` files found in the current directory
                         or specified directory. This command first installs
@@ -750,6 +758,16 @@ options:
 ### `unidep install`
 
 Use `unidep install` on one or more `requirements.yaml` files and install the dependencies on the current platform using conda, then install the remaining dependencies with pip, and finally install the current package with `pip install [-e] .`.
+It can also install from package requirement specifiers such as `unidep install "example-package==2026.02.25a1"` or `unidep install "example-package[dev]==2026.02.25a1"`.
+
+When installing from package specifiers, UniDep downloads the wheel and looks for embedded `unidep.json` metadata in `.dist-info` (or Hatch's `.dist-info/extra_metadata`). If found, it installs the Conda + pip dependencies from that metadata first, then installs the package itself with `--no-deps`. If no metadata is found, UniDep falls back to a regular pip install for that package.
+
+> [!NOTE]
+> `unidep install` does not allow mixing local requirement paths and package specifiers in one command.
+
+> [!TIP]
+> If you use a private PyPI index with `uv`, configure `uv` for the install step. For package specifiers such as `unidep install "my-package==1.2.3"`, also configure `pip`, because UniDep currently inspects the package metadata with `pip download` before installing it. If you want a single configuration path, use `--no-uv` so both phases go through `pip`.
+
 See `unidep install -h` for more information:
 
 <!-- CODE:BASH:START -->
@@ -774,12 +792,15 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install .` for a single project. For
-multiple projects: `unidep install ./project1 ./project2`. The command accepts
-both file paths and directories containing a `requirements.yaml` or
-`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
-in editable mode. See `unidep install-all` to install all `requirements.yaml`
-or `pyproject.toml` files in and below the current folder.
+./project`. It can also install from package requirement specifiers, e.g.
+`unidep install "pkg==1.2.3"`. Example usage: `unidep install .` for a single
+project. For multiple projects: `unidep install ./project1 ./project2`. The
+command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder. For package artifacts, use `unidep install
+"pkg[extra]==1.2.3"`.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
@@ -866,12 +887,15 @@ Automatically install all dependencies from one or more `requirements.yaml` or
 `pyproject.toml` files. This command first installs dependencies with Conda,
 then with Pip. Finally, it installs local packages (those containing the
 `requirements.yaml` or `pyproject.toml` files) using `pip install [-e]
-./project`. Example usage: `unidep install .` for a single project. For
-multiple projects: `unidep install ./project1 ./project2`. The command accepts
-both file paths and directories containing a `requirements.yaml` or
-`pyproject.toml` file. Use `--editable` or `-e` to install the local packages
-in editable mode. See `unidep install-all` to install all `requirements.yaml`
-or `pyproject.toml` files in and below the current folder.
+./project`. It can also install from package requirement specifiers, e.g.
+`unidep install "pkg==1.2.3"`. Example usage: `unidep install .` for a single
+project. For multiple projects: `unidep install ./project1 ./project2`. The
+command accepts both file paths and directories containing a
+`requirements.yaml` or `pyproject.toml` file. Use `--editable` or `-e` to
+install the local packages in editable mode. See `unidep install-all` to
+install all `requirements.yaml` or `pyproject.toml` files in and below the
+current folder. For package artifacts, use `unidep install
+"pkg[extra]==1.2.3"`.
 
 positional arguments:
   files                 The `requirements.yaml` or `pyproject.toml` file(s) to
@@ -1464,6 +1488,30 @@ local_dependencies:
 ```
 
 This propagates to **every** nested reference, so foo's bundled bar gets replaced with your PyPI package.
+
+### **Q: How do I use UniDep with a private PyPI index and `uv`?**
+
+**A:** Configure `uv` for the install step, for example with a private index in your `pyproject.toml`:
+
+```toml
+[[tool.uv.index]]
+name = "internal"
+url = "https://pypi.company.com/simple"
+default = true
+```
+
+and provide credentials via `uv auth login pypi.company.com` or environment variables such as:
+
+```bash
+export UV_INDEX_INTERNAL_USERNAME=...
+export UV_INDEX_INTERNAL_PASSWORD=...
+```
+
+For local installs such as `unidep install .`, that is usually enough.
+
+For package specifiers such as `unidep install "private-package==1.2.3"`, also configure `pip` (for example with `PIP_INDEX_URL` or `pip.conf`), because UniDep currently inspects the package with `pip download` before it installs it.
+
+If you prefer a single configuration path, use `--no-uv` so both inspection and installation go through `pip`.
 
 ### **Q: How is this different from conda/mamba/pip?**
 

@@ -27,6 +27,8 @@ dynamic = ["dependencies"]  # add "dependencies" here
 allow-direct-references = true  # allow VCS URLs, local paths, etc.
 
 [tool.hatch.metadata.hooks.unidep]  # add this to enable the hook
+
+[tool.hatch.build.hooks.unidep]  # add this to embed unidep.json in wheel metadata
 ```
 
 > [!NOTE]
