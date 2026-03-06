@@ -260,6 +260,11 @@ def _get_package_name(project_dir: Path) -> str:
     return name.replace("-", "_").replace(".", "_")
 
 
+def _canonical_pypi_package_name(name: str) -> str:
+    """Return the canonical PyPI package name for override keys."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _normalize_feature_name(name: str) -> str:
     """Normalize a feature name to a deterministic pixi-friendly key."""
     return re.sub(r"[^A-Za-z0-9_-]+", "-", name.strip()).strip("-_")
@@ -391,11 +396,20 @@ def _add_editable_local_dependencies(
     for project_dir in unique_projects:
         if exclude and project_dir.resolve() in exclude:
             continue
-        package_name = _get_package_name(project_dir)
-        section.setdefault("pypi-dependencies", {})[package_name] = {
+        editable_spec = {
             "path": _editable_dependency_path(project_dir, output_file),
             "editable": True,
         }
+        package_name = _get_package_name(project_dir)
+        section.setdefault("pypi-dependencies", {})[package_name] = editable_spec
+
+        override_name = _canonical_pypi_package_name(
+            package_name_from_path(project_dir),
+        )
+        section.setdefault("pypi-options", {}).setdefault(
+            "dependency-overrides",
+            {},
+        )[override_name] = copy.deepcopy(editable_spec)
 
 
 def _unmanaged_installable_local_project_dir(

@@ -751,21 +751,17 @@ def test_pixi_with_local_package(tmp_path: Path) -> None:
         """,
     )
 
-    output_file = tmp_path / "pixi.toml"
-    generate_pixi_toml(
-        project_dir,
-        output_file=output_file,
-        verbose=False,
-    )
+    data = _generate_and_load(tmp_path / "pixi.toml", project_dir)
 
-    assert output_file.exists()
-    content = output_file.read_text()
-
-    assert "pypi-dependencies" in content
-    assert "my_package" in content
-    assert 'path = "./my_package"' in content
-    assert "editable = true" in content
-    assert 'numpy = "*"' in content
+    assert data["dependencies"]["numpy"] == "*"
+    assert data["pypi-dependencies"]["my_package"] == {
+        "path": "./my_package",
+        "editable": True,
+    }
+    assert data["pypi-options"]["dependency-overrides"]["my-package"] == {
+        "path": "./my_package",
+        "editable": True,
+    }
 
 
 def test_pixi_single_file_editable_path_relative_to_output(tmp_path: Path) -> None:
@@ -846,6 +842,10 @@ def test_pixi_single_file_includes_local_dependency_package_as_editable(
     lib_editable = data["pypi-dependencies"]["lib"]
     assert lib_editable["editable"] is True
     assert lib_editable["path"] == "./lib"
+    assert data["pypi-options"]["dependency-overrides"]["lib"] == {
+        "path": "./lib",
+        "editable": True,
+    }
 
 
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:
@@ -1130,6 +1130,12 @@ def test_pixi_monorepo_keeps_unmanaged_local_dependency_as_editable(
     app_editable = data["feature"]["app"]["pypi-dependencies"]["lib_pkg"]
     assert app_editable["editable"] is True
     assert app_editable["path"] == "./lib"
+    assert data["feature"]["app"]["pypi-options"]["dependency-overrides"][
+        "lib-pkg"
+    ] == {
+        "path": "./lib",
+        "editable": True,
+    }
 
 
 def test_pixi_monorepo_optional_unmanaged_deduped_against_base(

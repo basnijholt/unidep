@@ -1049,6 +1049,13 @@ pixi run <cmd>
   [pypi-dependencies]
   my_pkg = { path = "./relative/path", editable = true }
   ```
+- Matching PyPI dependency overrides for local path deps, so transitive source
+  references resolve to the same local project in Pixi/uv:
+  ```toml
+  [pypi-options.dependency-overrides.my-pkg]
+  path = "./relative/path"
+  editable = true
+  ```
 
 In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
 
