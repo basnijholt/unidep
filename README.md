@@ -84,6 +84,7 @@ Try it now and streamline your development process!
   - [**Q: How do I force PyPI instead of a local path for one dependency?**](#q-how-do-i-force-pypi-instead-of-a-local-path-for-one-dependency)
   - [**Q: How do I ignore a local dependency entirely?**](#q-how-do-i-ignore-a-local-dependency-entirely)
   - [**Q: A submodule brings its own copy of package X. How do I avoid conflicts?**](#q-a-submodule-brings-its-own-copy-of-package-x-how-do-i-avoid-conflicts)
+  - [**Q: How do I use UniDep with a private PyPI index and `uv`?**](#q-how-do-i-use-unidep-with-a-private-pypi-index-and-uv)
   - [**Q: How is this different from conda/mamba/pip?**](#q-how-is-this-different-from-condamambapip)
   - [**Q: I found a project using unidep, now what?**](#q-i-found-a-project-using-unidep-now-what)
   - [**Q: How to handle local dependencies that do not use UniDep?**](#q-how-to-handle-local-dependencies-that-do-not-use-unidep)
@@ -763,6 +764,9 @@ When installing from package specifiers, UniDep downloads the wheel and looks fo
 
 > [!NOTE]
 > `unidep install` does not allow mixing local requirement paths and package specifiers in one command.
+
+> [!TIP]
+> If you use a private PyPI index with `uv`, configure `uv` for the install step. For package specifiers such as `unidep install "my-package==1.2.3"`, also configure `pip`, because UniDep currently inspects the package metadata with `pip download` before installing it. If you want a single configuration path, use `--no-uv` so both phases go through `pip`.
 
 See `unidep install -h` for more information:
 
@@ -1484,6 +1488,30 @@ local_dependencies:
 ```
 
 This propagates to **every** nested reference, so foo's bundled bar gets replaced with your PyPI package.
+
+### **Q: How do I use UniDep with a private PyPI index and `uv`?**
+
+**A:** Configure `uv` for the install step, for example with a private index in your `pyproject.toml`:
+
+```toml
+[[tool.uv.index]]
+name = "internal"
+url = "https://pypi.company.com/simple"
+default = true
+```
+
+and provide credentials via `uv auth login pypi.company.com` or environment variables such as:
+
+```bash
+export UV_INDEX_INTERNAL_USERNAME=...
+export UV_INDEX_INTERNAL_PASSWORD=...
+```
+
+For local installs such as `unidep install .`, that is usually enough.
+
+For package specifiers such as `unidep install "private-package==1.2.3"`, also configure `pip` (for example with `PIP_INDEX_URL` or `pip.conf`), because UniDep currently inspects the package with `pip download` before it installs it.
+
+If you prefer a single configuration path, use `--no-uv` so both inspection and installation go through `pip`.
 
 ### **Q: How is this different from conda/mamba/pip?**
 
