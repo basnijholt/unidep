@@ -1071,7 +1071,9 @@ pixi run <cmd>
   ```
 - Optional structured overlays from `pixi:` / `[tool.unidep.pixi]`, merged into
   the generated manifest after translation. Nested tables merge recursively;
-  scalar and list values from the overlay replace generated values.
+  scalar and list values from the overlay replace generated values. Explicit
+  `project_name`, `channels`, and `platforms` arguments still win over
+  `pixi.workspace`.
 
 In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
 

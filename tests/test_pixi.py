@@ -255,6 +255,71 @@ def test_pixi_overlay_merges_across_multiple_root_files(tmp_path: Path) -> None:
     assert data["tasks"]["test"] == "pytest -q"
 
 
+def test_pixi_workspace_overlay_preserves_explicit_arguments(tmp_path: Path) -> None:
+    """Explicit API arguments should win over ``pixi.workspace`` overrides."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        platforms:
+          - osx-arm64
+        pixi:
+          workspace:
+            name: from-overlay
+            channels:
+              - defaults
+            platforms:
+              - osx-arm64
+            description: Custom workspace metadata
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req_file,
+        project_name="from-cli",
+        channels=["conda-forge", "bioconda"],
+        platforms=["linux-64"],
+    )
+
+    assert data["workspace"]["name"] == "from-cli"
+    assert data["workspace"]["channels"] == ["conda-forge", "bioconda"]
+    assert data["workspace"]["platforms"] == ["linux-64"]
+    assert data["workspace"]["description"] == "Custom workspace metadata"
+
+
+def test_pixi_reads_overlay_from_pyproject_toml(tmp_path: Path) -> None:
+    """Structured overlays should also load from ``[tool.unidep.pixi]``."""
+    req_file = _write_file(
+        tmp_path / "pyproject.toml",
+        """\
+        [project]
+        name = "demo-project"
+
+        [tool.unidep]
+        channels = ["conda-forge"]
+        dependencies = ["numpy"]
+        platforms = ["linux-64"]
+
+        [tool.unidep.pixi.tasks]
+        test = "pytest -q"
+
+        [tool.unidep.pixi.workspace]
+        description = "Overlay from TOML"
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["dependencies"]["numpy"] == "*"
+    assert data["tasks"]["test"] == "pytest -q"
+    assert data["workspace"]["description"] == "Overlay from TOML"
+    assert data["workspace"]["platforms"] == ["linux-64"]
+
+
 def test_channels_resolution_behaviors(tmp_path: Path) -> None:
     """Explicit channels override file/default channels, while None falls back."""
     cases: list[tuple[str, str, object, list[str]]] = [

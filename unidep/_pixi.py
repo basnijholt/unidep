@@ -690,6 +690,70 @@ def _collect_pixi_overlay(requirements_files: Sequence[Path]) -> dict[str, Any]:
     return merged
 
 
+def _split_pixi_overlay(
+    pixi_overlay: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], Mapping[str, Any] | None]:
+    """Split a Pixi overlay into generic manifest data and workspace data."""
+    if not pixi_overlay:
+        return {}, None
+
+    workspace_overlay = pixi_overlay.get("workspace")
+    if workspace_overlay is not None and not isinstance(workspace_overlay, Mapping):
+        msg = "`pixi.workspace` must be a mapping."
+        raise TypeError(msg)
+
+    manifest_overlay = {k: v for k, v in pixi_overlay.items() if k != "workspace"}
+    return manifest_overlay, workspace_overlay
+
+
+def _build_workspace_section(
+    *,
+    result: _PixiGenerationResult,
+    project_name: str | None,
+    channels: list[str] | None,
+    platforms: list[Platform] | None,
+    workspace_overlay: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], list[Platform]]:
+    """Build the final ``[workspace]`` table with explicit arguments winning."""
+    resolved_platforms = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=cast("set[Platform]", result.all_platforms),
+        selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
+    )
+    if channels is not None:
+        final_channels = list(channels)
+    elif result.all_channels:
+        final_channels = sorted(result.all_channels)
+    else:
+        final_channels = ["conda-forge"]
+
+    workspace_data = (
+        copy.deepcopy(dict(workspace_overlay))
+        if isinstance(workspace_overlay, Mapping)
+        else {}
+    )
+    if project_name is not None:
+        workspace_data["name"] = project_name
+    elif "name" not in workspace_data:
+        workspace_data["name"] = Path.cwd().name
+
+    if channels is not None:
+        workspace_data["channels"] = list(channels)
+    elif "channels" in workspace_data:
+        workspace_data["channels"] = list(workspace_data["channels"])
+    else:
+        workspace_data["channels"] = final_channels
+
+    if platforms is not None:
+        final_platforms = resolved_platforms
+    elif "platforms" in workspace_data:
+        final_platforms = list(workspace_data["platforms"])
+    else:
+        final_platforms = resolved_platforms
+    workspace_data["platforms"] = final_platforms
+    return workspace_data, final_platforms
+
+
 def _unique_optional_feature_name(
     *,
     parent_feature: str,
@@ -1286,30 +1350,18 @@ def generate_pixi_toml(
 
     pixi_data = result.pixi_data
 
-    # Set workspace metadata with collected channels and platforms
-    # Sort for deterministic output
-    final_platforms = resolve_platforms(
-        requested_platforms=platforms,
-        declared_platforms=cast("set[Platform]", result.all_platforms),
-        selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
-    )
-    if channels is not None:
-        final_channels = list(channels)
-    elif result.all_channels:
-        final_channels = sorted(result.all_channels)
-    else:
-        final_channels = ["conda-forge"]
-    pixi_data["workspace"] = {
-        "name": project_name or Path.cwd().name,
-        "channels": final_channels,
-        "platforms": final_platforms,
-    }
+    manifest_overlay, workspace_overlay = _split_pixi_overlay(pixi_overlay)
+    if manifest_overlay:
+        _merge_pixi_manifest_overlay(pixi_data, manifest_overlay)
 
-    if pixi_overlay:
-        _merge_pixi_manifest_overlay(pixi_data, pixi_overlay)
-        workspace = pixi_data.get("workspace", {})
-        if isinstance(workspace, Mapping) and "platforms" in workspace:
-            final_platforms = list(workspace["platforms"])
+    workspace_data, final_platforms = _build_workspace_section(
+        result=result,
+        project_name=project_name,
+        channels=channels,
+        platforms=platforms,
+        workspace_overlay=workspace_overlay,
+    )
+    pixi_data["workspace"] = workspace_data
 
     # Filter target sections to only include platforms in the project's platforms list
     _filter_targets_by_platforms(pixi_data, set(final_platforms))
