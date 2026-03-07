@@ -1062,18 +1062,17 @@ pixi run <cmd>
   [pypi-dependencies]
   my_pkg = { path = "./relative/path", editable = true }
   ```
-- Matching PyPI dependency overrides for local path deps, so transitive source
-  references resolve to the same local project in Pixi/uv:
+- Matching Pixi dependency overrides for editable local Python deps, so
+  transitive source references resolve to the same local project in Pixi/uv:
   ```toml
   [pypi-options.dependency-overrides.my-pkg]
   path = "./relative/path"
   editable = true
   ```
-- Optional structured overlays from `pixi:` / `[tool.unidep.pixi]`, merged into
-  the generated manifest after translation. Nested tables merge recursively;
-  scalar and list values from the overlay replace generated values. Explicit
-  `project_name`, `channels`, and `platforms` arguments still win over
-  `pixi.workspace`.
+- Optional structured Pixi overlays from `pixi:` / `[tool.unidep.pixi]`,
+  merged into the generated manifest after translation. Nested tables merge
+  recursively; scalar and list values replace generated values. Explicit
+  `project_name`, `channels`, and `platforms` still win over `pixi.workspace`.
 
 In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
 
