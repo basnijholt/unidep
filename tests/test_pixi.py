@@ -184,6 +184,37 @@ def test_pixi_applies_top_level_overlay(tmp_path: Path) -> None:
     assert data["workspace"]["platforms"] == ["linux-64"]
 
 
+def test_pixi_overlay_requires_mapping(tmp_path: Path) -> None:
+    """Top-level ``pixi`` config must be a mapping."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        dependencies:
+          - numpy
+        pixi: true
+        """,
+    )
+
+    with pytest.raises(TypeError, match=r"`pixi` section .* must be a mapping"):
+        generate_pixi_toml(req_file, output_file=tmp_path / "pixi.toml", verbose=False)
+
+
+def test_pixi_workspace_overlay_requires_mapping(tmp_path: Path) -> None:
+    """``pixi.workspace`` must be a mapping."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        dependencies:
+          - numpy
+        pixi:
+          workspace: invalid
+        """,
+    )
+
+    with pytest.raises(TypeError, match=r"`pixi\.workspace` must be a mapping"):
+        generate_pixi_toml(req_file, output_file=tmp_path / "pixi.toml", verbose=False)
+
+
 def test_pixi_overlay_merges_into_generated_feature(tmp_path: Path) -> None:
     """Overlay data should merge recursively with generated feature tables."""
     req_file = _write_file(
@@ -291,6 +322,31 @@ def test_pixi_workspace_overlay_preserves_explicit_arguments(tmp_path: Path) -> 
     assert data["workspace"]["description"] == "Custom workspace metadata"
 
 
+def test_pixi_workspace_overlay_supplies_channels_without_cli_override(
+    tmp_path: Path,
+) -> None:
+    """Workspace overlay channels should apply when no explicit override is given."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        platforms:
+          - linux-64
+        pixi:
+          workspace:
+            channels:
+              - defaults
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["workspace"]["channels"] == ["defaults"]
+
+
 def test_pixi_reads_overlay_from_pyproject_toml(tmp_path: Path) -> None:
     """Structured overlays should also load from ``[tool.unidep.pixi]``."""
     req_file = _write_file(
@@ -318,6 +374,28 @@ def test_pixi_reads_overlay_from_pyproject_toml(tmp_path: Path) -> None:
     assert data["tasks"]["test"] == "pytest -q"
     assert data["workspace"]["description"] == "Overlay from TOML"
     assert data["workspace"]["platforms"] == ["linux-64"]
+
+
+def test_pixi_single_file_empty_optional_group_skips_optional_environments(
+    tmp_path: Path,
+) -> None:
+    """Empty optional groups should not create single-file optional env entries."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          dev: []
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["feature"] == {}
+    assert data["environments"] == {}
 
 
 def test_channels_resolution_behaviors(tmp_path: Path) -> None:
