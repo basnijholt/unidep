@@ -654,6 +654,42 @@ def _with_unique_order(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
 
+def _merge_pixi_manifest_overlay(
+    base: dict[str, Any],
+    overlay: Mapping[str, Any],
+) -> None:
+    """Recursively merge a user-provided Pixi overlay into generated data.
+
+    Nested tables are merged recursively. Scalar and list values from the overlay
+    replace generated values.
+    """
+    for key, value in overlay.items():
+        existing = base.get(key)
+        if isinstance(existing, dict) and isinstance(value, Mapping):
+            _merge_pixi_manifest_overlay(existing, value)
+            continue
+        base[key] = copy.deepcopy(value)
+
+
+def _collect_pixi_overlay(requirements_files: Sequence[Path]) -> dict[str, Any]:
+    """Collect and merge top-level ``pixi`` sections from root requirements files."""
+    yaml = YAML(typ="rt")
+    merged: dict[str, Any] = {}
+
+    for req_file in requirements_files:
+        req_path = parse_folder_or_filename(req_file).path
+        data = _load(req_path, yaml)
+        overlay = data.get("pixi")
+        if overlay is None:
+            continue
+        if not isinstance(overlay, Mapping):
+            msg = f"`pixi` section in `{req_path}` must be a mapping."
+            raise TypeError(msg)
+        _merge_pixi_manifest_overlay(merged, overlay)
+
+    return merged
+
+
 def _unique_optional_feature_name(
     *,
     parent_feature: str,
@@ -1225,6 +1261,7 @@ def generate_pixi_toml(
     if platforms is not None and not platforms:
         platforms = None
     use_platforms_override = platforms is not None
+    pixi_overlay = _collect_pixi_overlay(requirements_files)
 
     if len(requirements_files) == 1:
         result = _generate_single_file_pixi(
@@ -1267,6 +1304,12 @@ def generate_pixi_toml(
         "channels": final_channels,
         "platforms": final_platforms,
     }
+
+    if pixi_overlay:
+        _merge_pixi_manifest_overlay(pixi_data, pixi_overlay)
+        workspace = pixi_data.get("workspace", {})
+        if isinstance(workspace, Mapping) and "platforms" in workspace:
+            final_platforms = list(workspace["platforms"])
 
     # Filter target sections to only include platforms in the project's platforms list
     _filter_targets_by_platforms(pixi_data, set(final_platforms))

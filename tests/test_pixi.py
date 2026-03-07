@@ -150,6 +150,111 @@ def test_simple_pixi_generation(tmp_path: Path) -> None:
     assert 'requests = "*"' in content
 
 
+def test_pixi_applies_top_level_overlay(tmp_path: Path) -> None:
+    """Top-level ``pixi`` config should merge into the generated manifest."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        platforms:
+          - linux-64
+          - osx-arm64
+        pixi:
+          tasks:
+            test: pytest -q
+          pypi-options:
+            dependency-overrides:
+              requests: ">=2.32"
+          workspace:
+            description: Custom workspace metadata
+            platforms:
+              - linux-64
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["dependencies"]["numpy"] == "*"
+    assert data["tasks"]["test"] == "pytest -q"
+    assert data["pypi-options"]["dependency-overrides"]["requests"] == ">=2.32"
+    assert data["workspace"]["description"] == "Custom workspace metadata"
+    assert data["workspace"]["platforms"] == ["linux-64"]
+
+
+def test_pixi_overlay_merges_into_generated_feature(tmp_path: Path) -> None:
+    """Overlay data should merge recursively with generated feature tables."""
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          dev:
+            - pytest
+        pixi:
+          feature:
+            dev:
+              tasks:
+                test: pytest -q
+              pypi-options:
+                dependency-overrides:
+                  urllib3: "<3"
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
+
+    assert data["feature"]["dev"]["dependencies"]["pytest"] == "*"
+    assert data["feature"]["dev"]["tasks"]["test"] == "pytest -q"
+    assert (
+        data["feature"]["dev"]["pypi-options"]["dependency-overrides"]["urllib3"]
+        == "<3"
+    )
+
+
+def test_pixi_overlay_merges_across_multiple_root_files(tmp_path: Path) -> None:
+    """Multi-file generation should merge ``pixi`` overlays from root inputs."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    req_app = _write_file(
+        app_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        pixi:
+          tasks:
+            lint: ruff check .
+        """,
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    req_lib = _write_file(
+        lib_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pandas
+        pixi:
+          tasks:
+            test: pytest -q
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", req_app, req_lib)
+
+    assert data["tasks"]["lint"] == "ruff check ."
+    assert data["tasks"]["test"] == "pytest -q"
+
+
 def test_channels_resolution_behaviors(tmp_path: Path) -> None:
     """Explicit channels override file/default channels, while None falls back."""
     cases: list[tuple[str, str, object, list[str]]] = [
