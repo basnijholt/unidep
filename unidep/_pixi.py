@@ -260,6 +260,11 @@ def _get_package_name(project_dir: Path) -> str:
     return name.replace("-", "_").replace(".", "_")
 
 
+def _canonical_pypi_package_name(name: str) -> str:
+    """Return the canonical PyPI package name for override keys."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _normalize_feature_name(name: str) -> str:
     """Normalize a feature name to a deterministic pixi-friendly key."""
     return re.sub(r"[^A-Za-z0-9_-]+", "-", name.strip()).strip("-_")
@@ -391,11 +396,20 @@ def _add_editable_local_dependencies(
     for project_dir in unique_projects:
         if exclude and project_dir.resolve() in exclude:
             continue
-        package_name = _get_package_name(project_dir)
-        section.setdefault("pypi-dependencies", {})[package_name] = {
+        editable_spec = {
             "path": _editable_dependency_path(project_dir, output_file),
             "editable": True,
         }
+        package_name = _get_package_name(project_dir)
+        section.setdefault("pypi-dependencies", {})[package_name] = editable_spec
+
+        override_name = _canonical_pypi_package_name(
+            package_name_from_path(project_dir),
+        )
+        section.setdefault("pypi-options", {}).setdefault(
+            "dependency-overrides",
+            {},
+        )[override_name] = copy.deepcopy(editable_spec)
 
 
 def _unmanaged_installable_local_project_dir(
@@ -638,6 +652,106 @@ def _collect_transitive_nodes(
 def _with_unique_order(items: list[str]) -> list[str]:
     """Return unique items while preserving order."""
     return list(dict.fromkeys(items))
+
+
+def _merge_pixi_manifest_overlay(
+    base: dict[str, Any],
+    overlay: Mapping[str, Any],
+) -> None:
+    """Recursively merge a user-provided Pixi overlay into generated data.
+
+    Nested tables are merged recursively. Scalar and list values from the overlay
+    replace generated values.
+    """
+    for key, value in overlay.items():
+        existing = base.get(key)
+        if isinstance(existing, dict) and isinstance(value, Mapping):
+            _merge_pixi_manifest_overlay(existing, value)
+            continue
+        base[key] = copy.deepcopy(value)
+
+
+def _collect_pixi_overlay(requirements_files: Sequence[Path]) -> dict[str, Any]:
+    """Collect and merge top-level ``pixi`` sections from root requirements files."""
+    yaml = YAML(typ="rt")
+    merged: dict[str, Any] = {}
+
+    for req_file in requirements_files:
+        req_path = parse_folder_or_filename(req_file).path
+        data = _load(req_path, yaml)
+        overlay = data.get("pixi")
+        if overlay is None:
+            continue
+        if not isinstance(overlay, Mapping):
+            msg = f"`pixi` section in `{req_path}` must be a mapping."
+            raise TypeError(msg)
+        _merge_pixi_manifest_overlay(merged, overlay)
+
+    return merged
+
+
+def _split_pixi_overlay(
+    pixi_overlay: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], Mapping[str, Any] | None]:
+    """Split a Pixi overlay into generic manifest data and workspace data."""
+    if not pixi_overlay:
+        return {}, None
+
+    workspace_overlay = pixi_overlay.get("workspace")
+    if workspace_overlay is not None and not isinstance(workspace_overlay, Mapping):
+        msg = "`pixi.workspace` must be a mapping."
+        raise TypeError(msg)
+
+    manifest_overlay = {k: v for k, v in pixi_overlay.items() if k != "workspace"}
+    return manifest_overlay, workspace_overlay
+
+
+def _build_workspace_section(
+    *,
+    result: _PixiGenerationResult,
+    project_name: str | None,
+    channels: list[str] | None,
+    platforms: list[Platform] | None,
+    workspace_overlay: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], list[Platform]]:
+    """Build the final ``[workspace]`` table with explicit arguments winning."""
+    resolved_platforms = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=cast("set[Platform]", result.all_platforms),
+        selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
+    )
+    if channels is not None:
+        final_channels = list(channels)
+    elif result.all_channels:
+        final_channels = sorted(result.all_channels)
+    else:
+        final_channels = ["conda-forge"]
+
+    workspace_data = (
+        copy.deepcopy(dict(workspace_overlay))
+        if isinstance(workspace_overlay, Mapping)
+        else {}
+    )
+    if project_name is not None:
+        workspace_data["name"] = project_name
+    elif "name" not in workspace_data:
+        workspace_data["name"] = Path.cwd().name
+
+    if channels is not None:
+        workspace_data["channels"] = list(channels)
+    elif "channels" in workspace_data:
+        workspace_data["channels"] = list(workspace_data["channels"])
+    else:
+        workspace_data["channels"] = final_channels
+
+    if platforms is not None:
+        final_platforms = resolved_platforms
+    elif "platforms" in workspace_data:
+        final_platforms = list(workspace_data["platforms"])
+    else:
+        final_platforms = resolved_platforms
+    workspace_data["platforms"] = final_platforms
+    return workspace_data, final_platforms
 
 
 def _unique_optional_feature_name(
@@ -1211,6 +1325,7 @@ def generate_pixi_toml(
     if platforms is not None and not platforms:
         platforms = None
     use_platforms_override = platforms is not None
+    pixi_overlay = _collect_pixi_overlay(requirements_files)
 
     if len(requirements_files) == 1:
         result = _generate_single_file_pixi(
@@ -1235,24 +1350,18 @@ def generate_pixi_toml(
 
     pixi_data = result.pixi_data
 
-    # Set workspace metadata with collected channels and platforms
-    # Sort for deterministic output
-    final_platforms = resolve_platforms(
-        requested_platforms=platforms,
-        declared_platforms=cast("set[Platform]", result.all_platforms),
-        selector_platforms=cast("set[Platform]", result.discovered_target_platforms),
+    manifest_overlay, workspace_overlay = _split_pixi_overlay(pixi_overlay)
+    if manifest_overlay:
+        _merge_pixi_manifest_overlay(pixi_data, manifest_overlay)
+
+    workspace_data, final_platforms = _build_workspace_section(
+        result=result,
+        project_name=project_name,
+        channels=channels,
+        platforms=platforms,
+        workspace_overlay=workspace_overlay,
     )
-    if channels is not None:
-        final_channels = list(channels)
-    elif result.all_channels:
-        final_channels = sorted(result.all_channels)
-    else:
-        final_channels = ["conda-forge"]
-    pixi_data["workspace"] = {
-        "name": project_name or Path.cwd().name,
-        "channels": final_channels,
-        "platforms": final_platforms,
-    }
+    pixi_data["workspace"] = workspace_data
 
     # Filter target sections to only include platforms in the project's platforms list
     _filter_targets_by_platforms(pixi_data, set(final_platforms))

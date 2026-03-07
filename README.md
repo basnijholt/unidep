@@ -165,6 +165,7 @@ Both files contain the following keys:
 - **local_dependencies** (Optional): List of paths to other `requirements.yaml` or `pyproject.toml` files to include.
 - **optional_dependencies** (Optional): Dictionary with lists of optional dependencies.
 - **platforms** (Optional): List of platforms that are supported (used in `conda-lock`).
+- **pixi** (Optional): Structured overlay merged into the generated `pixi.toml` when using `unidep pixi`.
 
 Whether you use a `requirements.yaml` or `pyproject.toml` file, the same information can be specified in either.
 Choose the format that works best for your project.
@@ -199,6 +200,12 @@ optional_dependencies:
 platforms:  # (Optional) specify platforms that are supported (used in conda-lock)
   - linux-64
   - osx-arm64
+pixi:
+  tasks:
+    test: pytest -q
+  pypi-options:
+    dependency-overrides:
+      requests: ">=2.32"
 ```
 
 > [!IMPORTANT]
@@ -234,6 +241,12 @@ platforms = [ # (Optional) specify platforms that are supported (used in conda-l
     "linux-64",
     "osx-arm64"
 ]
+
+[tool.unidep.pixi.tasks]
+test = "pytest -q"
+
+[tool.unidep.pixi.pypi-options.dependency-overrides]
+requests = ">=2.32"
 ```
 
 This data structure is *identical* to the `requirements.yaml` format, with the exception of the `name` field and the [platform selectors](#platform-selectors).
@@ -1049,6 +1062,17 @@ pixi run <cmd>
   [pypi-dependencies]
   my_pkg = { path = "./relative/path", editable = true }
   ```
+- Matching Pixi dependency overrides for editable local Python deps, so
+  transitive source references resolve to the same local project in Pixi/uv:
+  ```toml
+  [pypi-options.dependency-overrides.my-pkg]
+  path = "./relative/path"
+  editable = true
+  ```
+- Optional structured Pixi overlays from `pixi:` / `[tool.unidep.pixi]`,
+  merged into the generated manifest after translation. Nested tables merge
+  recursively; scalar and list values replace generated values. Explicit
+  `project_name`, `channels`, and `platforms` still win over `pixi.workspace`.
 
 In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
 
