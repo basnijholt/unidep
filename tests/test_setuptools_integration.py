@@ -165,3 +165,37 @@ def test_get_python_dependencies_detects_conflicting_local_sources(
             project / "requirements.yaml",
             include_local_dependencies=True,
         )
+
+
+def test_get_python_dependencies_allows_same_local_source_with_different_extras(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    dep = tmp_path / "dep"
+    dep.mkdir()
+    (dep / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='shared-lib', version='0.1.0')\n",
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../dep[test]
+              - ../dep[dev]
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        project / "requirements.yaml",
+        include_local_dependencies=True,
+    )
+
+    assert "numpy" in deps.dependencies
+    assert any("shared-lib[test] @ file://" in dep for dep in deps.dependencies)
+    assert any("shared-lib[dev] @ file://" in dep for dep in deps.dependencies)

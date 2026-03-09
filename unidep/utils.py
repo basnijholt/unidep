@@ -10,6 +10,7 @@ import codecs
 import configparser
 import contextlib
 import importlib.util
+import io
 import platform
 import re
 import sys
@@ -334,7 +335,9 @@ def detect_conflicting_direct_references(
     """
     deduplicated: list[str] = []
     seen_exact: set[str] = set()
-    seen_direct_refs: dict[str, list[str]] = defaultdict(list)
+    seen_direct_refs: dict[str, dict[str, list[str]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
 
     for requirement in requirements:
         normalized = requirement.strip()
@@ -354,15 +357,22 @@ def detect_conflicting_direct_references(
 
         canonical_name = canonicalize_name(parsed.name)
         existing = seen_direct_refs[canonical_name]
-        if existing and normalized not in existing:
+        source_url = parsed.url
+        conflicting = [
+            existing_requirement
+            for existing_url, existing_requirements in existing.items()
+            if existing_url != source_url
+            for existing_requirement in existing_requirements
+        ]
+        if conflicting:
             msg = format_duplicate_package_sources_message(
                 parsed.name,
-                [*existing, normalized],
+                [*conflicting, normalized],
             )
             msg += f"\n\nWhile {context}."
             raise RuntimeError(msg)
 
-        existing.append(normalized)
+        existing[source_url].append(normalized)
         deduplicated.append(normalized)
 
     return deduplicated
@@ -533,6 +543,7 @@ def _format_cli_diagnostic_with_rich(
         content_lines.extend(f"• {item}" for item in items)
 
     console = Console(
+        file=io.StringIO(),
         record=True,
         width=max(60, max(len(line) for line in content_lines) + 4),
         color_system=None,

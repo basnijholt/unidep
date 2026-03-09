@@ -277,6 +277,22 @@ def test_detect_conflicting_direct_references() -> None:
         )
 
 
+def test_detect_conflicting_direct_references_allows_same_source_variants() -> None:
+    requirements = [
+        "shared-lib[test] @ file:///tmp/dep-a",
+        "shared-lib[dev] @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-a ; python_version < '3.12'",
+    ]
+
+    assert (
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+        == requirements
+    )
+
+
 def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
     dep_a = tmp_path / "dep_a"
     dep_b = tmp_path / "dep_b"
@@ -323,7 +339,9 @@ def test_format_cli_diagnostic_falls_back_without_rich(
     )
 
 
-def test_format_cli_diagnostic_uses_rich_layout() -> None:
+def test_format_cli_diagnostic_uses_rich_layout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     pytest.importorskip("rich")
 
     msg = format_cli_diagnostic(
@@ -334,6 +352,7 @@ def test_format_cli_diagnostic_uses_rich_layout() -> None:
         tips=["helpful detail"],
         prefix="⚠️",
     )
+    captured = capsys.readouterr()
 
     assert "Detected:" in msg
     assert "Why this matters:" in msg
@@ -341,6 +360,8 @@ def test_format_cli_diagnostic_uses_rich_layout() -> None:
     assert "Tip:" in msg
     assert "• path: /example/project" in msg
     assert "╭" in msg or "┌" in msg
+    assert captured.out == ""
+    assert captured.err == ""
 
 
 def test_parse_package_str_with_extras() -> None:
