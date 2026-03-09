@@ -32,12 +32,14 @@ from unidep._dependencies_parsing import (
 )
 from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
+    Dependencies,
     filter_python_dependencies,
     get_python_dependencies,
 )
 from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
+    PathWithExtras,
     add_comment_to_file,
     collect_selector_platforms,
     detect_conflicting_direct_reference_groups,
@@ -1080,6 +1082,21 @@ def _ensure_target_python_exists(
     raise RuntimeError(msg)
 
 
+def _resolved_install_target(
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> tuple[CondaExecutable | None, Path | None]:
+    """Resolve the Conda executable and target prefix for an install."""
+    if not conda_executable:  # None or empty string
+        conda_executable = _maybe_conda_executable()
+    return conda_executable, _target_conda_prefix(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+
+
 def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
     """Check if the user wants to use the `uv` package."""
     if no_uv:
@@ -1130,7 +1147,127 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)
 
 
-def _install_command(  # noqa: PLR0912, PLR0915
+def _install_pip_dependencies(
+    pip_dependencies: list[str],
+    *,
+    python_executable: str,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    no_uv: bool,
+    dry_run: bool,
+) -> None:
+    """Install resolved pip dependencies into the selected target."""
+    if not pip_dependencies:
+        return
+
+    _ensure_target_python_exists(
+        python_executable,
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+    )
+    conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
+    if _use_uv(no_uv):
+        pip_command = [
+            *conda_run,
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python_executable,
+            *pip_dependencies,
+        ]
+    else:
+        pip_command = [
+            *conda_run,
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            *pip_dependencies,
+        ]
+    print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
+    if not dry_run:  # pragma: no cover
+        subprocess.run(pip_command, check=True)
+
+
+def _collect_installable_local_projects(
+    paths_with_extras: list[PathWithExtras],
+    *,
+    verbose: bool,
+) -> list[Path]:
+    """Collect the root projects and local dependencies that need pip install."""
+    installable = []
+    for file in paths_with_extras:
+        if is_pip_installable(file.path.parent):
+            installable.append(file.path.parent)
+        else:  # pragma: no cover
+            print(
+                f"⚠️  Project {file.path.parent} is not pip installable. "
+                "Could not find setup.py or [build-system] in pyproject.toml.",
+            )
+
+    local_dependencies = parse_local_dependencies(
+        *[p.path_with_extras for p in paths_with_extras],
+        check_pip_installable=True,
+        verbose=verbose,
+    )
+    names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
+    print(f"📝 Found local dependencies: {names}\n")
+    installable_set = {p.resolve() for p in installable}
+    installable += [
+        dep
+        for deps in local_dependencies.values()
+        for dep in deps
+        if dep.resolve() not in installable_set
+    ]
+    return installable
+
+
+def _install_local_projects(
+    installable: list[Path],
+    *,
+    editable: bool,
+    dry_run: bool,
+    python_executable: str,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+    no_uv: bool,
+    verbose: bool,
+) -> None:
+    """Install local editable or archive projects into the selected target."""
+    if not installable:
+        return
+
+    _ensure_target_python_exists(
+        python_executable,
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+    )
+    detect_duplicate_local_package_paths(installable)
+    pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
+    if verbose:
+        pip_flags.append("--verbose")
+    conda_run = _maybe_conda_run(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    _pip_install_local(
+        *sorted(installable),
+        editable=editable,
+        dry_run=dry_run,
+        python_executable=python_executable,
+        flags=pip_flags,
+        no_uv=no_uv,
+        conda_run=conda_run,
+    )
+
+
+def _install_command(
     *files: Path,
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
@@ -1170,9 +1307,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
         requirements.channels,
         platforms=platforms,
     )
-    if not conda_executable:  # None or empty string
-        conda_executable = _maybe_conda_executable()
-    target_conda_prefix = _target_conda_prefix(
+    conda_executable, target_conda_prefix = _resolved_install_target(
         conda_executable,
         conda_env_name,
         conda_env_prefix,
@@ -1223,88 +1358,32 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_name,
         conda_env_prefix,
     )
-    if env_spec.pip and not skip_pip:
-        _ensure_target_python_exists(
-            python_executable,
+    _install_pip_dependencies(
+        env_spec.pip if not skip_pip else [],
+        python_executable=python_executable,
+        conda_executable=conda_executable,
+        conda_env_name=conda_env_name,
+        conda_env_prefix=conda_env_prefix,
+        no_uv=no_uv,
+        dry_run=dry_run,
+    )
+
+    if not skip_local:
+        installable = _collect_installable_local_projects(
+            paths_with_extras,
+            verbose=verbose,
+        )
+        _install_local_projects(
+            installable,
+            editable=editable,
+            dry_run=dry_run,
+            python_executable=python_executable,
             conda_executable=conda_executable,
             conda_env_name=conda_env_name,
             conda_env_prefix=conda_env_prefix,
-        )
-        conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
-        if _use_uv(no_uv):
-            pip_command = [
-                *conda_run,
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                python_executable,
-                *env_spec.pip,
-            ]
-        else:
-            pip_command = [
-                *conda_run,
-                python_executable,
-                "-m",
-                "pip",
-                "install",
-                *env_spec.pip,
-            ]
-        print(f"📦 Installing pip dependencies with `{' '.join(pip_command)}`\n")
-        if not dry_run:  # pragma: no cover
-            subprocess.run(pip_command, check=True)
-
-    installable = []
-    if not skip_local:
-        for file in paths_with_extras:
-            if is_pip_installable(file.path.parent):
-                installable.append(file.path.parent)
-            else:  # pragma: no cover
-                print(
-                    f"⚠️  Project {file.path.parent} is not pip installable. "
-                    "Could not find setup.py or [build-system] in pyproject.toml.",
-                )
-
-        # Install local dependencies (if any) included via `local_dependencies:`
-        local_dependencies = parse_local_dependencies(
-            *[p.path_with_extras for p in paths_with_extras],
-            check_pip_installable=True,
+            no_uv=no_uv,
             verbose=verbose,
         )
-        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
-        print(f"📝 Found local dependencies: {names}\n")
-        installable_set = {p.resolve() for p in installable}
-        installable += [
-            dep
-            for deps in local_dependencies.values()
-            for dep in deps
-            if dep.resolve() not in installable_set
-        ]
-        if installable:
-            _ensure_target_python_exists(
-                python_executable,
-                conda_executable=conda_executable,
-                conda_env_name=conda_env_name,
-                conda_env_prefix=conda_env_prefix,
-            )
-            detect_duplicate_local_package_paths(installable)
-            pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
-            if verbose:
-                pip_flags.append("--verbose")
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
-            _pip_install_local(
-                *sorted(installable),
-                editable=editable,
-                dry_run=dry_run,
-                python_executable=python_executable,
-                flags=pip_flags,
-                no_uv=no_uv,
-                conda_run=conda_run,
-            )
 
     if not dry_run:  # pragma: no cover
         total_time = time.time() - start_time
@@ -1783,6 +1862,12 @@ def _pip_subcommand(
         overwrite_pins=overwrite_pins,
         include_local_dependencies=True,
     )
+    pip_dependencies = _selected_pip_dependencies(path, deps)
+    return escape_unicode(separator).join(pip_dependencies)
+
+
+def _selected_pip_dependencies(path: Path, deps: Dependencies) -> list[str]:
+    """Return the base pip dependencies plus any selected extras."""
     selected_extras = parse_folder_or_filename(path).extras
     extra_group_names = {
         extra: f"optional dependency `{extra}`" for extra in selected_extras
@@ -1798,7 +1883,7 @@ def _pip_subcommand(
     pip_dependencies = list(deduplicated_groups["dependencies"])
     for extra in selected_extras:
         pip_dependencies.extend(deduplicated_groups[extra_group_names[extra]])
-    return escape_unicode(separator).join(pip_dependencies)
+    return pip_dependencies
 
 
 def main() -> None:  # noqa: PLR0912
