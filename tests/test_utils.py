@@ -18,6 +18,7 @@ from unidep.utils import (
     detect_duplicate_local_package_paths,
     escape_unicode,
     extract_matching_platforms,
+    format_cli_diagnostic,
     identify_current_platform,
     parse_package_str,
     resolve_platforms,
@@ -289,6 +290,57 @@ def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
         detect_duplicate_local_package_paths([dep_a, dep_b])
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
+
+
+def test_format_cli_diagnostic_falls_back_without_rich(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("unidep.utils._rich_available", lambda: False)
+
+    msg = format_cli_diagnostic(
+        "Summary",
+        detected={"path": "/example/project"},
+        why=["it matters"],
+        fixes=["do the thing"],
+        tips=["helpful detail"],
+        prefix="⚠️",
+    )
+
+    assert msg == (
+        "⚠️ Summary\n"
+        "\n"
+        "Detected:\n"
+        "- path: /example/project\n"
+        "\n"
+        "Why this matters:\n"
+        "- it matters\n"
+        "\n"
+        "Do this:\n"
+        "- do the thing\n"
+        "\n"
+        "Tip:\n"
+        "- helpful detail"
+    )
+
+
+def test_format_cli_diagnostic_uses_rich_layout() -> None:
+    pytest.importorskip("rich")
+
+    msg = format_cli_diagnostic(
+        "Summary",
+        detected={"path": "/example/project"},
+        why=["it matters"],
+        fixes=["do the thing"],
+        tips=["helpful detail"],
+        prefix="⚠️",
+    )
+
+    assert "Detected:" in msg
+    assert "Why this matters:" in msg
+    assert "Do this:" in msg
+    assert "Tip:" in msg
+    assert "• path: /example/project" in msg
+    assert "╭" in msg or "┌" in msg
 
 
 def test_parse_package_str_with_extras() -> None:

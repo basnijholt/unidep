@@ -9,6 +9,7 @@ import ast
 import codecs
 import configparser
 import contextlib
+import importlib.util
 import platform
 import re
 import sys
@@ -447,27 +448,115 @@ def format_cli_diagnostic(
     prefix: str = "❌",
 ) -> str:
     """Format a user-facing CLI diagnostic with consistent sections."""
-    lines = [f"{prefix} {summary}"]
+    sections = _cli_diagnostic_sections(
+        detected=detected,
+        why=why,
+        fixes=fixes,
+        tips=tips,
+    )
+    if _rich_available():
+        with contextlib.suppress(ImportError):
+            return _format_cli_diagnostic_with_rich(summary, sections, prefix)
+    return _format_cli_diagnostic_plain(summary, sections, prefix)
 
+
+def _cli_diagnostic_sections(
+    *,
+    detected: dict[str, str] | None,
+    why: list[str] | None,
+    fixes: list[str] | None,
+    tips: list[str] | None,
+) -> list[tuple[str, list[str]]]:
+    """Build ordered diagnostic sections for CLI messages."""
+    sections: list[tuple[str, list[str]]] = []
     if detected:
-        lines.extend(
-            [
-                "",
-                "Detected:",
-                *[f"- {key}: {value}" for key, value in detected.items()],
-            ],
+        sections.append(
+            ("Detected:", [f"{key}: {value}" for key, value in detected.items()]),
         )
-
     if why:
-        lines.extend(["", "Why this matters:", *[f"- {item}" for item in why]])
-
+        sections.append(("Why this matters:", why))
     if fixes:
-        lines.extend(["", "Do this:", *[f"- {item}" for item in fixes]])
-
+        sections.append(("Do this:", fixes))
     if tips:
-        lines.extend(["", "Tip:", *[f"- {item}" for item in tips]])
+        sections.append(("Tip:", tips))
+    return sections
 
+
+def _format_cli_diagnostic_plain(
+    summary: str,
+    sections: list[tuple[str, list[str]]],
+    prefix: str,
+) -> str:
+    """Render a diagnostic with plain text only."""
+    lines = [f"{prefix} {summary}"]
+    for heading, items in sections:
+        lines.extend(["", heading, *[f"- {item}" for item in items]])
     return "\n".join(lines)
+
+
+def _rich_available() -> bool:
+    """Return whether Rich is importable."""
+    return importlib.util.find_spec("rich") is not None
+
+
+def _format_cli_diagnostic_with_rich(
+    summary: str,
+    sections: list[tuple[str, list[str]]],
+    prefix: str,
+) -> str:
+    """Render a diagnostic with Rich while preserving string return semantics."""
+    from rich import box
+    from rich.console import Console, Group
+    from rich.panel import Panel
+    from rich.text import Text
+
+    border_style = _diagnostic_border_style(prefix)
+    renderables = []
+
+    summary_line = Text()
+    summary_line.append(f"{prefix} ", style=f"bold {border_style}")
+    summary_line.append(summary, style="bold")
+    renderables.append(summary_line)
+
+    for heading, items in sections:
+        renderables.append(Text())
+        renderables.append(Text(heading, style="bold cyan"))
+        for item in items:
+            bullet_line = Text()
+            bullet_line.append("• ", style=border_style)
+            bullet_line.append(item)
+            renderables.append(bullet_line)
+
+    content_lines = [f"{prefix} {summary}"]
+    for heading, items in sections:
+        content_lines.append(heading)
+        content_lines.extend(f"• {item}" for item in items)
+
+    console = Console(
+        record=True,
+        width=max(60, max(len(line) for line in content_lines) + 4),
+        color_system=None,
+        highlight=False,
+    )
+    console.print(
+        Panel.fit(
+            Group(*renderables),
+            border_style=border_style,
+            box=box.ROUNDED,
+            padding=(0, 1),
+        ),
+        soft_wrap=True,
+    )
+    return console.export_text(styles=False).rstrip()
+
+
+def _diagnostic_border_style(prefix: str) -> str:
+    """Map a diagnostic prefix to a Rich color."""
+    if prefix == "⚠️":
+        return "yellow"
+    if prefix == "\N{INFORMATION SOURCE}\N{VARIATION SELECTOR-16}":
+        return "cyan"
+    return "red"
 
 
 def format_duplicate_package_sources_message(
