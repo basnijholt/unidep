@@ -919,7 +919,7 @@ def test_check_conda_prefix_warning_is_actionable(
     )
 
     with pytest.warns(UserWarning) as record:
-        _check_conda_prefix()
+        _check_conda_prefix(None)
 
     msg = str(record[0].message)
     assert "Detected:" in msg
@@ -967,6 +967,43 @@ def test_active_conda_prefix_is_used_when_python_runs_elsewhere(
     monkeypatch.setenv("CONDA_PREFIX", str(prefix))
     monkeypatch.setenv("CONDA_EXE", "conda")
     monkeypatch.setattr("unidep._cli.sys.executable", str(external_python))
+
+    assert _python_executable("conda", None, None) == str(python_executable)
+    assert _maybe_conda_run("conda", None, None) == [
+        "conda",
+        "run",
+        "--prefix",
+        str(prefix),
+    ]
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Uses POSIX-style conda prefixes in assertions.",
+)
+def test_active_conda_prefix_reuses_env_name_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "named-env"
+    python_executable = prefix / "bin" / "python"
+    python_executable.parent.mkdir(parents=True)
+    python_executable.write_text("")
+
+    def fake_env_name_to_prefix(
+        conda_executable: CondaExecutable,  # noqa: ARG001
+        conda_env_name: str,  # noqa: ARG001
+        *,
+        raise_if_not_found: bool = True,  # noqa: ARG001
+    ) -> Path:
+        return prefix
+
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "named-env")
+    monkeypatch.setattr(
+        "unidep._cli._conda_env_name_to_prefix",
+        fake_env_name_to_prefix,
+    )
 
     assert _python_executable("conda", None, None) == str(python_executable)
     assert _maybe_conda_run("conda", None, None) == [

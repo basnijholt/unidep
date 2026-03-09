@@ -930,7 +930,7 @@ def _python_executable(
 ) -> str:
     """Get the Python executable to use for a conda environment."""
     if conda_env_name is None and conda_env_prefix is None:
-        active_prefix = _active_conda_prefix()
+        active_prefix = _active_conda_prefix(conda_executable)
         if active_prefix is not None:
             active_python = Path(
                 _python_executable_from_prefix(active_prefix, require_exists=False),
@@ -960,14 +960,26 @@ def _python_executable_from_prefix(
     return str(python_executable)
 
 
-def _active_conda_prefix() -> Path | None:
+def _active_conda_prefix(conda_executable: CondaExecutable | None) -> Path | None:
     """Return the active conda prefix, even if unidep itself runs elsewhere."""
     if os.getenv("CONDA_PREFIX"):
         return Path(os.environ["CONDA_PREFIX"])
-    if os.getenv("CONDA_DEFAULT_ENV") in {"base", "root"} and os.getenv(
-        "MAMBA_ROOT_PREFIX",
-    ):
-        return Path(os.environ["MAMBA_ROOT_PREFIX"])
+
+    conda_env_name = os.getenv("CONDA_DEFAULT_ENV")
+    if conda_env_name and conda_executable is not None:
+        prefix = _conda_env_name_to_prefix(
+            conda_executable,
+            conda_env_name,
+            raise_if_not_found=False,
+        )
+        if prefix is not None:
+            return prefix
+
+    if conda_env_name in {"base", "root"}:
+        if os.getenv("MAMBA_ROOT_PREFIX"):
+            return Path(os.environ["MAMBA_ROOT_PREFIX"])
+        if os.getenv("CONDA_ROOT"):
+            return Path(os.environ["CONDA_ROOT"])
     return None
 
 
@@ -1241,7 +1253,7 @@ def _maybe_conda_run(
     if not conda_executable:  # None or empty string
         return []
     if conda_env_name is None and conda_env_prefix is None:
-        active_prefix = _active_conda_prefix()
+        active_prefix = _active_conda_prefix(conda_executable)
         if active_prefix is None:
             # Conda/mamba/micromamba might be installed but not in PATH
             return []
@@ -1535,9 +1547,11 @@ def _pip_compile_command(
     print(f"✅ Generated `{output_file}`.")
 
 
-def _check_conda_prefix() -> None:  # pragma: no cover
+def _check_conda_prefix(
+    conda_executable: CondaExecutable | None,
+) -> None:  # pragma: no cover
     """Warn when unidep itself runs outside the active conda environment."""
-    conda_prefix = _active_conda_prefix()
+    conda_prefix = _active_conda_prefix(conda_executable)
     if conda_prefix is None:
         return
     if sys.executable.startswith(str(conda_prefix)):
@@ -1720,7 +1734,7 @@ def main() -> None:  # noqa: PLR0912
         print(escape_unicode(args.separator).join(env_spec.conda))  # type: ignore[arg-type]
     elif args.command == "install":
         if args.conda_env_name is None and args.conda_env_prefix is None:
-            _check_conda_prefix()
+            _check_conda_prefix(args.conda_executable)
         _install_command(
             *(args.files or [Path()]),
             conda_executable=args.conda_executable,
@@ -1741,7 +1755,7 @@ def main() -> None:  # noqa: PLR0912
         )
     elif args.command == "install-all":
         if args.conda_env_name is None and args.conda_env_prefix is None:
-            _check_conda_prefix()
+            _check_conda_prefix(args.conda_executable)
         _install_all_command(
             conda_executable=args.conda_executable,
             conda_env_name=args.conda_env_name,
