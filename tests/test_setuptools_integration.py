@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from unidep._setuptools_integration import get_python_dependencies
 from unidep.utils import (
     package_name_from_path,
     package_name_from_pyproject_toml,
@@ -131,3 +132,36 @@ def test_package_name_from_path_does_not_suppress_unexpected_errors(
         side_effect=RuntimeError("boom"),
     ), pytest.raises(RuntimeError, match="boom"):
         package_name_from_path(tmp_path)
+
+
+def test_get_python_dependencies_detects_conflicting_local_sources(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    dep_a = tmp_path / "dep_a"
+    dep_b = tmp_path / "dep_b"
+    for dep in (dep_a, dep_b):
+        dep.mkdir()
+        (dep / "setup.py").write_text(
+            "from setuptools import setup\nsetup(name='shared-lib', version='0.1.0')\n",
+        )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../dep_a
+              - ../dep_b
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        get_python_dependencies(
+            project / "requirements.yaml",
+            include_local_dependencies=True,
+        )

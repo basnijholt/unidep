@@ -21,6 +21,7 @@ from unidep._dependencies_parsing import (
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
+    detect_conflicting_direct_references,
     identify_current_platform,
     is_pip_installable,
     package_name_from_path,
@@ -193,6 +194,17 @@ def get_python_dependencies(  # noqa: PLR0912
             dependencies.append(local_dep_obj.pypi)
         # else: path doesn't exist and no PyPI alternative - skip
 
+    dependencies = detect_conflicting_direct_references(
+        dependencies,
+        context="collecting Python dependencies",
+    )
+    extras = {
+        section: detect_conflicting_direct_references(
+            deps,
+            context=f"collecting optional dependencies for `{section}`",
+        )
+        for section, deps in extras.items()
+    }
     return Dependencies(dependencies=dependencies, extras=extras)
 
 

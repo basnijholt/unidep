@@ -5,6 +5,7 @@ This module provides parsing of `requirements.yaml` and `pyproject.toml` files.
 
 from __future__ import annotations
 
+import configparser
 import functools
 import hashlib
 import os
@@ -22,6 +23,7 @@ from unidep.utils import (
     LocalDependencyUse,
     PathWithExtras,
     defaultdict_to_dict,
+    format_cli_diagnostic,
     is_pip_installable,
     parse_folder_or_filename,
     parse_package_str,
@@ -431,6 +433,42 @@ def _try_parse_local_dependency_requirement_file(
     return requirements_dep_file
 
 
+class _GitSubmoduleHint(NamedTuple):
+    repo_root: Path
+    gitmodules_path: Path
+    submodule_path: Path
+
+
+@functools.lru_cache(maxsize=None)
+def _gitmodules_submodule_paths(gitmodules_path: Path) -> tuple[str, ...]:
+    """Return submodule paths declared in a .gitmodules file."""
+    parser = configparser.ConfigParser()
+    parser.read(gitmodules_path)
+    paths = [
+        parser.get(section, "path")
+        for section in parser.sections()
+        if parser.has_option(section, "path")
+    ]
+    return tuple(paths)
+
+
+def _find_git_submodule_hint(base_dir: Path, target: Path) -> _GitSubmoduleHint | None:
+    """Return .gitmodules metadata when a target path is a declared submodule."""
+    resolved_base = base_dir.resolve()
+    resolved_target = target.resolve()
+    for candidate in [resolved_base, *resolved_base.parents]:
+        gitmodules_path = candidate / ".gitmodules"
+        if not gitmodules_path.exists():
+            continue
+        try:
+            relative_target = resolved_target.relative_to(candidate)
+        except ValueError:
+            continue
+        if relative_target.as_posix() in _gitmodules_submodule_paths(gitmodules_path):
+            return _GitSubmoduleHint(candidate, gitmodules_path, relative_target)
+    return None
+
+
 def _apply_local_dependency_override(
     *,
     local_dependency: LocalDependency,
@@ -707,7 +745,7 @@ def _add_dependencies(
 parse_yaml_requirements = parse_requirements
 
 
-def _extract_local_dependencies(  # noqa: PLR0912
+def _extract_local_dependencies(  # noqa: C901, PLR0912, PLR0915
     path: Path,
     base_path: Path,
     processed: set[Path],
@@ -741,6 +779,7 @@ def _extract_local_dependencies(  # noqa: PLR0912
         assert not os.path.isabs(local_dependency)  # noqa: PTH117
         local_path, extras = split_path_and_extras(local_dependency)
         abs_local = (path.parent / local_path).resolve()
+        git_submodule_hint = _find_git_submodule_hint(path.parent, abs_local)
         if abs_local.suffix in (".whl", ".zip"):
             if verbose:
                 print(f"🔗 Adding `{local_dependency}` from `local_dependencies`")
@@ -748,7 +787,34 @@ def _extract_local_dependencies(  # noqa: PLR0912
             continue
         if not abs_local.exists():
             if raise_if_missing:
-                msg = f"File `{abs_local}` not found."
+                why = [f"the expected path `{abs_local}` does not exist"]
+                fixes = [
+                    "check that the relative path in `local_dependencies` is correct",
+                ]
+                if git_submodule_hint is not None:
+                    why.insert(
+                        0,
+                        f"`{git_submodule_hint.submodule_path}` is declared as a Git"
+                        f" submodule in `{git_submodule_hint.gitmodules_path}` but is"
+                        " missing from the working tree",
+                    )
+                    fixes.insert(
+                        0,
+                        f"from `{git_submodule_hint.repo_root}`, run `git submodule"
+                        " sync --recursive` and then"
+                        " `git submodule update --init --recursive`",
+                    )
+                if effective_local_dep.pypi is not None:
+                    fixes.append(
+                        "if you want to use the fallback package instead of the local"
+                        " checkout, set `use: pypi`",
+                    )
+                msg = format_cli_diagnostic(
+                    f"Local dependency `{local_dependency}` was not found.",
+                    detected={"expected path": f"`{abs_local}`"},
+                    why=why,
+                    fixes=fixes,
+                )
                 raise FileNotFoundError(msg)
             continue
 
@@ -769,28 +835,114 @@ def _extract_local_dependencies(  # noqa: PLR0912
                         " `[tool.unidep]` in its directory.",
                     )
             elif _is_empty_folder(abs_local):
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not pip"
-                    " installable because it is an empty folder. Is it perhaps"
-                    " an uninitialized Git submodule? If so, initialize it with"
-                    " `git submodule update --init --recursive`. Otherwise,"
-                    " remove it from `local_dependencies`."
+                why = [f"`{abs_local}` exists but contains no files"]
+                fixes = []
+                if git_submodule_hint is not None:
+                    why.insert(
+                        0,
+                        f"`{git_submodule_hint.submodule_path}` is declared as a Git"
+                        f" submodule in `{git_submodule_hint.gitmodules_path}` and"
+                        " looks uninitialized",
+                    )
+                    fixes.append(
+                        f"from `{git_submodule_hint.repo_root}`, run `git submodule"
+                        " sync --recursive` and then"
+                        " `git submodule update --init --recursive`",
+                    )
+                else:
+                    fixes.append(
+                        "if this directory is supposed to come from Git, initialize"
+                        " its submodules before running UniDep",
+                    )
+                if effective_local_dep.pypi is not None:
+                    fixes.append(
+                        "if you want the fallback package instead, set `use: pypi`",
+                    )
+                fixes.append(
+                    f"remove `{local_dependency}` from `local_dependencies` if it is"
+                    " no longer needed",
+                )
+                msg = format_cli_diagnostic(
+                    "Local dependency"
+                    f" `{local_dependency}` is not pip installable because it is an"
+                    " empty folder.",
+                    detected={"path": f"`{abs_local}`"},
+                    why=why,
+                    fixes=fixes,
                 )
                 raise RuntimeError(msg) from None
             elif _is_empty_git_submodule(abs_local):
-                # Extra check for empty Git submodules (common problem folks run into)
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not installable"
-                    " by pip because it is an empty Git submodule. Either remove it"
-                    " from `local_dependencies` or fetch the submodule with"
-                    " `git submodule update --init --recursive`."
+                why = [
+                    f"`{abs_local}` contains only Git submodule metadata and no"
+                    " package contents",
+                ]
+                fixes = []
+                if git_submodule_hint is not None:
+                    why.insert(
+                        0,
+                        f"`{git_submodule_hint.submodule_path}` is declared as a Git"
+                        f" submodule in `{git_submodule_hint.gitmodules_path}`",
+                    )
+                    fixes.append(
+                        f"from `{git_submodule_hint.repo_root}`, run `git submodule"
+                        " sync --recursive` and then"
+                        " `git submodule update --init --recursive`",
+                    )
+                else:
+                    fixes.append(
+                        "fetch the missing submodule contents with"
+                        " `git submodule update --init --recursive`",
+                    )
+                fixes.append(
+                    f"remove `{local_dependency}` from `local_dependencies` if you do"
+                    " not want the local checkout",
+                )
+                if effective_local_dep.pypi is not None:
+                    fixes.append(
+                        "if you want the fallback package instead, set `use: pypi`",
+                    )
+                msg = format_cli_diagnostic(
+                    "Local dependency"
+                    f" `{local_dependency}` is not installable by pip because it is"
+                    " an empty Git submodule.",
+                    detected={"path": f"`{abs_local}`"},
+                    why=why,
+                    fixes=fixes,
                 )
                 raise RuntimeError(msg) from None
             else:
-                msg = (
-                    f"`{local_dependency}` in `local_dependencies` is not pip"
-                    " installable nor is it managed by unidep. Remove it"
-                    " from `local_dependencies`."
+                why = [
+                    f"`{abs_local}` is neither a pip-installable package nor a"
+                    " UniDep-managed project",
+                ]
+                fixes = []
+                if git_submodule_hint is not None:
+                    why.insert(
+                        0,
+                        f"the path is declared as a Git submodule in"
+                        f" `{git_submodule_hint.gitmodules_path}`",
+                    )
+                    fixes.append(
+                        f"make sure `{git_submodule_hint.submodule_path}` contains a"
+                        " buildable Python package, or point `local_dependencies` at"
+                        " a UniDep-managed wrapper file instead",
+                    )
+                else:
+                    fixes.append(
+                        f"remove `{local_dependency}` from `local_dependencies` or"
+                        " point it at a buildable package",
+                    )
+                if effective_local_dep.pypi is not None:
+                    fixes.append(
+                        "if you want the fallback package instead, set `use: pypi`",
+                    )
+                msg = format_cli_diagnostic(
+                    "Local dependency"
+                    f" `{local_dependency}` is not pip installable nor is it managed"
+                    " by unidep.",
+                    detected={"path": f"`{abs_local}`"},
+                    why=why,
+                    fixes=fixes,
                 )
                 raise RuntimeError(msg) from None
             continue

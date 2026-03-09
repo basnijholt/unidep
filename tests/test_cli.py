@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _check_conda_prefix,
     _conda_env_list,
     _conda_root_prefix,
     _find_windows_path,
@@ -35,6 +36,7 @@ from unidep._cli import (
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
+    _python_executable,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -137,6 +139,59 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-deps {pkgs}`" in captured.out
+
+
+def test_install_command_detects_duplicate_local_package_names(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "shared-lib"
+            version = "0.1.0"
+
+            [tool.unidep]
+            local_dependencies = ["../vendored"]
+            """,
+        ),
+    )
+
+    vendored = tmp_path / "vendored"
+    vendored.mkdir()
+    (vendored / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "shared-lib"
+            version = "0.1.0"
+
+            [tool.unidep]
+            dependencies = []
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Multiple local packages resolve"):
+        _install_command(
+            project,
+            conda_executable="",  # type: ignore[arg-type]
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=True,
+        )
 
 
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
@@ -848,6 +903,32 @@ def set_env_var(key: str, value: str) -> Generator[None, None, None]:
             os.environ[key] = original_value
 
 
+def test_check_conda_prefix_warning_is_actionable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conda_prefix = tmp_path / "envs" / "example"
+    conda_python = conda_prefix / ("python.exe" if os.name == "nt" else "bin/python")
+    conda_python.parent.mkdir(parents=True)
+    conda_python.write_text("")
+
+    monkeypatch.setenv("CONDA_PREFIX", str(conda_prefix))
+    monkeypatch.setattr(
+        "unidep._cli.sys.executable",
+        str(tmp_path / "outside/bin/python"),
+    )
+
+    with pytest.warns(UserWarning) as record:
+        _check_conda_prefix()
+
+    msg = str(record[0].message)
+    assert "Detected:" in msg
+    assert "Do this:" in msg
+    assert "Tip:" in msg
+    assert str(conda_python) in msg
+    assert "uv run" in msg
+
+
 @pytest.mark.skipif(
     os.name == "nt",
     reason="On Windows it will search for Conda because of `_maybe_exe`.",
@@ -865,6 +946,35 @@ def test_maybe_conda_run() -> None:
     with set_env_var("MAMBA_EXE", "mamba"):
         result = _maybe_conda_run("mamba", "my_env", None)
         assert result == ["mamba", "run", "--name", "my_env"]
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Uses POSIX-style conda prefixes in assertions.",
+)
+def test_active_conda_prefix_is_used_when_python_runs_elsewhere(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "arch-env"
+    external_python = tmp_path / "uv-tool" / "bin" / "python"
+    python_executable = prefix / "bin" / "python"
+    python_executable.parent.mkdir(parents=True)
+    python_executable.write_text("")
+    external_python.parent.mkdir(parents=True)
+    external_python.write_text("")
+
+    monkeypatch.setenv("CONDA_PREFIX", str(prefix))
+    monkeypatch.setenv("CONDA_EXE", "conda")
+    monkeypatch.setattr("unidep._cli.sys.executable", str(external_python))
+
+    assert _python_executable("conda", None, None) == str(python_executable)
+    assert _maybe_conda_run("conda", None, None) == [
+        "conda",
+        "run",
+        "--prefix",
+        str(prefix),
+    ]
 
 
 def test_maybe_create_conda_env_args_creates_env(

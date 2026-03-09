@@ -40,7 +40,9 @@ from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     collect_selector_platforms,
+    detect_duplicate_local_package_paths,
     escape_unicode,
+    format_cli_diagnostic,
     get_package_version,
     identify_current_platform,
     is_pip_installable,
@@ -928,17 +930,45 @@ def _python_executable(
 ) -> str:
     """Get the Python executable to use for a conda environment."""
     if conda_env_name is None and conda_env_prefix is None:
+        active_prefix = _active_conda_prefix()
+        if active_prefix is not None:
+            active_python = Path(
+                _python_executable_from_prefix(active_prefix, require_exists=False),
+            )
+            if active_python.exists():
+                return str(active_python)
         return sys.executable
     if conda_env_name:
         assert conda_executable is not None
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
+    return _python_executable_from_prefix(conda_env_prefix)
+
+
+def _python_executable_from_prefix(
+    conda_prefix: Path,
+    *,
+    require_exists: bool = True,
+) -> str:
+    """Return the Python executable inside a conda prefix."""
     if platform.system() == "Windows":  # pragma: no cover
-        python_executable = conda_env_prefix / "python.exe"
+        python_executable = conda_prefix / "python.exe"
     else:
-        python_executable = conda_env_prefix / "bin" / "python"
-    assert python_executable.exists()
+        python_executable = conda_prefix / "bin" / "python"
+    if require_exists:
+        assert python_executable.exists()
     return str(python_executable)
+
+
+def _active_conda_prefix() -> Path | None:
+    """Return the active conda prefix, even if unidep itself runs elsewhere."""
+    if os.getenv("CONDA_PREFIX"):
+        return Path(os.environ["CONDA_PREFIX"])
+    if os.getenv("CONDA_DEFAULT_ENV") in {"base", "root"} and os.getenv(
+        "MAMBA_ROOT_PREFIX",
+    ):
+        return Path(os.environ["MAMBA_ROOT_PREFIX"])
+    return None
 
 
 def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
@@ -1130,6 +1160,7 @@ def _install_command(  # noqa: PLR0912, PLR0915
             if dep.resolve() not in installable_set
         ]
         if installable:
+            detect_duplicate_local_package_paths(installable)
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
                 pip_flags.append("--verbose")
@@ -1210,12 +1241,11 @@ def _maybe_conda_run(
     if not conda_executable:  # None or empty string
         return []
     if conda_env_name is None and conda_env_prefix is None:
-        if not os.getenv("CONDA_PREFIX") and not os.getenv("MAMBA_ROOT_PREFIX"):
+        active_prefix = _active_conda_prefix()
+        if active_prefix is None:
             # Conda/mamba/micromamba might be installed but not in PATH
             return []
-        exe = Path(sys.executable)
-        conda_prefix = exe.parent if os.name == "nt" else exe.parent.parent
-        env_args = ["--prefix", str(conda_prefix)]
+        env_args = ["--prefix", str(active_prefix)]
     elif conda_env_name:
         env_args = ["--name", conda_env_name]
     elif conda_env_prefix:
@@ -1506,22 +1536,54 @@ def _pip_compile_command(
 
 
 def _check_conda_prefix() -> None:  # pragma: no cover
-    """Check if sys.executable is in the $CONDA_PREFIX."""
-    if "CONDA_PREFIX" not in os.environ:
+    """Warn when unidep itself runs outside the active conda environment."""
+    conda_prefix = _active_conda_prefix()
+    if conda_prefix is None:
         return
-    conda_prefix = os.environ["CONDA_PREFIX"]
     if sys.executable.startswith(str(conda_prefix)):
         return
-    msg = (
-        "UniDep should be run from the current Conda environment for correct"
-        " operation. However, it's currently running with the Python interpreter"
-        f" at `{sys.executable}`, which is not in the active Conda environment"
-        f" (`{conda_prefix}`). Please install and run UniDep in the current"
-        " Conda environment to avoid any issues, or provide the `--conda-env-name`"
-        " or `--conda-env-prefix` option to specify the Conda environment to use."
+    active_python = _python_executable_from_prefix(
+        conda_prefix,
+        require_exists=False,
+    )
+    active_python_line = (
+        f"`{active_python}`"
+        if Path(active_python).exists()
+        else f"not found at `{active_python}`"
+    )
+    recommended_command = (
+        f"run `{active_python} -m unidep ...`"
+        if Path(active_python).exists()
+        else "install Python in the active environment, or pass"
+        " `--conda-env-name` / `--conda-env-prefix` explicitly"
+    )
+    conda_env_name = conda_prefix.name or str(conda_prefix)
+    msg = format_cli_diagnostic(
+        "UniDep is running from a different Python than the active Conda environment.",
+        detected={
+            "active environment": f"`{conda_prefix}`",
+            "active environment Python": active_python_line,
+            "current Python": f"`{sys.executable}`",
+        },
+        why=[
+            "UniDep will still target the active Conda environment for installs,"
+            " but invoking it from that interpreter is less surprising and makes"
+            " follow-up commands easier to reason about",
+        ],
+        fixes=[
+            recommended_command,
+            "or pass `--conda-env-name` / `--conda-env-prefix` explicitly when"
+            " you do not want UniDep to infer the target environment",
+        ],
+        tips=[
+            f"if `{conda_env_name}` is the environment you want, activating it"
+            " before invoking UniDep avoids this warning",
+            "this often happens when UniDep is launched through `uv run`, `pipx`,"
+            " or another tool-managed Python interpreter",
+        ],
+        prefix="⚠️",
     )
     warn(msg, stacklevel=2)
-    sys.exit(1)
 
 
 def _print_versions() -> None:  # pragma: no cover

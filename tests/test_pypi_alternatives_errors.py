@@ -106,7 +106,7 @@ def test_empty_folder_with_pypi_alternative(tmp_path: Path) -> None:
 
     with pytest.raises(
         RuntimeError,
-        match="is not pip installable because it is an empty folder",
+        match="not pip installable because it is an empty folder",
     ):
         parse_local_dependencies(req_file)
 
@@ -138,7 +138,7 @@ def test_empty_git_submodule_with_pypi_alternative(tmp_path: Path) -> None:
 
     with pytest.raises(
         RuntimeError,
-        match="is not installable by pip because it is an empty Git submodule",
+        match="empty Git submodule",
     ):
         parse_local_dependencies(req_file)
 
@@ -170,7 +170,7 @@ def test_non_pip_installable_with_pypi_alternative(tmp_path: Path) -> None:
 
     with pytest.raises(
         RuntimeError,
-        match="is not pip installable nor is it managed by unidep",
+        match="not pip installable nor is it managed by unidep",
     ):
         parse_local_dependencies(req_file)
 

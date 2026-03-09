@@ -17,6 +17,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast
 
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
+
 from unidep._version import __version__
 from unidep.platform_definitions import (
     PEP508_MARKERS,
@@ -318,6 +321,91 @@ def package_name_from_path(path: Path) -> str:
     return path.name
 
 
+def detect_conflicting_direct_references(
+    requirements: list[str],
+    *,
+    context: str,
+) -> list[str]:
+    """Deduplicate direct references and fail on conflicting sources.
+
+    This catches cases like two ``file://`` URLs for the same package name
+    before pip/uv reports a lower-level resolver error.
+    """
+    deduplicated: list[str] = []
+    seen_exact: set[str] = set()
+    seen_direct_refs: dict[str, list[str]] = defaultdict(list)
+
+    for requirement in requirements:
+        normalized = requirement.strip()
+        if normalized in seen_exact:
+            continue
+        seen_exact.add(normalized)
+
+        try:
+            parsed = Requirement(normalized)
+        except InvalidRequirement:
+            deduplicated.append(normalized)
+            continue
+
+        if parsed.url is None:
+            deduplicated.append(normalized)
+            continue
+
+        canonical_name = canonicalize_name(parsed.name)
+        existing = seen_direct_refs[canonical_name]
+        if existing and normalized not in existing:
+            msg = format_duplicate_package_sources_message(
+                parsed.name,
+                [*existing, normalized],
+            )
+            msg += f"\n\nWhile {context}."
+            raise RuntimeError(msg)
+
+        existing.append(normalized)
+        deduplicated.append(normalized)
+
+    return deduplicated
+
+
+def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
+    """Raise when multiple local paths map to the same distribution name."""
+    name_to_paths: dict[str, list[Path]] = defaultdict(list)
+
+    for path in paths:
+        resolved = path.resolve()
+        canonical_name = canonicalize_name(package_name_from_path(resolved))
+        if resolved not in name_to_paths[canonical_name]:
+            name_to_paths[canonical_name].append(resolved)
+
+    duplicates = {
+        name: local_paths
+        for name, local_paths in name_to_paths.items()
+        if len(local_paths) > 1
+    }
+    if not duplicates:
+        return
+
+    duplicate_lines = []
+    for name, local_paths in sorted(duplicates.items()):
+        duplicate_lines.append(f"- {name}")
+        duplicate_lines.extend(f"  - {path}" for path in local_paths)
+
+    msg = format_cli_diagnostic(
+        "Multiple local packages resolve to the same distribution name.",
+        why=[
+            "pip and uv may treat these paths as conflicting sources for one"
+            " package and fail with duplicate file URL errors",
+        ],
+        fixes=[
+            "keep only one local checkout for each package name",
+            "use `use: pypi` or `use: skip` in `local_dependencies` to exclude"
+            " vendored copies",
+        ],
+    )
+    msg += f"\n\nDetected paths:\n{'\n'.join(duplicate_lines)}"
+    raise RuntimeError(msg)
+
+
 def _simple_warning_format(
     message: Warning | str,
     category: type[Warning],  # noqa: ARG001
@@ -347,6 +435,64 @@ def warn(
         warnings.warn(message, category, stacklevel=stacklevel + 1)
     finally:
         warnings.formatwarning = original_format
+
+
+def format_cli_diagnostic(
+    summary: str,
+    *,
+    detected: dict[str, str] | None = None,
+    why: list[str] | None = None,
+    fixes: list[str] | None = None,
+    tips: list[str] | None = None,
+    prefix: str = "❌",
+) -> str:
+    """Format a user-facing CLI diagnostic with consistent sections."""
+    lines = [f"{prefix} {summary}"]
+
+    if detected:
+        lines.extend(
+            [
+                "",
+                "Detected:",
+                *[f"- {key}: {value}" for key, value in detected.items()],
+            ],
+        )
+
+    if why:
+        lines.extend(["", "Why this matters:", *[f"- {item}" for item in why]])
+
+    if fixes:
+        lines.extend(["", "Do this:", *[f"- {item}" for item in fixes]])
+
+    if tips:
+        lines.extend(["", "Tip:", *[f"- {item}" for item in tips]])
+
+    return "\n".join(lines)
+
+
+def format_duplicate_package_sources_message(
+    package_name: str,
+    sources: list[str],
+) -> str:
+    """Format a diagnostic for multiple sources resolving to one package."""
+    sources_block = "\n".join(f"- {source}" for source in sources)
+    msg = format_cli_diagnostic(
+        f"UniDep found multiple sources for the same package `{package_name}`.",
+        why=[
+            "pip and uv cannot reliably resolve one package name from multiple"
+            " direct references or conflicting requirement strings",
+            "this usually means a vendored copy or duplicate local dependency path"
+            " is being pulled in",
+        ],
+        fixes=[
+            f"keep only one source for `{package_name}`",
+            "mark one path with `use: pypi` or `use: skip` if you want to override"
+            " a nested vendor copy",
+            "remove the duplicate entry from `local_dependencies` if both sources are"
+            " not needed",
+        ],
+    )
+    return f"{msg}\n\nConflicting sources:\n{sources_block}"
 
 
 def selector_from_comment(comment: str) -> str | None:

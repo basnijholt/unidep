@@ -14,6 +14,8 @@ from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     collect_selector_platforms,
+    detect_conflicting_direct_references,
+    detect_duplicate_local_package_paths,
     escape_unicode,
     extract_matching_platforms,
     identify_current_platform,
@@ -258,6 +260,33 @@ def test_parse_package_str_with_selector() -> None:
 
     # Test with multiple selectors
     assert parse_package_str("numpy:linux64 win64") == ("numpy", None, "linux64 win64")
+
+
+def test_detect_conflicting_direct_references() -> None:
+    requirements = [
+        "shared-lib @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-b",
+    ]
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+
+
+def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
+    dep_a = tmp_path / "dep_a"
+    dep_b = tmp_path / "dep_b"
+    for dep in (dep_a, dep_b):
+        dep.mkdir()
+        (dep / "pyproject.toml").write_text(
+            "[project]\nname = 'shared-lib'\nversion = '0.1.0'\n",
+        )
+
+    with pytest.raises(RuntimeError, match="Multiple local packages resolve"):
+        detect_duplicate_local_package_paths([dep_a, dep_b])
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
 
