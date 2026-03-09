@@ -21,7 +21,7 @@ from unidep._dependencies_parsing import (
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
-    detect_conflicting_direct_references,
+    detect_conflicting_direct_reference_groups,
     identify_current_platform,
     is_pip_installable,
     package_name_from_path,
@@ -141,8 +141,8 @@ def get_python_dependencies(  # noqa: PLR0912
         platforms = list(requirements.platforms)
     resolved = resolve_conflicts(requirements.requirements, platforms)
     dependencies = filter_python_dependencies(resolved)
-    # TODO[Bas]: This currently doesn't correctly handle  # noqa: TD004, TD003, FIX002
-    # conflicts between sections in the extras and the main dependencies.
+    # Resolve optional dependency groups separately; direct-reference conflicts
+    # across the groups are validated below.
     extras = {
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
         for section, reqs in requirements.optional_dependencies.items()
@@ -194,16 +194,20 @@ def get_python_dependencies(  # noqa: PLR0912
             dependencies.append(local_dep_obj.pypi)
         # else: path doesn't exist and no PyPI alternative - skip
 
-    dependencies = detect_conflicting_direct_references(
-        dependencies,
+    extra_group_names = {
+        section: f"optional dependency `{section}`" for section in extras
+    }
+    requirement_groups = {"dependencies": dependencies}
+    requirement_groups.update(
+        {extra_group_names[section]: deps for section, deps in extras.items()},
+    )
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
         context="collecting Python dependencies",
     )
+    dependencies = deduplicated_groups["dependencies"]
     extras = {
-        section: detect_conflicting_direct_references(
-            deps,
-            context=f"collecting optional dependencies for `{section}`",
-        )
-        for section, deps in extras.items()
+        section: deduplicated_groups[extra_group_names[section]] for section in extras
     }
     return Dependencies(dependencies=dependencies, extras=extras)
 

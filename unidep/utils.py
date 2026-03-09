@@ -323,6 +323,17 @@ def package_name_from_path(path: Path) -> str:
     return path.name
 
 
+def _parsed_direct_reference(requirement: str) -> tuple[str, str, str] | None:
+    """Return the canonical package name, display name, and URL for a direct ref."""
+    try:
+        parsed = Requirement(requirement)
+    except InvalidRequirement:
+        return None
+    if parsed.url is None:
+        return None
+    return canonicalize_name(parsed.name), parsed.name, parsed.url
+
+
 def detect_conflicting_direct_references(
     requirements: list[str],
     *,
@@ -345,19 +356,13 @@ def detect_conflicting_direct_references(
             continue
         seen_exact.add(normalized)
 
-        try:
-            parsed = Requirement(normalized)
-        except InvalidRequirement:
+        direct_reference = _parsed_direct_reference(normalized)
+        if direct_reference is None:
             deduplicated.append(normalized)
             continue
 
-        if parsed.url is None:
-            deduplicated.append(normalized)
-            continue
-
-        canonical_name = canonicalize_name(parsed.name)
+        canonical_name, package_name, source_url = direct_reference
         existing = seen_direct_refs[canonical_name]
-        source_url = parsed.url
         conflicting = [
             existing_requirement
             for existing_url, existing_requirements in existing.items()
@@ -366,7 +371,7 @@ def detect_conflicting_direct_references(
         ]
         if conflicting:
             msg = format_duplicate_package_sources_message(
-                parsed.name,
+                package_name,
                 [*conflicting, normalized],
             )
             msg += f"\n\nWhile {context}."
@@ -376,6 +381,50 @@ def detect_conflicting_direct_references(
         deduplicated.append(normalized)
 
     return deduplicated
+
+
+def detect_conflicting_direct_reference_groups(
+    requirement_groups: dict[str, list[str]],
+    *,
+    context: str,
+) -> dict[str, list[str]]:
+    """Validate direct references across multiple dependency groups."""
+    deduplicated_groups = {
+        group_name: detect_conflicting_direct_references(
+            requirements,
+            context=context,
+        )
+        for group_name, requirements in requirement_groups.items()
+    }
+    seen_direct_refs: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
+
+    for group_name, requirements in deduplicated_groups.items():
+        for requirement in requirements:
+            direct_reference = _parsed_direct_reference(requirement)
+            if direct_reference is None:
+                continue
+
+            canonical_name, package_name, source_url = direct_reference
+            existing = seen_direct_refs[canonical_name]
+            conflicting = [
+                f"{existing_group}: {existing_requirement}"
+                for existing_url, existing_entries in existing.items()
+                if existing_url != source_url
+                for existing_group, existing_requirement in existing_entries
+            ]
+            if conflicting:
+                msg = format_duplicate_package_sources_message(
+                    package_name,
+                    [*conflicting, f"{group_name}: {requirement}"],
+                )
+                msg += f"\n\nWhile {context}."
+                raise RuntimeError(msg)
+
+            existing[source_url].append((group_name, requirement))
+
+    return deduplicated_groups
 
 
 def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
@@ -413,7 +462,8 @@ def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
             " vendored copies",
         ],
     )
-    msg += f"\n\nDetected paths:\n{'\n'.join(duplicate_lines)}"
+    detected_paths = "\n".join(duplicate_lines)
+    msg += f"\n\nDetected paths:\n{detected_paths}"
     raise RuntimeError(msg)
 
 

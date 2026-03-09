@@ -56,10 +56,13 @@ def current_env_and_prefix() -> tuple[str, Path]:
         prefix = _conda_root_prefix("conda")
     except (KeyError, FileNotFoundError):
         prefix = _conda_root_prefix("micromamba")
-    folder, env_name = Path(os.environ["CONDA_PREFIX"]).parts[-2:]
+    conda_prefix = Path(os.environ.get("CONDA_PREFIX", prefix))
+    if len(conda_prefix.parts) < 2:
+        return "base", prefix
+    folder, env_name = conda_prefix.parts[-2:]
     if folder != "envs":
         return "base", prefix
-    return env_name, prefix / "envs" / env_name
+    return env_name, conda_prefix
 
 
 @pytest.mark.parametrize(
@@ -675,7 +678,7 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 
 def test_install_non_existing_file() -> None:
-    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+    with pytest.raises(FileNotFoundError, match=r"File `does_not_exist` not found\."):
         _install_command(
             Path("does_not_exist"),
             conda_executable="",  # type: ignore[arg-type]
@@ -757,6 +760,34 @@ def test_pip_optional(tmp_path: Path) -> None:
     assert txt == "foo bar"
 
 
+def test_pip_subcommand_detects_conflicting_selected_extra_direct_refs(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+                test:
+                    - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _pip_subcommand(
+            file=[f"{p}[test]"],  # type: ignore[list-item]
+            platforms=[],
+            verbose=True,
+            ignore_pins=None,
+            skip_dependencies=None,
+            overwrite_pins=None,
+            separator=" ",
+        )
+
+
 def test_capitalize_last_dir() -> None:
     # Just needs to work for Windows paths
     assert _capitalize_dir(r"foo\bar\baz") == r"foo\bar\Baz"
@@ -772,7 +803,7 @@ def test_find_conda_windows() -> None:
     """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
-        match="Could not find conda.",
+        match=r"Could not find conda\.",
     ) as excinfo:
         _find_windows_path("conda")
     # This Windows hell... 🤦‍♂️
@@ -918,7 +949,10 @@ def test_check_conda_prefix_warning_is_actionable(
         str(tmp_path / "outside/bin/python"),
     )
 
-    with pytest.warns(UserWarning) as record:
+    with pytest.warns(
+        UserWarning,
+        match="different Python than the active Conda environment",
+    ) as record:
         _check_conda_prefix(None)
 
     msg = str(record[0].message)
@@ -927,6 +961,53 @@ def test_check_conda_prefix_warning_is_actionable(
     assert "Tip:" in msg
     assert str(conda_python) in msg
     assert "uv run" in msg
+
+
+def test_install_command_without_conda_executable_raises_actionable_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - python
+            """,
+        ),
+    )
+
+    conda_prefix = tmp_path / "envs" / "example"
+    conda_prefix.mkdir(parents=True)
+    monkeypatch.setenv("CONDA_PREFIX", str(conda_prefix))
+    monkeypatch.setattr(
+        "unidep._cli.sys.executable",
+        str(tmp_path / "outside/bin/python"),
+    )
+    monkeypatch.setattr("unidep._cli._maybe_conda_executable", lambda: None)
+
+    with pytest.warns(
+        UserWarning,
+        match="different Python than the active Conda environment",
+    ):
+        _check_conda_prefix(None)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _install_command(
+            project,
+            conda_executable=None,
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+    msg = str(excinfo.value)
+    assert "Conda executable" in msg
+    assert "Do this:" in msg
+    assert "--skip-conda" in msg
 
 
 @pytest.mark.skipif(
@@ -975,6 +1056,23 @@ def test_active_conda_prefix_is_used_when_python_runs_elsewhere(
         "--prefix",
         str(prefix),
     ]
+
+
+def test_python_executable_prefers_active_prefix_when_python_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prefix = tmp_path / "arch-env"
+    external_python = tmp_path / "uv-tool" / "bin" / "python"
+    expected_python = prefix / ("python.exe" if os.name == "nt" else "bin/python")
+    prefix.mkdir()
+    external_python.parent.mkdir(parents=True)
+    external_python.write_text("")
+
+    monkeypatch.setenv("CONDA_PREFIX", str(prefix))
+    monkeypatch.setattr("unidep._cli.sys.executable", str(external_python))
+
+    assert _python_executable("conda", None, None) == str(expected_python)
 
 
 @pytest.mark.skipif(

@@ -40,6 +40,7 @@ from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     collect_selector_platforms,
+    detect_conflicting_direct_reference_groups,
     detect_duplicate_local_package_paths,
     escape_unicode,
     format_cli_diagnostic,
@@ -932,14 +933,14 @@ def _python_executable(
     if conda_env_name is None and conda_env_prefix is None:
         active_prefix = _active_conda_prefix(conda_executable)
         if active_prefix is not None:
-            active_python = Path(
-                _python_executable_from_prefix(active_prefix, require_exists=False),
+            return _python_executable_from_prefix(
+                active_prefix,
+                require_exists=False,
             )
-            if active_python.exists():
-                return str(active_python)
         return sys.executable
     if conda_env_name:
-        assert conda_executable is not None
+        if conda_executable is None:
+            raise RuntimeError(_missing_conda_executable_message(None))
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
     return _python_executable_from_prefix(conda_env_prefix)
@@ -955,8 +956,13 @@ def _python_executable_from_prefix(
         python_executable = conda_prefix / "python.exe"
     else:
         python_executable = conda_prefix / "bin" / "python"
-    if require_exists:
-        assert python_executable.exists()
+    if require_exists and not python_executable.exists():
+        raise RuntimeError(
+            _missing_python_in_conda_prefix_message(
+                conda_prefix,
+                python_executable,
+            ),
+        )
     return str(python_executable)
 
 
@@ -981,6 +987,97 @@ def _active_conda_prefix(conda_executable: CondaExecutable | None) -> Path | Non
         if os.getenv("CONDA_ROOT"):
             return Path(os.environ["CONDA_ROOT"])
     return None
+
+
+def _target_conda_prefix(
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> Path | None:
+    """Resolve the Conda prefix UniDep should target."""
+    if conda_env_name is None and conda_env_prefix is None:
+        return _active_conda_prefix(conda_executable)
+    if conda_env_prefix is not None:
+        return conda_env_prefix
+    if conda_env_name is None or conda_executable is None:
+        return None
+    return _conda_env_name_to_prefix(
+        conda_executable,
+        conda_env_name,
+        raise_if_not_found=False,
+    )
+
+
+def _missing_conda_executable_message(target_prefix: Path | None) -> str:
+    """Format an actionable error when Conda dependencies cannot be installed."""
+    detected = None
+    if target_prefix is not None:
+        detected = {"target environment": f"`{target_prefix}`"}
+    return format_cli_diagnostic(
+        "UniDep could not find a Conda executable to install Conda dependencies.",
+        detected=detected,
+        why=[
+            "the requested dependency set includes Conda packages, so UniDep"
+            " needs `conda`, `mamba`, or `micromamba` to target the environment",
+        ],
+        fixes=[
+            "install or expose `conda`, `mamba`, or `micromamba` on PATH",
+            "or rerun with `--skip-conda` if you only want pip dependencies",
+        ],
+    )
+
+
+def _missing_python_in_conda_prefix_message(
+    conda_prefix: Path,
+    python_executable: Path,
+) -> str:
+    """Format an actionable error when the target Conda env has no Python."""
+    return format_cli_diagnostic(
+        "UniDep could not find a Python interpreter in the target Conda environment.",
+        detected={
+            "target environment": f"`{conda_prefix}`",
+            "expected Python": f"`{python_executable}`",
+        },
+        why=[
+            "pip dependencies and local packages must run against a Python"
+            " interpreter inside the target environment",
+        ],
+        fixes=[
+            f"install Python into `{conda_prefix}` before running UniDep",
+            "or point UniDep at a different environment with"
+            " `--conda-env-name` / `--conda-env-prefix`",
+        ],
+    )
+
+
+def _ensure_target_python_exists(
+    python_executable: str,
+    *,
+    conda_executable: CondaExecutable | None,
+    conda_env_name: str | None,
+    conda_env_prefix: Path | None,
+) -> None:
+    """Raise if pip operations would target a missing Python executable."""
+    python_path = Path(python_executable)
+    if python_path.exists():
+        return
+
+    target_prefix = _target_conda_prefix(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
+    if target_prefix is not None:
+        raise RuntimeError(
+            _missing_python_in_conda_prefix_message(target_prefix, python_path),
+        )
+
+    msg = format_cli_diagnostic(
+        "UniDep could not find the Python interpreter it planned to use.",
+        detected={"expected Python": f"`{python_path}`"},
+        fixes=["install Python in the target environment before running UniDep"],
+    )
+    raise RuntimeError(msg)
 
 
 def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
@@ -1075,6 +1172,11 @@ def _install_command(  # noqa: PLR0912, PLR0915
     )
     if not conda_executable:  # None or empty string
         conda_executable = _maybe_conda_executable()
+    target_conda_prefix = _target_conda_prefix(
+        conda_executable,
+        conda_env_name,
+        conda_env_prefix,
+    )
     if conda_lock_file:  # As late as possible to error out early in previous steps
         assert conda_executable is not None
         _create_env_from_lock(
@@ -1092,7 +1194,8 @@ def _install_command(  # noqa: PLR0912, PLR0915
         skip_conda = True
 
     if env_spec.conda and not skip_conda:
-        assert conda_executable is not None
+        if conda_executable is None:
+            raise RuntimeError(_missing_conda_executable_message(target_conda_prefix))
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
             channel_args.extend(["--channel", channel])
@@ -1121,6 +1224,12 @@ def _install_command(  # noqa: PLR0912, PLR0915
         conda_env_prefix,
     )
     if env_spec.pip and not skip_pip:
+        _ensure_target_python_exists(
+            python_executable,
+            conda_executable=conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+        )
         conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
         if _use_uv(no_uv):
             pip_command = [
@@ -1172,6 +1281,12 @@ def _install_command(  # noqa: PLR0912, PLR0915
             if dep.resolve() not in installable_set
         ]
         if installable:
+            _ensure_target_python_exists(
+                python_executable,
+                conda_executable=conda_executable,
+                conda_env_name=conda_env_name,
+                conda_env_prefix=conda_env_prefix,
+            )
             detect_duplicate_local_package_paths(installable)
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
@@ -1580,9 +1695,9 @@ def _check_conda_prefix(
             "current Python": f"`{sys.executable}`",
         },
         why=[
-            "UniDep will still target the active Conda environment for installs,"
-            " but invoking it from that interpreter is less surprising and makes"
-            " follow-up commands easier to reason about",
+            "UniDep uses the active Conda environment as its default target when"
+            " it can resolve one, but invoking it from that interpreter is less"
+            " surprising and makes follow-up commands easier to reason about",
         ],
         fixes=[
             recommended_command,
@@ -1668,9 +1783,21 @@ def _pip_subcommand(
         overwrite_pins=overwrite_pins,
         include_local_dependencies=True,
     )
-    pip_dependencies = deps.dependencies
-    for extra in parse_folder_or_filename(path).extras:
-        pip_dependencies.extend(deps.extras[extra])
+    selected_extras = parse_folder_or_filename(path).extras
+    extra_group_names = {
+        extra: f"optional dependency `{extra}`" for extra in selected_extras
+    }
+    requirement_groups = {"dependencies": deps.dependencies}
+    requirement_groups.update(
+        {extra_group_names[extra]: deps.extras[extra] for extra in selected_extras},
+    )
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
+        context="collecting pip dependencies",
+    )
+    pip_dependencies = list(deduplicated_groups["dependencies"])
+    for extra in selected_extras:
+        pip_dependencies.extend(deduplicated_groups[extra_group_names[extra]])
     return escape_unicode(separator).join(pip_dependencies)
 
 
