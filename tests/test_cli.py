@@ -197,6 +197,80 @@ def test_install_command_detects_duplicate_local_package_names(
         )
 
 
+def test_install_command_dry_run_allows_missing_target_python_for_pip_deps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: python=3.11
+                - pip: requests
+            """,
+        ),
+    )
+
+    conda_prefix = tmp_path / "envs" / "example"
+    conda_prefix.mkdir(parents=True)
+    monkeypatch.setenv("CONDA_PREFIX", str(conda_prefix))
+
+    _install_command(
+        project,
+        conda_executable="conda",
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+    )
+
+    captured = capsys.readouterr()
+    assert "Installing conda dependencies" in captured.out
+    assert "Installing pip dependencies" in captured.out
+
+
+def test_install_command_dry_run_allows_missing_target_python_for_local_projects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: python=3.11
+            """,
+        ),
+    )
+    (project / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='project', version='0.1.0')\n",
+    )
+
+    conda_prefix = tmp_path / "envs" / "example"
+    conda_prefix.mkdir(parents=True)
+    monkeypatch.setenv("CONDA_PREFIX", str(conda_prefix))
+
+    _install_command(
+        project,
+        conda_executable="conda",
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+    )
+
+    captured = capsys.readouterr()
+    assert "Installing conda dependencies" in captured.out
+    assert "Installing project with" in captured.out
+
+
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
     """Create a mock uv executable and return env with it in the PATH."""
     mock_uv_path = tmp_path / ("uv.bat" if platform.system() == "Windows" else "uv")

@@ -930,6 +930,8 @@ def _python_executable(
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
     conda_env_prefix: Path | None,
+    *,
+    require_exists: bool = True,
 ) -> str:
     """Get the Python executable to use for a conda environment."""
     if conda_env_name is None and conda_env_prefix is None:
@@ -945,7 +947,10 @@ def _python_executable(
             raise RuntimeError(_missing_conda_executable_message(None))
         conda_env_prefix = _conda_env_name_to_prefix(conda_executable, conda_env_name)
     assert conda_env_prefix is not None
-    return _python_executable_from_prefix(conda_env_prefix)
+    return _python_executable_from_prefix(
+        conda_env_prefix,
+        require_exists=require_exists,
+    )
 
 
 def _python_executable_from_prefix(
@@ -1161,12 +1166,13 @@ def _install_pip_dependencies(
     if not pip_dependencies:
         return
 
-    _ensure_target_python_exists(
-        python_executable,
-        conda_executable=conda_executable,
-        conda_env_name=conda_env_name,
-        conda_env_prefix=conda_env_prefix,
-    )
+    if not dry_run:
+        _ensure_target_python_exists(
+            python_executable,
+            conda_executable=conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+        )
     conda_run = _maybe_conda_run(conda_executable, conda_env_name, conda_env_prefix)
     if _use_uv(no_uv):
         pip_command = [
@@ -1241,12 +1247,13 @@ def _install_local_projects(
     if not installable:
         return
 
-    _ensure_target_python_exists(
-        python_executable,
-        conda_executable=conda_executable,
-        conda_env_name=conda_env_name,
-        conda_env_prefix=conda_env_prefix,
-    )
+    if not dry_run:
+        _ensure_target_python_exists(
+            python_executable,
+            conda_executable=conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+        )
     detect_duplicate_local_package_paths(installable)
     pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
     if verbose:
@@ -1357,6 +1364,7 @@ def _install_command(
         conda_executable,
         conda_env_name,
         conda_env_prefix,
+        require_exists=not dry_run,
     )
     _install_pip_dependencies(
         env_spec.pip if not skip_pip else [],
