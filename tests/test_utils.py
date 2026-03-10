@@ -14,11 +14,15 @@ from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     collect_selector_platforms,
+    detect_conflicting_direct_references,
+    detect_duplicate_local_package_paths,
     escape_unicode,
     extract_matching_platforms,
+    format_cli_diagnostic,
     identify_current_platform,
     parse_package_str,
     resolve_platforms,
+    selected_extra_names,
     split_path_and_extras,
 )
 
@@ -258,8 +262,132 @@ def test_parse_package_str_with_selector() -> None:
 
     # Test with multiple selectors
     assert parse_package_str("numpy:linux64 win64") == ("numpy", None, "linux64 win64")
+
+
+def test_detect_conflicting_direct_references() -> None:
+    requirements = [
+        "shared-lib @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-b",
+    ]
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+
+
+def test_detect_conflicting_direct_references_allows_same_source_variants() -> None:
+    requirements = [
+        "shared-lib[test] @ file:///tmp/dep-a",
+        "shared-lib[dev] @ file:///tmp/dep-a",
+        "shared-lib @ file:///tmp/dep-a ; python_version < '3.12'",
+    ]
+
+    assert (
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+        == requirements
+    )
+
+
+def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
+    dep_a = tmp_path / "dep_a"
+    dep_b = tmp_path / "dep_b"
+    for dep in (dep_a, dep_b):
+        dep.mkdir()
+        (dep / "pyproject.toml").write_text(
+            "[project]\nname = 'shared-lib'\nversion = '0.1.0'\n",
+        )
+
+    with pytest.raises(RuntimeError, match="Multiple local packages resolve"):
+        detect_duplicate_local_package_paths([dep_a, dep_b])
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
+
+
+def test_detect_duplicate_local_package_paths_ignores_fallback_directory_names(
+    tmp_path: Path,
+) -> None:
+    dep_a = tmp_path / "apps" / "shared"
+    dep_b = tmp_path / "libs" / "shared"
+    for dep, package_name in ((dep_a, "package-a"), (dep_b, "package-b")):
+        dep.mkdir(parents=True)
+        (dep / "setup.py").write_text(
+            "from setuptools import setup\n"
+            f"NAME = '{package_name}'\n"
+            "setup(name=NAME, version='0.1.0')\n",
+        )
+
+    detect_duplicate_local_package_paths([dep_a, dep_b])
+
+
+def test_selected_extra_names_raises_for_unknown_extra() -> None:
+    with pytest.raises(ValueError, match="extras that are not defined"):
+        selected_extra_names(
+            ["missing"],
+            {"test": ["pytest"]},
+            dependency_file=Path("requirements.yaml"),
+        )
+
+
+def test_format_cli_diagnostic_falls_back_without_rich(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("unidep.utils._rich_available", lambda: False)
+
+    msg = format_cli_diagnostic(
+        "Summary",
+        detected={"path": "/example/project"},
+        why=["it matters"],
+        fixes=["do the thing"],
+        tips=["helpful detail"],
+        prefix="⚠️",
+    )
+
+    assert msg == (
+        "⚠️ Summary\n"
+        "\n"
+        "Detected:\n"
+        "- path: /example/project\n"
+        "\n"
+        "Why this matters:\n"
+        "- it matters\n"
+        "\n"
+        "Do this:\n"
+        "- do the thing\n"
+        "\n"
+        "Tip:\n"
+        "- helpful detail"
+    )
+
+
+def test_format_cli_diagnostic_uses_rich_layout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pytest.importorskip("rich")
+
+    msg = format_cli_diagnostic(
+        "Summary",
+        detected={"path": "/example/project"},
+        why=["it matters"],
+        fixes=["do the thing"],
+        tips=["helpful detail"],
+        prefix="⚠️",
+    )
+    captured = capsys.readouterr()
+
+    assert "Detected:" in msg
+    assert "Why this matters:" in msg
+    assert "Do this:" in msg
+    assert "Tip:" in msg
+    assert "• path: /example/project" in msg
+    assert "╭" in msg or "┌" in msg
+    assert captured.out == ""
+    assert captured.err == ""
 
 
 def test_parse_package_str_with_extras() -> None:

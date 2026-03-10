@@ -21,10 +21,14 @@ from unidep._dependencies_parsing import (
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
+    detect_conflicting_direct_reference_groups,
+    detect_conflicting_direct_references,
     identify_current_platform,
     is_pip_installable,
     package_name_from_path,
     parse_folder_or_filename,
+    pip_requirement_strings,
+    selected_extra_names,
     split_path_and_extras,
     warn,
 )
@@ -107,7 +111,29 @@ def _path_to_file_uri(path: PurePath) -> str:
     return f"file:///{uri_path.replace(' ', '%20')}"
 
 
-def get_python_dependencies(  # noqa: PLR0912
+def _validated_setuptools_dependencies(deps: Dependencies) -> Dependencies:
+    """Reject dependency metadata that points one package name at many sources."""
+    requirement_groups = {"dependencies": deps.dependencies}
+    requirement_groups.update(
+        {
+            f"optional dependency `{section}`": section_dependencies
+            for section, section_dependencies in deps.extras.items()
+        },
+    )
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
+        context="preparing setuptools metadata",
+    )
+    return Dependencies(
+        dependencies=list(deduplicated_groups["dependencies"]),
+        extras={
+            section: deduplicated_groups[f"optional dependency `{section}`"]
+            for section in deps.extras
+        },
+    )
+
+
+def get_python_dependencies(  # noqa: PLR0912, PLR0915
     filename: str
     | Path
     | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
@@ -138,10 +164,34 @@ def get_python_dependencies(  # noqa: PLR0912
     )
     if not platforms:
         platforms = list(requirements.platforms)
+    selected_extras = selected_extra_names(
+        p.extras,
+        requirements.optional_dependencies,
+        dependency_file=p.path,
+    )
+    raw_requirement_groups = {
+        "dependencies": pip_requirement_strings(
+            requirements.requirements,
+            platforms=platforms,
+        ),
+    }
+    raw_requirement_groups.update(
+        {
+            f"optional dependency `{section}`": pip_requirement_strings(
+                requirements.optional_dependencies[section],
+                platforms=platforms,
+            )
+            for section in selected_extras
+        },
+    )
+    detect_conflicting_direct_reference_groups(
+        raw_requirement_groups,
+        context="collecting Python dependencies",
+    )
     resolved = resolve_conflicts(requirements.requirements, platforms)
     dependencies = filter_python_dependencies(resolved)
-    # TODO[Bas]: This currently doesn't correctly handle  # noqa: TD004, TD003, FIX002
-    # conflicts between sections in the extras and the main dependencies.
+    # Resolve optional dependency groups separately; direct-reference conflicts
+    # across the groups are validated below.
     extras = {
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
         for section, reqs in requirements.optional_dependencies.items()
@@ -173,7 +223,7 @@ def get_python_dependencies(  # noqa: PLR0912
             if abs_local.exists():
                 # Local wheel exists - use it
                 uri = _path_to_file_uri(abs_local)
-                dependencies.append(f"{abs_local.name} @ {uri}")
+                dependencies.append(f"{package_name_from_path(abs_local)} @ {uri}")
             elif local_dep_obj.pypi:
                 # Wheel doesn't exist - use PyPI alternative
                 dependencies.append(local_dep_obj.pypi)
@@ -193,6 +243,39 @@ def get_python_dependencies(  # noqa: PLR0912
             dependencies.append(local_dep_obj.pypi)
         # else: path doesn't exist and no PyPI alternative - skip
 
+    dependencies = detect_conflicting_direct_references(
+        dependencies,
+        context="collecting Python dependencies",
+    )
+    extras = {
+        section: detect_conflicting_direct_references(
+            deps,
+            context=f"collecting optional dependency `{section}`",
+        )
+        for section, deps in extras.items()
+    }
+    if selected_extras:
+        extra_group_names = {
+            section: f"optional dependency `{section}`" for section in selected_extras
+        }
+        requirement_groups = {"dependencies": dependencies}
+        requirement_groups.update(
+            {
+                extra_group_names[section]: extras[section]
+                for section in selected_extras
+            },
+        )
+        deduplicated_groups = detect_conflicting_direct_reference_groups(
+            requirement_groups,
+            context="collecting Python dependencies",
+        )
+        dependencies = deduplicated_groups["dependencies"]
+        extras = {
+            section: deduplicated_groups[extra_group_names[section]]
+            if section in selected_extras
+            else deps
+            for section, deps in extras.items()
+        }
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
@@ -240,7 +323,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
 
-    deps = _deps(requirements_file)
+    deps = _validated_setuptools_dependencies(_deps(requirements_file))
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
 
     if deps.extras:

@@ -480,7 +480,10 @@ def test_local_non_unidep_and_non_installable_managed_dependency(
             """,
         ),
     )
-    with pytest.raises(RuntimeError, match="is not pip installable"):
+    with pytest.raises(
+        RuntimeError,
+        match="not pip installable because it is an empty folder",
+    ):
         parse_local_dependencies(r1, verbose=True)
 
 
@@ -502,8 +505,12 @@ def test_local_empty_git_submodule_dependency(
             """,
         ),
     )
-    with pytest.raises(RuntimeError, match="is an empty Git submodule"):
+    with pytest.raises(RuntimeError) as excinfo:
         parse_local_dependencies(r1, verbose=True)
+    msg = str(excinfo.value)
+    assert "empty Git submodule" in msg
+    assert "Do this:" in msg
+    assert "git submodule update --init --recursive" in msg
 
 
 def test_parse_local_dependencies_missing(
@@ -529,6 +536,40 @@ def test_parse_local_dependencies_missing(
         raise_if_missing=False,
     )
     assert local_dependencies == {}
+
+
+def test_parse_local_dependencies_missing_declared_git_submodule(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir(exist_ok=True, parents=True)
+    (tmp_path / ".gitmodules").write_text(
+        textwrap.dedent(
+            """\
+            [submodule "project2"]
+                path = project2
+                url = git@example.com:project2.git
+            """,
+        ),
+    )
+
+    r1 = project1 / "requirements.yaml"
+    r1.write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+                - local: ../project2
+                  pypi: project2>=1.0
+            """,
+        ),
+    )
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
+    msg = str(excinfo.value)
+    assert "declared as a Git submodule" in msg
+    assert "git submodule sync --recursive" in msg
+    assert "set `use: pypi`" in msg
 
 
 @pytest.mark.parametrize("unidep_managed", [True, False])
@@ -574,7 +615,10 @@ def test_parse_local_dependencies_without_local_deps_themselves(
     assert local_dependencies == {project1: [project2]}
 
     r2.write_text("")
-    with pytest.raises(RuntimeError, match="is not pip installable"):
+    with pytest.raises(
+        RuntimeError,
+        match="not pip installable nor is it managed by unidep",
+    ):
         parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
 
 

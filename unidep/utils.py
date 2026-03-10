@@ -9,6 +9,8 @@ import ast
 import codecs
 import configparser
 import contextlib
+import importlib.util
+import io
 import platform
 import re
 import sys
@@ -16,6 +18,15 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast
+
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import (
+    InvalidSdistFilename,
+    InvalidWheelFilename,
+    canonicalize_name,
+    parse_sdist_filename,
+    parse_wheel_filename,
+)
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -281,8 +292,30 @@ def package_name_from_pyproject_toml(file_path: Path) -> str:
     raise KeyError(msg)
 
 
-def package_name_from_path(path: Path) -> str:
-    """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
+def _package_name_from_archive_filename(path: Path) -> str | None:
+    """Return the distribution name encoded in a wheel or sdist filename."""
+    if path.suffix == ".whl":
+        try:
+            name, _, _, _ = parse_wheel_filename(path.name)
+        except InvalidWheelFilename:
+            return None
+        return name
+
+    if path.suffix == ".zip":
+        try:
+            name, _ = parse_sdist_filename(path.name)
+        except InvalidSdistFilename:
+            return None
+        return name
+    return None
+
+
+def _maybe_package_name_from_path(path: Path) -> str | None:
+    """Return a package name only when UniDep can determine it from metadata."""
+    archive_name = _package_name_from_archive_filename(path)
+    if archive_name is not None:
+        return archive_name
+
     pyproject_toml = path / "pyproject.toml"
     if pyproject_toml.exists():
         with contextlib.suppress(
@@ -315,7 +348,211 @@ def package_name_from_path(path: Path) -> str:
         ):
             return package_name_from_setup_py(setup_py)
 
+    return None
+
+
+def package_name_from_path(path: Path) -> str:
+    """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
+    package_name = _maybe_package_name_from_path(path)
+    if package_name is not None:
+        return package_name
     return path.name
+
+
+def _parsed_direct_reference(requirement: str) -> tuple[str, str, str] | None:
+    """Return the canonical package name, display name, and URL for a direct ref."""
+    try:
+        parsed = Requirement(requirement)
+    except InvalidRequirement:
+        return None
+    if parsed.url is None:
+        return None
+    return canonicalize_name(parsed.name), parsed.name, parsed.url
+
+
+def detect_conflicting_direct_references(
+    requirements: list[str],
+    *,
+    context: str,
+) -> list[str]:
+    """Deduplicate direct references and fail on conflicting sources.
+
+    This catches cases like two ``file://`` URLs for the same package name
+    before pip/uv reports a lower-level resolver error.
+    """
+    deduplicated: list[str] = []
+    seen_exact: set[str] = set()
+    seen_direct_refs: dict[str, dict[str, list[str]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
+
+    for requirement in requirements:
+        normalized = requirement.strip()
+        if normalized in seen_exact:
+            continue
+        seen_exact.add(normalized)
+
+        direct_reference = _parsed_direct_reference(normalized)
+        if direct_reference is None:
+            deduplicated.append(normalized)
+            continue
+
+        canonical_name, package_name, source_url = direct_reference
+        existing = seen_direct_refs[canonical_name]
+        conflicting = [
+            existing_requirement
+            for existing_url, existing_requirements in existing.items()
+            if existing_url != source_url
+            for existing_requirement in existing_requirements
+        ]
+        if conflicting:
+            msg = format_duplicate_package_sources_message(
+                package_name,
+                [*conflicting, normalized],
+            )
+            msg += f"\n\nWhile {context}."
+            raise RuntimeError(msg)
+
+        existing[source_url].append(normalized)
+        deduplicated.append(normalized)
+
+    return deduplicated
+
+
+def detect_conflicting_direct_reference_groups(
+    requirement_groups: dict[str, list[str]],
+    *,
+    context: str,
+) -> dict[str, list[str]]:
+    """Validate direct references across multiple dependency groups."""
+    deduplicated_groups = {
+        group_name: detect_conflicting_direct_references(
+            requirements,
+            context=context,
+        )
+        for group_name, requirements in requirement_groups.items()
+    }
+    seen_direct_refs: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list),
+    )
+
+    for group_name, requirements in deduplicated_groups.items():
+        for requirement in requirements:
+            direct_reference = _parsed_direct_reference(requirement)
+            if direct_reference is None:
+                continue
+
+            canonical_name, package_name, source_url = direct_reference
+            existing = seen_direct_refs[canonical_name]
+            conflicting = [
+                f"{existing_group}: {existing_requirement}"
+                for existing_url, existing_entries in existing.items()
+                if existing_url != source_url
+                for existing_group, existing_requirement in existing_entries
+            ]
+            if conflicting:
+                msg = format_duplicate_package_sources_message(
+                    package_name,
+                    [*conflicting, f"{group_name}: {requirement}"],
+                )
+                msg += f"\n\nWhile {context}."
+                raise RuntimeError(msg)
+
+            existing[source_url].append((group_name, requirement))
+
+    return deduplicated_groups
+
+
+def _direct_reference_from_local_path(path: Path) -> str | None:
+    """Return a direct-reference requirement string for a local package path."""
+    resolved = path.resolve()
+    package_name = _maybe_package_name_from_path(resolved)
+    if package_name is None:
+        return None
+    return f"{package_name} @ {resolved.as_uri()}"
+
+
+def direct_references_from_local_paths(paths: list[Path]) -> list[str]:
+    """Build direct-reference strings for local paths with readable metadata."""
+    direct_references = []
+    seen = set()
+    for path in paths:
+        direct_reference = _direct_reference_from_local_path(path)
+        if direct_reference is None or direct_reference in seen:
+            continue
+        direct_references.append(direct_reference)
+        seen.add(direct_reference)
+    return direct_references
+
+
+def pip_requirement_strings(
+    requirements: dict[str, list[Spec]],
+    *,
+    platforms: list[Platform] | None = None,
+) -> list[str]:
+    """Return pip requirement strings filtered to the requested platforms."""
+    pip_requirements = []
+    seen = set()
+    for specs in requirements.values():
+        for spec in specs:
+            if spec.which != "pip":
+                continue
+            spec_platforms = spec.platforms()
+            if (
+                platforms is not None
+                and spec_platforms is not None
+                and not set(spec_platforms).intersection(platforms)
+            ):
+                continue
+            requirement = spec.name_with_pin(is_pip=True)
+            if requirement in seen:
+                continue
+            pip_requirements.append(requirement)
+            seen.add(requirement)
+    return pip_requirements
+
+
+def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
+    """Raise when multiple local paths map to the same distribution name."""
+    name_to_paths: dict[str, list[Path]] = defaultdict(list)
+
+    for path in paths:
+        resolved = path.resolve()
+        package_name = _maybe_package_name_from_path(resolved)
+        if package_name is None:
+            continue
+        canonical_name = canonicalize_name(package_name)
+        if resolved not in name_to_paths[canonical_name]:
+            name_to_paths[canonical_name].append(resolved)
+
+    duplicates = {
+        name: local_paths
+        for name, local_paths in name_to_paths.items()
+        if len(local_paths) > 1
+    }
+    if not duplicates:
+        return
+
+    duplicate_lines = []
+    for name, local_paths in sorted(duplicates.items()):
+        duplicate_lines.append(f"- {name}")
+        duplicate_lines.extend(f"  - {path}" for path in local_paths)
+
+    msg = format_cli_diagnostic(
+        "Multiple local packages resolve to the same distribution name.",
+        why=[
+            "pip and uv may treat these paths as conflicting sources for one"
+            " package and fail with duplicate file URL errors",
+        ],
+        fixes=[
+            "keep only one local checkout for each package name",
+            "use `use: pypi` or `use: skip` in `local_dependencies` to exclude"
+            " vendored copies",
+        ],
+    )
+    detected_paths = "\n".join(duplicate_lines)
+    msg += f"\n\nDetected paths:\n{detected_paths}"
+    raise RuntimeError(msg)
 
 
 def _simple_warning_format(
@@ -347,6 +584,153 @@ def warn(
         warnings.warn(message, category, stacklevel=stacklevel + 1)
     finally:
         warnings.formatwarning = original_format
+
+
+def format_cli_diagnostic(
+    summary: str,
+    *,
+    detected: dict[str, str] | None = None,
+    why: list[str] | None = None,
+    fixes: list[str] | None = None,
+    tips: list[str] | None = None,
+    prefix: str = "❌",
+) -> str:
+    """Format a user-facing CLI diagnostic with consistent sections."""
+    sections = _cli_diagnostic_sections(
+        detected=detected,
+        why=why,
+        fixes=fixes,
+        tips=tips,
+    )
+    if _rich_available():
+        with contextlib.suppress(ImportError):
+            return _format_cli_diagnostic_with_rich(summary, sections, prefix)
+    return _format_cli_diagnostic_plain(summary, sections, prefix)
+
+
+def _cli_diagnostic_sections(
+    *,
+    detected: dict[str, str] | None,
+    why: list[str] | None,
+    fixes: list[str] | None,
+    tips: list[str] | None,
+) -> list[tuple[str, list[str]]]:
+    """Build ordered diagnostic sections for CLI messages."""
+    sections: list[tuple[str, list[str]]] = []
+    if detected:
+        sections.append(
+            ("Detected:", [f"{key}: {value}" for key, value in detected.items()]),
+        )
+    if why:
+        sections.append(("Why this matters:", why))
+    if fixes:
+        sections.append(("Do this:", fixes))
+    if tips:
+        sections.append(("Tip:", tips))
+    return sections
+
+
+def _format_cli_diagnostic_plain(
+    summary: str,
+    sections: list[tuple[str, list[str]]],
+    prefix: str,
+) -> str:
+    """Render a diagnostic with plain text only."""
+    lines = [f"{prefix} {summary}"]
+    for heading, items in sections:
+        lines.extend(["", heading, *[f"- {item}" for item in items]])
+    return "\n".join(lines)
+
+
+def _rich_available() -> bool:
+    """Return whether Rich is importable."""
+    return importlib.util.find_spec("rich") is not None
+
+
+def _format_cli_diagnostic_with_rich(
+    summary: str,
+    sections: list[tuple[str, list[str]]],
+    prefix: str,
+) -> str:
+    """Render a diagnostic with Rich while preserving string return semantics."""
+    from rich import box
+    from rich.console import Console, Group
+    from rich.panel import Panel
+    from rich.text import Text
+
+    border_style = _diagnostic_border_style(prefix)
+    renderables = []
+
+    summary_line = Text()
+    summary_line.append(f"{prefix} ", style=f"bold {border_style}")
+    summary_line.append(summary, style="bold")
+    renderables.append(summary_line)
+
+    for heading, items in sections:
+        renderables.append(Text())
+        renderables.append(Text(heading, style="bold cyan"))
+        for item in items:
+            bullet_line = Text()
+            bullet_line.append("• ", style=border_style)
+            bullet_line.append(item)
+            renderables.append(bullet_line)
+
+    content_lines = [f"{prefix} {summary}"]
+    for heading, items in sections:
+        content_lines.append(heading)
+        content_lines.extend(f"• {item}" for item in items)
+
+    console = Console(
+        file=io.StringIO(),
+        record=True,
+        width=max(60, max(len(line) for line in content_lines) + 4),
+        color_system=None,
+        highlight=False,
+    )
+    console.print(
+        Panel.fit(
+            Group(*renderables),
+            border_style=border_style,
+            box=box.ROUNDED,
+            padding=(0, 1),
+        ),
+        soft_wrap=True,
+    )
+    return console.export_text(styles=False).rstrip()
+
+
+def _diagnostic_border_style(prefix: str) -> str:
+    """Map a diagnostic prefix to a Rich color."""
+    if prefix == "⚠️":
+        return "yellow"
+    if prefix == "\N{INFORMATION SOURCE}\N{VARIATION SELECTOR-16}":
+        return "cyan"
+    return "red"
+
+
+def format_duplicate_package_sources_message(
+    package_name: str,
+    sources: list[str],
+) -> str:
+    """Format a diagnostic for multiple sources resolving to one package."""
+    sources_block = "\n".join(f"- {source}" for source in sources)
+    msg = format_cli_diagnostic(
+        f"UniDep found multiple sources for the same package `{package_name}`.",
+        why=[
+            "pip and uv cannot reliably resolve one package name from multiple"
+            " direct references or conflicting requirement strings",
+            "this usually means a vendored copy or duplicate local dependency path"
+            " is being pulled in",
+        ],
+        fixes=[
+            f"keep only one source for `{package_name}`",
+            "mark one path with `use: pypi` or `use: skip` if you want to override"
+            " a nested vendor copy",
+            "remove the duplicate entry from `local_dependencies` if both sources are"
+            " not needed",
+        ],
+    )
+    return f"{msg}\n\nConflicting sources:\n{sources_block}"
 
 
 def selector_from_comment(comment: str) -> str | None:
@@ -405,6 +789,69 @@ def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
         return path, []
     extras = [extra.strip() for extra in extras.split(",")]
     return path, extras
+
+
+def selected_extra_names(
+    requested_extras: list[str],
+    available_extras: dict[str, Any],
+    *,
+    dependency_file: str | Path | None = None,
+) -> list[str]:
+    """Return requested extras that exist, treating `*` as all extras."""
+    available_names = list(dict.fromkeys(available_extras))
+    available_name_set = set(available_names)
+    unknown_extras = sorted(
+        {
+            extra
+            for extra in requested_extras
+            if extra != "*" and extra not in available_name_set
+        },
+    )
+    if unknown_extras:
+        detected = {
+            "requested extras": ", ".join(f"`{extra}`" for extra in unknown_extras),
+            "available extras": (
+                ", ".join(f"`{extra}`" for extra in available_names)
+                if available_names
+                else "none"
+            ),
+        }
+        if dependency_file is not None:
+            detected["dependency file"] = f"`{dependency_file}`"
+        fixes = (
+            [
+                "use one of the defined extras instead of the misspelled name",
+                "or remove the extra selection if you only want base dependencies",
+            ]
+            if available_names
+            else [
+                "remove the extra selection because this dependency file does not"
+                " define optional dependencies",
+            ]
+        )
+        msg = format_cli_diagnostic(
+            "UniDep was asked for extras that are not defined.",
+            detected=detected,
+            why=[
+                "unknown extras are usually a typo, and silently ignoring them would"
+                " under-install dependencies",
+            ],
+            fixes=fixes,
+        )
+        raise ValueError(msg)
+
+    selected = []
+    seen = set()
+    if "*" in requested_extras:
+        for extra in available_names:
+            selected.append(extra)
+            seen.add(extra)
+    for extra in requested_extras:
+        if extra == "*" or extra in seen:
+            continue
+        selected.append(extra)
+        seen.add(extra)
+    return selected
 
 
 class PathWithExtras(NamedTuple):
