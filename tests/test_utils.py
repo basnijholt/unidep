@@ -294,6 +294,23 @@ def test_detect_conflicting_direct_references_allows_same_source_variants() -> N
     )
 
 
+def test_detect_conflicting_direct_references_allows_platform_exclusive_markers() -> (
+    None
+):
+    requirements = [
+        "shared-lib @ file:///tmp/linux-src ; sys_platform == 'linux'",
+        "shared-lib @ file:///tmp/win-src ; sys_platform == 'win32'",
+    ]
+
+    assert (
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+        == requirements
+    )
+
+
 def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
     dep_a = tmp_path / "dep_a"
     dep_b = tmp_path / "dep_b"
@@ -305,6 +322,9 @@ def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="Multiple local packages resolve"):
         detect_duplicate_local_package_paths([dep_a, dep_b])
+
+
+def test_parse_package_str_invalid_selector() -> None:
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
 

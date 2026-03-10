@@ -264,6 +264,81 @@ def test_get_python_dependencies_allows_same_local_source_with_different_extras(
     assert any("shared-lib[dev] @ file://" in dep for dep in deps.dependencies)
 
 
+def test_get_python_dependencies_skips_conflicting_local_projects_when_requested(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    dep = tmp_path / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "dep"
+            version = "0.1.0"
+
+            [tool.unidep]
+            dependencies = [
+              { pip = "shared-lib @ file:///tmp/dep-b" },
+            ]
+            """,
+        ),
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/dep-a
+            local_dependencies:
+              - ../dep
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        project / "requirements.yaml",
+        include_local_dependencies=False,
+    )
+
+    assert deps.dependencies == ["shared-lib @ file:///tmp/dep-a"]
+    assert deps.extras == {}
+
+
+def test_get_python_dependencies_allows_platform_specific_direct_refs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/linux-src  # [linux64]
+              - pip: shared-lib @ file:///tmp/win-src  # [win64]
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        project / "requirements.yaml",
+        platforms=["linux-64", "win-64"],
+    )
+
+    assert deps.dependencies == [
+        "shared-lib @ file:///tmp/linux-src; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "shared-lib @ file:///tmp/win-src; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
+    assert deps.extras == {}
+
+
 def test_get_python_dependencies_ignores_unselected_conflicting_optional_direct_refs(
     tmp_path: Path,
 ) -> None:

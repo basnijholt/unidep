@@ -1063,6 +1063,36 @@ def test_pip_subcommand_ignores_conflicting_unselected_extra_direct_refs(
     assert txt.splitlines() == ["shared-lib @ file:///tmp/dep-a"]
 
 
+def test_pip_subcommand_allows_platform_specific_direct_refs(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/linux-src  # [linux64]
+                - pip: shared-lib @ file:///tmp/win-src  # [win64]
+            """,
+        ),
+    )
+
+    txt = _pip_subcommand(
+        file=[p],
+        platforms=["linux-64", "win-64"],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator="\n",
+    )
+
+    assert txt.splitlines() == [
+        "shared-lib @ file:///tmp/linux-src; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "shared-lib @ file:///tmp/win-src; sys_platform == 'win32' and platform_machine == 'AMD64'",
+    ]
+
+
 def test_pip_subcommand_raises_for_unknown_selected_extra(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(

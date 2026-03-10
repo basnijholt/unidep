@@ -17,8 +17,9 @@ import sys
 import warnings
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, cast
+from typing import Any, Literal, NamedTuple, Sequence, cast
 
+from packaging.markers import Marker, default_environment
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import (
     InvalidSdistFilename,
@@ -184,7 +185,7 @@ def resolve_platforms(
 
 
 def build_pep508_environment_marker(
-    platforms: list[Platform | tuple[Platform, ...]],
+    platforms: Sequence[Platform | tuple[Platform, ...]],
 ) -> str:
     """Generate a PEP 508 selector for a list of platforms."""
     sorted_platforms = tuple(sorted(platforms))
@@ -359,15 +360,78 @@ def package_name_from_path(path: Path) -> str:
     return path.name
 
 
-def _parsed_direct_reference(requirement: str) -> tuple[str, str, str] | None:
-    """Return the canonical package name, display name, and URL for a direct ref."""
+_SUPPORTED_MARKER_PYTHON_VERSIONS = tuple(f"3.{minor}" for minor in range(8, 16))
+_PLATFORM_MARKER_ENVIRONMENTS: dict[Platform, dict[str, str]] = {
+    "linux-64": {
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_system": "Linux",
+        "sys_platform": "linux",
+    },
+    "linux-aarch64": {
+        "os_name": "posix",
+        "platform_machine": "aarch64",
+        "platform_system": "Linux",
+        "sys_platform": "linux",
+    },
+    "linux-ppc64le": {
+        "os_name": "posix",
+        "platform_machine": "ppc64le",
+        "platform_system": "Linux",
+        "sys_platform": "linux",
+    },
+    "osx-64": {
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_system": "Darwin",
+        "sys_platform": "darwin",
+    },
+    "osx-arm64": {
+        "os_name": "posix",
+        "platform_machine": "arm64",
+        "platform_system": "Darwin",
+        "sys_platform": "darwin",
+    },
+    "win-64": {
+        "os_name": "nt",
+        "platform_machine": "AMD64",
+        "platform_system": "Windows",
+        "sys_platform": "win32",
+    },
+}
+
+
+def _marker_targets(marker: Marker | None) -> frozenset[tuple[Platform, str]]:
+    """Return supported platform/Python targets where a requirement can apply."""
+    targets: set[tuple[Platform, str]] = set()
+    for platform_name, env_updates in _PLATFORM_MARKER_ENVIRONMENTS.items():
+        for python_version in _SUPPORTED_MARKER_PYTHON_VERSIONS:
+            environment = default_environment()
+            environment.update(env_updates)
+            environment["extra"] = ""
+            environment["python_version"] = python_version
+            environment["python_full_version"] = f"{python_version}.0"
+            if marker is None or marker.evaluate(environment):
+                targets.add((platform_name, python_version))
+    return frozenset(targets)
+
+
+def _parsed_direct_reference(
+    requirement: str,
+) -> tuple[str, str, str, frozenset[tuple[Platform, str]]] | None:
+    """Return the canonical package name, display name, URL, and scope."""
     try:
         parsed = Requirement(requirement)
     except InvalidRequirement:
         return None
     if parsed.url is None:
         return None
-    return canonicalize_name(parsed.name), parsed.name, parsed.url
+    return (
+        canonicalize_name(parsed.name),
+        parsed.name,
+        parsed.url,
+        _marker_targets(parsed.marker),
+    )
 
 
 def detect_conflicting_direct_references(
@@ -382,7 +446,10 @@ def detect_conflicting_direct_references(
     """
     deduplicated: list[str] = []
     seen_exact: set[str] = set()
-    seen_direct_refs: dict[str, dict[str, list[str]]] = defaultdict(
+    seen_direct_refs: dict[
+        str,
+        dict[str, list[tuple[frozenset[tuple[Platform, str]], str]]],
+    ] = defaultdict(
         lambda: defaultdict(list),
     )
 
@@ -397,13 +464,14 @@ def detect_conflicting_direct_references(
             deduplicated.append(normalized)
             continue
 
-        canonical_name, package_name, source_url = direct_reference
+        canonical_name, package_name, source_url, targets = direct_reference
         existing = seen_direct_refs[canonical_name]
         conflicting = [
             existing_requirement
             for existing_url, existing_requirements in existing.items()
             if existing_url != source_url
-            for existing_requirement in existing_requirements
+            for existing_targets, existing_requirement in existing_requirements
+            if existing_targets & targets
         ]
         if conflicting:
             msg = format_duplicate_package_sources_message(
@@ -413,7 +481,7 @@ def detect_conflicting_direct_references(
             msg += f"\n\nWhile {context}."
             raise RuntimeError(msg)
 
-        existing[source_url].append(normalized)
+        existing[source_url].append((targets, normalized))
         deduplicated.append(normalized)
 
     return deduplicated
@@ -432,7 +500,10 @@ def detect_conflicting_direct_reference_groups(
         )
         for group_name, requirements in requirement_groups.items()
     }
-    seen_direct_refs: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+    seen_direct_refs: dict[
+        str,
+        dict[str, list[tuple[frozenset[tuple[Platform, str]], str, str]]],
+    ] = defaultdict(
         lambda: defaultdict(list),
     )
 
@@ -442,13 +513,18 @@ def detect_conflicting_direct_reference_groups(
             if direct_reference is None:
                 continue
 
-            canonical_name, package_name, source_url = direct_reference
+            canonical_name, package_name, source_url, targets = direct_reference
             existing = seen_direct_refs[canonical_name]
             conflicting = [
                 f"{existing_group}: {existing_requirement}"
                 for existing_url, existing_entries in existing.items()
                 if existing_url != source_url
-                for existing_group, existing_requirement in existing_entries
+                for (
+                    existing_targets,
+                    existing_group,
+                    existing_requirement,
+                ) in existing_entries
+                if existing_targets & targets
             ]
             if conflicting:
                 msg = format_duplicate_package_sources_message(
@@ -458,7 +534,7 @@ def detect_conflicting_direct_reference_groups(
                 msg += f"\n\nWhile {context}."
                 raise RuntimeError(msg)
 
-            existing[source_url].append((group_name, requirement))
+            existing[source_url].append((targets, group_name, requirement))
 
     return deduplicated_groups
 
@@ -498,13 +574,18 @@ def pip_requirement_strings(
             if spec.which != "pip":
                 continue
             spec_platforms = spec.platforms()
-            if (
-                platforms is not None
-                and spec_platforms is not None
-                and not set(spec_platforms).intersection(platforms)
-            ):
-                continue
+            matched_platforms = spec_platforms
+            if platforms is not None and spec_platforms is not None:
+                matched_platforms = cast(
+                    "list[Platform]",
+                    sorted(set(spec_platforms).intersection(platforms)),
+                )
+                if not matched_platforms:
+                    continue
             requirement = spec.name_with_pin(is_pip=True)
+            if matched_platforms is not None:
+                selector = build_pep508_environment_marker(matched_platforms)
+                requirement = f"{requirement}; {selector}"
             if requirement in seen:
                 continue
             pip_requirements.append(requirement)
