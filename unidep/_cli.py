@@ -1320,7 +1320,8 @@ def _install_command(
         conda_env_prefix,
     )
     if conda_lock_file:  # As late as possible to error out early in previous steps
-        assert conda_executable is not None
+        if conda_executable is None:
+            raise RuntimeError(_missing_conda_executable_message(target_conda_prefix))
         _create_env_from_lock(
             conda_lock_file,
             conda_executable,

@@ -22,6 +22,7 @@ from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
     detect_conflicting_direct_reference_groups,
+    detect_conflicting_direct_references,
     identify_current_platform,
     is_pip_installable,
     package_name_from_path,
@@ -194,21 +195,36 @@ def get_python_dependencies(  # noqa: PLR0912
             dependencies.append(local_dep_obj.pypi)
         # else: path doesn't exist and no PyPI alternative - skip
 
-    extra_group_names = {
-        section: f"optional dependency `{section}`" for section in extras
-    }
-    requirement_groups = {"dependencies": dependencies}
-    requirement_groups.update(
-        {extra_group_names[section]: deps for section, deps in extras.items()},
-    )
-    deduplicated_groups = detect_conflicting_direct_reference_groups(
-        requirement_groups,
+    dependencies = detect_conflicting_direct_references(
+        dependencies,
         context="collecting Python dependencies",
     )
-    dependencies = deduplicated_groups["dependencies"]
     extras = {
-        section: deduplicated_groups[extra_group_names[section]] for section in extras
+        section: detect_conflicting_direct_references(
+            deps,
+            context=f"collecting optional dependency `{section}`",
+        )
+        for section, deps in extras.items()
     }
+    if p.extras:
+        extra_group_names = {
+            section: f"optional dependency `{section}`" for section in p.extras
+        }
+        requirement_groups = {"dependencies": dependencies}
+        requirement_groups.update(
+            {extra_group_names[section]: extras[section] for section in p.extras},
+        )
+        deduplicated_groups = detect_conflicting_direct_reference_groups(
+            requirement_groups,
+            context="collecting Python dependencies",
+        )
+        dependencies = deduplicated_groups["dependencies"]
+        extras = {
+            section: deduplicated_groups[extra_group_names[section]]
+            if section in p.extras
+            else deps
+            for section, deps in extras.items()
+        }
     return Dependencies(dependencies=dependencies, extras=extras)
 
 

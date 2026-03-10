@@ -862,6 +862,35 @@ def test_pip_subcommand_detects_conflicting_selected_extra_direct_refs(
         )
 
 
+def test_pip_subcommand_ignores_conflicting_unselected_extra_direct_refs(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+                test:
+                    - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    txt = _pip_subcommand(
+        file=[p],
+        platforms=[],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator="\n",
+    )
+
+    assert txt.splitlines() == ["shared-lib @ file:///tmp/dep-a"]
+
+
 def test_capitalize_last_dir() -> None:
     # Just needs to work for Windows paths
     assert _capitalize_dir(r"foo\bar\baz") == r"foo\bar\Baz"
@@ -1074,6 +1103,42 @@ def test_install_command_without_conda_executable_raises_actionable_error(
             conda_env_name=None,
             conda_env_prefix=None,
             conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+    msg = str(excinfo.value)
+    assert "Conda executable" in msg
+    assert "Do this:" in msg
+    assert "--skip-conda" in msg
+
+
+def test_install_command_with_conda_lock_without_conda_executable_raises_actionable_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - python
+            """,
+        ),
+    )
+    lock = tmp_path / "conda-lock.yml"
+    lock.write_text("version: 1\n")
+
+    monkeypatch.setattr("unidep._cli._maybe_conda_executable", lambda: None)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _install_command(
+            project,
+            conda_executable=None,
+            conda_env_name="test-env",
+            conda_env_prefix=None,
+            conda_lock_file=lock,
             dry_run=True,
             editable=False,
         )

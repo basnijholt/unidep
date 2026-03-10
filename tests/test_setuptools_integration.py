@@ -201,7 +201,31 @@ def test_get_python_dependencies_allows_same_local_source_with_different_extras(
     assert any("shared-lib[dev] @ file://" in dep for dep in deps.dependencies)
 
 
-def test_get_python_dependencies_detects_conflicting_optional_direct_refs(
+def test_get_python_dependencies_ignores_unselected_conflicting_optional_direct_refs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+              test:
+                - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(project / "requirements.yaml")
+
+    assert deps.dependencies == ["shared-lib @ file:///tmp/dep-a"]
+    assert deps.extras == {"test": ["shared-lib @ file:///tmp/dep-b"]}
+
+
+def test_get_python_dependencies_detects_conflicting_selected_optional_direct_refs(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -220,4 +244,4 @@ def test_get_python_dependencies_detects_conflicting_optional_direct_refs(
     )
 
     with pytest.raises(RuntimeError, match="multiple sources for the same package"):
-        get_python_dependencies(project / "requirements.yaml")
+        get_python_dependencies(f"{project / 'requirements.yaml'}[test]")
