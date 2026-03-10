@@ -197,6 +197,61 @@ def test_install_command_detects_duplicate_local_package_names(
         )
 
 
+def test_install_command_raises_for_unknown_selected_extra(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo
+            optional_dependencies:
+                test:
+                    - bar
+            """,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="extras that are not defined"):
+        _install_command(
+            Path(f"{project}[missing]"),
+            conda_executable="",  # type: ignore[arg-type]
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+
+def test_install_command_detects_conflicting_selected_extra_direct_refs(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+                test:
+                    - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _install_command(
+            Path(f"{p}[test]"),
+            conda_executable="",  # type: ignore[arg-type]
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+
 def test_install_command_dry_run_allows_missing_target_python_for_pip_deps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -891,7 +946,7 @@ def test_pip_subcommand_ignores_conflicting_unselected_extra_direct_refs(
     assert txt.splitlines() == ["shared-lib @ file:///tmp/dep-a"]
 
 
-def test_pip_subcommand_ignores_unknown_selected_extra(tmp_path: Path) -> None:
+def test_pip_subcommand_raises_for_unknown_selected_extra(tmp_path: Path) -> None:
     p = tmp_path / "requirements.yaml"
     p.write_text(
         textwrap.dedent(
@@ -905,17 +960,16 @@ def test_pip_subcommand_ignores_unknown_selected_extra(tmp_path: Path) -> None:
         ),
     )
 
-    txt = _pip_subcommand(
-        file=[f"{p}[missing]"],  # type: ignore[list-item]
-        platforms=[],
-        verbose=True,
-        ignore_pins=None,
-        skip_dependencies=None,
-        overwrite_pins=None,
-        separator=" ",
-    )
-
-    assert txt == "foo"
+    with pytest.raises(ValueError, match="extras that are not defined"):
+        _pip_subcommand(
+            file=[f"{p}[missing]"],  # type: ignore[list-item]
+            platforms=[],
+            verbose=True,
+            ignore_pins=None,
+            skip_dependencies=None,
+            overwrite_pins=None,
+            separator=" ",
+        )
 
 
 def test_capitalize_last_dir() -> None:

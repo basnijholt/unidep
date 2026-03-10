@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple, cast
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import canonicalize_name
+from packaging.utils import (
+    InvalidSdistFilename,
+    InvalidWheelFilename,
+    canonicalize_name,
+    parse_sdist_filename,
+    parse_wheel_filename,
+)
 
 from unidep._version import __version__
 from unidep.platform_definitions import (
@@ -286,8 +292,30 @@ def package_name_from_pyproject_toml(file_path: Path) -> str:
     raise KeyError(msg)
 
 
-def package_name_from_path(path: Path) -> str:
-    """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
+def _package_name_from_archive_filename(path: Path) -> str | None:
+    """Return the distribution name encoded in a wheel or sdist filename."""
+    if path.suffix == ".whl":
+        try:
+            name, _, _, _ = parse_wheel_filename(path.name)
+        except InvalidWheelFilename:
+            return None
+        return name
+
+    if path.suffix == ".zip":
+        try:
+            name, _ = parse_sdist_filename(path.name)
+        except InvalidSdistFilename:
+            return None
+        return name
+    return None
+
+
+def _maybe_package_name_from_path(path: Path) -> str | None:
+    """Return a package name only when UniDep can determine it from metadata."""
+    archive_name = _package_name_from_archive_filename(path)
+    if archive_name is not None:
+        return archive_name
+
     pyproject_toml = path / "pyproject.toml"
     if pyproject_toml.exists():
         with contextlib.suppress(
@@ -320,6 +348,14 @@ def package_name_from_path(path: Path) -> str:
         ):
             return package_name_from_setup_py(setup_py)
 
+    return None
+
+
+def package_name_from_path(path: Path) -> str:
+    """Get the package name from ``pyproject.toml``, ``setup.cfg``, or ``setup.py``."""
+    package_name = _maybe_package_name_from_path(path)
+    if package_name is not None:
+        return package_name
     return path.name
 
 
@@ -433,7 +469,10 @@ def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
 
     for path in paths:
         resolved = path.resolve()
-        canonical_name = canonicalize_name(package_name_from_path(resolved))
+        package_name = _maybe_package_name_from_path(resolved)
+        if package_name is None:
+            continue
+        canonical_name = canonicalize_name(package_name)
         if resolved not in name_to_paths[canonical_name]:
             name_to_paths[canonical_name].append(resolved)
 
@@ -706,16 +745,60 @@ def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
 def selected_extra_names(
     requested_extras: list[str],
     available_extras: dict[str, Any],
+    *,
+    dependency_file: str | Path | None = None,
 ) -> list[str]:
     """Return requested extras that exist, treating `*` as all extras."""
+    available_names = list(dict.fromkeys(available_extras))
+    available_name_set = set(available_names)
+    unknown_extras = sorted(
+        {
+            extra
+            for extra in requested_extras
+            if extra != "*" and extra not in available_name_set
+        },
+    )
+    if unknown_extras:
+        detected = {
+            "requested extras": ", ".join(f"`{extra}`" for extra in unknown_extras),
+            "available extras": (
+                ", ".join(f"`{extra}`" for extra in available_names)
+                if available_names
+                else "none"
+            ),
+        }
+        if dependency_file is not None:
+            detected["dependency file"] = f"`{dependency_file}`"
+        fixes = (
+            [
+                "use one of the defined extras instead of the misspelled name",
+                "or remove the extra selection if you only want base dependencies",
+            ]
+            if available_names
+            else [
+                "remove the extra selection because this dependency file does not"
+                " define optional dependencies",
+            ]
+        )
+        msg = format_cli_diagnostic(
+            "UniDep was asked for extras that are not defined.",
+            detected=detected,
+            why=[
+                "unknown extras are usually a typo, and silently ignoring them would"
+                " under-install dependencies",
+            ],
+            fixes=fixes,
+        )
+        raise ValueError(msg)
+
     selected = []
     seen = set()
     if "*" in requested_extras:
-        for extra in available_extras:
+        for extra in available_names:
             selected.append(extra)
             seen.add(extra)
     for extra in requested_extras:
-        if extra == "*" or extra not in available_extras or extra in seen:
+        if extra == "*" or extra in seen:
             continue
         selected.append(extra)
         seen.add(extra)

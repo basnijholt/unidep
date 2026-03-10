@@ -176,7 +176,7 @@ def get_python_dependencies(  # noqa: PLR0912
             if abs_local.exists():
                 # Local wheel exists - use it
                 uri = _path_to_file_uri(abs_local)
-                dependencies.append(f"{abs_local.name} @ {uri}")
+                dependencies.append(f"{package_name_from_path(abs_local)} @ {uri}")
             elif local_dep_obj.pypi:
                 # Wheel doesn't exist - use PyPI alternative
                 dependencies.append(local_dep_obj.pypi)
@@ -207,7 +207,11 @@ def get_python_dependencies(  # noqa: PLR0912
         )
         for section, deps in extras.items()
     }
-    selected_extras = selected_extra_names(p.extras, extras)
+    selected_extras = selected_extra_names(
+        p.extras,
+        extras,
+        dependency_file=p.path,
+    )
     if selected_extras:
         extra_group_names = {
             section: f"optional dependency `{section}`" for section in selected_extras

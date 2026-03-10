@@ -26,6 +26,7 @@ from unidep._conda_env import (
 from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
+    ParsedRequirements,
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
@@ -1223,12 +1224,13 @@ def _collect_installable_local_projects(
     names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
     print(f"📝 Found local dependencies: {names}\n")
     installable_set = {p.resolve() for p in installable}
-    installable += [
-        dep
-        for deps in local_dependencies.values()
-        for dep in deps
-        if dep.resolve() not in installable_set
-    ]
+    for deps in local_dependencies.values():
+        for dep in deps:
+            resolved_dep = dep.resolve()
+            if resolved_dep in installable_set:
+                continue
+            installable.append(dep)
+            installable_set.add(resolved_dep)
     return installable
 
 
@@ -1275,6 +1277,61 @@ def _install_local_projects(
     )
 
 
+def _validate_selected_pip_dependency_groups(
+    requirements: ParsedRequirements,
+    *,
+    platforms: list[Platform],
+) -> None:
+    """Raise actionable direct-reference errors before install conflict resolution."""
+    if not requirements.optional_dependencies:
+        return
+
+    requirement_groups = {
+        "dependencies": filter_python_dependencies(
+            resolve_conflicts(requirements.requirements, platforms),
+        ),
+    }
+    requirement_groups.update(
+        {
+            f"optional dependency `{section}`": filter_python_dependencies(
+                resolve_conflicts(reqs, platforms),
+            )
+            for section, reqs in requirements.optional_dependencies.items()
+        },
+    )
+    detect_conflicting_direct_reference_groups(
+        requirement_groups,
+        context="collecting Python dependencies",
+    )
+
+
+def _validate_requested_file_extras(
+    paths_with_extras: list[PathWithExtras],
+    *,
+    ignore_pins: list[str] | None,
+    overwrite_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    verbose: bool,
+) -> None:
+    """Raise for unknown extras in explicit `path[extra]` CLI selections."""
+    for path_with_extras in paths_with_extras:
+        if not path_with_extras.extras:
+            continue
+        available_requirements = parse_requirements(
+            path_with_extras.path,
+            ignore_pins=ignore_pins,
+            overwrite_pins=overwrite_pins,
+            skip_dependencies=skip_dependencies,
+            verbose=verbose,
+            extras="*",
+        )
+        selected_extra_names(
+            path_with_extras.extras,
+            available_requirements.optional_dependencies,
+            dependency_file=path_with_extras.path,
+        )
+
+
 def _install_command(
     *files: Path,
     conda_executable: CondaExecutable | None,
@@ -1296,6 +1353,13 @@ def _install_command(
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     start_time = time.time()
     paths_with_extras = [parse_folder_or_filename(f) for f in files]
+    _validate_requested_file_extras(
+        paths_with_extras,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+    )
     requirements = parse_requirements(
         *[f.path for f in paths_with_extras],
         ignore_pins=ignore_pins,
@@ -1305,6 +1369,10 @@ def _install_command(
         extras=[f.extras for f in paths_with_extras],
     )
     platforms = [identify_current_platform()]
+    _validate_selected_pip_dependency_groups(
+        requirements,
+        platforms=platforms,
+    )
     resolved = resolve_conflicts(
         requirements.requirements,
         platforms,
@@ -1878,9 +1946,11 @@ def _pip_subcommand(
 
 def _selected_pip_dependencies(path: Path, deps: Dependencies) -> list[str]:
     """Return the base pip dependencies plus any selected extras."""
+    parsed_path = parse_folder_or_filename(path)
     selected_extras = selected_extra_names(
-        parse_folder_or_filename(path).extras,
+        parsed_path.extras,
         deps.extras,
+        dependency_file=parsed_path.path,
     )
     extra_group_names = {
         extra: f"optional dependency `{extra}`" for extra in selected_extras

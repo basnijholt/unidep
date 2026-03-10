@@ -22,6 +22,7 @@ from unidep.utils import (
     identify_current_platform,
     parse_package_str,
     resolve_platforms,
+    selected_extra_names,
     split_path_and_extras,
 )
 
@@ -306,6 +307,31 @@ def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
         detect_duplicate_local_package_paths([dep_a, dep_b])
     with pytest.raises(ValueError, match="Invalid platform selector: `unknown`"):
         assert parse_package_str("numpy:linux64 unknown")
+
+
+def test_detect_duplicate_local_package_paths_ignores_fallback_directory_names(
+    tmp_path: Path,
+) -> None:
+    dep_a = tmp_path / "apps" / "shared"
+    dep_b = tmp_path / "libs" / "shared"
+    for dep, package_name in ((dep_a, "package-a"), (dep_b, "package-b")):
+        dep.mkdir(parents=True)
+        (dep / "setup.py").write_text(
+            "from setuptools import setup\n"
+            f"NAME = '{package_name}'\n"
+            "setup(name=NAME, version='0.1.0')\n",
+        )
+
+    detect_duplicate_local_package_paths([dep_a, dep_b])
+
+
+def test_selected_extra_names_raises_for_unknown_extra() -> None:
+    with pytest.raises(ValueError, match="extras that are not defined"):
+        selected_extra_names(
+            ["missing"],
+            {"test": ["pytest"]},
+            dependency_file=Path("requirements.yaml"),
+        )
 
 
 def test_format_cli_diagnostic_falls_back_without_rich(

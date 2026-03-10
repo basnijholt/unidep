@@ -167,6 +167,40 @@ def test_get_python_dependencies_detects_conflicting_local_sources(
         )
 
 
+def test_get_python_dependencies_detects_conflicting_archive_and_source_local_sources(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    source_dep = tmp_path / "source_dep"
+    source_dep.mkdir()
+    (source_dep / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='shared-lib', version='0.1.0')\n",
+    )
+
+    wheel_dep = tmp_path / "shared_lib-0.1.0-py3-none-any.whl"
+    wheel_dep.touch()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - ../source_dep
+              - ../shared_lib-0.1.0-py3-none-any.whl
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        get_python_dependencies(
+            project / "requirements.yaml",
+            include_local_dependencies=True,
+        )
+
+
 def test_get_python_dependencies_allows_same_local_source_with_different_extras(
     tmp_path: Path,
 ) -> None:
@@ -247,7 +281,7 @@ def test_get_python_dependencies_detects_conflicting_selected_optional_direct_re
         get_python_dependencies(f"{project / 'requirements.yaml'}[test]")
 
 
-def test_get_python_dependencies_ignores_unknown_selected_extra(
+def test_get_python_dependencies_raises_for_unknown_selected_extra(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -265,7 +299,5 @@ def test_get_python_dependencies_ignores_unknown_selected_extra(
         ),
     )
 
-    deps = get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
-
-    assert deps.dependencies == ["shared-lib @ file:///tmp/dep-a"]
-    assert deps.extras == {"test": ["pytest"]}
+    with pytest.raises(ValueError, match="extras that are not defined"):
+        get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
