@@ -703,6 +703,25 @@ def split_path_and_extras(input_str: str | Path) -> tuple[Path, list[str]]:
     return path, extras
 
 
+def selected_extra_names(
+    requested_extras: list[str],
+    available_extras: dict[str, Any],
+) -> list[str]:
+    """Return requested extras that exist, treating `*` as all extras."""
+    selected = []
+    seen = set()
+    if "*" in requested_extras:
+        for extra in available_extras:
+            selected.append(extra)
+            seen.add(extra)
+    for extra in requested_extras:
+        if extra == "*" or extra not in available_extras or extra in seen:
+            continue
+        selected.append(extra)
+        seen.add(extra)
+    return selected
+
+
 class PathWithExtras(NamedTuple):
     """A dependency file and extras."""
 

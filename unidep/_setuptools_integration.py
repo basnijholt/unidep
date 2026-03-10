@@ -27,6 +27,7 @@ from unidep.utils import (
     is_pip_installable,
     package_name_from_path,
     parse_folder_or_filename,
+    selected_extra_names,
     split_path_and_extras,
     warn,
 )
@@ -206,13 +207,17 @@ def get_python_dependencies(  # noqa: PLR0912
         )
         for section, deps in extras.items()
     }
-    if p.extras:
+    selected_extras = selected_extra_names(p.extras, extras)
+    if selected_extras:
         extra_group_names = {
-            section: f"optional dependency `{section}`" for section in p.extras
+            section: f"optional dependency `{section}`" for section in selected_extras
         }
         requirement_groups = {"dependencies": dependencies}
         requirement_groups.update(
-            {extra_group_names[section]: extras[section] for section in p.extras},
+            {
+                extra_group_names[section]: extras[section]
+                for section in selected_extras
+            },
         )
         deduplicated_groups = detect_conflicting_direct_reference_groups(
             requirement_groups,
@@ -221,7 +226,7 @@ def get_python_dependencies(  # noqa: PLR0912
         dependencies = deduplicated_groups["dependencies"]
         extras = {
             section: deduplicated_groups[extra_group_names[section]]
-            if section in p.extras
+            if section in selected_extras
             else deps
             for section, deps in extras.items()
         }

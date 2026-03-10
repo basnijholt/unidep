@@ -245,3 +245,27 @@ def test_get_python_dependencies_detects_conflicting_selected_optional_direct_re
 
     with pytest.raises(RuntimeError, match="multiple sources for the same package"):
         get_python_dependencies(f"{project / 'requirements.yaml'}[test]")
+
+
+def test_get_python_dependencies_ignores_unknown_selected_extra(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+              test:
+                - pytest
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
+
+    assert deps.dependencies == ["shared-lib @ file:///tmp/dep-a"]
+    assert deps.extras == {"test": ["pytest"]}

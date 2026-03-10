@@ -891,6 +891,33 @@ def test_pip_subcommand_ignores_conflicting_unselected_extra_direct_refs(
     assert txt.splitlines() == ["shared-lib @ file:///tmp/dep-a"]
 
 
+def test_pip_subcommand_ignores_unknown_selected_extra(tmp_path: Path) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo
+            optional_dependencies:
+                test:
+                    - bar
+            """,
+        ),
+    )
+
+    txt = _pip_subcommand(
+        file=[f"{p}[missing]"],  # type: ignore[list-item]
+        platforms=[],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator=" ",
+    )
+
+    assert txt == "foo"
+
+
 def test_capitalize_last_dir() -> None:
     # Just needs to work for Windows paths
     assert _capitalize_dir(r"foo\bar\baz") == r"foo\bar\Baz"

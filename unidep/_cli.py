@@ -52,6 +52,7 @@ from unidep.utils import (
     parse_folder_or_filename,
     parse_package_str,
     resolve_platforms,
+    selected_extra_names,
     warn,
 )
 
@@ -1877,7 +1878,10 @@ def _pip_subcommand(
 
 def _selected_pip_dependencies(path: Path, deps: Dependencies) -> list[str]:
     """Return the base pip dependencies plus any selected extras."""
-    selected_extras = parse_folder_or_filename(path).extras
+    selected_extras = selected_extra_names(
+        parse_folder_or_filename(path).extras,
+        deps.extras,
+    )
     extra_group_names = {
         extra: f"optional dependency `{extra}`" for extra in selected_extras
     }
