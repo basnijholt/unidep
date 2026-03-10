@@ -1,18 +1,27 @@
 """Tests for setuptools integration."""
 
+from __future__ import annotations
+
 import textwrap
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import pytest
 
-from unidep._setuptools_integration import get_python_dependencies
+from unidep._setuptools_integration import (
+    _setuptools_finalizer,
+    get_python_dependencies,
+)
 from unidep.utils import (
     package_name_from_path,
     package_name_from_pyproject_toml,
     package_name_from_setup_cfg,
     package_name_from_setup_py,
 )
+
+if TYPE_CHECKING:
+    from setuptools import Distribution
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -167,6 +176,26 @@ def test_get_python_dependencies_detects_conflicting_local_sources(
         )
 
 
+def test_get_python_dependencies_detects_conflicting_base_direct_refs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/dep-a
+              - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        get_python_dependencies(project / "requirements.yaml")
+
+
 def test_get_python_dependencies_detects_conflicting_archive_and_source_local_sources(
     tmp_path: Path,
 ) -> None:
@@ -301,3 +330,32 @@ def test_get_python_dependencies_raises_for_unknown_selected_extra(
 
     with pytest.raises(ValueError, match="extras that are not defined"):
         get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
+
+
+def test_setuptools_finalizer_detects_conflicting_optional_direct_refs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pip: shared-lib @ file:///tmp/dep-a
+            optional_dependencies:
+              test:
+                - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    class DummyDistribution:
+        def __init__(self) -> None:
+            self.install_requires: list[str] = []
+            self.extras_require: dict[str, list[str]] = {}
+
+    monkeypatch.chdir(project)
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _setuptools_finalizer(cast("Distribution", DummyDistribution()))

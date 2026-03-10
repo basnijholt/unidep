@@ -45,6 +45,7 @@ from unidep.utils import (
     collect_selector_platforms,
     detect_conflicting_direct_reference_groups,
     detect_duplicate_local_package_paths,
+    direct_references_from_local_paths,
     escape_unicode,
     format_cli_diagnostic,
     get_package_version,
@@ -52,6 +53,7 @@ from unidep.utils import (
     is_pip_installable,
     parse_folder_or_filename,
     parse_package_str,
+    pip_requirement_strings,
     resolve_platforms,
     selected_extra_names,
     warn,
@@ -1257,7 +1259,6 @@ def _install_local_projects(
             conda_env_name=conda_env_name,
             conda_env_prefix=conda_env_prefix,
         )
-    detect_duplicate_local_package_paths(installable)
     pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
     if verbose:
         pip_flags.append("--verbose")
@@ -1283,18 +1284,17 @@ def _validate_selected_pip_dependency_groups(
     platforms: list[Platform],
 ) -> None:
     """Raise actionable direct-reference errors before install conflict resolution."""
-    if not requirements.optional_dependencies:
-        return
-
     requirement_groups = {
-        "dependencies": filter_python_dependencies(
-            resolve_conflicts(requirements.requirements, platforms),
+        "dependencies": pip_requirement_strings(
+            requirements.requirements,
+            platforms=platforms,
         ),
     }
     requirement_groups.update(
         {
-            f"optional dependency `{section}`": filter_python_dependencies(
-                resolve_conflicts(reqs, platforms),
+            f"optional dependency `{section}`": pip_requirement_strings(
+                reqs,
+                platforms=platforms,
             )
             for section, reqs in requirements.optional_dependencies.items()
         },
@@ -1303,6 +1303,30 @@ def _validate_selected_pip_dependency_groups(
         requirement_groups,
         context="collecting Python dependencies",
     )
+
+
+def _validate_install_sources(
+    pip_dependencies: list[str],
+    installable: list[Path],
+) -> list[str]:
+    """Raise before install when pip dependencies and local projects conflict."""
+    if not installable:
+        return pip_dependencies
+
+    detect_duplicate_local_package_paths(installable)
+    local_requirements = direct_references_from_local_paths(installable)
+    if not local_requirements:
+        return pip_dependencies
+
+    requirement_groups = {
+        "pip dependencies": pip_dependencies,
+        "local project installs": local_requirements,
+    }
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
+        context="preparing dependency installation",
+    )
+    return list(deduplicated_groups["pip dependencies"])
 
 
 def _validate_requested_file_extras(
@@ -1430,27 +1454,38 @@ def _install_command(
         print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
         if not dry_run:  # pragma: no cover
             subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
-    python_executable = _python_executable(
-        conda_executable,
-        conda_env_name,
-        conda_env_prefix,
-        require_exists=not dry_run,
-    )
-    _install_pip_dependencies(
-        env_spec.pip if not skip_pip else [],
-        python_executable=python_executable,
-        conda_executable=conda_executable,
-        conda_env_name=conda_env_name,
-        conda_env_prefix=conda_env_prefix,
-        no_uv=no_uv,
-        dry_run=dry_run,
-    )
-
+    installable = []
+    pip_dependencies = env_spec.pip if not skip_pip else []
     if not skip_local:
         installable = _collect_installable_local_projects(
             paths_with_extras,
             verbose=verbose,
         )
+        pip_dependencies = _validate_install_sources(
+            pip_dependencies,
+            installable,
+        )
+
+    python_executable = None
+    if pip_dependencies or installable:
+        python_executable = _python_executable(
+            conda_executable,
+            conda_env_name,
+            conda_env_prefix,
+            require_exists=not dry_run,
+        )
+        _install_pip_dependencies(
+            pip_dependencies,
+            python_executable=python_executable,
+            conda_executable=conda_executable,
+            conda_env_name=conda_env_name,
+            conda_env_prefix=conda_env_prefix,
+            no_uv=no_uv,
+            dry_run=dry_run,
+        )
+
+    if not skip_local and installable:
+        assert python_executable is not None
         _install_local_projects(
             installable,
             editable=editable,

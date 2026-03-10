@@ -463,6 +463,55 @@ def detect_conflicting_direct_reference_groups(
     return deduplicated_groups
 
 
+def _direct_reference_from_local_path(path: Path) -> str | None:
+    """Return a direct-reference requirement string for a local package path."""
+    resolved = path.resolve()
+    package_name = _maybe_package_name_from_path(resolved)
+    if package_name is None:
+        return None
+    return f"{package_name} @ {resolved.as_uri()}"
+
+
+def direct_references_from_local_paths(paths: list[Path]) -> list[str]:
+    """Build direct-reference strings for local paths with readable metadata."""
+    direct_references = []
+    seen = set()
+    for path in paths:
+        direct_reference = _direct_reference_from_local_path(path)
+        if direct_reference is None or direct_reference in seen:
+            continue
+        direct_references.append(direct_reference)
+        seen.add(direct_reference)
+    return direct_references
+
+
+def pip_requirement_strings(
+    requirements: dict[str, list[Spec]],
+    *,
+    platforms: list[Platform] | None = None,
+) -> list[str]:
+    """Return pip requirement strings filtered to the requested platforms."""
+    pip_requirements = []
+    seen = set()
+    for specs in requirements.values():
+        for spec in specs:
+            if spec.which != "pip":
+                continue
+            spec_platforms = spec.platforms()
+            if (
+                platforms is not None
+                and spec_platforms is not None
+                and not set(spec_platforms).intersection(platforms)
+            ):
+                continue
+            requirement = spec.name_with_pin(is_pip=True)
+            if requirement in seen:
+                continue
+            pip_requirements.append(requirement)
+            seen.add(requirement)
+    return pip_requirements
+
+
 def detect_duplicate_local_package_paths(paths: list[Path]) -> None:
     """Raise when multiple local paths map to the same distribution name."""
     name_to_paths: dict[str, list[Path]] = defaultdict(list)

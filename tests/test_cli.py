@@ -252,6 +252,79 @@ def test_install_command_detects_conflicting_selected_extra_direct_refs(
         )
 
 
+def test_install_command_detects_conflicting_pip_and_local_sources(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/dep-a
+            local_dependencies:
+                - ../dep_b
+            """,
+        ),
+    )
+
+    dep_b = tmp_path / "dep_b"
+    dep_b.mkdir()
+    (dep_b / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["setuptools", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "shared-lib"
+            version = "0.1.0"
+
+            [tool.unidep]
+            dependencies = []
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _install_command(
+            project,
+            conda_executable="",  # type: ignore[arg-type]
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+
+def test_install_command_detects_conflicting_base_direct_refs(
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: shared-lib @ file:///tmp/dep-a
+                - pip: shared-lib @ file:///tmp/dep-b
+            """,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _install_command(
+            p,
+            conda_executable="",  # type: ignore[arg-type]
+            conda_env_name=None,
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+        )
+
+
 def test_install_command_dry_run_allows_missing_target_python_for_pip_deps(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -324,6 +397,50 @@ def test_install_command_dry_run_allows_missing_target_python_for_local_projects
     captured = capsys.readouterr()
     assert "Installing conda dependencies" in captured.out
     assert "Installing project with" in captured.out
+
+
+def test_install_command_skip_pip_and_local_does_not_require_python(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: libzlib
+            """,
+        ),
+    )
+
+    conda_prefix = tmp_path / "envs" / "example"
+    conda_prefix.mkdir(parents=True)
+    calls = []
+
+    def fake_subprocess_run(
+        cmd: list[str],
+        *,
+        check: bool = True,
+    ) -> None:
+        calls.append((cmd, check))
+
+    monkeypatch.setattr("unidep._cli.subprocess.run", fake_subprocess_run)
+
+    _install_command(
+        project,
+        conda_executable="conda",
+        conda_env_name=None,
+        conda_env_prefix=conda_prefix,
+        conda_lock_file=None,
+        dry_run=False,
+        editable=False,
+        skip_pip=True,
+        skip_local=True,
+    )
+
+    assert len(calls) == 1
+    assert list(calls[0][0][:3]) == ["conda", "install", "--yes"]
 
 
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
