@@ -15,6 +15,7 @@ from ruamel.yaml import YAML
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     _load,
+    available_optional_dependencies,
     get_local_dependencies,
     parse_requirements,
 )
@@ -112,30 +113,28 @@ def _path_to_file_uri(path: PurePath) -> str:
 
 
 def _validated_setuptools_dependencies(deps: Dependencies) -> Dependencies:
-    """Reject dependency metadata that conflicts within base or any one extra."""
-    dependencies = detect_conflicting_direct_references(
-        deps.dependencies,
+    """Reject dependency metadata that conflicts across installable extras."""
+    extra_group_names = {
+        section: f"optional dependency `{section}`" for section in deps.extras
+    }
+    requirement_groups = {"dependencies": deps.dependencies}
+    requirement_groups.update(
+        {
+            extra_group_names[section]: section_dependencies
+            for section, section_dependencies in deps.extras.items()
+        },
+    )
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
         context="preparing setuptools metadata",
     )
-    extras = {
-        section: detect_conflicting_direct_references(
-            section_dependencies,
-            context=f"preparing optional dependency `{section}`",
-        )
-        for section, section_dependencies in deps.extras.items()
-    }
-    for section, section_dependencies in extras.items():
-        group_name = f"optional dependency `{section}`"
-        deduplicated_groups = detect_conflicting_direct_reference_groups(
-            {
-                "dependencies": dependencies,
-                group_name: section_dependencies,
-            },
-            context="preparing setuptools metadata",
-        )
-        dependencies = list(deduplicated_groups["dependencies"])
-        extras[section] = deduplicated_groups[group_name]
-    return Dependencies(dependencies=dependencies, extras=extras)
+    return Dependencies(
+        dependencies=list(deduplicated_groups["dependencies"]),
+        extras={
+            section: deduplicated_groups[extra_group_names[section]]
+            for section in deps.extras
+        },
+    )
 
 
 def get_python_dependencies(  # noqa: PLR0912, PLR0915
@@ -159,22 +158,31 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
             raise
         return Dependencies(dependencies=[], extras={})
 
+    selected_extras = selected_extra_names(
+        p.extras,
+        available_optional_dependencies(p.path),
+        dependency_file=p.path,
+    )
     requirements = parse_requirements(
         p.path,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
-        extras="*",
+        extras=[selected_extras],
         include_local_dependencies=include_local_dependencies,
+    )
+    all_optional_requirements = parse_requirements(
+        p.path,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
+        extras="*",
+        include_local_dependencies=False,
     )
     if not platforms:
         platforms = list(requirements.platforms)
-    selected_extras = selected_extra_names(
-        p.extras,
-        requirements.optional_dependencies,
-        dependency_file=p.path,
-    )
     raw_requirement_groups = {
         "dependencies": pip_requirement_strings(
             requirements.requirements,
@@ -188,6 +196,7 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
                 platforms=platforms,
             )
             for section in selected_extras
+            if section in requirements.optional_dependencies
         },
     )
     detect_conflicting_direct_reference_groups(
@@ -200,7 +209,7 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
     # across the groups are validated below.
     extras = {
         section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
-        for section, reqs in requirements.optional_dependencies.items()
+        for section, reqs in all_optional_requirements.optional_dependencies.items()
     }
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")
@@ -262,13 +271,16 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
     }
     if selected_extras:
         extra_group_names = {
-            section: f"optional dependency `{section}`" for section in selected_extras
+            section: f"optional dependency `{section}`"
+            for section in selected_extras
+            if section in extras
         }
         requirement_groups = {"dependencies": dependencies}
         requirement_groups.update(
             {
                 extra_group_names[section]: extras[section]
                 for section in selected_extras
+                if section in extras
             },
         )
         deduplicated_groups = detect_conflicting_direct_reference_groups(

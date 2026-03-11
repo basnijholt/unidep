@@ -407,7 +407,43 @@ def test_get_python_dependencies_raises_for_unknown_selected_extra(
         get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
 
 
-def test_setuptools_finalizer_allows_alternative_extra_sources(
+def test_get_python_dependencies_accepts_selected_local_only_extra(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    local_dep = tmp_path / "local_dep"
+    local_dep.mkdir()
+    (local_dep / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - adaptive
+            """,
+        ),
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              test:
+                - ../local_dep
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        f"{project / 'requirements.yaml'}[test]",
+        include_local_dependencies=True,
+    )
+
+    assert deps.dependencies == ["adaptive"]
+    assert deps.extras == {}
+
+
+def test_setuptools_finalizer_detects_conflicting_extra_sources(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -431,15 +467,9 @@ def test_setuptools_finalizer_allows_alternative_extra_sources(
             self.install_requires: list[str] = []
             self.extras_require: dict[str, list[str]] = {}
 
-    dist = DummyDistribution()
     monkeypatch.chdir(project)
-    _setuptools_finalizer(cast("Distribution", dist))
-
-    assert dist.install_requires == []
-    assert dist.extras_require == {
-        "cpu": ["torch @ file:///tmp/torch-cpu.whl"],
-        "gpu": ["torch @ file:///tmp/torch-gpu.whl"],
-    }
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        _setuptools_finalizer(cast("Distribution", DummyDistribution()))
 
 
 def test_setuptools_finalizer_detects_conflicting_optional_direct_refs(

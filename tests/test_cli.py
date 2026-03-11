@@ -1100,6 +1100,42 @@ def test_pip_subcommand_ignores_conflicting_unselected_extra_direct_refs(
     assert txt.splitlines() == ["shared-lib @ file:///tmp/dep-a"]
 
 
+def test_pip_subcommand_ignores_invalid_unselected_local_extra(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    gpu_dep = tmp_path / "gpu_dep"
+    gpu_dep.mkdir()
+    (gpu_dep / "requirements.yaml").write_text("dependencies:\n  - [\n")
+
+    requirements = project / "requirements.yaml"
+    requirements.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+                docs:
+                    - pip: sphinx
+                gpu:
+                    - ../gpu_dep
+            """,
+        ),
+    )
+
+    txt = _pip_subcommand(
+        file=[Path(f"{requirements}[docs]")],
+        platforms=[],
+        verbose=True,
+        ignore_pins=None,
+        skip_dependencies=None,
+        overwrite_pins=None,
+        separator="\n",
+    )
+
+    assert txt.splitlines() == ["sphinx"]
+
+
 def test_pip_subcommand_allows_platform_specific_direct_refs(
     tmp_path: Path,
 ) -> None:
