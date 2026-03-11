@@ -224,6 +224,43 @@ def test_install_command_raises_for_unknown_selected_extra(tmp_path: Path) -> No
         )
 
 
+def test_install_command_ignores_invalid_unselected_extra(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    gpu_dep = tmp_path / "gpu_dep"
+    gpu_dep.mkdir()
+    (gpu_dep / "requirements.yaml").write_text("dependencies:\n  - [\n")
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+                docs:
+                    - pip: sphinx
+                gpu:
+                    - ../gpu_dep
+            """,
+        ),
+    )
+
+    _install_command(
+        Path(f"{project}[docs]"),
+        conda_executable="",  # type: ignore[arg-type]
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=False,
+    )
+
+    captured = capsys.readouterr()
+    assert "sphinx" in captured.out
+
+
 def test_install_command_detects_conflicting_selected_extra_direct_refs(
     tmp_path: Path,
 ) -> None:

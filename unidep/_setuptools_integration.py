@@ -112,25 +112,30 @@ def _path_to_file_uri(path: PurePath) -> str:
 
 
 def _validated_setuptools_dependencies(deps: Dependencies) -> Dependencies:
-    """Reject dependency metadata that points one package name at many sources."""
-    requirement_groups = {"dependencies": deps.dependencies}
-    requirement_groups.update(
-        {
-            f"optional dependency `{section}`": section_dependencies
-            for section, section_dependencies in deps.extras.items()
-        },
-    )
-    deduplicated_groups = detect_conflicting_direct_reference_groups(
-        requirement_groups,
+    """Reject dependency metadata that conflicts within base or any one extra."""
+    dependencies = detect_conflicting_direct_references(
+        deps.dependencies,
         context="preparing setuptools metadata",
     )
-    return Dependencies(
-        dependencies=list(deduplicated_groups["dependencies"]),
-        extras={
-            section: deduplicated_groups[f"optional dependency `{section}`"]
-            for section in deps.extras
-        },
-    )
+    extras = {
+        section: detect_conflicting_direct_references(
+            section_dependencies,
+            context=f"preparing optional dependency `{section}`",
+        )
+        for section, section_dependencies in deps.extras.items()
+    }
+    for section, section_dependencies in extras.items():
+        group_name = f"optional dependency `{section}`"
+        deduplicated_groups = detect_conflicting_direct_reference_groups(
+            {
+                "dependencies": dependencies,
+                group_name: section_dependencies,
+            },
+            context="preparing setuptools metadata",
+        )
+        dependencies = list(deduplicated_groups["dependencies"])
+        extras[section] = deduplicated_groups[group_name]
+    return Dependencies(dependencies=dependencies, extras=extras)
 
 
 def get_python_dependencies(  # noqa: PLR0912, PLR0915

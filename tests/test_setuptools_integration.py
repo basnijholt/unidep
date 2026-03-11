@@ -407,6 +407,41 @@ def test_get_python_dependencies_raises_for_unknown_selected_extra(
         get_python_dependencies(f"{project / 'requirements.yaml'}[missing]")
 
 
+def test_setuptools_finalizer_allows_alternative_extra_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              cpu:
+                - pip: torch @ file:///tmp/torch-cpu.whl
+              gpu:
+                - pip: torch @ file:///tmp/torch-gpu.whl
+            """,
+        ),
+    )
+
+    class DummyDistribution:
+        def __init__(self) -> None:
+            self.install_requires: list[str] = []
+            self.extras_require: dict[str, list[str]] = {}
+
+    dist = DummyDistribution()
+    monkeypatch.chdir(project)
+    _setuptools_finalizer(cast("Distribution", dist))
+
+    assert dist.install_requires == []
+    assert dist.extras_require == {
+        "cpu": ["torch @ file:///tmp/torch-cpu.whl"],
+        "gpu": ["torch @ file:///tmp/torch-gpu.whl"],
+    }
+
+
 def test_setuptools_finalizer_detects_conflicting_optional_direct_refs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

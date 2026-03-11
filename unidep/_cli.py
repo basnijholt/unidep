@@ -27,6 +27,7 @@ from unidep._conda_lock import conda_lock_command
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     ParsedRequirements,
+    available_optional_dependencies,
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
@@ -1331,27 +1332,14 @@ def _validate_install_sources(
 
 def _validate_requested_file_extras(
     paths_with_extras: list[PathWithExtras],
-    *,
-    ignore_pins: list[str] | None,
-    overwrite_pins: list[str] | None,
-    skip_dependencies: list[str] | None,
-    verbose: bool,
 ) -> None:
     """Raise for unknown extras in explicit `path[extra]` CLI selections."""
     for path_with_extras in paths_with_extras:
         if not path_with_extras.extras:
             continue
-        available_requirements = parse_requirements(
-            path_with_extras.path,
-            ignore_pins=ignore_pins,
-            overwrite_pins=overwrite_pins,
-            skip_dependencies=skip_dependencies,
-            verbose=verbose,
-            extras="*",
-        )
         selected_extra_names(
             path_with_extras.extras,
-            available_requirements.optional_dependencies,
+            available_optional_dependencies(path_with_extras.path),
             dependency_file=path_with_extras.path,
         )
 
@@ -1377,13 +1365,7 @@ def _install_command(
     """Install the dependencies of a single `requirements.yaml` or `pyproject.toml` file."""  # noqa: E501
     start_time = time.time()
     paths_with_extras = [parse_folder_or_filename(f) for f in files]
-    _validate_requested_file_extras(
-        paths_with_extras,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
-    )
+    _validate_requested_file_extras(paths_with_extras)
     requirements = parse_requirements(
         *[f.path for f in paths_with_extras],
         ignore_pins=ignore_pins,

@@ -311,6 +311,19 @@ def test_detect_conflicting_direct_references_allows_platform_exclusive_markers(
     )
 
 
+def test_detect_conflicting_direct_references_detects_python37_overlap() -> None:
+    requirements = [
+        "shared-lib @ file:///tmp/all-src",
+        "shared-lib @ file:///tmp/py37-src ; python_version == '3.7'",
+    ]
+
+    with pytest.raises(RuntimeError, match="multiple sources for the same package"):
+        detect_conflicting_direct_references(
+            requirements,
+            context="collecting Python dependencies",
+        )
+
+
 def test_detect_duplicate_local_package_paths(tmp_path: Path) -> None:
     dep_a = tmp_path / "dep_a"
     dep_b = tmp_path / "dep_b"

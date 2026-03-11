@@ -187,6 +187,16 @@ def _load(p: Path, yaml: YAML) -> dict[str, Any]:
         return yaml.load(f)
 
 
+def available_optional_dependencies(path: Path) -> dict[str, Any]:
+    """Return the optional dependency sections defined in a dependency file."""
+    yaml = YAML(typ="rt")
+    data = _load(path, yaml)
+    optional_dependencies = data.get("optional_dependencies", {})
+    if not isinstance(optional_dependencies, dict):
+        return {}
+    return optional_dependencies
+
+
 def _add_project_dependencies(
     project_dependencies: list[str],
     unidep_dependencies: list[dict[str, str] | str],

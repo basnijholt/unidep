@@ -360,7 +360,9 @@ def package_name_from_path(path: Path) -> str:
     return path.name
 
 
-_SUPPORTED_MARKER_PYTHON_VERSIONS = tuple(f"3.{minor}" for minor in range(8, 16))
+# Cover the full supported runtime floor plus near-future Python releases when
+# approximating marker overlap for direct-reference validation.
+_SUPPORTED_MARKER_PYTHON_VERSIONS = tuple(f"3.{minor}" for minor in range(7, 21))
 _PLATFORM_MARKER_ENVIRONMENTS: dict[Platform, dict[str, str]] = {
     "linux-64": {
         "os_name": "posix",
