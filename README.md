@@ -412,7 +412,9 @@ Local dependencies are essential for monorepos and multi-package projects, allow
 - Maintain separate releases for each package
 - Test changes across multiple packages simultaneously
 
-However, when building wheels for distribution, local paths create non-portable packages that only work on the original system.
+Raw local paths would create non-portable packages that only work on the
+original system, so UniDep treats them as development-only unless you provide a
+publishable `pypi:` fallback.
 
 ### PyPI Alternatives for Local Dependencies
 
@@ -544,6 +546,9 @@ When UniDep generates build metadata for **Setuptools** or **Hatchling**, it alw
 - If a local dependency has a `pypi:` fallback, that requirement is published
 - If a local dependency has no `pypi:` fallback, it is omitted from build metadata
 - Optional sections that become empty after dropping local-only entries are still preserved as empty extras
+
+The same publish-or-omit rule applies whether the local path is declared in
+`local_dependencies` or nested inside `optional_dependencies`.
 
 This keeps development workflows local-first while ensuring published metadata does not depend on the build machine's filesystem.
 

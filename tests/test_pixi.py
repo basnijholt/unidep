@@ -1256,6 +1256,49 @@ def test_pixi_monorepo_optional_unmanaged_only_group_creates_feature(
     assert opt_feature_name in data["environments"][env_name]
 
 
+def test_pixi_monorepo_optional_dict_local_group_creates_feature(
+    tmp_path: Path,
+) -> None:
+    """Optional groups should follow dict-style local entries in development mode."""
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    _write_file(
+        app_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy
+        optional_dependencies:
+          dev:
+            - local: ../lib
+              pypi: company-lib-pkg>=1.0
+        """,
+    )
+
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    _write_file(
+        lib_dir / "pyproject.toml",
+        """\
+        [build-system]
+        requires = ["setuptools"]
+
+        [project]
+        name = "lib-pkg"
+        """,
+    )
+
+    data = _generate_and_load(tmp_path / "pixi.toml", app_dir / "requirements.yaml")
+
+    opt_feature_name = "dev"
+    assert opt_feature_name in data["feature"]
+    opt_pypi = data["feature"][opt_feature_name].get("pypi-dependencies", {})
+    assert "lib_pkg" in opt_pypi
+    assert opt_pypi["lib_pkg"]["editable"] is True
+    assert opt_pypi["lib_pkg"]["path"] == "./lib"
+
+
 def test_pixi_monorepo_editable_paths_use_project_paths(tmp_path: Path) -> None:
     """Editable paths should point to project dirs, not derived feature names."""
     apps_api_dir = tmp_path / "apps" / "api"

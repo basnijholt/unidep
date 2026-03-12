@@ -443,6 +443,43 @@ def test_get_python_dependencies_accepts_selected_local_only_extra(
     assert deps.extras == {}
 
 
+def test_get_python_dependencies_accepts_selected_dict_local_extra(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    local_dep = tmp_path / "local_dep"
+    local_dep.mkdir()
+    (local_dep / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - adaptive
+            """,
+        ),
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              test:
+                - local: ../local_dep
+                  pypi: company-local-dep>=1.0
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        f"{project / 'requirements.yaml'}[test]",
+        include_local_dependencies=True,
+    )
+
+    assert deps.dependencies == ["adaptive"]
+    assert deps.extras == {}
+
+
 def test_get_python_dependencies_preserves_empty_local_only_extra_in_portable_mode(
     tmp_path: Path,
 ) -> None:
@@ -477,6 +514,43 @@ def test_get_python_dependencies_preserves_empty_local_only_extra_in_portable_mo
 
     assert deps.dependencies == []
     assert deps.extras == {"test": []}
+
+
+def test_get_python_dependencies_uses_pypi_fallback_for_optional_local_extra(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    local_dep = tmp_path / "local_dep"
+    local_dep.mkdir()
+    (local_dep / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - adaptive
+            """,
+        ),
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              test:
+                - local: ../local_dep
+                  pypi: company-local-dep>=1.0
+            """,
+        ),
+    )
+
+    deps = get_python_dependencies(
+        project / "requirements.yaml",
+        include_local_dependencies=False,
+    )
+
+    assert deps.dependencies == []
+    assert deps.extras == {"test": ["company-local-dep >=1.0"]}
 
 
 def test_setuptools_finalizer_skips_local_paths_without_pypi_fallback(
@@ -514,6 +588,83 @@ def test_setuptools_finalizer_skips_local_paths_without_pypi_fallback(
 
     assert dist.install_requires == ["numpy"]
     assert dist.extras_require == {}
+
+
+def test_setuptools_finalizer_uses_pypi_fallback_even_when_local_path_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    local_dep = tmp_path / "local_dep"
+    local_dep.mkdir()
+    (local_dep / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='local-dep', version='0.1.0')\n",
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            local_dependencies:
+              - local: ../local_dep
+                pypi: company-local-dep==1.0.0
+            """,
+        ),
+    )
+
+    class DummyDistribution:
+        def __init__(self) -> None:
+            self.install_requires: list[str] = []
+            self.extras_require: dict[str, list[str]] = {}
+
+    dist = DummyDistribution()
+    monkeypatch.chdir(project)
+    _setuptools_finalizer(cast("Distribution", dist))
+
+    assert "numpy" in dist.install_requires
+    assert "company-local-dep==1.0.0" in dist.install_requires
+    assert not any("file://" in dep for dep in dist.install_requires)
+    assert dist.extras_require == {}
+
+
+def test_setuptools_finalizer_uses_pypi_fallback_for_optional_local_extra(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    local_dep = tmp_path / "local_dep"
+    local_dep.mkdir()
+    (local_dep / "setup.py").write_text(
+        "from setuptools import setup\nsetup(name='local-dep', version='0.1.0')\n",
+    )
+
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              test:
+                - local: ../local_dep
+                  pypi: company-local-dep==1.0.0
+            """,
+        ),
+    )
+
+    class DummyDistribution:
+        def __init__(self) -> None:
+            self.install_requires: list[str] = []
+            self.extras_require: dict[str, list[str]] = {}
+
+    dist = DummyDistribution()
+    monkeypatch.chdir(project)
+    _setuptools_finalizer(cast("Distribution", dist))
+
+    assert dist.install_requires == []
+    assert dist.extras_require == {"test": ["company-local-dep ==1.0.0"]}
 
 
 def test_setuptools_finalizer_preserves_empty_local_only_extra(

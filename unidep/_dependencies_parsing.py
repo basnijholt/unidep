@@ -11,6 +11,7 @@ import hashlib
 import os
 import sys
 from collections import defaultdict
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -215,11 +216,11 @@ def _add_project_dependencies(
         raise ValueError(msg)
 
 
-def _parse_local_dependency_item(item: str | dict[str, str]) -> LocalDependency:
+def _parse_local_dependency_item(item: str | Mapping[str, Any]) -> LocalDependency:
     """Parse a single local dependency item into a LocalDependency object."""
     if isinstance(item, str):
         return LocalDependency(local=item, pypi=None)
-    if isinstance(item, dict):
+    if isinstance(item, Mapping):
         if "local" not in item:
             msg = "Dictionary-style local dependency must have a 'local' key"
             raise ValueError(msg)
@@ -261,6 +262,17 @@ def get_local_dependencies(data: dict[str, Any]) -> list[LocalDependency]:
         raw_deps = data["includes"]
 
     return [_parse_local_dependency_item(item) for item in raw_deps]
+
+
+def _optional_dependency_as_local_dependency(dependency: Any) -> LocalDependency | None:
+    """Return optional dependency entries that reference local paths."""
+    if isinstance(dependency, str):
+        if not _str_is_path_like(dependency):
+            return None
+        return LocalDependency(local=dependency)
+    if isinstance(dependency, Mapping) and "local" in dependency:
+        return _parse_local_dependency_item(dependency)
+    return None
 
 
 def _to_path_with_extras(
@@ -310,6 +322,7 @@ def _update_data_structures(
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
         path_with_extras=path_with_extras,
+        include_local_dependencies=include_local_dependencies,
         verbose=verbose,
     )
     if not is_nested:
@@ -385,10 +398,11 @@ def _move_optional_dependencies_to_dependencies(
                 )
 
 
-def _move_local_optional_dependencies_to_local_dependencies(
+def _move_local_optional_dependencies_to_local_dependencies(  # noqa: PLR0912
     *,
     data: dict[str, Any],  # modified in place
     path_with_extras: PathWithExtras,
+    include_local_dependencies: bool = True,
     verbose: bool = False,
 ) -> None:
     # Move local dependencies from `optional_dependencies` to `local_dependencies`
@@ -398,22 +412,42 @@ def _move_local_optional_dependencies_to_local_dependencies(
 
     optional_dependencies = data.get("optional_dependencies", {})
     for extra in extras:
-        moved = set()
-        for dep in optional_dependencies.get(extra, []):
-            if isinstance(dep, dict):
-                # This is a {"pip": "package"} and/or {"conda": "package"} dependency
+        optional_deps = optional_dependencies.get(extra, [])
+        if not isinstance(optional_deps, list):
+            continue
+        rewritten_deps = []
+        moved_local_dependency = False
+        for dep in optional_deps:
+            local_dependency = _optional_dependency_as_local_dependency(dep)
+            if local_dependency is None:
+                rewritten_deps.append(dep)
                 continue
-            if _str_is_path_like(dep):
+            moved_local_dependency = True
+            if include_local_dependencies:
                 if verbose:
                     print(
-                        f"📄 Moving `{dep}` from the `{extra}` section in"
+                        "📄 Moving"
+                        f" `{local_dependency.local}` from the `{extra}` section in"
                         " `optional_dependencies` to `local_dependencies`",
                     )
                 data.setdefault("local_dependencies", []).append(dep)
-                moved.add(dep)
-        for dep in moved:
-            extras = optional_dependencies[extra]  # key must exist if moved non-empty
-            extras.pop(extras.index(dep))
+                continue
+            if local_dependency.use == "skip" or local_dependency.pypi is None:
+                if verbose:
+                    print(
+                        "📄 Omitting"
+                        f" `{local_dependency.local}` from the `{extra}` section in"
+                        " portable mode because it is not publishable",
+                    )
+                continue
+            if verbose:
+                print(
+                    f"📄 Replacing `{local_dependency.local}` in the `{extra}` section"
+                    f" with PyPI fallback `{local_dependency.pypi}`",
+                )
+            rewritten_deps.append({"pip": local_dependency.pypi})
+        if moved_local_dependency:
+            optional_dependencies[extra] = rewritten_deps
 
     # Remove empty optional_dependencies sections
     to_delete = [extra for extra, deps in optional_dependencies.items() if not deps]
@@ -776,6 +810,7 @@ def _extract_local_dependencies(  # noqa: C901, PLR0912, PLR0915
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
         path_with_extras=PathWithExtras(path, extras),
+        include_local_dependencies=True,
         verbose=verbose,
     )
     for effective_local_dep in _effective_local_dependencies(

@@ -14,6 +14,8 @@ from ruamel.yaml import YAML
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     _load,
+    _optional_dependency_as_local_dependency,
+    _try_parse_local_dependency_requirement_file,
     available_optional_dependencies,
     get_local_dependencies,
     parse_requirements,
@@ -136,7 +138,7 @@ def _validated_setuptools_dependencies(deps: Dependencies) -> Dependencies:
     )
 
 
-def get_python_dependencies(  # noqa: PLR0912, PLR0915
+def get_python_dependencies(  # noqa: C901, PLR0912, PLR0915
     filename: str
     | Path
     | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
@@ -223,6 +225,38 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")
     data = _load(p.path, yaml)
+    optional_dependencies = data.get("optional_dependencies", {})
+
+    if include_local_dependencies:
+        for section in selected_extras:
+            section_deps = optional_dependencies.get(section, [])
+            if section not in extras or not isinstance(section_deps, list):
+                continue
+            resolved_fallback_names = set()
+            for dep in section_deps:
+                local_dependency = _optional_dependency_as_local_dependency(dep)
+                if local_dependency is None or local_dependency.pypi is None:
+                    continue
+                normalized_fallback = local_dependency.pypi.replace(" ", "")
+                if local_dependency.use == "pypi":
+                    resolved_fallback_names.add(normalized_fallback)
+                    continue
+                if local_dependency.use != "local":
+                    continue
+                requirements_dep_file = _try_parse_local_dependency_requirement_file(
+                    base_dir=p.path.parent,
+                    local_dependency=local_dependency.local,
+                )
+                if requirements_dep_file is not None:
+                    resolved_fallback_names.add(normalized_fallback)
+            if resolved_fallback_names:
+                extras[section] = [
+                    dep
+                    for dep in extras[section]
+                    if dep.replace(" ", "") not in resolved_fallback_names
+                ]
+                if not extras[section]:
+                    extras.pop(section)
 
     # Process each local dependency
     for local_dep_obj in get_local_dependencies(data):

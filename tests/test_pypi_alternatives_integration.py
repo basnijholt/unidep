@@ -11,14 +11,11 @@ from unidep._setuptools_integration import get_python_dependencies
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
 
-
-def test_build_with_pypi_alternatives(
+def test_get_python_dependencies_prefers_local_then_falls_back_when_missing(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that building a wheel uses PyPI alternatives when local paths don't exist."""
+    """Development mode should prefer local paths and fall back when missing."""
     # Create main project
     project = tmp_path / "main_project"
     project.mkdir(exist_ok=True)
@@ -67,10 +64,7 @@ def test_build_with_pypi_alternatives(
     )
     (project / "main_project.py").write_text("# Main project module")
 
-    # Change to project directory
-    monkeypatch.chdir(project)
-
-    # Test 1: Normal development with local paths existing - should use file:// URLs
+    # Test 1: Development mode with local paths existing should use file:// URLs
 
     deps = get_python_dependencies(
         project / "pyproject.toml",
@@ -82,9 +76,7 @@ def test_build_with_pypi_alternatives(
     assert any("local-dep @ file://" in dep for dep in deps.dependencies)
     assert not any("company-local-dep" in dep for dep in deps.dependencies)
 
-    # Test 2: Simulate wheel build where local paths don't exist
-    # Move the local dependency to simulate it not being available
-
+    # Test 2: If the local path disappears, development mode falls back to PyPI
     local_dep_backup = tmp_path / "local_dep_backup"
     shutil.move(str(local_dep), str(local_dep_backup))
 
