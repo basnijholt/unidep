@@ -6,7 +6,6 @@ This module provides setuptools integration for unidep.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -15,16 +14,23 @@ from ruamel.yaml import YAML
 from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     _load,
+    _optional_dependency_as_local_dependency,
+    _try_parse_local_dependency_requirement_file,
+    available_optional_dependencies,
     get_local_dependencies,
     parse_requirements,
 )
 from unidep.utils import (
     UnsupportedPlatformError,
     build_pep508_environment_marker,
+    detect_conflicting_direct_reference_groups,
+    detect_conflicting_direct_references,
     identify_current_platform,
     is_pip_installable,
     package_name_from_path,
     parse_folder_or_filename,
+    pip_requirement_strings,
+    selected_extra_names,
     split_path_and_extras,
     warn,
 )
@@ -107,7 +113,32 @@ def _path_to_file_uri(path: PurePath) -> str:
     return f"file:///{uri_path.replace(' ', '%20')}"
 
 
-def get_python_dependencies(  # noqa: PLR0912
+def _validated_setuptools_dependencies(deps: Dependencies) -> Dependencies:
+    """Reject dependency metadata that conflicts across installable extras."""
+    extra_group_names = {
+        section: f"optional dependency `{section}`" for section in deps.extras
+    }
+    requirement_groups = {"dependencies": deps.dependencies}
+    requirement_groups.update(
+        {
+            extra_group_names[section]: section_dependencies
+            for section, section_dependencies in deps.extras.items()
+        },
+    )
+    deduplicated_groups = detect_conflicting_direct_reference_groups(
+        requirement_groups,
+        context="preparing setuptools metadata",
+    )
+    return Dependencies(
+        dependencies=list(deduplicated_groups["dependencies"]),
+        extras={
+            section: deduplicated_groups[extra_group_names[section]]
+            for section in deps.extras
+        },
+    )
+
+
+def get_python_dependencies(  # noqa: C901, PLR0912, PLR0915
     filename: str
     | Path
     | Literal["requirements.yaml", "pyproject.toml"] = "requirements.yaml",  # noqa: PYI051
@@ -128,27 +159,104 @@ def get_python_dependencies(  # noqa: PLR0912
             raise
         return Dependencies(dependencies=[], extras={})
 
+    optional_sections = available_optional_dependencies(p.path)
+    selected_extras = selected_extra_names(
+        p.extras,
+        optional_sections,
+        dependency_file=p.path,
+    )
     requirements = parse_requirements(
         p.path,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras=[selected_extras],
+        include_local_dependencies=include_local_dependencies,
+    )
+    all_optional_requirements = parse_requirements(
+        p.path,
+        ignore_pins=ignore_pins,
+        overwrite_pins=overwrite_pins,
+        skip_dependencies=skip_dependencies,
+        verbose=verbose,
         extras="*",
+        include_local_dependencies=False,
     )
     if not platforms:
         platforms = list(requirements.platforms)
+    raw_requirement_groups = {
+        "dependencies": pip_requirement_strings(
+            requirements.requirements,
+            platforms=platforms,
+        ),
+    }
+    raw_requirement_groups.update(
+        {
+            f"optional dependency `{section}`": pip_requirement_strings(
+                requirements.optional_dependencies[section],
+                platforms=platforms,
+            )
+            for section in selected_extras
+            if section in requirements.optional_dependencies
+        },
+    )
+    detect_conflicting_direct_reference_groups(
+        raw_requirement_groups,
+        context="collecting Python dependencies",
+    )
     resolved = resolve_conflicts(requirements.requirements, platforms)
     dependencies = filter_python_dependencies(resolved)
-    # TODO[Bas]: This currently doesn't correctly handle  # noqa: TD004, TD003, FIX002
-    # conflicts between sections in the extras and the main dependencies.
-    extras = {
-        section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
-        for section, reqs in requirements.optional_dependencies.items()
-    }
+    # Resolve optional dependency groups separately; direct-reference conflicts
+    # across the groups are validated below.
+    # Portable metadata should keep declared extras visible even when every
+    # local-only entry in a section gets dropped.
+    extras: dict[str, list[str]] = (
+        {section: [] for section in optional_sections}
+        if not include_local_dependencies
+        else {}
+    )
+    extras.update(
+        {
+            section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
+            for section, reqs in all_optional_requirements.optional_dependencies.items()
+        },
+    )
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")
     data = _load(p.path, yaml)
+    optional_dependencies = data.get("optional_dependencies", {})
+
+    if include_local_dependencies:
+        for section in selected_extras:
+            section_deps = optional_dependencies.get(section, [])
+            if section not in extras or not isinstance(section_deps, list):
+                continue
+            resolved_fallback_names = set()
+            for dep in section_deps:
+                local_dependency = _optional_dependency_as_local_dependency(dep)
+                if local_dependency is None or local_dependency.pypi is None:
+                    continue
+                normalized_fallback = local_dependency.pypi.replace(" ", "")
+                if local_dependency.use == "pypi":
+                    resolved_fallback_names.add(normalized_fallback)
+                    continue
+                if local_dependency.use != "local":
+                    continue
+                requirements_dep_file = _try_parse_local_dependency_requirement_file(
+                    base_dir=p.path.parent,
+                    local_dependency=local_dependency.local,
+                )
+                if requirements_dep_file is not None:
+                    resolved_fallback_names.add(normalized_fallback)
+            if resolved_fallback_names:
+                extras[section] = [
+                    dep
+                    for dep in extras[section]
+                    if dep.replace(" ", "") not in resolved_fallback_names
+                ]
+                if not extras[section]:
+                    extras.pop(section)
 
     # Process each local dependency
     for local_dep_obj in get_local_dependencies(data):
@@ -160,8 +268,8 @@ def get_python_dependencies(  # noqa: PLR0912
         local_path, extras_list = split_path_and_extras(local_dep_obj.local)
         abs_local = (p.path.parent / local_path).resolve()
 
-        # If include_local_dependencies is False (UNIDEP_SKIP_LOCAL_DEPS=1),
-        # always use PyPI alternative if available, skip otherwise
+        # Portable mode uses PyPI alternatives when available and otherwise
+        # omits local path entries from published requirements.
         if not include_local_dependencies:
             if local_dep_obj.pypi:
                 dependencies.append(local_dep_obj.pypi)
@@ -173,7 +281,7 @@ def get_python_dependencies(  # noqa: PLR0912
             if abs_local.exists():
                 # Local wheel exists - use it
                 uri = _path_to_file_uri(abs_local)
-                dependencies.append(f"{abs_local.name} @ {uri}")
+                dependencies.append(f"{package_name_from_path(abs_local)} @ {uri}")
             elif local_dep_obj.pypi:
                 # Wheel doesn't exist - use PyPI alternative
                 dependencies.append(local_dep_obj.pypi)
@@ -193,6 +301,42 @@ def get_python_dependencies(  # noqa: PLR0912
             dependencies.append(local_dep_obj.pypi)
         # else: path doesn't exist and no PyPI alternative - skip
 
+    dependencies = detect_conflicting_direct_references(
+        dependencies,
+        context="collecting Python dependencies",
+    )
+    extras = {
+        section: detect_conflicting_direct_references(
+            deps,
+            context=f"collecting optional dependency `{section}`",
+        )
+        for section, deps in extras.items()
+    }
+    if selected_extras:
+        extra_group_names = {
+            section: f"optional dependency `{section}`"
+            for section in selected_extras
+            if section in extras
+        }
+        requirement_groups = {"dependencies": dependencies}
+        requirement_groups.update(
+            {
+                extra_group_names[section]: extras[section]
+                for section in selected_extras
+                if section in extras
+            },
+        )
+        deduplicated_groups = detect_conflicting_direct_reference_groups(
+            requirement_groups,
+            context="collecting Python dependencies",
+        )
+        dependencies = deduplicated_groups["dependencies"]
+        extras = {
+            section: deduplicated_groups[extra_group_names[section]]
+            if section in selected_extras
+            else deps
+            for section, deps in extras.items()
+        }
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
@@ -211,14 +355,12 @@ def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
         # than failing.
         platforms = None
 
-    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
-    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
+    # Build metadata must stay portable: never publish local file URLs.
     return get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
-        verbose=verbose,
-        include_local_dependencies=not skip_local_dependencies,
+        include_local_dependencies=False,
     )
 
 
@@ -240,7 +382,7 @@ def _setuptools_finalizer(dist: Distribution) -> None:  # pragma: no cover
         )
         raise RuntimeError(msg)
 
-    deps = _deps(requirements_file)
+    deps = _validated_setuptools_dependencies(_deps(requirements_file))
     dist.install_requires = deps.dependencies  # type: ignore[attr-defined]
 
     if deps.extras:

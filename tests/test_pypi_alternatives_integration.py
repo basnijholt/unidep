@@ -11,14 +11,11 @@ from unidep._setuptools_integration import get_python_dependencies
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
 
-
-def test_build_with_pypi_alternatives(
+def test_get_python_dependencies_prefers_local_then_falls_back_when_missing(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that building a wheel uses PyPI alternatives when local paths don't exist."""
+    """Development mode should prefer local paths and fall back when missing."""
     # Create main project
     project = tmp_path / "main_project"
     project.mkdir(exist_ok=True)
@@ -67,10 +64,7 @@ def test_build_with_pypi_alternatives(
     )
     (project / "main_project.py").write_text("# Main project module")
 
-    # Change to project directory
-    monkeypatch.chdir(project)
-
-    # Test 1: Normal development with local paths existing - should use file:// URLs
+    # Test 1: Development mode with local paths existing should use file:// URLs
 
     deps = get_python_dependencies(
         project / "pyproject.toml",
@@ -82,9 +76,7 @@ def test_build_with_pypi_alternatives(
     assert any("local-dep @ file://" in dep for dep in deps.dependencies)
     assert not any("company-local-dep" in dep for dep in deps.dependencies)
 
-    # Test 2: Simulate wheel build where local paths don't exist
-    # Move the local dependency to simulate it not being available
-
+    # Test 2: If the local path disappears, development mode falls back to PyPI
     local_dep_backup = tmp_path / "local_dep_backup"
     shutil.move(str(local_dep), str(local_dep_backup))
 
@@ -143,11 +135,10 @@ def test_mixed_local_deps_with_and_without_pypi(tmp_path: Path) -> None:
     assert not any("company-dep3" in dep for dep in deps.dependencies)
 
 
-def test_setuptools_with_skip_local_deps_env_var(
+def test_get_python_dependencies_skips_local_paths_without_pypi_when_requested(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that UNIDEP_SKIP_LOCAL_DEPS environment variable behavior."""
+    """Portable mode should omit local paths that have no PyPI fallback."""
     project = tmp_path / "project"
     project.mkdir(exist_ok=True)
 
@@ -170,8 +161,6 @@ def test_setuptools_with_skip_local_deps_env_var(
         ),
     )
 
-    # Test without UNIDEP_SKIP_LOCAL_DEPS
-
     deps = get_python_dependencies(
         project / "requirements.yaml",
         include_local_dependencies=True,
@@ -180,12 +169,9 @@ def test_setuptools_with_skip_local_deps_env_var(
     assert "numpy" in deps.dependencies
     assert any("my-dep @ file://" in dep for dep in deps.dependencies)
 
-    # Test with UNIDEP_SKIP_LOCAL_DEPS=1
-    monkeypatch.setenv("UNIDEP_SKIP_LOCAL_DEPS", "1")
-
     deps = get_python_dependencies(
         project / "requirements.yaml",
-        include_local_dependencies=False,  # This would be set by _deps()
+        include_local_dependencies=False,
     )
 
     assert "numpy" in deps.dependencies

@@ -145,12 +145,11 @@ def test_get_local_dependencies_mixed_format(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
-def test_setuptools_integration_with_pypi_alternatives(
+def test_get_python_dependencies_uses_local_paths_in_development_mode(
     toml_or_yaml: Literal["toml", "yaml"],
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,  # noqa: ARG001
 ) -> None:
-    """Test setuptools integration uses local paths when they exist."""
+    """Development mode should prefer local paths over PyPI fallbacks."""
     project = tmp_path / "project"
     project.mkdir(exist_ok=True, parents=True)
 
@@ -436,7 +435,7 @@ def test_empty_local_dependencies_list(tmp_path: Path) -> None:
         ),
     )
 
-    # Test setuptools integration
+    # Development mode should keep the local package when it exists.
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
@@ -489,7 +488,7 @@ def test_local_dependencies_with_extras(tmp_path: Path) -> None:
         ),
     )
 
-    # Test setuptools integration
+    # Development mode should keep extras on the local package.
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
@@ -539,7 +538,7 @@ def test_complex_path_structures(tmp_path: Path) -> None:
         ),
     )
 
-    # Test setuptools integration
+    # Development mode should keep local paths instead of publishing fallbacks.
     deps = get_python_dependencies(
         req_file,
         include_local_dependencies=True,
@@ -727,12 +726,12 @@ def test_wheel_file_with_pypi_alternatives(tmp_path: Path) -> None:
     assert "company-dep>=1.0" in deps.dependencies
     assert not any("file://" in dep for dep in deps.dependencies)
 
-    # Test 3: Wheel with UNIDEP_SKIP_LOCAL_DEPS - should use PyPI
+    # Test 3: Portable metadata mode should use PyPI
     wheel_path.touch()  # Recreate wheel
 
     deps = get_python_dependencies(
         project / "requirements.yaml",
-        include_local_dependencies=False,  # UNIDEP_SKIP_LOCAL_DEPS=1
+        include_local_dependencies=False,
     )
 
     assert "numpy" in deps.dependencies
@@ -740,8 +739,8 @@ def test_wheel_file_with_pypi_alternatives(tmp_path: Path) -> None:
     assert not any("file://" in dep for dep in deps.dependencies)
 
 
-def test_skip_local_deps_with_pypi_alternatives(tmp_path: Path) -> None:
-    """Test that UNIDEP_SKIP_LOCAL_DEPS uses PyPI alternatives when available."""
+def test_portable_mode_uses_pypi_alternatives_when_available(tmp_path: Path) -> None:
+    """Portable mode should use PyPI alternatives when available."""
     project = tmp_path / "project"
     project.mkdir()
 
@@ -772,7 +771,7 @@ def test_skip_local_deps_with_pypi_alternatives(tmp_path: Path) -> None:
         ),
     )
 
-    # Test with include_local_dependencies=False (UNIDEP_SKIP_LOCAL_DEPS=1)
+    # Test with include_local_dependencies=False
     deps = get_python_dependencies(
         project / "requirements.yaml",
         include_local_dependencies=False,

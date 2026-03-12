@@ -32,7 +32,7 @@ from unidep._dependencies_parsing import (
     _effective_local_dependencies,
     _load,
     _move_local_optional_dependencies_to_local_dependencies,
-    _str_is_path_like,
+    _optional_dependency_as_local_dependency,
     _try_parse_local_dependency_requirement_file,
     parse_requirements,
 )
@@ -465,6 +465,7 @@ def _discover_local_dependency_graph(  # noqa: PLR0912, C901, PLR0915
         _move_local_optional_dependencies_to_local_dependencies(
             data=data,
             path_with_extras=node,
+            include_local_dependencies=True,
             verbose=False,
         )
         effective_local_dependencies = _effective_local_dependencies(
@@ -480,10 +481,11 @@ def _discover_local_dependency_graph(  # noqa: PLR0912, C901, PLR0915
                     if not isinstance(group_deps, list):
                         continue
                     for dep in group_deps:
-                        if isinstance(dep, Mapping) or not _str_is_path_like(dep):
+                        local_dependency = _optional_dependency_as_local_dependency(dep)
+                        if local_dependency is None:
                             continue
                         effective_local_dep = _apply_local_dependency_override(
-                            local_dependency=LocalDependency(local=dep),
+                            local_dependency=local_dependency,
                             base_dir=node.path.parent,
                             overrides=local_dependency_overrides,
                         )
