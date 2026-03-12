@@ -6,7 +6,6 @@ This module provides setuptools integration for unidep.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -158,9 +157,10 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
             raise
         return Dependencies(dependencies=[], extras={})
 
+    optional_sections = available_optional_dependencies(p.path)
     selected_extras = selected_extra_names(
         p.extras,
-        available_optional_dependencies(p.path),
+        optional_sections,
         dependency_file=p.path,
     )
     requirements = parse_requirements(
@@ -207,10 +207,19 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
     dependencies = filter_python_dependencies(resolved)
     # Resolve optional dependency groups separately; direct-reference conflicts
     # across the groups are validated below.
-    extras = {
-        section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
-        for section, reqs in all_optional_requirements.optional_dependencies.items()
-    }
+    # Portable metadata should keep declared extras visible even when every
+    # local-only entry in a section gets dropped.
+    extras: dict[str, list[str]] = (
+        {section: [] for section in optional_sections}
+        if not include_local_dependencies
+        else {}
+    )
+    extras.update(
+        {
+            section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
+            for section, reqs in all_optional_requirements.optional_dependencies.items()
+        },
+    )
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")
     data = _load(p.path, yaml)
@@ -225,8 +234,8 @@ def get_python_dependencies(  # noqa: PLR0912, PLR0915
         local_path, extras_list = split_path_and_extras(local_dep_obj.local)
         abs_local = (p.path.parent / local_path).resolve()
 
-        # If include_local_dependencies is False (UNIDEP_SKIP_LOCAL_DEPS=1),
-        # always use PyPI alternative if available, skip otherwise
+        # Portable mode uses PyPI alternatives when available and otherwise
+        # omits local path entries from published requirements.
         if not include_local_dependencies:
             if local_dep_obj.pypi:
                 dependencies.append(local_dep_obj.pypi)
@@ -312,14 +321,12 @@ def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
         # than failing.
         platforms = None
 
-    skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
-    verbose = bool(os.getenv("UNIDEP_VERBOSE"))
+    # Build metadata must stay portable: never publish local file URLs.
     return get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
-        verbose=verbose,
-        include_local_dependencies=not skip_local_dependencies,
+        include_local_dependencies=False,
     )
 
 

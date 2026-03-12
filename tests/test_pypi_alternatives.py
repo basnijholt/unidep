@@ -727,12 +727,12 @@ def test_wheel_file_with_pypi_alternatives(tmp_path: Path) -> None:
     assert "company-dep>=1.0" in deps.dependencies
     assert not any("file://" in dep for dep in deps.dependencies)
 
-    # Test 3: Wheel with UNIDEP_SKIP_LOCAL_DEPS - should use PyPI
+    # Test 3: Portable metadata mode should use PyPI
     wheel_path.touch()  # Recreate wheel
 
     deps = get_python_dependencies(
         project / "requirements.yaml",
-        include_local_dependencies=False,  # UNIDEP_SKIP_LOCAL_DEPS=1
+        include_local_dependencies=False,
     )
 
     assert "numpy" in deps.dependencies
@@ -740,8 +740,8 @@ def test_wheel_file_with_pypi_alternatives(tmp_path: Path) -> None:
     assert not any("file://" in dep for dep in deps.dependencies)
 
 
-def test_skip_local_deps_with_pypi_alternatives(tmp_path: Path) -> None:
-    """Test that UNIDEP_SKIP_LOCAL_DEPS uses PyPI alternatives when available."""
+def test_portable_mode_uses_pypi_alternatives_when_available(tmp_path: Path) -> None:
+    """Portable mode should use PyPI alternatives when available."""
     project = tmp_path / "project"
     project.mkdir()
 
@@ -772,7 +772,7 @@ def test_skip_local_deps_with_pypi_alternatives(tmp_path: Path) -> None:
         ),
     )
 
-    # Test with include_local_dependencies=False (UNIDEP_SKIP_LOCAL_DEPS=1)
+    # Test with include_local_dependencies=False
     deps = get_python_dependencies(
         project / "requirements.yaml",
         include_local_dependencies=False,

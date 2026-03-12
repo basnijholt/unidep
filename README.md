@@ -455,7 +455,9 @@ local_dependencies = [
 
 **How it works:**
 - **During development** (e.g., `unidep install` or `pip install -e .`): Uses local paths when they exist
-- **When building wheels**: PyPI alternatives (if specified) are used to create portable packages
+- **When generating build metadata** (`setuptools` or `hatchling`): Local paths are never published as `file://` requirements
+- **If `pypi:` is specified**: The PyPI requirement is published instead
+- **If no `pypi:` is specified**: The local entry is omitted from build metadata
 - The standard string format continues to work as always for local dependencies
 
 > [!TIP]
@@ -529,35 +531,21 @@ local_dependencies:
 ```
 
 > [!NOTE]
-> **Precedence:** The `use` flag on the entry itself always wins. When UniDep encounters the same path in nested `local_dependencies`, it uses your override. Setting `UNIDEP_SKIP_LOCAL_DEPS=1` forces any effective `use: local` to behave like `pypi` (if specified) or `skip`, but does **not** override explicit `use: pypi` or `use: skip`.
+> **Precedence:** The `use` flag on the entry itself always wins. When UniDep encounters the same path in nested `local_dependencies`, it uses your override.
 
 > [!WARNING]
 > If `use: pypi` is set but no `pypi:` requirement is provided, UniDep exits with a clear error so you can supply the missing spec.
 
 ### Build System Behavior
 
-**Important differences between build backends:**
-- **Setuptools**: Builds wheels containing `file://` URLs with absolute paths. These wheels only work on the original system.
-- **Hatchling**: Rejects `file://` URLs by default, preventing non-portable wheels.
+When UniDep generates build metadata for **Setuptools** or **Hatchling**, it always emits **portable** requirements:
 
-To ensure portable wheels, you can use the `UNIDEP_SKIP_LOCAL_DEPS` environment variable:
+- Local path entries are never written as `file://` dependencies
+- If a local dependency has a `pypi:` fallback, that requirement is published
+- If a local dependency has no `pypi:` fallback, it is omitted from build metadata
+- Optional sections that become empty after dropping local-only entries are still preserved as empty extras
 
-```bash
-# Force use of PyPI alternatives even when local paths exist
-UNIDEP_SKIP_LOCAL_DEPS=1 python -m build
-
-# For hatch projects
-UNIDEP_SKIP_LOCAL_DEPS=1 hatch build
-
-# For uv build
-UNIDEP_SKIP_LOCAL_DEPS=1 uv build
-```
-
-> [!NOTE]
-> **When `UNIDEP_SKIP_LOCAL_DEPS=1` is set:**
-> - Any effective `use: local` behaves as `use: pypi` (if a `pypi` spec exists) or `use: skip`
-> - Explicit `use: pypi` and `use: skip` remain unchanged
-> - Dependencies from local packages are still included (from their `requirements.yaml`/`pyproject.toml`)
+This keeps development workflows local-first while ensuring published metadata does not depend on the build machine's filesystem.
 
 ### Example packages
 
