@@ -70,6 +70,11 @@ def _reconcile_conda_pip_pair(
         return conda, pip
     if pip_has_extras:
         decision: CondaPip | Literal["both"] = "pip"
+    elif on_tie == "both":
+        # When the caller requests both, always keep both.
+        # The pinning heuristic should only choose a winner when
+        # the caller wants at most one source to survive.
+        decision = "both"
     elif conda_pinned and not pip_pinned:
         decision = "conda"
     elif pip_pinned and not conda_pinned:

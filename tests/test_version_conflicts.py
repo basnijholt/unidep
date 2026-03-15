@@ -50,11 +50,11 @@ def test_combining_versions() -> None:
         ),
         (
             (True, False, False, "both"),
-            ("conda", None),
+            ("conda", "pip"),
         ),
         (
             (False, True, False, "both"),
-            (None, "pip"),
+            ("conda", "pip"),
         ),
         (
             (True, True, True, "conda"),
