@@ -141,7 +141,7 @@ class ParsedRequirements(NamedTuple):
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
     optional_dependencies: dict[str, dict[str, list[Spec]]]
-    pip_repositories: list[str] = []
+    pip_repositories: tuple[str, ...] = ()
 
 
 class Requirements(NamedTuple):
@@ -646,7 +646,7 @@ def parse_requirements(
         sorted(platforms),
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
-        pip_repositories,
+        tuple(pip_repositories),
     )
 
 

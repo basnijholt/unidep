@@ -46,7 +46,7 @@ class CondaEnvironmentSpec(NamedTuple):
     platforms: list[Platform]
     conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
-    pip_repositories: list[str] = []
+    pip_repositories: tuple[str, ...] = ()
 
 
 def _conda_sel(sel: str) -> CondaPlatform:
@@ -144,7 +144,7 @@ def create_conda_env_specification(  # noqa: PLR0912
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
-    pip_repositories: list[str] | None = None,
+    pip_repositories: tuple[str, ...] | None = None,
 ) -> CondaEnvironmentSpec:
     """Create a conda environment specification from resolved requirements."""
     if selector not in ("sel", "comment"):  # pragma: no cover
@@ -203,7 +203,7 @@ def create_conda_env_specification(  # noqa: PLR0912
                 pip_deps.append(dep_str)
 
     return CondaEnvironmentSpec(
-        channels, platforms, conda_deps, pip_deps, pip_repositories or []
+        channels, platforms, conda_deps, pip_deps, pip_repositories or ()
     )
 
 
@@ -224,7 +224,7 @@ def write_conda_environment_file(
     if resolved_dependencies:
         env_data["dependencies"] = resolved_dependencies
     if env_spec.pip_repositories:
-        env_data["pip-repositories"] = env_spec.pip_repositories
+        env_data["pip-repositories"] = list(env_spec.pip_repositories)
     if env_spec.platforms:
         env_data["platforms"] = env_spec.platforms
     yaml = YAML(typ="rt")
