@@ -613,7 +613,11 @@ def parse_requirements(
     for data, _extras in zip(datas, all_extras):
         channels.update(data.get("channels", []))
         platforms.update(data.get("platforms", []))
-        for url in data.get("extra-index-url", []) if isinstance(data.get("extra-index-url"), list) else ([data["extra-index-url"]] if "extra-index-url" in data else []):
+        for url in (
+            data.get("extra-index-url", [])
+            if isinstance(data.get("extra-index-url"), list)
+            else ([data["extra-index-url"]] if "extra-index-url" in data else [])
+        ):
             if url not in pip_repositories:
                 pip_repositories.append(url)
         if "dependencies" in data:
