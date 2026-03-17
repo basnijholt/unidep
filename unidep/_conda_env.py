@@ -203,7 +203,11 @@ def create_conda_env_specification(  # noqa: PLR0912
                 pip_deps.append(dep_str)
 
     return CondaEnvironmentSpec(
-        channels, platforms, conda_deps, pip_deps, pip_repositories or ()
+        channels,
+        platforms,
+        conda_deps,
+        pip_deps,
+        pip_repositories or (),
     )
 
 
