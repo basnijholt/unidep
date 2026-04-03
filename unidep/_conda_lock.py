@@ -335,8 +335,6 @@ def _conda_lock_subpackage(
                 _platforms = [p for p in _platforms if p in platforms]
 
             for _platform in _platforms:
-                if _platform not in platforms:
-                    continue
                 add_pkg(name=name, which=spec.which, platform=_platform)
     _handle_missing_keys(
         lock_spec=lock_spec,
@@ -396,8 +394,6 @@ def _download_and_get_package_names(
         )
         sys.exit(1)
     url = package["url"]
-    if package["manager"] != "conda":  # pragma: no cover
-        return None
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         file_path = temp_path / Path(url).name

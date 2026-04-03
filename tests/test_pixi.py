@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import textwrap
 from itertools import permutations
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,11 +16,16 @@ except ImportError:  # pragma: no cover
     import tomli as tomllib
 
 from unidep._conflicts import VersionConflictError
+from unidep._dependencies_parsing import DependencyEntry, DependencyOrigin
 from unidep._pixi import (
+    _add_single_file_optional_environments,
     _collect_transitive_nodes,
     _derive_feature_names,
     _discover_local_dependency_graph,
     _editable_dependency_path,
+    _extract_dependencies,
+    _feature_platforms_for_entries,
+    _filter_targets_by_platforms,
     _make_pip_version_spec,
     _parse_direct_requirements_for_node,
     _parse_version_build,
@@ -28,11 +34,8 @@ from unidep._pixi import (
     _with_unique_order_paths,
     generate_pixi_toml,
 )
+from unidep.platform_definitions import Spec
 from unidep.utils import PathWithExtras
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
 
 _UNSET = object()
 
@@ -2870,6 +2873,81 @@ def test_unique_optional_feature_name_double_collision() -> None:
 def test_unique_env_name_triple_collision() -> None:
     taken: set[str] = {"foo-bar", "foo-bar-2"}
     assert _unique_env_name("foo_bar", taken) == "foo-bar-3"
+
+
+def test_add_single_file_optional_environments_noop_without_features() -> None:
+    pixi_data: dict[str, Any] = {"environments": {}}
+    _add_single_file_optional_environments(pixi_data, [])
+    assert pixi_data == {"environments": {}}
+
+
+def test_feature_platforms_for_entries_prefers_override() -> None:
+    origin = DependencyOrigin(Path("requirements.yaml"), 0)
+    entries = [
+        DependencyEntry(
+            identifier="numpy",
+            selector=None,
+            conda=Spec(name="numpy", which="conda"),
+            pip=None,
+            origin=origin,
+        ),
+    ]
+
+    assert _feature_platforms_for_entries(
+        entries=entries,
+        declared_platforms=["linux-64"],
+        global_declared_platforms={"osx-arm64"},
+        platforms_override=["win-64"],
+    ) == ["win-64"]
+
+
+def test_extract_dependencies_handles_universal_pip_and_mixed_buckets() -> None:
+    origin = DependencyOrigin(Path("requirements.yaml"), 0)
+    entries = [
+        DependencyEntry(
+            identifier="numpy",
+            selector=None,
+            conda=Spec(name="numpy", which="conda"),
+            pip=None,
+            origin=origin,
+        ),
+        DependencyEntry(
+            identifier="click",
+            selector="linux64",
+            conda=None,
+            pip=Spec(name="click", which="pip", selector="linux64"),
+            origin=origin,
+        ),
+    ]
+
+    deps = _extract_dependencies(
+        entries,
+        platforms=["linux-64", "osx-64"],
+        allow_hoist_without_universal_origin=True,
+    )
+    assert deps[None][0]["numpy"] == "*"
+    assert deps["linux-64"][1]["click"] == "*"
+    assert "osx-64" not in deps or "click" not in deps["osx-64"][1]
+
+
+def test_filter_targets_by_platforms_removes_empty_sections() -> None:
+    pixi_data: dict[str, Any] = {
+        "target": {
+            "osx-64": {"dependencies": {"numpy": "*"}},
+        },
+        "feature": {
+            "dev": {
+                "target": {
+                    "linux-64": {"dependencies": {"pytest": "*"}},
+                },
+            },
+        },
+    }
+
+    _filter_targets_by_platforms(pixi_data, {"osx-arm64"})
+
+    assert "target" not in pixi_data
+    assert "target" not in pixi_data["feature"]["dev"]
 
 
 def test_pixi_single_file_optional_local_dep_transitive_dedup(

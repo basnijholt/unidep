@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path, PureWindowsPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from ruamel.yaml import YAML
@@ -309,6 +309,15 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     captured = capsys.readouterr()
     assert "Generating environment file at" in captured.out
     assert "Environment file generated successfully." in captured.out
+
+
+def test_create_conda_env_specification_rejects_resolved_dict_input() -> None:
+    resolved: Any = {}
+    with pytest.raises(
+        TypeError,
+        match="now requires dependency entries",
+    ):
+        create_conda_env_specification(resolved, [], [])
 
 
 def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:

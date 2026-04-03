@@ -115,6 +115,23 @@ def test_create_env_from_lock_no_env_specified(mock_print: Mock) -> None:
     )
 
 
+def test_create_env_from_lock_verifies_installation_for_conda(
+    mock_subprocess_run: Mock,
+) -> None:
+    with patch("unidep._cli._verify_conda_lock_installed") as verify:
+        _create_env_from_lock(
+            conda_lock_file=Path("conda-lock.yml"),
+            conda_executable="conda",
+            conda_env_name="test-env",
+            conda_env_prefix=None,
+            dry_run=False,
+            verbose=False,
+        )
+
+    verify.assert_called_once()
+    mock_subprocess_run.assert_called_once()
+
+
 def test_verify_conda_lock_installed_not_found(
     monkeypatch: pytest.MonkeyPatch,
     mock_print: Mock,

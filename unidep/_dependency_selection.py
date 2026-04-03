@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, cast
 
 from packaging.specifiers import InvalidSpecifier, Specifier
 from packaging.utils import canonicalize_name
-from packaging.version import InvalidVersion, Version
+from packaging.version import Version
 
 from unidep._conflicts import (
     VersionConflictError,
@@ -193,7 +193,7 @@ def _bump_release_prefix(release: tuple[int, ...], prefix_len: int) -> str | Non
     return ".".join(str(part) for part in bumped)
 
 
-def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911, PLR0912
+def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911
     pinning: str,
 ) -> list[str] | None:
     try:
@@ -205,46 +205,27 @@ def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911, PLR0912
     version_text = specifier.version
 
     if operator in {">", ">=", "<", "<="}:
-        try:
-            Version(version_text)
-        except InvalidVersion:
-            return None
         return [f"{operator}{version_text}"]
 
     if operator == "!=":
         if "*" in version_text:
-            return None
-        try:
-            Version(version_text)
-        except InvalidVersion:
             return None
         return [f"!={version_text}"]
 
     if operator == "==":
         if version_text.endswith(".*"):
             prefix = version_text[:-2]
-            try:
-                parsed = Version(prefix)
-            except InvalidVersion:
-                return None
+            parsed = Version(prefix)
             upper = _bump_release_prefix(parsed.release, len(parsed.release))
-            if upper is None:
-                return None
+            assert upper is not None
             return [f">={prefix}", f"<{upper}"]
-        try:
-            Version(version_text)
-        except InvalidVersion:
-            return None
+        Version(version_text)
         return [f"={version_text}"]
 
     if operator == "~=":
-        try:
-            parsed = Version(version_text)
-        except InvalidVersion:
-            return None
+        parsed = Version(version_text)
         upper = _bump_release_prefix(parsed.release, len(parsed.release) - 1)
-        if upper is None:
-            return None
+        assert upper is not None
         return [f">={version_text}", f"<{upper}"]
 
     return None
@@ -441,8 +422,6 @@ def _entry_targets(
 ) -> tuple[tuple[Platform, ...] | None, list[TargetPlatform]]:
     declared = spec.platforms()
     if declared is None:
-        if target_platforms == [None]:
-            return None, [None]
         return None, list(target_platforms)
     targets: list[TargetPlatform] = [
         platform for platform in declared if platform in target_platforms
@@ -550,12 +529,6 @@ def _merge_candidate_group(
 ) -> MergedSourceCandidate:
     ordered = sorted(candidates, key=_candidate_display_key)
     source = ordered[0].source
-    if any(candidate.source != source for candidate in ordered[1:]):
-        msg = (
-            "Mixed-source candidates should be handled by "
-            "_raise_final_collision() before merging."
-        )
-        raise ValueError(msg)
     requirements = [
         requirement for candidate in ordered for requirement in candidate.requirements
     ]
@@ -664,8 +637,7 @@ def select_conda_like_requirements(
     selected: dict[TargetPlatform, list[MergedSourceCandidate]] = {}
     for platform_candidates in _build_platform_candidates(entries, platforms):
         candidate = _select_conda_like_candidate(platform_candidates)
-        if candidate is None:
-            continue
+        assert candidate is not None
         selected.setdefault(platform_candidates.platform, []).append(candidate)
     return _resolve_final_collisions(selected)
 

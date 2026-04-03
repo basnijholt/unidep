@@ -23,9 +23,11 @@ except ImportError:  # pragma: no cover
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _collect_selected_conda_like_platforms,
     _conda_env_list,
     _conda_root_prefix,
     _find_windows_path,
+    _flatten_selected_dependency_entries,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
@@ -36,6 +38,7 @@ from unidep._cli import (
     _pip_subcommand,
     _print_versions,
 )
+from unidep._dependencies_parsing import DependencyEntry, parse_requirements
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -458,6 +461,65 @@ def test_merge_ignores_selector_platforms_from_losing_alternatives(
     assert excluded_platform not in merged
 
 
+def test_flatten_selected_dependency_entries_includes_optional_groups(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(req_file, extras=[["*"]])
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    def entry_name(entry: DependencyEntry) -> str:
+        conda = entry.conda
+        pip = entry.pip
+        if conda is not None:
+            return conda.name
+        assert pip is not None
+        return pip.name
+
+    assert [entry_name(entry) for entry in entries] == [
+        "numpy",
+        "pytest",
+    ]
+
+
+def test_collect_selected_conda_like_platforms_ignores_losing_selectors(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - conda: click >=8
+              - pip: click  # [osx]
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(req_file)
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    assert _collect_selected_conda_like_platforms(entries) == []
+
+
 def test_unidep_pixi_cli_optional_monorepo_env_includes_base(
     tmp_path: Path,
 ) -> None:
@@ -679,7 +741,7 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 
 def test_install_non_existing_file() -> None:
-    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+    with pytest.raises(FileNotFoundError, match=r"File `does_not_exist` not found\."):
         _install_command(
             Path("does_not_exist"),
             conda_executable="",  # type: ignore[arg-type]
@@ -776,7 +838,7 @@ def test_find_conda_windows() -> None:
     """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
-        match="Could not find conda.",
+        match=r"Could not find conda\.",
     ) as excinfo:
         _find_windows_path("conda")
     # This Windows hell... 🤦‍♂️
@@ -894,6 +956,28 @@ def test_find_conda_windows() -> None:
         assert path in excinfo.value.args[0]
 
 
+def test_find_windows_path_returns_existing_mamba_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "os.path.exists",
+        lambda path: "mambaforge" in path and str(path).endswith("mamba.exe"),
+    )
+    found = _find_windows_path("mamba")
+    assert found.endswith(r"mambaforge\condabin\mamba.exe")
+
+
+def test_find_windows_path_returns_existing_micromamba_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "os.path.exists",
+        lambda path: "micromamba" in path and str(path).endswith("micromamba.exe"),
+    )
+    found = _find_windows_path("micromamba")
+    assert found.endswith(r"Micromamba\condabin\micromamba.exe")
+
+
 @contextmanager
 def set_env_var(key: str, value: str) -> Generator[None, None, None]:
     original_value = os.environ.get(key)
@@ -924,6 +1008,18 @@ def test_maybe_conda_run() -> None:
     with set_env_var("MAMBA_EXE", "mamba"):
         result = _maybe_conda_run("mamba", "my_env", None)
         assert result == ["mamba", "run", "--name", "my_env"]
+
+
+def test_maybe_conda_run_without_executable_returns_empty() -> None:
+    assert _maybe_conda_run(None, "my_env", None) == []
+
+
+def test_maybe_conda_run_without_active_environment_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.delenv("MAMBA_ROOT_PREFIX", raising=False)
+    assert _maybe_conda_run("conda", None, None) == []
 
 
 def test_maybe_create_conda_env_args_creates_env(
@@ -997,3 +1093,53 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_install_command_with_conda_lock_skips_dependency_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+    created: list[tuple[Path, str]] = []
+
+    def fake_create_env_from_lock(
+        conda_lock_file: Path,
+        conda_executable: str,
+        **_: object,
+    ) -> None:
+        created.append((conda_lock_file, conda_executable))
+
+    def fake_python_executable(*_args: object) -> str:
+        return "python"
+
+    monkeypatch.setattr("unidep._cli._create_env_from_lock", fake_create_env_from_lock)
+    monkeypatch.setattr("unidep._cli.identify_current_platform", lambda: "linux-64")
+    monkeypatch.setattr("unidep._cli._python_executable", fake_python_executable)
+
+    _install_command(
+        req_file,
+        conda_executable="conda",
+        conda_env_name="test-env",
+        conda_env_prefix=None,
+        conda_lock_file=Path("conda-lock.yml"),
+        dry_run=True,
+        editable=False,
+        skip_local=True,
+        verbose=False,
+    )
+
+    assert created == [(Path("conda-lock.yml"), "conda")]
+    output = capsys.readouterr().out
+    assert "Installing conda dependencies" not in output
+    assert "Installing pip dependencies" not in output

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from unidep._setuptools_integration import filter_python_dependencies
 from unidep.utils import (
     package_name_from_path,
     package_name_from_pyproject_toml,
@@ -101,7 +102,7 @@ def test_package_name_from_setup_py_requires_literal_name(tmp_path: Path) -> Non
 
     with pytest.raises(
         KeyError,
-        match="Could not find the package name in the setup.py",
+        match=r"Could not find the package name in the setup\.py",
     ):
         package_name_from_setup_py(setup_py)
 
@@ -131,3 +132,11 @@ def test_package_name_from_path_does_not_suppress_unexpected_errors(
         side_effect=RuntimeError("boom"),
     ), pytest.raises(RuntimeError, match="boom"):
         package_name_from_path(tmp_path)
+
+
+def test_filter_python_dependencies_rejects_resolved_dict_input() -> None:
+    with pytest.raises(
+        TypeError,
+        match="now requires dependency entries",
+    ):
+        filter_python_dependencies({})  # type: ignore[arg-type]

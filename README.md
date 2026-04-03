@@ -24,7 +24,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
 - **🔒 Integration with `conda-lock`**: Generate fully pinned `conda-lock.yml` files from (multiple) `requirements.yaml` or `pyproject.toml` file(s), leveraging `conda-lock`.
 - **🥧 Pixi Support**: Generate `pixi.toml` files from your dependency files, enabling Pixi-based workflows while keeping UniDep as the single source of truth.
-- **🤓 Nerd stats**: written in Python, >99% test coverage, fully-typed, all Ruff's rules enabled, easily extensible, and minimal dependencies
+- **🤓 Nerd stats**: written in Python, 100% test coverage, fully-typed, all Ruff's rules enabled, easily extensible, and minimal dependencies
 
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!

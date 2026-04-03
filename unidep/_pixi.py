@@ -1235,8 +1235,7 @@ def _extract_dependencies(  # noqa: PLR0912
             ],
         ] = {platform: ({}, {}) for platform in target_platforms}
         for platform, candidates in selected.items():
-            if platform is None:
-                continue
+            assert platform is not None
             conda_deps, pip_deps = per_platform[platform]
             for candidate in candidates:
                 if candidate.source == "conda":
@@ -1293,19 +1292,6 @@ def _extract_dependencies(  # noqa: PLR0912
                     continue
             for platform, spec in present.items():
                 platform_deps.setdefault(platform, ({}, {}))[1][name] = spec
-    else:
-        universal_conda_deps, universal_pip_deps = platform_deps[None]
-        for candidate in selected.get(None, []):
-            if candidate.source == "conda":
-                universal_conda_deps[candidate.spec.name] = _parse_version_build(
-                    candidate.spec.pin,
-                )
-            else:
-                base_name, extras = _parse_package_extras(candidate.spec.name)
-                normalized = candidate.spec.name_with_pin(is_pip=True)
-                normalized_pin = normalized[len(candidate.spec.name) :].strip() or None
-                version = _parse_version_build(normalized_pin)
-                universal_pip_deps[base_name] = _make_pip_version_spec(version, extras)
 
     return platform_deps
 
