@@ -15,6 +15,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from packaging.utils import canonicalize_name
 from ruamel.yaml import YAML
 
 from unidep._dependencies_parsing import find_requirements_files, parse_requirements
@@ -205,12 +206,44 @@ def _add_package_to_lock(
     locked: list[dict[str, Any]],
     locked_keys: set[tuple[CondaPip, Platform, str]],
 ) -> tuple[CondaPip, Platform, str] | None:
-    key = (which, platform, name)
-    if key not in packages:
-        return key
+    key = _find_lock_key(
+        name=name,
+        which=which,
+        platform=platform,
+        packages=packages,
+    )
+    if key is None:
+        return None
     if key not in locked_keys:
         locked.append(packages[key])
         locked_keys.add(key)  # Add identifier to the set
+    return key
+
+
+def _strip_pip_extras(name: str) -> str:
+    if not name.endswith("]") or "[" not in name:
+        return name
+    return name.split("[", 1)[0]
+
+
+def _find_lock_key(
+    *,
+    name: str,
+    which: CondaPip,
+    platform: Platform,
+    packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]],
+) -> tuple[CondaPip, Platform, str] | None:
+    key = (which, platform, name)
+    if key in packages:
+        return key
+    if which != "pip":
+        return None
+    normalized_name = canonicalize_name(_strip_pip_extras(name))
+    for _which, _platform, _name in packages:
+        if _which != which or _platform != platform:
+            continue
+        if canonicalize_name(_strip_pip_extras(_name)) == normalized_name:
+            return (_which, _platform, _name)
     return None
 
 
@@ -224,20 +257,27 @@ def _add_package_with_dependencies_to_lock(
     locked_keys: set[tuple[CondaPip, Platform, str]],
     missing_keys: set[tuple[CondaPip, Platform, str]],
 ) -> None:
-    missing_key = _add_package_to_lock(
+    found_key = _find_lock_key(
         name=name,
         which=which,
         platform=platform,
         packages=lock_spec.packages,
+    )
+    if found_key is None:
+        missing_keys.add((which, platform, name))
+        return
+    _add_package_to_lock(
+        name=found_key[2],
+        which=found_key[0],
+        platform=found_key[1],
+        packages=lock_spec.packages,
         locked=locked,
         locked_keys=locked_keys,
     )
-    if missing_key is not None:
-        missing_keys.add(missing_key)
-    for dep in lock_spec.dependencies.get((which, platform, name), set()):
+    for dep in lock_spec.dependencies.get(found_key, set()):
         if dep.startswith("__"):  # pragma: no cover
             continue  # Skip meta packages
-        missing_key = _add_package_to_lock(
+        dep_key = _add_package_to_lock(
             name=dep,
             which=which,
             platform=platform,
@@ -245,8 +285,8 @@ def _add_package_with_dependencies_to_lock(
             locked=locked,
             locked_keys=locked_keys,
         )
-        if missing_key is not None:
-            missing_keys.add(missing_key)
+        if dep_key is None:
+            missing_keys.add((which, platform, dep))
 
 
 def _handle_missing_keys(

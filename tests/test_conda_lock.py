@@ -595,6 +595,59 @@ def test_conda_lock_subpackage_uses_selected_paired_different_name_pip_winner(
     ]
 
 
+def test_conda_lock_subpackage_uses_selected_pip_winner_with_extras(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+        dependencies:
+          - conda: adaptive
+            pip: adaptive[notebook]
+        """,
+    )
+    lock_spec = LockSpec(
+        packages={
+            ("pip", "linux-64", "adaptive"): {
+                "name": "adaptive",
+                "manager": "pip",
+                "platform": "linux-64",
+                "version": "1.0",
+                "dependencies": {"rich": "13.0"},
+            },
+            ("pip", "linux-64", "rich"): {
+                "name": "rich",
+                "manager": "pip",
+                "platform": "linux-64",
+                "version": "13.0",
+                "dependencies": {},
+            },
+        },
+        dependencies={
+            ("pip", "linux-64", "adaptive"): {"rich"},
+            ("pip", "linux-64", "rich"): set(),
+        },
+    )
+
+    output = _conda_lock_subpackage(
+        file=req_file,
+        lock_spec=lock_spec,
+        channels=["conda-forge"],
+        platforms=["linux-64"],
+        yaml=YAML(typ="rt"),
+    )
+
+    assert "Missing keys" not in capsys.readouterr().out
+    yaml = YAML(typ="safe")
+    with output.open() as fp:
+        data = yaml.load(fp)
+    assert [(pkg["manager"], pkg["name"]) for pkg in data["package"]] == [
+        ("pip", "adaptive"),
+        ("pip", "rich"),
+    ]
+
+
 def test_circular_dependency() -> None:
     """Test that circular dependencies are handled correctly.
 
