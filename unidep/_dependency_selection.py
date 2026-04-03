@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Tuple, cast
 
@@ -27,14 +26,8 @@ if TYPE_CHECKING:
 
     from unidep._dependencies_parsing import DependencyEntry, DependencyOrigin
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:  # pragma: no cover
-    from typing_extensions import TypeAlias
-
-
-TargetPlatform: TypeAlias = Optional[Platform]
-FamilyKey: TypeAlias = Tuple[Optional[str], Optional[str]]
+TargetPlatform = Optional[Platform]
+FamilyKey = Tuple[Optional[str], Optional[str]]
 
 
 @dataclass(frozen=True)
