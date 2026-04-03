@@ -297,7 +297,7 @@ UniDep supports a range of version pinning operators (the same as Conda):
 
 - **Within-source pinning priority**: `unidep` combines repeated entries within the same source (`conda` or `pip`) and gives priority to version-pinned packages. For instance, if both `foo` and `foo <1` are listed for the same source, `foo <1` is selected due to its specific version pin.
 
-- **Cross-source preservation**: When the same logical dependency is declared for both Conda and Pip, `resolve_conflicts()` preserves both sources in the resolved metadata. This keeps enough information for different output targets to make the correct final choice.
+- **Cross-source preservation**: When the same logical dependency is declared for both Conda and Pip, `resolve_conflicts()` preserves both sources in the resolved metadata. CLI-facing renderers now consume `parse_requirements(...).dependency_entries`, but the preserved metadata model still explains how cross-source alternatives are kept until a target chooses between them.
 
 - **Conda-like paired-entry selection**: For explicit dependency entries that provide both `conda:` and `pip:` alternatives, Conda-like outputs use deterministic source selection rules: Pip extras win, otherwise a single pinned side wins, and ties prefer Conda.
 

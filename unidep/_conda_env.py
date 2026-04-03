@@ -100,41 +100,30 @@ def _ensure_sel_representable(
     platform_to_spec: dict[Platform | None, Spec],
 ) -> None:
     """Ensure selected specs can be represented with `sel(...)` selectors."""
-    valid: dict[
-        CondaPlatform,
-        dict[Spec, list[Platform | None]],
-    ] = defaultdict(lambda: defaultdict(list))
-    for _platform, spec in platform_to_spec.items():
+    grouped: dict[CondaPlatform, list[tuple[Platform, Spec]]] = defaultdict(list)
+    for _platform, spec in sorted(platform_to_spec.items()):
         assert _platform is not None
-        conda_platform = _conda_sel(_platform)
-        valid[conda_platform][spec].append(_platform)
+        grouped[_conda_sel(_platform)].append((_platform, spec))
 
-    for conda_platform, spec_to_platforms in valid.items():
-        for platforms in spec_to_platforms.values():
-            for j, _platform in enumerate(platforms):
-                if j >= 1:
-                    platform_to_spec.pop(_platform)
-
-        if len(spec_to_platforms) > 1:
-            specs, (first_platform, *_) = zip(*spec_to_platforms.items())
+    for conda_platform, platform_specs in grouped.items():
+        keep_platform = platform_specs[0][0]
+        unique_specs = list(dict.fromkeys(spec for _, spec in platform_specs))
+        if len(unique_specs) > 1:
             try:
-                spec = _maybe_new_spec_with_combined_pinnings(specs)  # type: ignore[arg-type]
+                merged_spec = _maybe_new_spec_with_combined_pinnings(unique_specs)
             except VersionConflictError:
                 msg = (
                     "Selected dependencies cannot be represented with `sel(...)` "
                     f"for '{conda_platform}'. Use selector='comment' instead."
                 )
                 raise ValueError(msg) from None
-            else:
-                first = specs[0]
-                spec_to_platforms.pop(first)
-                spec_to_platforms[spec] = [first_platform]
+        else:
+            merged_spec = unique_specs[0]
 
-            for other in specs[1:]:
-                platforms = spec_to_platforms[other]
-                for _platform in platforms:
-                    if _platform in platform_to_spec:
-                        platform_to_spec.pop(_platform)
+        for _platform, _spec in platform_specs:
+            if _platform != keep_platform:
+                platform_to_spec.pop(_platform, None)
+        platform_to_spec[keep_platform] = merged_spec
 
 
 def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
@@ -148,7 +137,7 @@ def create_conda_env_specification(  # noqa: PLR0912
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
 ) -> CondaEnvironmentSpec:
-    """Create a conda environment specification from resolved requirements."""
+    """Create a conda environment specification from dependency entries."""
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)

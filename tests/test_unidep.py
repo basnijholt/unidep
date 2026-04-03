@@ -1992,6 +1992,39 @@ def test_with_unused_platform(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_sel_selector_merges_explicit_platform_pinnings(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+              - linux-64
+              - linux-aarch64
+              - linux-ppc64le
+            dependencies:
+              - foo >1 # [linux64]
+              - foo <=2 # [aarch64]
+              - foo <=2 # [ppc64le]
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+        selector="sel",
+    )
+    assert env_spec.conda == [{"sel(linux)": "foo >1,<=2"}]
+    assert env_spec.pip == []
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_pip_with_pinning(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
@@ -2539,6 +2572,47 @@ def test_pip_pep440_constraints_fall_back_to_explicit_joined_string(
         requirements.platforms,
     )
     assert python_deps == ["pkg ~=1.0,<2"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+@pytest.mark.parametrize(
+    ("first_pin", "second_pin"),
+    [
+        (">1", "<1"),
+        ("~=1.0", "<1"),
+        ("==1", "!=1"),
+    ],
+)
+def test_pip_contradictory_pep440_constraints_raise(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+    first_pin: str,
+    second_pin: str,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            f"""\
+            dependencies:
+                - pip: pkg {first_pin}
+                - pip: pkg {second_pin}
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    with pytest.raises(VersionConflictError):
+        create_conda_env_specification(
+            requirements.dependency_entries,
+            requirements.channels,
+            requirements.platforms,
+        )
+    with pytest.raises(VersionConflictError):
+        filter_python_dependencies(
+            requirements.dependency_entries,
+            requirements.platforms,
+        )
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])

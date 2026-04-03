@@ -14,6 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from unidep._conflicts import VersionConflictError
 from unidep._pixi import (
     _collect_transitive_nodes,
     _derive_feature_names,
@@ -1013,6 +1014,77 @@ def test_pixi_monorepo_with_platform_selectors(tmp_path: Path) -> None:
     assert project2["dependencies"]["pandas"] == "*"
     assert "pyobjc" not in project2.get("pypi-dependencies", {})
     assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+def test_pixi_monorepo_preserves_selector_only_platforms_without_declared_platforms(
+    tmp_path: Path,
+) -> None:
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = _write_file(
+        project1_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        platforms:
+          - linux-64
+        dependencies:
+          - numpy
+        """,
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = _write_file(
+        project2_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req1,
+        req2,
+        project_name="monorepo-selector-only-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == ["linux-64", "osx-64", "osx-arm64"]
+    project2 = data["feature"]["project2"]
+    assert "pypi-dependencies" not in project2
+    assert project2["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+@pytest.mark.parametrize(
+    ("first_pin", "second_pin"),
+    [
+        (">1", "<1"),
+        ("~=1.0", "<1"),
+        ("==1", "!=1"),
+    ],
+)
+def test_pixi_rejects_contradictory_pip_constraints(
+    tmp_path: Path,
+    first_pin: str,
+    second_pin: str,
+) -> None:
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        f"""\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: pkg {first_pin}
+          - pip: pkg {second_pin}
+        """,
+    )
+
+    with pytest.raises(VersionConflictError, match="pkg"):
+        generate_pixi_toml(req_file, output_file=tmp_path / "pixi.toml", verbose=False)
 
 
 def test_pixi_monorepo_with_local_packages(tmp_path: Path) -> None:
@@ -2786,10 +2858,10 @@ def test_pixi_demoted_universal_merges_constraints_across_demotions(
     assert data["target"]["osx-64"]["dependencies"]["click"] == expected
 
 
-def test_pixi_demoted_universal_switches_source_when_conflict_direction_flips(
+def test_pixi_raises_when_losing_pip_alternative_is_internally_contradictory(
     tmp_path: Path,
 ) -> None:
-    """Later demotion of same package from the other source should replace source type."""
+    """Contradictory pip alternatives should fail even if conda would otherwise win."""
     req_file = _write_file(
         tmp_path / "requirements.yaml",
         """\
@@ -2806,13 +2878,8 @@ def test_pixi_demoted_universal_switches_source_when_conflict_direction_flips(
         """,
     )
 
-    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
-
-    # linux keeps the stronger target-specific conda override
-    assert data["target"]["linux-64"]["dependencies"]["click"] == ">=9"
-    # osx follows the conda-like tie-break once scope no longer distinguishes them
-    assert data["target"]["osx-64"]["dependencies"]["click"] == ">=8"
-    assert "click" not in data["target"]["osx-64"].get("pypi-dependencies", {})
+    with pytest.raises(VersionConflictError, match="click"):
+        _generate_and_load(tmp_path / "pixi.toml", req_file)
 
 
 def test_parse_version_build_whitespace_only() -> None:

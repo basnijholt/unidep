@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, cast
 
 from packaging.specifiers import InvalidSpecifier, Specifier
 from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 
 from unidep._conflicts import (
     VersionConflictError,
@@ -164,43 +165,176 @@ def _merge_pin_strings(
         merged = combine_version_pinnings(unique, name=requirements[0].base_name)
         return _canonicalize_joined_pinnings([merged])
     except VersionConflictError:
-        if (
-            allow_unsatisfiable_fallback
-            and all(
-                _pinning_supports_unsatisfiable_fallback(token.strip())
-                for pin in unique
-                for token in pin.split(",")
-                if token.strip()
-            )
-            and not _has_multiple_distinct_exact_matches(unique)
+        if allow_unsatisfiable_fallback and _joined_pinnings_are_safely_satisfiable(
+            unique,
         ):
             return _canonicalize_joined_pinnings(unique)
         raise
 
 
-def _pinning_supports_unsatisfiable_fallback(pinning: str) -> bool:
+def _bump_release_prefix(release: tuple[int, ...], prefix_len: int) -> str | None:
+    if prefix_len <= 0 or prefix_len > len(release):
+        return None
+    bumped = list(release[:prefix_len])
+    bumped[-1] += 1
+    return ".".join(str(part) for part in bumped)
+
+
+def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911, PLR0912
+    pinning: str,
+) -> list[str] | None:
     try:
-        Specifier(pinning)
+        specifier = Specifier(pinning)
     except InvalidSpecifier:
-        return False
+        return None
+
+    operator = specifier.operator
+    version_text = specifier.version
+
+    if operator in {">", ">=", "<", "<="}:
+        try:
+            Version(version_text)
+        except InvalidVersion:
+            return None
+        return [f"{operator}{version_text}"]
+
+    if operator == "!=":
+        if "*" in version_text:
+            return None
+        try:
+            Version(version_text)
+        except InvalidVersion:
+            return None
+        return [f"!={version_text}"]
+
+    if operator == "==":
+        if version_text.endswith(".*"):
+            prefix = version_text[:-2]
+            try:
+                parsed = Version(prefix)
+            except InvalidVersion:
+                return None
+            upper = _bump_release_prefix(parsed.release, len(parsed.release))
+            if upper is None:
+                return None
+            return [f">={prefix}", f"<{upper}"]
+        try:
+            Version(version_text)
+        except InvalidVersion:
+            return None
+        return [f"={version_text}"]
+
+    if operator == "~=":
+        try:
+            parsed = Version(version_text)
+        except InvalidVersion:
+            return None
+        upper = _bump_release_prefix(parsed.release, len(parsed.release) - 1)
+        if upper is None:
+            return None
+        return [f">={version_text}", f"<{upper}"]
+
+    return None
+
+
+def _parse_supported_pinning(pinning: str) -> tuple[str, Version]:
+    operator = extract_version_operator(pinning)
+    if not operator:
+        msg = f"Missing operator in supported pinning '{pinning}'"
+        raise ValueError(msg)
+    version_text = pinning[len(operator) :].strip()
+    if operator == "=":
+        operator = "="
+    return operator, Version(version_text)
+
+
+def _stricter_lower_bound(
+    current: tuple[Version, bool] | None,
+    candidate: tuple[Version, bool],
+) -> tuple[Version, bool]:
+    if current is None:
+        return candidate
+    if candidate[0] > current[0]:
+        return candidate
+    if candidate[0] < current[0]:
+        return current
+    return (current[0], current[1] and candidate[1])
+
+
+def _stricter_upper_bound(
+    current: tuple[Version, bool] | None,
+    candidate: tuple[Version, bool],
+) -> tuple[Version, bool]:
+    if current is None:
+        return candidate
+    if candidate[0] < current[0]:
+        return candidate
+    if candidate[0] > current[0]:
+        return current
+    return (current[0], current[1] and candidate[1])
+
+
+def _normalized_pinnings_are_satisfiable(  # noqa: PLR0911, PLR0912
+    pinnings: list[str],
+) -> bool:
+    exact: Version | None = None
+    excluded: set[Version] = set()
+    lower: tuple[Version, bool] | None = None
+    upper: tuple[Version, bool] | None = None
+
+    for pinning in pinnings:
+        operator, parsed_version = _parse_supported_pinning(pinning)
+        if operator == "=":
+            if exact is not None and exact != parsed_version:
+                return False
+            exact = parsed_version
+        elif operator == "!=":
+            excluded.add(parsed_version)
+        elif operator == ">":
+            lower = _stricter_lower_bound(lower, (parsed_version, False))
+        elif operator == ">=":
+            lower = _stricter_lower_bound(lower, (parsed_version, True))
+        elif operator == "<":
+            upper = _stricter_upper_bound(upper, (parsed_version, False))
+        elif operator == "<=":
+            upper = _stricter_upper_bound(upper, (parsed_version, True))
+
+    if exact is not None:
+        if exact in excluded:
+            return False
+        if lower is not None and (
+            exact < lower[0] or (exact == lower[0] and not lower[1])
+        ):
+            return False
+        return not (
+            upper is not None
+            and (exact > upper[0] or (exact == upper[0] and not upper[1]))
+        )
+
+    if lower is not None and upper is not None:
+        if lower[0] > upper[0]:
+            return False
+        if lower[0] == upper[0]:
+            if not (lower[1] and upper[1]):
+                return False
+            if lower[0] in excluded:
+                return False
+
     return True
 
 
-def _pinning_uses_exact_match(pinning: str) -> bool:
-    try:
-        return Specifier(pinning).operator in {"==", "==="}
-    except InvalidSpecifier:
-        return False
-
-
-def _has_multiple_distinct_exact_matches(pinnings: list[str]) -> bool:
-    exact_matches = {
-        token.strip()
-        for pinning in pinnings
-        for token in pinning.split(",")
-        if token.strip() and _pinning_uses_exact_match(token.strip())
-    }
-    return len(exact_matches) > 1
+def _joined_pinnings_are_safely_satisfiable(pinnings: list[str]) -> bool:
+    normalized: list[str] = []
+    for pinning in pinnings:
+        for token in pinning.split(","):
+            stripped = token.strip()
+            if not stripped:
+                continue
+            normalized_tokens = _normalize_pinning_token_for_satisfiability(stripped)
+            if normalized_tokens is None:
+                return False
+            normalized.extend(normalized_tokens)
+    return _normalized_pinnings_are_satisfiable(normalized)
 
 
 def _merge_source_requirements(

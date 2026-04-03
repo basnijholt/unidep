@@ -20,6 +20,11 @@ from typing import (
 
 from ruamel.yaml import YAML
 
+try:
+    import tomli_w
+except ImportError:  # pragma: no cover
+    tomli_w = None
+
 from unidep._conflicts import (
     ALL_VERSION_OPERATORS,
     VersionConflictError,
@@ -1035,11 +1040,11 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
 
     for node in dep_graph.discovered:
         req = parsed_by_node[node]
-        feature_platforms = (
-            platforms_override
-            or list(req.platforms)
-            or sorted(global_declared_platforms)
-            or None
+        feature_platforms = _feature_platforms_for_entries(
+            entries=req.dependency_entries,
+            declared_platforms=req.platforms,
+            global_declared_platforms=global_declared_platforms,
+            platforms_override=platforms_override,
         )
         platform_deps = _extract_dependencies(
             req.dependency_entries,
@@ -1055,8 +1060,8 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         # Collect channels and platforms
         if req.channels:
             all_channels.update(req.channels)
-        if req.platforms and not platforms_override:
-            all_platforms.update(req.platforms)
+        if not platforms_override and feature_platforms:
+            all_platforms.update(feature_platforms)
 
         # Build the feature dict from platform deps
         feature = _build_feature_dict(platform_deps)
@@ -1108,15 +1113,23 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         ]
         for group_name in all_group_names:
             group_entries = req.optional_dependency_entries.get(group_name, [])
+            group_platforms = _feature_platforms_for_entries(
+                entries=group_entries,
+                declared_platforms=req.platforms,
+                global_declared_platforms=global_declared_platforms,
+                platforms_override=platforms_override,
+            )
             group_platform_deps = _extract_dependencies(
                 group_entries,
-                platforms=feature_platforms,
+                platforms=group_platforms,
                 allow_hoist_without_universal_origin=platforms_override is not None
                 or not req.platforms,
             )
             discovered_target_platforms.update(
                 platform for platform in group_platform_deps if platform is not None
             )
+            if not platforms_override and group_platforms:
+                all_platforms.update(group_platforms)
             opt_feature = _build_feature_dict(group_platform_deps)
             opt_feature_name = _unique_optional_feature_name(
                 parent_feature=feature_name,
@@ -1212,6 +1225,36 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         all_platforms=all_platforms,
         discovered_target_platforms=discovered_target_platforms,
     )
+
+
+def _selector_platforms_from_entries(
+    entries: Sequence[DependencyEntry],
+) -> list[Platform]:
+    selector_platforms: set[Platform] = set()
+    for entry in entries:
+        for spec in (entry.conda, entry.pip):
+            if spec is None or spec.selector is None:
+                continue
+            entry_platforms = spec.platforms()
+            if entry_platforms is not None:
+                selector_platforms.update(entry_platforms)
+    return sorted(selector_platforms)
+
+
+def _feature_platforms_for_entries(
+    *,
+    entries: Sequence[DependencyEntry],
+    declared_platforms: Sequence[Platform],
+    global_declared_platforms: set[Platform],
+    platforms_override: list[Platform] | None,
+) -> list[Platform] | None:
+    if platforms_override:
+        return list(platforms_override)
+    if declared_platforms:
+        return list(declared_platforms)
+    inferred_platforms = set(global_declared_platforms)
+    inferred_platforms.update(_selector_platforms_from_entries(entries))
+    return sorted(inferred_platforms) or None
 
 
 def generate_pixi_toml(
@@ -1485,9 +1528,7 @@ def _write_pixi_toml(
     verbose: bool = False,
 ) -> None:
     """Write the pixi data structure to a TOML file."""
-    try:
-        import tomli_w
-    except ImportError:  # pragma: no cover
+    if tomli_w is None:  # pragma: no cover
         msg = (
             "❌ `tomli_w` is required to write TOML files. "
             "Install it with `pip install tomli_w`."
