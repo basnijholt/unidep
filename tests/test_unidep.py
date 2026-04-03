@@ -16,11 +16,10 @@ from unidep import (
     get_python_dependencies,
     parse_local_dependencies,
     parse_requirements,
-    resolve_conflicts,
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
-from unidep._conflicts import VersionConflictError
+from unidep._conflicts import VersionConflictError, resolve_conflicts
 from unidep._setuptools_integration import _path_to_file_uri
 from unidep.platform_definitions import Platform, Spec
 from unidep.utils import is_pip_installable
@@ -1204,8 +1203,7 @@ def test_different_pins_on_conda_and_pip(
             ),
         ],
     }
-    with pytest.warns(UserWarning, match="Version Pinning Conflict"):
-        resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             None: {

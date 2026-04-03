@@ -297,7 +297,9 @@ UniDep supports a range of version pinning operators (the same as Conda):
 
 - **Within-source pinning priority**: `unidep` combines repeated entries within the same source (`conda` or `pip`) and gives priority to version-pinned packages. For instance, if both `foo` and `foo <1` are listed for the same source, `foo <1` is selected due to its specific version pin.
 
-- **Cross-source preservation**: When the same logical dependency is declared for both Conda and Pip, `resolve_conflicts()` preserves both sources in the resolved metadata. CLI-facing renderers now consume `parse_requirements(...).dependency_entries`, but the preserved metadata model still explains how cross-source alternatives are kept until a target chooses between them.
+- **Entry-based rendering**: CLI-facing outputs now work from `parse_requirements(...).dependency_entries`, preserving each original declaration long enough for the shared selector to choose the final Conda-like or pip-only result.
+
+- **Lower-level metadata helper**: `resolve_conflicts()` still exists for the older dict-based requirements model (`ParsedRequirements.requirements`), but it is no longer the main renderer handoff.
 
 - **Conda-like paired-entry selection**: For explicit dependency entries that provide both `conda:` and `pip:` alternatives, Conda-like outputs use deterministic source selection rules: Pip extras win, otherwise a single pinned side wins, and ties prefer Conda.
 
@@ -1065,7 +1067,7 @@ When the same package appears from both conda and pip, UniDep applies determinis
 1. If pip has extras (`foo[bar]`), pip wins.
 2. If only one side is pinned, pinned wins.
 3. On ties (both pinned or both unpinned), conda wins.
-4. For **universal conda vs target-specific pip** where both are pinned, target-specific pip intent is preserved on that target; the demoted universal entry is restored to other platforms as explicit target deps.
+4. When both sides are pinned and one declaration is narrower in platform scope, the narrower target-specific intent wins on that target. Other platforms continue through the same shared selection rules independently.
 
 Version pins from repeated entries are merged when possible (for example `>=1.7,<2` + `<1.16` → `>=1.7,<1.16`).
 

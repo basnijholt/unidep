@@ -21,13 +21,10 @@ from unidep._pixi import (
     _discover_local_dependency_graph,
     _editable_dependency_path,
     _make_pip_version_spec,
-    _merge_version_specs,
     _parse_direct_requirements_for_node,
     _parse_version_build,
-    _resolve_conda_pip_conflict,
     _unique_env_name,
     _unique_optional_feature_name,
-    _version_spec_is_pinned,
     _with_unique_order_paths,
     generate_pixi_toml,
 )
@@ -2337,20 +2334,6 @@ def test_pixi_monorepo_skips_empty_optional_feature_group(tmp_path: Path) -> Non
     assert "project1-docs" not in data["feature"]
 
 
-# Tests for build string parsing
-
-
-def test_resolve_conda_pip_conflict_prefers_pip_with_extras() -> None:
-    """Pip extras cannot be represented via conda, so keep pip and drop conda."""
-    conda_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
-    pip_deps: dict[str, str | dict[str, object]] = {
-        "foo": {"version": "*", "extras": ["dev"]},
-    }
-    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
-    assert "foo" not in conda_deps
-    assert "foo" in pip_deps
-
-
 def test_derive_feature_names_handles_commonpath_valueerror(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2592,73 +2575,6 @@ def test_pixi_with_pip_extras(tmp_path: Path) -> None:
     assert '"test"' in content
 
 
-# --- Parametrized _merge_version_specs tests ---
-
-
-@pytest.mark.parametrize(
-    ("existing", "new", "pkg", "expected"),
-    [
-        # Simple merges
-        pytest.param(
-            ">=1.7,<2",
-            "<1.16",
-            "scipy",
-            ">=1.7,<1.16",
-            id="merge-tighter-upper",
-        ),
-        pytest.param(">=1.0", "<2.0", "pkg", ">=1.0,<2.0", id="merge-lower-upper"),
-        pytest.param(">=1.0", ">=2.0", "pkg", ">=2.0", id="merge-tighter-lower"),
-        # Build strings
-        pytest.param(
-            {"version": ">=1.0", "build": "cuda*"},
-            ">=2.0",
-            "pkg",
-            {"version": ">=1.0", "build": "cuda*"},
-            id="keep-existing-with-build",
-        ),
-        pytest.param(
-            ">=1.0",
-            {"version": ">=2.0", "build": "py310*"},
-            "pkg",
-            {"version": ">=2.0", "build": "py310*"},
-            id="use-new-with-build",
-        ),
-        # Extras
-        pytest.param(
-            {"version": ">=1.0", "extras": ["dev"]},
-            {"version": "<2.0", "extras": ["test"]},
-            "pkg",
-            {"version": ">=1.0,<2.0", "extras": ["dev", "test"]},
-            id="merge-extras",
-        ),
-        # Conflicts
-        pytest.param(">=2.0", "<1.0", "pkg", ">=2.0,<1.0", id="conflict-fallback"),
-        pytest.param("<1.0", ">=2.0", "pkg", ">=2.0,<1.0", id="conflict-reverse-order"),
-        pytest.param("==1.0", ">=2.0", "pkg", "==1.0,>=2.0", id="exact-pin-conflict"),
-        pytest.param(">=2.0", "*", "pkg", ">=2.0", id="new-is-star"),
-        # Existing star
-        pytest.param("*", ">=1.0", "pkg", ">=1.0", id="existing-star"),
-    ],
-)
-def test_merge_version_specs(
-    existing: str | dict[str, Any],
-    new: str | dict[str, Any],
-    pkg: str,
-    expected: str | dict[str, Any],
-) -> None:
-    """Test _merge_version_specs handles various merge scenarios."""
-    result = _merge_version_specs(existing, new, pkg)
-    if isinstance(expected, dict):
-        assert isinstance(result, dict)
-        assert result["version"] == expected["version"]
-        if "extras" in expected:
-            assert result["extras"] == expected["extras"]
-        if "build" in expected:
-            assert result["build"] == expected["build"]
-    else:
-        assert result == expected
-
-
 def test_pixi_with_merged_constraints(tmp_path: Path) -> None:
     """Test pixi.toml generation merges version constraints."""
     req_file = _write_file(
@@ -2853,9 +2769,7 @@ def test_pixi_demoted_universal_merges_constraints_across_demotions(
     data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     assert data["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
-    expected = _merge_version_specs(">=8", "<=10", "click")
-    assert isinstance(expected, str)
-    assert data["target"]["osx-64"]["dependencies"]["click"] == expected
+    assert data["target"]["osx-64"]["dependencies"]["click"] == ">=8,<=10"
 
 
 def test_pixi_raises_when_losing_pip_alternative_is_internally_contradictory(
@@ -2889,10 +2803,6 @@ def test_parse_version_build_whitespace_only() -> None:
 def test_make_pip_version_spec_dict_with_extras() -> None:
     result = _make_pip_version_spec({"version": ">=1.0", "build": "py3*"}, ["extra1"])
     assert result == {"version": ">=1.0", "build": "py3*", "extras": ["extra1"]}
-
-
-def test_version_spec_is_pinned_dict_with_version() -> None:
-    assert _version_spec_is_pinned({"version": ">=1.0"}) is True
 
 
 def test_with_unique_order_paths_deduplicates(tmp_path: Path) -> None:

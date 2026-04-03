@@ -25,13 +25,6 @@ try:
 except ImportError:  # pragma: no cover
     tomli_w = None
 
-from unidep._conflicts import (
-    ALL_VERSION_OPERATORS,
-    VersionConflictError,
-    _reconcile_conda_pip_pair,
-    combine_version_pinnings,
-    extract_version_operator,
-)
 from unidep._dependencies_parsing import (
     DependencyEntry,
     _apply_local_dependency_override,
@@ -76,9 +69,6 @@ if TYPE_CHECKING:
         Optional[str],
         Tuple[Dict[str, VersionSpec], Dict[str, VersionSpec]],
     ]
-
-
-_OPERATOR_ORDER: dict[str, int] = {op: i for i, op in enumerate(ALL_VERSION_OPERATORS)}
 
 
 def _parse_version_build(pin: str | None) -> str | dict[str, str]:
@@ -154,112 +144,6 @@ def _make_pip_version_spec(
         return {"version": version, "extras": extras}
     # version is already a dict (has build string), add extras
     return {**version, "extras": extras}
-
-
-def _canonicalize_version_spec(version_spec: str) -> str:
-    """Normalize comma-separated version constraints to a stable order."""
-    if "," not in version_spec:
-        return version_spec
-
-    def _constraint_key(constraint: str) -> tuple[int, str]:
-        token = constraint.strip()
-        op = extract_version_operator(token)
-        return (_OPERATOR_ORDER.get(op, len(ALL_VERSION_OPERATORS)), token)
-
-    parts = [part.strip() for part in version_spec.split(",") if part.strip()]
-    return ",".join(sorted(parts, key=_constraint_key))
-
-
-def _merge_version_specs(
-    existing: str | dict[str, Any] | None,
-    new: str | dict[str, Any],
-    pkg_name: str,
-) -> str | dict[str, Any]:
-    """Merge two version specs, combining version constraints.
-
-    Uses combine_version_pinnings from _conflicts.py to properly merge
-    constraints like ">=1.7,<2" + "<1.16" -> ">=1.7,<1.16".
-
-    If either spec has a build string, we can't merge and prefer the new one
-    if it has a pin, otherwise keep existing.
-
-    """
-    if existing is None:
-        return new
-
-    # If either is a dict with build string, we can't merge version constraints
-    existing_has_build = isinstance(existing, dict) and "build" in existing
-    new_has_build = isinstance(new, dict) and "build" in new
-
-    if existing_has_build or new_has_build:
-        # Can't merge build strings - prefer the one with build, or new if both have
-        if new_has_build:
-            return new
-        return existing
-
-    # Extract version strings
-    existing_version = existing["version"] if isinstance(existing, dict) else existing
-    new_version = new["version"] if isinstance(new, dict) else new
-
-    # Handle "*" (no constraint)
-    if existing_version == "*":
-        merged_version = new_version
-    elif new_version == "*":
-        merged_version = existing_version
-    else:
-        # Merge constraints in a deterministic order.
-        constraint_pair = sorted([existing_version, new_version])
-        try:
-            merged_version = combine_version_pinnings(constraint_pair, name=pkg_name)
-        except VersionConflictError:
-            # Keep both constraints (deterministically ordered) so the manifest
-            # stays explicit and downstream solvers can report unsatisfiable specs.
-            merged_version = ",".join(constraint_pair)
-        merged_version = _canonicalize_version_spec(merged_version)
-
-    # Handle extras (for pip packages)
-    existing_extras = existing.get("extras", []) if isinstance(existing, dict) else []
-    new_extras = new.get("extras", []) if isinstance(new, dict) else []
-    merged_extras = sorted(set(existing_extras) | set(new_extras))
-
-    if merged_extras:
-        return {"version": merged_version, "extras": merged_extras}
-    return merged_version
-
-
-def _version_spec_is_pinned(version_spec: VersionSpec) -> bool:
-    """Return True if the version spec has a concrete pin."""
-    if isinstance(version_spec, dict):
-        version = version_spec.get("version", "*")
-        if version != "*":
-            return True
-        return "build" in version_spec
-    return version_spec != "*"
-
-
-def _resolve_conda_pip_conflict(
-    conda_deps: dict[str, VersionSpec],
-    pip_deps: dict[str, VersionSpec],
-    base_name: str,
-) -> None:
-    """Resolve conflicts between conda and pip specs for the same package."""
-    conda_spec = conda_deps.get(base_name)
-    pip_spec = pip_deps.get(base_name)
-    if conda_spec is None or pip_spec is None:
-        return
-
-    conda_kept, pip_kept = _reconcile_conda_pip_pair(
-        conda=conda_spec,
-        pip=pip_spec,
-        conda_pinned=_version_spec_is_pinned(conda_spec),
-        pip_pinned=_version_spec_is_pinned(pip_spec),
-        pip_has_extras=bool(isinstance(pip_spec, dict) and pip_spec.get("extras")),
-        on_tie="conda",
-    )
-    if pip_kept is None:
-        pip_deps.pop(base_name, None)
-    elif conda_kept is None:
-        conda_deps.pop(base_name, None)
 
 
 def _get_package_name(project_dir: Path) -> str:
@@ -734,33 +618,6 @@ def _entry_key(
     conda = _spec_key(entry.conda) if entry.conda is not None else None
     pip = _spec_key(entry.pip) if entry.pip is not None else None
     return (conda, pip)
-
-
-def _subtract_requirements(
-    full_requirements: dict[str, list[Spec]],
-    base_requirements: dict[str, list[Spec]],
-) -> dict[str, list[Spec]]:
-    """Return specs present in full_requirements but not in base_requirements.
-
-    Comparison uses stable Spec fields (name, which, pin, selector) so that
-    parse-time identifier differences between separate parse_requirements calls
-    don't cause false mismatches.
-    """
-    diff: dict[str, list[Spec]] = {}
-    for package_name, specs in full_requirements.items():
-        remaining = Counter(
-            _spec_key(s) for s in base_requirements.get(package_name, [])
-        )
-        package_diff: list[Spec] = []
-        for spec in specs:
-            key = _spec_key(spec)
-            if remaining[key] > 0:
-                remaining[key] -= 1
-            else:
-                package_diff.append(spec)
-        if package_diff:
-            diff[package_name] = package_diff
-    return diff
 
 
 def _subtract_entries(

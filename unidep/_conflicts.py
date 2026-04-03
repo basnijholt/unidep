@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from packaging import version
 
 from unidep.platform_definitions import Platform, Spec
-from unidep.utils import defaultdict_to_dict, warn
+from unidep.utils import defaultdict_to_dict
 
 if sys.version_info >= (3, 8):
     from typing import Literal, TypeVar, get_args
@@ -172,18 +172,6 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip
     pip_spec = sources.get("pip")
     if not conda_spec or not pip_spec:  # If either is missing, there is no conflict
         return sources
-
-    if (
-        conda_spec.pin is not None
-        and pip_spec.pin is not None
-        and conda_spec.pin != pip_spec.pin
-    ):
-        warn(
-            "Version Pinning Conflict:\n"
-            f"Different version specifications for Conda ('{conda_spec.pin}') and Pip"
-            f" ('{pip_spec.pin}'). Both versions are retained.",
-            stacklevel=2,
-        )
     return sources
 
 
@@ -208,7 +196,12 @@ def resolve_conflicts(
     platforms: list[Platform] | None = None,
     optional_dependencies: dict[str, dict[str, list[Spec]]] | None = None,
 ) -> dict[str, dict[Platform | None, dict[CondaPip, Spec]]]:
-    """Resolve conflicts in a dictionary of requirements.
+    """Resolve conflicts in a dict-based requirements model.
+
+    This helper consolidates within-source duplicates on
+    ``ParsedRequirements.requirements`` and preserves conda/pip alternatives in the
+    returned metadata. CLI-facing renderers instead consume
+    ``parse_requirements(...).dependency_entries`` and apply source selection later.
 
     Parameters
     ----------
