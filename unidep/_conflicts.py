@@ -15,9 +15,9 @@ from unidep.platform_definitions import Platform, Spec
 from unidep.utils import defaultdict_to_dict
 
 if sys.version_info >= (3, 8):
-    from typing import Literal, TypeVar, get_args
+    from typing import get_args
 else:  # pragma: no cover
-    from typing_extensions import Literal, TypeVar, get_args
+    from typing_extensions import get_args
 
 
 if TYPE_CHECKING:
@@ -40,7 +40,6 @@ ALL_VERSION_OPERATORS: tuple[str, ...] = (
 VALID_OPERATORS = [op for op in ALL_VERSION_OPERATORS if op not in ("===", "==", "~=")]
 
 _REPO_URL = "https://github.com/basnijholt/unidep"
-TSourceSpec = TypeVar("TSourceSpec")
 
 
 def extract_version_operator(constraint: str) -> str:
@@ -54,33 +53,6 @@ def extract_version_operator(constraint: str) -> str:
         (op for op in ALL_VERSION_OPERATORS if constraint.startswith(op)),
         "",
     )
-
-
-def _reconcile_conda_pip_pair(
-    *,
-    conda: TSourceSpec | None,
-    pip: TSourceSpec | None,
-    conda_pinned: bool,
-    pip_pinned: bool,
-    pip_has_extras: bool = False,
-    on_tie: CondaPip | Literal["both"] = "both",
-) -> tuple[TSourceSpec | None, TSourceSpec | None]:
-    """Reconcile one conda/pip pair and return surviving entries."""
-    if conda is None or pip is None:
-        return conda, pip
-    if pip_has_extras:
-        decision: CondaPip | Literal["both"] = "pip"
-    elif conda_pinned and not pip_pinned:
-        decision = "conda"
-    elif pip_pinned and not conda_pinned:
-        decision = "pip"
-    else:
-        decision = on_tie
-    if decision == "conda":
-        return conda, None
-    if decision == "pip":
-        return None, pip
-    return conda, pip
 
 
 def _prepare_specs_for_conflict_resolution(
@@ -167,14 +139,6 @@ def _combine_pinning_within_platform(
     return reduced_data
 
 
-def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip, Spec]:
-    conda_spec = sources.get("conda")
-    pip_spec = sources.get("pip")
-    if not conda_spec or not pip_spec:  # If either is missing, there is no conflict
-        return sources
-    return sources
-
-
 class VersionConflictError(ValueError):
     """Raised when a version conflict is detected."""
 
@@ -236,14 +200,9 @@ def resolve_conflicts(
     prepared = _prepare_specs_for_conflict_resolution(requirements)
     for data in prepared.values():
         _pop_unused_platforms_and_maybe_expand_none(data, platforms)
-    resolved = {
+    return {
         pkg: _combine_pinning_within_platform(data) for pkg, data in prepared.items()
     }
-
-    for _platforms in resolved.values():
-        for _platform, sources in _platforms.items():
-            _platforms[_platform] = _resolve_conda_pip_conflicts(sources)
-    return resolved
 
 
 def _parse_pinning(pinning: str) -> tuple[str, version.Version]:

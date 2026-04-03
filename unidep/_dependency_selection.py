@@ -41,7 +41,6 @@ class SourceRequirement:
     extras: tuple[str, ...]
     declared_platforms: tuple[Platform, ...] | None
     origin: DependencyOrigin
-    entry_id: str
 
 
 @dataclass(frozen=True)
@@ -384,7 +383,6 @@ def _source_requirement_from_spec(
     *,
     family_key: FamilyKey,
     origin: DependencyOrigin,
-    entry_id: str,
     declared_platforms: tuple[Platform, ...] | None,
 ) -> SourceRequirement:
     if spec.which == "pip":
@@ -403,7 +401,6 @@ def _source_requirement_from_spec(
         extras=extras,
         declared_platforms=declared_platforms,
         origin=origin,
-        entry_id=entry_id,
     )
 
 
@@ -454,7 +451,6 @@ def _build_platform_candidates(
                 spec,
                 family_key=family_key,
                 origin=entry.origin,
-                entry_id=entry.identifier,
                 declared_platforms=declared_platforms,
             )
             for platform in targets:

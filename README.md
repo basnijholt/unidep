@@ -260,15 +260,18 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 
 ### Supported Version Pinnings
 
-UniDep supports a range of version pinning operators (the same as Conda):
+UniDep has two relevant pinning layers:
 
-- **Standard Version Constraints**: Specify exact versions or ranges with standard operators like `=`, `>`, `<`, `>=`, `<=`.
-  - Example: `=1.0.0`, `>1.0.0, <2.0.0`.
+- **Dict-based conflict helper (`unidep._conflicts.resolve_conflicts`)**: combines repeated pinnings with the Conda-compatible subset of operators: `=`, `>`, `<`, `>=`, `<=`, `!=`.
+- **CLI-facing pip renderers**: additionally preserve safe pip-only PEP 440 forms such as `==` and `~=` when those constraints can be kept explicitly without ambiguity.
 
-- **Version Exclusions**: Exclude specific versions using `!=`.
-  - Example: `!=1.5.0`.
+Examples:
 
-- **Redundant Pinning Resolution**: Automatically resolves redundant version specifications.
+- Conda-compatible merge: `>1.0.0, <2.0.0`
+- Exact pip pin: `==0.25.2.1`
+- Compatible release pin: `~=1.0`
+
+- **Redundant Pinning Resolution**: Automatically resolves redundant compatible constraints when possible.
   - Example: `>1.0.0, >0.5.0` simplifies to `>1.0.0`.
 
 - **Contradictory Version Detection**: Errors are raised for contradictory pinnings to maintain dependency integrity. See the [Conflict Resolution](#conflict-resolution) section for more information.
@@ -299,7 +302,7 @@ UniDep supports a range of version pinning operators (the same as Conda):
 
 - **Entry-based rendering**: CLI-facing outputs now work from `parse_requirements(...).dependency_entries`, preserving each original declaration long enough for the shared selector to choose the final Conda-like or pip-only result.
 
-- **Lower-level metadata helper**: `resolve_conflicts()` still exists for the older dict-based requirements model (`ParsedRequirements.requirements`), but it is no longer the main renderer handoff.
+- **Lower-level metadata helper**: `unidep._conflicts.resolve_conflicts()` still exists for the older dict-based requirements model (`ParsedRequirements.requirements`), but it is no longer the main renderer handoff.
 
 - **Conda-like paired-entry selection**: For explicit dependency entries that provide both `conda:` and `pip:` alternatives, Conda-like outputs use deterministic source selection rules: Pip extras win, otherwise a single pinned side wins, and ties prefer Conda.
 

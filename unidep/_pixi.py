@@ -1230,8 +1230,8 @@ def _extract_dependencies(  # noqa: PLR0912
         per_platform: dict[
             Platform,
             tuple[
-                dict[str, tuple[VersionSpec, bool]],
-                dict[str, tuple[VersionSpec, bool]],
+                dict[str, VersionSpec],
+                dict[str, VersionSpec],
             ],
         ] = {platform: ({}, {}) for platform in target_platforms}
         for platform, candidates in selected.items():
@@ -1239,13 +1239,9 @@ def _extract_dependencies(  # noqa: PLR0912
                 continue
             conda_deps, pip_deps = per_platform[platform]
             for candidate in candidates:
-                has_universal_origin = any(
-                    scope is None for scope in candidate.declared_scopes
-                )
                 if candidate.source == "conda":
-                    conda_deps[candidate.spec.name] = (
-                        _parse_version_build(candidate.spec.pin),
-                        has_universal_origin,
+                    conda_deps[candidate.spec.name] = _parse_version_build(
+                        candidate.spec.pin,
                     )
                 else:
                     base_name, extras = _parse_package_extras(candidate.spec.name)
@@ -1254,10 +1250,7 @@ def _extract_dependencies(  # noqa: PLR0912
                         normalized[len(candidate.spec.name) :].strip() or None
                     )
                     version = _parse_version_build(normalized_pin)
-                    pip_deps[base_name] = (
-                        _make_pip_version_spec(version, extras),
-                        has_universal_origin,
-                    )
+                    pip_deps[base_name] = _make_pip_version_spec(version, extras)
 
         universal_conda, universal_pip = platform_deps[None]
         conda_names = {
@@ -1276,15 +1269,13 @@ def _extract_dependencies(  # noqa: PLR0912
                 if name in deps[0]
             }
             if len(present) == len(target_platforms):
-                first_spec, _first_universal = next(iter(present.values()))
-                specs_match = all(
-                    spec == first_spec for spec, _is_universal in present.values()
-                )
+                first_spec = next(iter(present.values()))
+                specs_match = all(spec == first_spec for spec in present.values())
                 hoist_is_safe = allow_hoist_without_universal_origin
                 if specs_match and hoist_is_safe:
                     universal_conda[name] = first_spec
                     continue
-            for platform, (spec, _is_universal) in present.items():
+            for platform, spec in present.items():
                 platform_deps.setdefault(platform, ({}, {}))[0][name] = spec
 
         for name in sorted(pip_names):
@@ -1294,15 +1285,13 @@ def _extract_dependencies(  # noqa: PLR0912
                 if name in deps[1]
             }
             if len(present) == len(target_platforms):
-                first_spec, _first_universal = next(iter(present.values()))
-                specs_match = all(
-                    spec == first_spec for spec, _is_universal in present.values()
-                )
+                first_spec = next(iter(present.values()))
+                specs_match = all(spec == first_spec for spec in present.values())
                 hoist_is_safe = allow_hoist_without_universal_origin
                 if specs_match and hoist_is_safe:
                     universal_pip[name] = first_spec
                     continue
-            for platform, (spec, _is_universal) in present.items():
+            for platform, spec in present.items():
                 platform_deps.setdefault(platform, ({}, {}))[1][name] = spec
     else:
         universal_conda_deps, universal_pip_deps = platform_deps[None]
