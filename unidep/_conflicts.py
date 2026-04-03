@@ -70,11 +70,6 @@ def _reconcile_conda_pip_pair(
         return conda, pip
     if pip_has_extras:
         decision: CondaPip | Literal["both"] = "pip"
-    elif on_tie == "both":
-        # When the caller requests both, always keep both.
-        # The pinning heuristic should only choose a winner when
-        # the caller wants at most one source to survive.
-        decision = "both"
     elif conda_pinned and not pip_pinned:
         decision = "conda"
     elif pip_pinned and not conda_pinned:
@@ -178,26 +173,18 @@ def _resolve_conda_pip_conflicts(sources: dict[CondaPip, Spec]) -> dict[CondaPip
     if not conda_spec or not pip_spec:  # If either is missing, there is no conflict
         return sources
 
-    conda_kept, pip_kept = _reconcile_conda_pip_pair(
-        conda=conda_spec,
-        pip=pip_spec,
-        conda_pinned=conda_spec.pin is not None,
-        pip_pinned=pip_spec.pin is not None,
-        on_tie="both",
-    )
-    if conda_kept is None:
-        return {"pip": pip_spec}
-    if pip_kept is None:
-        return {"conda": conda_spec}
-
-    if conda_spec.pin != pip_spec.pin:
+    if (
+        conda_spec.pin is not None
+        and pip_spec.pin is not None
+        and conda_spec.pin != pip_spec.pin
+    ):
         warn(
             "Version Pinning Conflict:\n"
             f"Different version specifications for Conda ('{conda_spec.pin}') and Pip"
             f" ('{pip_spec.pin}'). Both versions are retained.",
             stacklevel=2,
         )
-    return {"conda": conda_kept, "pip": pip_kept}
+    return sources
 
 
 class VersionConflictError(ValueError):

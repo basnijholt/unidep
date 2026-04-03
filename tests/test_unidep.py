@@ -187,12 +187,8 @@ def test_generate_conda_env_file(
 ) -> None:
     output_file = tmp_path / "environment.yaml"
     requirements = parse_requirements(*setup_test_files, verbose=verbose)
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        requirements.platforms,
-    )
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -211,12 +207,8 @@ def test_generate_conda_env_stdout(
     capsys: pytest.CaptureFixture,
 ) -> None:
     requirements = parse_requirements(*setup_test_files)
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        requirements.platforms,
-    )
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -247,18 +239,14 @@ def test_create_conda_env_specification_platforms(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p)
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        requirements.platforms,
-    )
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
     assert env_spec.conda == [
-        {"sel(osx)": "yolo"},
         {"sel(linux)": "foo"},
+        {"sel(osx)": "yolo"},
         {"sel(win)": "bar"},
     ]
     expected_pip = [
@@ -269,22 +257,18 @@ def test_create_conda_env_specification_platforms(
 
     # Test on two platforms
     platforms: list[Platform] = ["osx-arm64", "win-64"]
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms,
-    )
 
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms,
     )
     assert env_spec.conda == [{"sel(osx)": "yolo"}, {"sel(win)": "bar"}]
-    assert env_spec.pip == expected_pip
+    assert sorted(env_spec.pip) == sorted(expected_pip)
 
     # Test with comment selector
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms,
         selector="comment",
@@ -742,7 +726,10 @@ def test_filter_pip_and_conda(
         },
     }
     # Pip
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == [
         "common_package; sys_platform == 'linux' or sys_platform == 'darwin'",
         "package3",
@@ -752,7 +739,7 @@ def test_filter_pip_and_conda(
 
     # Conda
     conda_env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         channels=requirements.channels,
         platforms=requirements.platforms,
     )
@@ -769,11 +756,13 @@ def test_filter_pip_and_conda(
             {"sel(linux)": "shared_package"},
         ],
     )
-    assert conda_env_spec.pip == [
-        "package3",
-        "package4; sys_platform == 'linux' or sys_platform == 'darwin'",
-        "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
-    ]
+    assert sorted(conda_env_spec.pip) == sorted(
+        [
+            "package3",
+            "package4; sys_platform == 'linux' or sys_platform == 'darwin'",
+            "shared_package; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        ],
+    )
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -872,14 +861,17 @@ def test_duplicates_with_version(
         },
     }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
-    assert env_spec.conda == [{"sel(linux)": "foo >1"}, "bar"]
+    assert env_spec.conda == ["bar", {"sel(linux)": "foo >1"}]
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == [
         "bar",
         "foo >1; sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -987,29 +979,32 @@ def test_duplicates_different_platforms(
         },
     }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
-    assert env_spec.conda == [{"sel(linux)": "foo >1,<=2"}]
+    assert env_spec.conda == [{"sel(linux)": "foo <=2,>1"}]
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == [
-        "foo <=2; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo <=2; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo >1,<=2; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo <=2,>1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        "foo <=2; sys_platform == 'linux' and platform_machine == 'aarch64' or "
+        "sys_platform == 'linux' and platform_machine == 'ppc64le'",
     ]
 
     # now only use linux-64
     platforms: list[Platform] = ["linux-64"]
     resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms,
     )
-    assert env_spec.conda == ["foo >1,<=2"]
+    assert env_spec.conda == ["foo <=2,>1"]
     assert env_spec.pip == []
 
 
@@ -1150,7 +1145,7 @@ def test_expand_none_with_different_platforms(
         },
     }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -1162,13 +1157,16 @@ def test_expand_none_with_different_platforms(
 
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == [
-        "foo <3; sys_platform == 'darwin' and platform_machine == 'arm64'",
-        "foo <3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-        "foo <3; sys_platform == 'linux' and platform_machine == 'aarch64'",
-        "foo <3; sys_platform == 'linux' and platform_machine == 'ppc64le'",
-        "foo <3; sys_platform == 'win32' and platform_machine == 'AMD64'",
+        "foo <3; sys_platform == 'linux' and platform_machine == 'aarch64' or "
+        "sys_platform == 'linux' and platform_machine == 'ppc64le' or "
+        "sys_platform == 'darwin' and platform_machine == 'x86_64' or "
+        "sys_platform == 'darwin' and platform_machine == 'arm64' or "
+        "sys_platform == 'win32' and platform_machine == 'AMD64'",
         "foo >1,<3; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
 
@@ -1227,7 +1225,7 @@ def test_different_pins_on_conda_and_pip(
         },
     }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -1235,7 +1233,10 @@ def test_different_pins_on_conda_and_pip(
 
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == ["foo >1"]
 
 
@@ -1257,8 +1258,25 @@ def test_pip_pinned_conda_not(
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "foo": {
+            None: {
+                "conda": Spec(
+                    name="foo",
+                    which="conda",
+                    identifier="17e5d607",
+                ),
+                "pip": Spec(
+                    name="foo",
+                    which="pip",
+                    pin=">1",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -1266,7 +1284,10 @@ def test_pip_pinned_conda_not(
 
     assert env_spec.pip == ["foo >1"]
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == ["foo >1"]
 
 
@@ -1288,8 +1309,25 @@ def test_conda_pinned_pip_not(
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
     resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    assert resolved == {
+        "foo": {
+            None: {
+                "conda": Spec(
+                    name="foo",
+                    which="conda",
+                    pin=">1",
+                    identifier="17e5d607",
+                ),
+                "pip": Spec(
+                    name="foo",
+                    which="pip",
+                    identifier="17e5d607",
+                ),
+            },
+        },
+    }
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -1297,8 +1335,40 @@ def test_conda_pinned_pip_not(
 
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
-    assert python_deps == []
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["foo"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_get_python_dependencies_preserves_platform_specific_pip_with_pinned_conda(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            platforms:
+                - linux-64
+                - osx-arm64
+            dependencies:
+                - conda: mypackage >=1.0 variant* # [linux64]
+                  pip: mypackage # [linux64]
+                - mypackage # [arm64]
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    deps = get_python_dependencies(p, verbose=False)
+
+    assert deps.dependencies == [
+        "mypackage; sys_platform == 'linux' and platform_machine == 'x86_64' "
+        "or sys_platform == 'darwin' and platform_machine == 'arm64'",
+    ]
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -1317,8 +1387,10 @@ def test_filter_python_dependencies_with_platforms(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, ["linux-64"])
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        ["linux-64"],
+    )
     assert python_deps == [
         "foo; sys_platform == 'linux' and platform_machine == 'x86_64'",
     ]
@@ -1340,9 +1412,8 @@ def test_conda_with_comments(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="comment",
@@ -1371,16 +1442,18 @@ def test_duplicate_names(toml_or_yaml: Literal["toml", "yaml"], tmp_path: Path) 
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
     assert env_spec.conda == ["flatbuffers", "python-flatbuffers"]
     assert env_spec.pip == []
 
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == ["flatbuffers"]
 
 
@@ -1401,9 +1474,8 @@ def test_conflicts_when_selector_comment(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="comment",
@@ -1432,19 +1504,18 @@ def test_conflicts_when_selector_comment(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="comment",
     )
     assert env_spec.conda == [
-        "foo <2,>1",
-        "foo <2,>1",
-        "foo <2,>1",
-        "foo <2,>1",
-        "foo <2,>1",
+        "foo >1,<2",
+        "foo >1,<2",
+        "foo >1,<2",
+        "foo >1,<2",
+        "foo >1,<2",
         "foo >1",
     ]
     assert env_spec.pip == []
@@ -1453,11 +1524,11 @@ def test_conflicts_when_selector_comment(
 
     with (tmp_path / "environment.yaml").open() as f:
         text = "".join(f.readlines())
-        assert "- foo <2,>1  # [linux64]" in text
-        assert "- foo <2,>1 # [osx64]" in text
-        assert "- foo <2,>1 # [arm64]" in text
-        assert "- foo <2,>1 # [aarch64]" in text
-        assert "- foo <2,>1 # [ppc64le]" in text
+        assert "- foo >1,<2  # [linux64]" in text
+        assert "- foo >1,<2 # [osx64]" in text
+        assert "- foo >1,<2 # [arm64]" in text
+        assert "- foo >1,<2 # [aarch64]" in text
+        assert "- foo >1,<2 # [ppc64le]" in text
         assert "- foo >1 # [win64]" in text
 
 
@@ -1481,9 +1552,8 @@ def test_platforms_section_in_yaml(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="sel",
@@ -1491,7 +1561,10 @@ def test_platforms_section_in_yaml(
     assert env_spec.conda == ["foo"]
     assert env_spec.pip == []
     assert env_spec.platforms == ["linux-64", "osx-arm64"]
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == ["foo"]
 
 
@@ -1519,18 +1592,20 @@ def test_platforms_section_in_yaml_similar_platforms(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
-    with pytest.warns(UserWarning, match="Dependency Conflict on"):
-        env_spec = create_conda_env_specification(
-            resolved,
+    with pytest.raises(
+        ValueError,
+        match="Use selector='comment' instead",
+    ):
+        create_conda_env_specification(
+            requirements.dependency_entries,
             requirements.channels,
             requirements.platforms,
             selector="sel",
         )
-    assert env_spec.conda == ["foo", {"sel(linux)": "yolo <1"}]
-    assert env_spec.pip == []
-    assert env_spec.platforms == ["linux-64", "linux-aarch64"]
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
     assert python_deps == [
         "foo",
         "yolo <1; sys_platform == 'linux' and platform_machine == 'aarch64'",
@@ -1539,7 +1614,7 @@ def test_platforms_section_in_yaml_similar_platforms(
 
     # Test with comment selector
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="comment",
@@ -1577,9 +1652,8 @@ def test_conda_with_non_platform_comment(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
         selector="comment",
@@ -1663,7 +1737,7 @@ def test_pip_and_conda_different_name_on_linux64(
     }
     assert resolved == expected_resolved
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -1869,9 +1943,8 @@ def test_duplicate_names_different_platforms(
         ],
     }
     platforms_arm64: list[Platform] = ["osx-arm64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms_arm64)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms_arm64,
     )
@@ -1879,9 +1952,8 @@ def test_duplicate_names_different_platforms(
     assert env_spec.pip == ["ray"]
 
     platforms_linux64: list[Platform] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms_linux64)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms_linux64,
     )
@@ -1909,9 +1981,8 @@ def test_with_unused_platform(
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
     platforms: list[Platform] = ["linux-64"]
-    resolved = resolve_conflicts(requirements.requirements, platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         platforms,
         selector="comment",
@@ -1941,9 +2012,26 @@ def test_pip_with_pinning(
     requirements = parse_requirements(p1, verbose=False)
     with pytest.raises(
         VersionConflictError,
-        match="Invalid version pinning '==0.25.2.1' for 'qiskit-terra'",
+        match=r"Invalid version pinning '==0\.25\.2\.1' for 'qiskit-terra'",
     ):
         resolve_conflicts(requirements.requirements, requirements.platforms)
+    with pytest.raises(
+        VersionConflictError,
+        match=r"Invalid version pinning '==0\.25\.2\.1' for 'qiskit-terra'",
+    ):
+        create_conda_env_specification(
+            requirements.dependency_entries,
+            requirements.channels,
+            requirements.platforms,
+        )
+    with pytest.raises(
+        VersionConflictError,
+        match=r"Invalid version pinning '==0\.25\.2\.1' for 'qiskit-terra'",
+    ):
+        filter_python_dependencies(
+            requirements.dependency_entries,
+            requirements.platforms,
+        )
 
     p2 = tmp_path / "p2" / "requirements.yaml"
     p2.parent.mkdir()
@@ -1959,9 +2047,8 @@ def test_pip_with_pinning(
     p2 = maybe_as_toml(toml_or_yaml, p2)
 
     requirements = parse_requirements(p2, verbose=False)
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     env_spec = create_conda_env_specification(
-        resolved,
+        requirements.dependency_entries,
         requirements.channels,
         requirements.platforms,
     )
@@ -2019,7 +2106,7 @@ def test_pip_with_pinning_special_case_wildcard(
 
     with pytest.raises(
         VersionConflictError,
-        match="['* cuda*', '* cpu*']",
+        match=r"Invalid version pinning '\* cuda\*'",
     ):
         resolve_conflicts(requirements.requirements, requirements.platforms)
 
@@ -2270,6 +2357,188 @@ def test_pip_dep_with_extras(
             },
         },
     }
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["adaptive[notebook]"]
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["adaptive[notebook]"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_explicit_conda_pip_pair_with_different_names_prefers_pinned_pip(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: python-graphviz
+                  pip: graphviz >1
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["graphviz >1"]
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["graphviz >1"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_same_source_final_collisions_merge_pip_extras(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: foo[dev]
+                - conda: bar
+                  pip: foo[test]
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["foo[dev,test]"]
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["foo[dev,test]"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_cross_source_final_collisions_raise_for_conda_like_outputs(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - foo
+                - conda: bar
+                  pip: foo >1
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    with pytest.raises(ValueError, match="Final Dependency Collision"):
+        create_conda_env_specification(
+            requirements.dependency_entries,
+            requirements.channels,
+            requirements.platforms,
+        )
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["foo >1"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_same_name_cross_family_collisions_choose_deterministically(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: foo
+                - pip: foo >1
+            platforms:
+                - linux-64
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["foo >1"]
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["foo >1"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_pip_pep440_constraints_fall_back_to_explicit_joined_string(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - pip: pkg ~=1.0
+                - pip: pkg <2
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    env_spec = create_conda_env_specification(
+        requirements.dependency_entries,
+        requirements.channels,
+        requirements.platforms,
+    )
+    assert env_spec.conda == []
+    assert env_spec.pip == ["pkg ~=1.0,<2"]
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["pkg ~=1.0,<2"]
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])

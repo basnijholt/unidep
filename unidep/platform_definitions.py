@@ -106,7 +106,7 @@ def platforms_from_selector(selector: str) -> list[Platform]:
     # https://github.com/conda/conda-lock/blob/3d2bf356e2cf3f7284407423f7032189677ba9be/conda_lock/src_parser/selectors.py
     platforms: set[Platform] = set()
     for s in selector.split():
-        s = cast(Selector, s)
+        s = cast("Selector", s)
         platforms |= set(PLATFORM_SELECTOR_MAP_REVERSE[s])
     return sorted(platforms)
 
@@ -141,12 +141,14 @@ class Spec(NamedTuple):
         result = f"{self.name}"
         if self.pin is not None:
             pin = self.pin
-            if (
-                is_pip
-                and "=" in pin
-                and not (">=" in pin or "<=" in pin or "==" in pin)
-            ):
-                # Replace `=` with `==` for pip
-                pin = pin.replace("=", "==")
+            if is_pip:
+                pin = ",".join(
+                    (
+                        f"=={token[1:]}"
+                        if token.startswith("=") and not token.startswith("==")
+                        else token
+                    )
+                    for token in pin.split(",")
+                )
             result += f" {pin}"
         return result

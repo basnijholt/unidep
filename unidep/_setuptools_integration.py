@@ -12,11 +12,15 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from ruamel.yaml import YAML
 
-from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
+    DependencyEntry,
     _load,
     get_local_dependencies,
     parse_requirements,
+)
+from unidep._dependency_selection import (
+    collapse_selected_universals,
+    select_pip_requirements,
 )
 from unidep.utils import (
     UnsupportedPlatformError,
@@ -34,11 +38,7 @@ if TYPE_CHECKING:
 
     from setuptools import Distribution
 
-    from unidep.platform_definitions import (
-        CondaPip,
-        Platform,
-        Spec,
-    )
+    from unidep.platform_definitions import Platform, Spec
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -47,46 +47,45 @@ if TYPE_CHECKING:
 
 
 def filter_python_dependencies(
-    resolved: dict[str, dict[Platform | None, dict[CondaPip, Spec]]],
+    entries: list[DependencyEntry],
+    platforms: list[Platform] | None = None,
 ) -> list[str]:
     """Filter out conda dependencies and return only pip dependencies.
 
     Examples
     --------
     >>> requirements = parse_requirements("requirements.yaml")
-    >>> resolved = resolve_conflicts(
-    ...     requirements.requirements, requirements.platforms
+    >>> python_deps = filter_python_dependencies(
+    ...     requirements.dependency_entries, requirements.platforms
     ... )
-    >>> python_deps = filter_python_dependencies(resolved)
 
     """
-    pip_deps = []
-    for platform_data in resolved.values():
-        to_process: dict[Platform | None, Spec] = {}  # platform -> Spec
-        for _platform, sources in platform_data.items():
-            pip_spec = sources.get("pip")
-            if pip_spec:
-                to_process[_platform] = pip_spec
-        if not to_process:
-            continue
+    if isinstance(entries, dict):
+        msg = (
+            "`filter_python_dependencies()` now requires dependency entries from "
+            "`parse_requirements(...).dependency_entries`, not the output of "
+            "`resolve_conflicts()`."
+        )
+        raise TypeError(msg)
+    entries = list(entries)
+    selected = collapse_selected_universals(
+        select_pip_requirements(entries, platforms),
+        platforms,
+    )
+    pip_deps: list[str] = []
+    by_spec: dict[Spec, list[Platform | None]] = {}
+    for _platform, candidates in selected.items():
+        for candidate in candidates:
+            by_spec.setdefault(candidate.spec, []).append(_platform)
 
-        # Check if all Spec objects are identical
-        first_spec = next(iter(to_process.values()))
-        if all(spec == first_spec for spec in to_process.values()):
-            # Build a single combined environment marker
-            dep_str = first_spec.name_with_pin(is_pip=True)
-            if _platform is not None:
-                selector = build_pep508_environment_marker(list(to_process.keys()))  # type: ignore[arg-type]
-                dep_str = f"{dep_str}; {selector}"
-            pip_deps.append(dep_str)
-            continue
-
-        for _platform, pip_spec in to_process.items():
-            dep_str = pip_spec.name_with_pin(is_pip=True)
-            if _platform is not None:
-                selector = build_pep508_environment_marker([_platform])
-                dep_str = f"{dep_str}; {selector}"
-            pip_deps.append(dep_str)
+    for spec, _platforms in by_spec.items():
+        dep_str = spec.name_with_pin(is_pip=True)
+        if _platforms != [None] and all(
+            platform is not None for platform in _platforms
+        ):
+            selector = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
+            dep_str = f"{dep_str}; {selector}"
+        pip_deps.append(dep_str)
     return sorted(pip_deps)
 
 
@@ -138,13 +137,15 @@ def get_python_dependencies(  # noqa: PLR0912
     )
     if not platforms:
         platforms = list(requirements.platforms)
-    resolved = resolve_conflicts(requirements.requirements, platforms)
-    dependencies = filter_python_dependencies(resolved)
+    dependencies = filter_python_dependencies(
+        requirements.dependency_entries,
+        platforms,
+    )
     # TODO[Bas]: This currently doesn't correctly handle  # noqa: TD004, TD003, FIX002
     # conflicts between sections in the extras and the main dependencies.
     extras = {
-        section: filter_python_dependencies(resolve_conflicts(reqs, platforms))
-        for section, reqs in requirements.optional_dependencies.items()
+        section: filter_python_dependencies(entries, platforms)
+        for section, entries in requirements.optional_dependency_entries.items()
     }
     # Always process local dependencies to handle PyPI alternatives
     yaml = YAML(typ="rt")

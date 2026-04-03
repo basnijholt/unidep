@@ -295,11 +295,17 @@ UniDep supports a range of version pinning operators (the same as Conda):
 
 #### How It Works
 
-- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when the same package is specified multiple times. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+- **Within-source pinning priority**: `unidep` combines repeated entries within the same source (`conda` or `pip`) and gives priority to version-pinned packages. For instance, if both `foo` and `foo <1` are listed for the same source, `foo <1` is selected due to its specific version pin.
+
+- **Cross-source preservation**: When the same logical dependency is declared for both Conda and Pip, `resolve_conflicts()` preserves both sources in the resolved metadata. This keeps enough information for different output targets to make the correct final choice.
+
+- **Conda-like paired-entry selection**: For explicit dependency entries that provide both `conda:` and `pip:` alternatives, Conda-like outputs use deterministic source selection rules: Pip extras win, otherwise a single pinned side wins, and ties prefer Conda.
+
+- **Pip-only output selection**: Pip-only exports (`unidep pip`, setuptools integration, `get_python_dependencies`) keep the Pip dependency when it exists, even if Conda would win for a Conda-like output.
 
 - **Platform-Specific Version Pinning**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the narrowest platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
 
-- **Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
+- **Intractable Conflicts**: When conflicts are irreconcilable within a source (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
 
 ### Platform Selectors
 
