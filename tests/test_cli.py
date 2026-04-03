@@ -399,6 +399,65 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
     assert "  - osx-arm64" not in content
 
 
+@pytest.mark.parametrize(
+    ("content", "current_platform", "expected_dependency", "excluded_platform"),
+    [
+        (
+            """\
+            dependencies:
+              - conda: click >=8
+              - pip: click  # [osx]
+            """,
+            "linux-64",
+            "  - click >=8",
+            "  - osx-64",
+        ),
+        (
+            """\
+            dependencies:
+              - pip: click ==0.1
+              - conda: click  # [linux64]
+            """,
+            "osx-arm64",
+            "    - click ==0.1",
+            "  - linux-64",
+        ),
+    ],
+)
+def test_merge_ignores_selector_platforms_from_losing_alternatives(
+    tmp_path: Path,
+    content: str,
+    current_platform: str,
+    expected_dependency: str,
+    excluded_platform: str,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(textwrap.dedent(content))
+    output_file = tmp_path / "environment.yaml"
+
+    with patch("unidep.utils.identify_current_platform", return_value=current_platform):
+        _merge_command(
+            depth=1,
+            directory=tmp_path,
+            files=[req_file],
+            name="myenv",
+            output=output_file,
+            stdout=False,
+            selector="comment",
+            platforms=[],
+            ignore_pins=[],
+            skip_dependencies=[],
+            overwrite_pins=[],
+            verbose=False,
+        )
+
+    merged = output_file.read_text()
+    assert expected_dependency in merged
+    assert "platforms:" in merged
+    assert f"  - {current_platform}" in merged
+    assert excluded_platform not in merged
+
+
 def test_unidep_pixi_cli_optional_monorepo_env_includes_base(
     tmp_path: Path,
 ) -> None:

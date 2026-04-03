@@ -30,6 +30,10 @@ from unidep._dependencies_parsing import (
     parse_local_dependencies,
     parse_requirements,
 )
+from unidep._dependency_selection import (
+    collapse_selected_universals,
+    select_conda_like_requirements,
+)
 from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
     filter_python_dependencies,
@@ -39,7 +43,6 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
-    collect_selector_platforms,
     escape_unicode,
     get_package_version,
     identify_current_platform,
@@ -79,6 +82,14 @@ def _flatten_selected_dependency_entries(
     for group_entries in optional_dependency_entries.values():
         entries.extend(group_entries)
     return entries
+
+
+def _collect_selected_conda_like_platforms(
+    entries: list[DependencyEntry],
+) -> list[Platform]:
+    """Collect target platforms that still matter after conda-like selection."""
+    selected = collapse_selected_universals(select_conda_like_requirements(entries))
+    return sorted(platform for platform in selected if platform is not None)
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -1368,17 +1379,14 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    platforms = resolve_platforms(
-        requested_platforms=platforms,
-        declared_platforms=requirements.platforms,
-        selector_platforms=collect_selector_platforms(
-            requirements.requirements,
-            requirements.optional_dependencies,
-        ),
-    )
     env_entries = _flatten_selected_dependency_entries(
         requirements.dependency_entries,
         requirements.optional_dependency_entries,
+    )
+    platforms = resolve_platforms(
+        requested_platforms=platforms,
+        declared_platforms=requirements.platforms,
+        selector_platforms=_collect_selected_conda_like_platforms(env_entries),
     )
     env_spec = create_conda_env_specification(
         env_entries,
