@@ -1056,6 +1056,50 @@ def test_pixi_monorepo_preserves_selector_only_platforms_without_declared_platfo
     assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
 
 
+def test_pixi_monorepo_optional_group_preserves_selector_only_platforms(
+    tmp_path: Path,
+) -> None:
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = _write_file(
+        project1_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        platforms:
+          - linux-64
+        dependencies:
+          - numpy
+        """,
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = _write_file(
+        project2_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        optional_dependencies:
+          dev:
+            - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req1,
+        req2,
+        project_name="monorepo-selector-only-optional-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == ["linux-64", "osx-64", "osx-arm64"]
+    project2_dev = data["feature"]["project2-dev"]
+    assert "pypi-dependencies" not in project2_dev
+    assert project2_dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert project2_dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
 @pytest.mark.parametrize(
     ("first_pin", "second_pin"),
     [

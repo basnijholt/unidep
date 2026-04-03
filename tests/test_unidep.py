@@ -2048,7 +2048,10 @@ def test_pip_with_pinning(
         resolve_conflicts(requirements.requirements, requirements.platforms)
     with pytest.raises(
         VersionConflictError,
-        match=r"Invalid version pinning '==0\.25\.2\.1' for 'qiskit-terra'",
+        match=(
+            r"Multiple exact version pinnings found: ==0\.25\.2\.1, ==0\.25\.2\.2 "
+            r"for `qiskit-terra`"
+        ),
     ):
         create_conda_env_specification(
             requirements.dependency_entries,
@@ -2057,7 +2060,10 @@ def test_pip_with_pinning(
         )
     with pytest.raises(
         VersionConflictError,
-        match=r"Invalid version pinning '==0\.25\.2\.1' for 'qiskit-terra'",
+        match=(
+            r"Multiple exact version pinnings found: ==0\.25\.2\.1, ==0\.25\.2\.2 "
+            r"for `qiskit-terra`"
+        ),
     ):
         filter_python_dependencies(
             requirements.dependency_entries,

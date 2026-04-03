@@ -160,6 +160,20 @@ def _merge_pin_strings(
     unique = list(dict.fromkeys(pinned))
     if len(unique) == 1:
         return unique[0]
+    if allow_unsatisfiable_fallback:
+        exact_pinnings = [
+            pin for pin in unique if _exact_pinning_version_text(pin) is not None
+        ]
+        distinct_exact_versions = {
+            cast("str", _exact_pinning_version_text(pin)) for pin in exact_pinnings
+        }
+        if len(distinct_exact_versions) > 1:
+            pinnings_str = ", ".join(exact_pinnings)
+            msg = (
+                "Multiple exact version pinnings found: "
+                f"{pinnings_str} for `{requirements[0].base_name}`"
+            )
+            raise VersionConflictError(msg)
     try:
         merged = combine_version_pinnings(unique, name=requirements[0].base_name)
         return _canonicalize_joined_pinnings([merged])
@@ -245,6 +259,13 @@ def _parse_supported_pinning(pinning: str) -> tuple[str, Version]:
     if operator == "=":
         operator = "="
     return operator, Version(version_text)
+
+
+def _exact_pinning_version_text(pinning: str) -> str | None:
+    operator = extract_version_operator(pinning)
+    if operator not in {"==", "===", "="}:
+        return None
+    return pinning[len(operator) :].strip()
 
 
 def _stricter_lower_bound(
