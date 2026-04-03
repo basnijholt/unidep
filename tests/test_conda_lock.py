@@ -15,6 +15,7 @@ from ruamel.yaml import YAML
 from unidep._conda_lock import (
     LockSpec,
     _check_consistent_lock_files,
+    _conda_lock_subpackage,
     _conda_lock_subpackages,
     _download_and_get_package_names,
     _handle_missing_keys,
@@ -301,8 +302,9 @@ def test_download_and_get_package_names_reads_site_packages(
         _src: str,
         *,
         dest_dir: str,
-        _components: str | None = None,
+        components: str | None = None,
     ) -> None:
+        del components
         site_packages = Path(dest_dir) / "site-packages"
         (site_packages / "pkg").mkdir(parents=True)
         (site_packages / "pkg.dist-info").mkdir()
@@ -338,8 +340,9 @@ def test_download_and_get_package_names_returns_none_without_python_dirs(
         _src: str,
         *,
         dest_dir: str,
-        _components: str | None = None,
+        components: str | None = None,
     ) -> None:
+        del components
         (Path(dest_dir) / "lib" / "not-python").mkdir(parents=True)
 
     api_module = types.ModuleType("conda_package_handling.api")
@@ -372,8 +375,9 @@ def test_download_and_get_package_names_returns_none_without_lib_or_site_package
         _src: str,
         *,
         dest_dir: str,
-        _components: str | None = None,
+        components: str | None = None,
     ) -> None:
+        del components
         (Path(dest_dir) / "share").mkdir(parents=True)
 
     api_module = types.ModuleType("conda_package_handling.api")
@@ -406,8 +410,9 @@ def test_download_and_get_package_names_returns_none_without_site_packages(
         _src: str,
         *,
         dest_dir: str,
-        _components: str | None = None,
+        components: str | None = None,
     ) -> None:
+        del components
         (Path(dest_dir) / "lib" / "python3.12").mkdir(parents=True)
 
     api_module = types.ModuleType("conda_package_handling.api")
@@ -504,6 +509,90 @@ def test_check_consistent_lock_files_reports_mismatches(tmp_path: Path) -> None:
     assert mismatches[0].name == "numpy"
     assert mismatches[0].version == "2.0"
     assert mismatches[0].version_global == "1.0"
+
+
+def test_conda_lock_subpackage_uses_selected_same_name_pip_winner(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+        dependencies:
+          - conda: foo
+          - pip: foo >1
+        """,
+    )
+    lock_spec = LockSpec(
+        packages={
+            ("pip", "linux-64", "foo"): {
+                "name": "foo",
+                "manager": "pip",
+                "platform": "linux-64",
+                "version": "2.0",
+                "dependencies": {},
+            },
+        },
+        dependencies={("pip", "linux-64", "foo"): set()},
+    )
+
+    output = _conda_lock_subpackage(
+        file=req_file,
+        lock_spec=lock_spec,
+        channels=["conda-forge"],
+        platforms=["linux-64"],
+        yaml=YAML(typ="rt"),
+    )
+
+    assert "Missing keys" not in capsys.readouterr().out
+    yaml = YAML(typ="safe")
+    with output.open() as fp:
+        data = yaml.load(fp)
+    assert [(pkg["manager"], pkg["name"]) for pkg in data["package"]] == [
+        ("pip", "foo"),
+    ]
+
+
+def test_conda_lock_subpackage_uses_selected_paired_different_name_pip_winner(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+        dependencies:
+          - conda: python-graphviz
+            pip: graphviz >1
+        """,
+    )
+    lock_spec = LockSpec(
+        packages={
+            ("pip", "linux-64", "graphviz"): {
+                "name": "graphviz",
+                "manager": "pip",
+                "platform": "linux-64",
+                "version": "2.0",
+                "dependencies": {},
+            },
+        },
+        dependencies={("pip", "linux-64", "graphviz"): set()},
+    )
+
+    output = _conda_lock_subpackage(
+        file=req_file,
+        lock_spec=lock_spec,
+        channels=["conda-forge"],
+        platforms=["linux-64"],
+        yaml=YAML(typ="rt"),
+    )
+
+    assert "Missing keys" not in capsys.readouterr().out
+    yaml = YAML(typ="safe")
+    with output.open() as fp:
+        data = yaml.load(fp)
+    assert [(pkg["manager"], pkg["name"]) for pkg in data["package"]] == [
+        ("pip", "graphviz"),
+    ]
 
 
 def test_circular_dependency() -> None:

@@ -18,6 +18,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ruamel.yaml import YAML
 
 from unidep._dependencies_parsing import find_requirements_files, parse_requirements
+from unidep._dependency_selection import (
+    collapse_selected_universals,
+    select_conda_like_requirements,
+)
 from unidep.utils import (
     add_comment_to_file,
     remove_top_comments,
@@ -324,18 +328,23 @@ def _conda_lock_subpackage(
         missing_keys=missing_keys,
     )
 
-    for name, specs in requirements.requirements.items():
-        if name.startswith("__"):  # pragma: no cover
-            continue  # Skip meta packages
-        for spec in specs:
-            _platforms = spec.platforms()
-            if _platforms is None:
-                _platforms = platforms
-            else:
-                _platforms = [p for p in _platforms if p in platforms]
-
-            for _platform in _platforms:
-                add_pkg(name=name, which=spec.which, platform=_platform)
+    selected = collapse_selected_universals(
+        select_conda_like_requirements(requirements.dependency_entries, platforms),
+        platforms,
+    )
+    for target_platform, candidates in selected.items():
+        candidate_platforms = (
+            platforms if target_platform is None else [target_platform]
+        )
+        for candidate in candidates:
+            if candidate.spec.name.startswith("__"):  # pragma: no cover
+                continue
+            for candidate_platform in candidate_platforms:
+                add_pkg(
+                    name=candidate.spec.name,
+                    which=candidate.source,
+                    platform=candidate_platform,
+                )
     _handle_missing_keys(
         lock_spec=lock_spec,
         locked_keys=locked_keys,
