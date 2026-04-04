@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 TargetPlatform = Optional[Platform]
 FamilyKey = Tuple[Optional[str], Optional[str]]
+FamilyIdentityKey = Tuple[str, str]
 
 
 @dataclass(frozen=True)
@@ -551,6 +552,32 @@ def _can_reconcile_cross_source_collision(
     return len(conda_names) <= 1 and len(pip_names) <= 1
 
 
+def _family_identity_keys(
+    candidate: MergedSourceCandidate,
+) -> tuple[FamilyIdentityKey, ...]:
+    keys: list[FamilyIdentityKey] = []
+    if candidate.source == "conda":
+        keys.append(("conda", candidate.spec.name))
+        keys.extend(
+            ("pip", pip_name)
+            for _conda_name, pip_name in candidate.family_keys
+            if pip_name is not None
+        )
+    else:
+        keys.append(("pip", candidate.normalized_name))
+        keys.extend(
+            ("conda", conda_name)
+            for conda_name, _pip_name in candidate.family_keys
+            if conda_name is not None
+        )
+    return tuple(dict.fromkeys(keys))
+
+
+def _family_identity_text(identity: FamilyIdentityKey) -> str:
+    family_kind, name = identity
+    return f"{family_kind} family '{name}'"
+
+
 def _raise_final_collision(
     *,
     platform: TargetPlatform,
@@ -573,58 +600,139 @@ def _raise_final_collision(
     raise ValueError(msg)
 
 
+def _resolve_primary_final_collisions(
+    *,
+    platform: TargetPlatform,
+    candidates: list[MergedSourceCandidate],
+) -> list[MergedSourceCandidate]:
+    by_identity: dict[str, list[MergedSourceCandidate]] = {}
+    for candidate in candidates:
+        by_identity.setdefault(_final_identity(candidate), []).append(candidate)
+    resolved_candidates: list[MergedSourceCandidate] = []
+    for identity, group in sorted(by_identity.items()):
+        if len(group) == 1:
+            resolved_candidates.append(group[0])
+            continue
+        by_source: dict[CondaPip, list[MergedSourceCandidate]] = {}
+        for candidate in group:
+            by_source.setdefault(candidate.source, []).append(candidate)
+        merged_group = [
+            _merge_candidate_group(source_candidates)
+            for _source, source_candidates in sorted(by_source.items())
+        ]
+        sources = {candidate.source for candidate in merged_group}
+        if len(sources) > 1 and not _can_reconcile_cross_source_collision(
+            merged_group,
+        ):
+            _raise_final_collision(
+                platform=platform,
+                identity=identity,
+                candidates=merged_group,
+            )
+        if len(sources) > 1:
+            conda = next(
+                (
+                    candidate
+                    for candidate in merged_group
+                    if candidate.source == "conda"
+                ),
+                None,
+            )
+            pip = next(
+                (candidate for candidate in merged_group if candidate.source == "pip"),
+                None,
+            )
+            winner = _choose_by_precedence(conda, pip)
+            assert winner is not None
+            resolved_candidates.append(winner)
+            continue
+        resolved_candidates.append(merged_group[0])
+    return resolved_candidates
+
+
+def _resolve_family_alias_collisions(
+    *,
+    platform: TargetPlatform,
+    candidates: list[MergedSourceCandidate],
+) -> list[MergedSourceCandidate]:
+    remaining = list(candidates)
+    while True:
+        by_family: dict[FamilyIdentityKey, list[MergedSourceCandidate]] = {}
+        for candidate in remaining:
+            for identity in _family_identity_keys(candidate):
+                by_family.setdefault(identity, []).append(candidate)
+
+        winners: set[MergedSourceCandidate] = set()
+        losers: set[MergedSourceCandidate] = set()
+        for identity, group in sorted(by_family.items()):
+            unique_group = list(dict.fromkeys(group))
+            if len(unique_group) <= 1:
+                continue
+            sources = {candidate.source for candidate in unique_group}
+            if len(sources) <= 1:
+                continue
+
+            by_source: dict[CondaPip, list[MergedSourceCandidate]] = {}
+            for candidate in unique_group:
+                by_source.setdefault(candidate.source, []).append(candidate)
+            if any(
+                len(source_candidates) > 1 for source_candidates in by_source.values()
+            ):
+                _raise_final_collision(
+                    platform=platform,
+                    identity=_family_identity_text(identity),
+                    candidates=unique_group,
+                )
+
+            conda = next(
+                (
+                    candidate
+                    for candidate in unique_group
+                    if candidate.source == "conda"
+                ),
+                None,
+            )
+            pip = next(
+                (candidate for candidate in unique_group if candidate.source == "pip"),
+                None,
+            )
+            if conda is None or pip is None:
+                continue
+            if not _can_reconcile_cross_source_collision(unique_group):
+                _raise_final_collision(
+                    platform=platform,
+                    identity=_family_identity_text(identity),
+                    candidates=unique_group,
+                )
+            winner = _choose_by_precedence(conda, pip)
+            assert winner is not None
+            losers.add(pip if winner is conda else conda)
+            winners.add(winner)
+
+        if not losers:
+            return remaining
+        if winners & losers:  # pragma: no cover
+            msg = (
+                "Internal error: inconsistent family-alias collision resolution "
+                f"for platform '{platform or 'universal'}'."
+            )
+            raise ValueError(msg)
+        remaining = [candidate for candidate in remaining if candidate not in losers]
+
+
 def _resolve_final_collisions(
     selected: dict[TargetPlatform, list[MergedSourceCandidate]],
 ) -> dict[TargetPlatform, list[MergedSourceCandidate]]:
     resolved: dict[TargetPlatform, list[MergedSourceCandidate]] = {}
     for platform, candidates in selected.items():
-        by_identity: dict[str, list[MergedSourceCandidate]] = {}
-        for candidate in candidates:
-            by_identity.setdefault(_final_identity(candidate), []).append(candidate)
-        resolved_candidates: list[MergedSourceCandidate] = []
-        for identity, group in sorted(by_identity.items()):
-            if len(group) == 1:
-                resolved_candidates.append(group[0])
-                continue
-            by_source: dict[CondaPip, list[MergedSourceCandidate]] = {}
-            for candidate in group:
-                by_source.setdefault(candidate.source, []).append(candidate)
-            merged_group = [
-                _merge_candidate_group(source_candidates)
-                for _source, source_candidates in sorted(by_source.items())
-            ]
-            sources = {candidate.source for candidate in merged_group}
-            if len(sources) > 1 and not _can_reconcile_cross_source_collision(
-                merged_group,
-            ):
-                _raise_final_collision(
-                    platform=platform,
-                    identity=identity,
-                    candidates=merged_group,
-                )
-            if len(sources) > 1:
-                conda = next(
-                    (
-                        candidate
-                        for candidate in merged_group
-                        if candidate.source == "conda"
-                    ),
-                    None,
-                )
-                pip = next(
-                    (
-                        candidate
-                        for candidate in merged_group
-                        if candidate.source == "pip"
-                    ),
-                    None,
-                )
-                winner = _choose_by_precedence(conda, pip)
-                assert winner is not None
-                resolved_candidates.append(winner)
-                continue
-            resolved_candidates.append(merged_group[0])
-        resolved[platform] = resolved_candidates
+        primary_resolved = _resolve_primary_final_collisions(
+            platform=platform,
+            candidates=candidates,
+        )
+        resolved[platform] = _resolve_family_alias_collisions(
+            platform=platform,
+            candidates=primary_resolved,
+        )
     return resolved
 
 
