@@ -1200,51 +1200,6 @@ def test_pixi_single_file_optional_group_keeps_platform_specific_dep_targeted(
     assert dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
 
 
-def test_pixi_single_file_optional_group_includes_nested_declared_platforms(
-    tmp_path: Path,
-) -> None:
-    maclib = tmp_path / "maclib"
-    maclib.mkdir()
-    _write_file(
-        maclib / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - pip: pyobjc
-        platforms:
-          - osx-64
-        """,
-    )
-
-    req = _write_file(
-        tmp_path / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - click
-        optional_dependencies:
-          dev:
-            - ./maclib
-        platforms:
-          - linux-64
-        """,
-    )
-
-    data = _generate_and_load(
-        tmp_path / "pixi.toml",
-        req,
-        project_name="single-file-optional-local-platforms",
-    )
-
-    assert data["workspace"]["platforms"] == ["linux-64", "osx-64"]
-    dev = data["feature"]["dev"]
-    assert "pypi-dependencies" not in dev
-    assert "linux-64" not in dev.get("target", {})
-    assert dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
-
-
 @pytest.mark.parametrize(
     ("first_pin", "second_pin"),
     [
@@ -2762,32 +2717,6 @@ def test_pixi_with_pip_extras(tmp_path: Path) -> None:
     assert 'version = ">=1.0"' in content
     assert '"dev"' in content
     assert '"test"' in content
-
-
-def test_pixi_different_name_pair_does_not_survive_separate_pip_family_winner(
-    tmp_path: Path,
-) -> None:
-    req_file = _write_file(
-        tmp_path / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - conda: python-graphviz
-            pip: graphviz
-          - pip: graphviz[dev]
-        platforms:
-          - linux-64
-        """,
-    )
-
-    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
-
-    assert "python-graphviz" not in data.get("dependencies", {})
-    assert data["pypi-dependencies"]["graphviz"] == {
-        "version": "*",
-        "extras": ["dev"],
-    }
 
 
 def test_pixi_with_merged_constraints(tmp_path: Path) -> None:

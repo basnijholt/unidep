@@ -36,7 +36,7 @@ from unidep._dependencies_parsing import (
     parse_requirements,
 )
 from unidep._dependency_selection import select_conda_like_requirements
-from unidep.platform_definitions import PLATFORM_SELECTOR_MAP, Platform
+from unidep.platform_definitions import Platform
 from unidep.utils import (
     LocalDependency,
     PathWithExtras,
@@ -636,102 +636,6 @@ def _subtract_entries(
     return diff
 
 
-def _selector_for_platforms(platforms: Sequence[Platform]) -> str:
-    return " ".join(
-        PLATFORM_SELECTOR_MAP[platform][0] for platform in sorted(platforms)
-    )
-
-
-def _restrict_spec_to_declared_platforms(
-    spec: Spec | None,
-    declared_platforms: tuple[Platform, ...] | None,
-) -> Spec | None:
-    if spec is None or not declared_platforms:
-        return spec
-    spec_platforms = spec.platforms()
-    effective_platforms = (
-        list(declared_platforms)
-        if spec_platforms is None
-        else [platform for platform in declared_platforms if platform in spec_platforms]
-    )
-    if not effective_platforms:
-        return None
-    return spec._replace(selector=_selector_for_platforms(effective_platforms))
-
-
-def _restrict_entries_to_source_platforms(
-    entries: Sequence[DependencyEntry],
-    source_platforms: Mapping[Path, tuple[Platform, ...]],
-) -> list[DependencyEntry]:
-    restricted_entries: list[DependencyEntry] = []
-    for entry in entries:
-        declared_platforms = source_platforms.get(entry.origin.source_file.resolve())
-        if not declared_platforms:
-            restricted_entries.append(entry)
-            continue
-        conda_spec = _restrict_spec_to_declared_platforms(
-            entry.conda,
-            declared_platforms,
-        )
-        pip_spec = _restrict_spec_to_declared_platforms(entry.pip, declared_platforms)
-        if conda_spec is None and pip_spec is None:
-            continue
-        selector = (
-            conda_spec.selector
-            if conda_spec is not None and conda_spec.selector is not None
-            else pip_spec.selector
-            if pip_spec is not None
-            else None
-        )
-        restricted_entries.append(
-            entry._replace(selector=selector, conda=conda_spec, pip=pip_spec),
-        )
-    return restricted_entries
-
-
-def _optional_group_source_platforms(
-    *,
-    req_file: Path,
-    root_platforms: tuple[Platform, ...] | None,
-    root_node: PathWithExtras,
-    group_name: str,
-    dep_graph: LocalDependencyGraph,
-    verbose: bool,
-    ignore_pins: list[str] | None,
-    skip_dependencies: list[str] | None,
-    overwrite_pins: list[str] | None,
-) -> tuple[dict[Path, tuple[Platform, ...]], list[PathWithExtras]]:
-    source_platforms: dict[Path, tuple[Platform, ...]] = {}
-    if root_platforms:
-        source_platforms[req_file.resolve()] = root_platforms
-
-    optional_local_nodes = dep_graph.optional_group_graph.get(root_node, {}).get(
-        group_name,
-        [],
-    )
-    seen_optional_nodes: set[PathWithExtras] = set()
-    for optional_local_node in optional_local_nodes:
-        for candidate_node in [
-            optional_local_node,
-            *(_collect_transitive_nodes(optional_local_node, dep_graph.graph)),
-        ]:
-            if candidate_node in seen_optional_nodes:
-                continue
-            seen_optional_nodes.add(candidate_node)
-            node_req = _parse_direct_requirements_for_node(
-                candidate_node,
-                verbose=verbose,
-                ignore_pins=ignore_pins,
-                skip_dependencies=skip_dependencies,
-                overwrite_pins=overwrite_pins,
-            )
-            if node_req.platforms:
-                source_platforms[candidate_node.path.resolve()] = tuple(
-                    node_req.platforms,
-                )
-    return source_platforms, optional_local_nodes
-
-
 class _PixiGenerationResult(NamedTuple):
     """Intermediate result from single-file or multi-file pixi generation."""
 
@@ -771,24 +675,7 @@ def _process_single_file_optional_groups(
     pixi_data["environments"] = {}
     opt_features = []
     workspace_platforms: set[Platform] = set(base_feature_platforms or [])
-    root_direct_req = _parse_direct_requirements_for_node(
-        root_node,
-        verbose=verbose,
-        ignore_pins=ignore_pins,
-        skip_dependencies=skip_dependencies,
-        overwrite_pins=overwrite_pins,
-    )
-    root_platforms = (
-        tuple(root_direct_req.platforms) if root_direct_req.platforms else None
-    )
-    parsed_groups: list[
-        tuple[
-            str,
-            ParsedRequirements,
-            list[DependencyEntry],
-            list[PathWithExtras],
-        ]
-    ] = []
+    parsed_groups: list[tuple[str, ParsedRequirements, list[DependencyEntry]]] = []
 
     for group_name in optional_groups:
         group_req = parse_requirements(
@@ -810,44 +697,14 @@ def _process_single_file_optional_groups(
         group_feature_entries.extend(
             group_req.optional_dependency_entries.get(group_name, []),
         )
-        source_platforms, optional_local_nodes = _optional_group_source_platforms(
-            req_file=req_file,
-            root_platforms=root_platforms,
-            root_node=root_node,
-            group_name=group_name,
-            dep_graph=dep_graph,
-            verbose=verbose,
-            ignore_pins=ignore_pins,
-            skip_dependencies=skip_dependencies,
-            overwrite_pins=overwrite_pins,
-        )
-        group_feature_entries = _restrict_entries_to_source_platforms(
-            group_feature_entries,
-            source_platforms,
-        )
-        workspace_platforms.update(group_req.platforms)
-        workspace_platforms.update(
-            _selector_platforms_from_entries(group_feature_entries),
-        )
-        parsed_groups.append(
-            (
-                group_name,
-                group_req,
-                group_feature_entries,
-                optional_local_nodes,
-            ),
-        )
+        workspace_platforms.update(_selector_platforms_from_entries(group_feature_entries))
+        parsed_groups.append((group_name, group_req, group_feature_entries))
 
     group_platforms = sorted(workspace_platforms) or None
     if group_platforms:
         discovered_target_platforms.update(group_platforms)
 
-    for (
-        group_name,
-        _group_req,
-        group_feature_entries,
-        optional_local_nodes,
-    ) in parsed_groups:
+    for group_name, _group_req, group_feature_entries in parsed_groups:
         opt_platform_deps = _extract_dependencies(
             group_feature_entries,
             platforms=group_platforms,
@@ -859,6 +716,13 @@ def _process_single_file_optional_groups(
                 group_name,
                 [],
             ),
+        )
+        optional_local_nodes = dep_graph.optional_group_graph.get(
+            root_node,
+            {},
+        ).get(
+            group_name,
+            [],
         )
         seen_optional_nodes: set[PathWithExtras] = set()
         for optional_local_node in optional_local_nodes:
@@ -992,8 +856,6 @@ def _generate_single_file_pixi(
         overwrite_pins=overwrite_pins,
     )
     discovered_target_platforms.update(opt_target_platforms)
-    if opt_target_platforms and not platforms_override:
-        all_platforms.update(opt_target_platforms)
 
     return _PixiGenerationResult(
         pixi_data=pixi_data,
