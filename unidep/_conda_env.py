@@ -6,7 +6,6 @@ Conda environment file generation functions.
 from __future__ import annotations
 
 import sys
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import TYPE_CHECKING, NamedTuple, cast
@@ -37,14 +36,8 @@ from unidep.utils import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
-    from typing import Dict
 
     from unidep._dependencies_parsing import DependencyEntry
-    from unidep.platform_definitions import CondaPip
-
-    ResolvedRequirements = Dict[str, Dict[Platform | None, Dict[CondaPip, Spec]]]
-else:  # pragma: no cover
-    ResolvedRequirements = dict
 
 if sys.version_info >= (3, 8):
     from typing import Literal, get_args
@@ -68,26 +61,21 @@ def _conda_sel(sel: str) -> CondaPlatform:
     return cast("CondaPlatform", _platform)
 
 
-def _extract_conda_pip_dependencies(
-    resolved: ResolvedRequirements,
-) -> tuple[
-    dict[str, dict[Platform | None, Spec]],
-    dict[str, dict[Platform | None, Spec]],
-]:
-    """Extract and separate conda and pip dependencies."""
-    conda: dict[str, dict[Platform | None, Spec]] = {}
-    pip: dict[str, dict[Platform | None, Spec]] = {}
-    for pkg, platform_data in resolved.items():
-        for _platform, sources in platform_data.items():
-            if "conda" in sources:
-                conda.setdefault(pkg, {})[_platform] = sources["conda"]
-            else:
-                pip.setdefault(pkg, {})[_platform] = sources["pip"]
-    return conda, pip
-
-
-def _extract_conda_pip_dependencies_from_entries(
+def _as_dependency_entries(
     entries: Sequence[DependencyEntry],
+) -> list[DependencyEntry]:
+    if isinstance(entries, dict):
+        msg = (
+            "`create_conda_env_specification()` now requires dependency entries from "
+            "`parse_requirements(...).dependency_entries`, not the output of "
+            "`resolve_conflicts()`."
+        )
+        raise TypeError(msg)
+    return list(entries)
+
+
+def _extract_conda_pip_dependencies(
+    entries: list[DependencyEntry],
     platforms: list[Platform],
 ) -> tuple[
     dict[str, dict[Platform | None, Spec]],
@@ -160,7 +148,7 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
 
 
 def create_conda_env_specification(  # noqa: PLR0912
-    entries: Sequence[DependencyEntry] | ResolvedRequirements,
+    entries: Sequence[DependencyEntry],
     channels: list[str],
     platforms: list[Platform],
     selector: Literal["sel", "comment"] = "sel",
@@ -170,20 +158,8 @@ def create_conda_env_specification(  # noqa: PLR0912
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
 
-    seen_identifiers: set[str] = set()
-    if isinstance(entries, dict):
-        warnings.warn(
-            "`create_conda_env_specification()` accepting the dict returned by "
-            "`resolve_conflicts()` is deprecated; pass "
-            "`parse_requirements(...).dependency_entries` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        conda, pip = _extract_conda_pip_dependencies(entries)
-        suppress_shadowed_pip = True
-    else:
-        conda, pip = _extract_conda_pip_dependencies_from_entries(entries, platforms)
-        suppress_shadowed_pip = False
+    entries = _as_dependency_entries(entries)
+    conda, pip = _extract_conda_pip_dependencies(entries, platforms)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
@@ -201,8 +177,6 @@ def create_conda_env_specification(  # noqa: PLR0912
                     _add_comment(conda_deps, _platform)
             else:
                 conda_deps.append(dep_str)
-            if suppress_shadowed_pip and spec.identifier is not None:
-                seen_identifiers.add(spec.identifier)
 
     for platform_to_spec in pip.values():
         spec_to_platforms: dict[Spec, list[Platform | None]] = {}
@@ -210,8 +184,6 @@ def create_conda_env_specification(  # noqa: PLR0912
             spec_to_platforms.setdefault(spec, []).append(_platform)
 
         for spec, _platforms in spec_to_platforms.items():
-            if suppress_shadowed_pip and spec.identifier in seen_identifiers:
-                continue
             dep_str = spec.name_with_pin(is_pip=True)
             if _platforms != [None] and len(platforms) != 1:
                 if selector == "sel":

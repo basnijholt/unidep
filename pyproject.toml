@@ -145,8 +145,3 @@ tag_name = "v{new_version}"
 filename = "unidep/_version.py"
 replace = '__version__ = "{new_version}"'
 search = '__version__ = "{current_version}"'
-
-[dependency-groups]
-dev = [
-    "tomli-w>=1.0.0",
-]

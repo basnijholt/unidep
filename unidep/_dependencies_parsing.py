@@ -10,7 +10,6 @@ import hashlib
 import os
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -154,69 +153,15 @@ class DependencyEntry(NamedTuple):
     origin: DependencyOrigin
 
 
-@dataclass(frozen=True)
-class ParsedRequirements:
-    """Parsed requirements with backward-compatible 4-tuple iteration."""
+class ParsedRequirements(NamedTuple):
+    """Requirements with comments."""
 
     channels: list[str]
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
     optional_dependencies: dict[str, dict[str, list[Spec]]]
-    dependency_entries: list[DependencyEntry] = field(default_factory=list)
-    optional_dependency_entries: dict[str, list[DependencyEntry]] = field(
-        default_factory=dict,
-    )
-
-    _fields = (
-        "channels",
-        "platforms",
-        "requirements",
-        "optional_dependencies",
-    )
-
-    def _legacy_tuple(
-        self,
-    ) -> tuple[
-        list[str],
-        list[Platform],
-        dict[str, list[Spec]],
-        dict[str, dict[str, list[Spec]]],
-    ]:
-        return (
-            self.channels,
-            self.platforms,
-            self.requirements,
-            self.optional_dependencies,
-        )
-
-    def __iter__(self) -> Any:
-        return iter(self._legacy_tuple())
-
-    def __len__(self) -> int:
-        return 4
-
-    def __getitem__(self, item: int | slice) -> Any:
-        return self._legacy_tuple()[item]
-
-    def _replace(self, **changes: Any) -> ParsedRequirements:
-        data = {
-            "channels": self.channels,
-            "platforms": self.platforms,
-            "requirements": self.requirements,
-            "optional_dependencies": self.optional_dependencies,
-            "dependency_entries": self.dependency_entries,
-            "optional_dependency_entries": self.optional_dependency_entries,
-        }
-        data.update(changes)
-        return ParsedRequirements(**data)
-
-    def _asdict(self) -> dict[str, Any]:
-        return {
-            "channels": self.channels,
-            "platforms": self.platforms,
-            "requirements": self.requirements,
-            "optional_dependencies": self.optional_dependencies,
-        }
+    dependency_entries: list[DependencyEntry]
+    optional_dependency_entries: dict[str, list[DependencyEntry]]
 
 
 class Requirements(NamedTuple):
