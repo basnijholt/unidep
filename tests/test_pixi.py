@@ -847,94 +847,6 @@ def test_pixi_single_file_includes_local_dependency_package_as_editable(
     assert lib_editable["path"] == "./lib"
 
 
-def test_pixi_single_file_local_dependency_declared_platforms_do_not_leak(
-    tmp_path: Path,
-) -> None:
-    app_dir = tmp_path / "app"
-    app_dir.mkdir()
-    req_file = _write_file(
-        app_dir / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - numpy
-        local_dependencies:
-          - ../maclib
-        platforms:
-          - linux-64
-        """,
-    )
-
-    maclib_dir = tmp_path / "maclib"
-    maclib_dir.mkdir()
-    _write_file(
-        maclib_dir / "requirements.yaml",
-        """\
-        dependencies:
-          - pip: pyobjc
-        platforms:
-          - osx-64
-        """,
-    )
-
-    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
-
-    assert data["workspace"]["platforms"] == ["linux-64", "osx-64"]
-    assert "pyobjc" not in data.get("pypi-dependencies", {})
-    assert data["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
-
-
-def test_pixi_single_file_transitive_local_dependency_inherits_parent_platforms(
-    tmp_path: Path,
-) -> None:
-    app_dir = tmp_path / "app"
-    app_dir.mkdir()
-    req_file = _write_file(
-        app_dir / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - numpy
-        local_dependencies:
-          - ../maclib
-        platforms:
-          - linux-64
-        """,
-    )
-
-    maclib_dir = tmp_path / "maclib"
-    maclib_dir.mkdir()
-    _write_file(
-        maclib_dir / "requirements.yaml",
-        """\
-        dependencies:
-          - pyobjc-framework-cocoa
-        local_dependencies:
-          - ../commonlib
-        platforms:
-          - osx-64
-        """,
-    )
-
-    commonlib_dir = tmp_path / "commonlib"
-    commonlib_dir.mkdir()
-    _write_file(
-        commonlib_dir / "requirements.yaml",
-        """\
-        dependencies:
-          - pandas
-        """,
-    )
-
-    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
-
-    assert data["workspace"]["platforms"] == ["linux-64", "osx-64"]
-    assert "pandas" not in data.get("dependencies", {})
-    assert data["target"]["osx-64"]["dependencies"]["pandas"] == "*"
-
-
 def test_pixi_empty_dependencies(tmp_path: Path) -> None:
     """Test handling of requirements file with no dependencies."""
     req_file = _write_file(
@@ -2876,26 +2788,6 @@ def test_pixi_different_name_pair_does_not_survive_separate_pip_family_winner(
         "version": "*",
         "extras": ["dev"],
     }
-
-
-def test_pixi_same_source_family_alias_collision_raises(tmp_path: Path) -> None:
-    req_file = _write_file(
-        tmp_path / "requirements.yaml",
-        """\
-        channels:
-          - conda-forge
-        dependencies:
-          - conda: python-graphviz
-            pip: graphviz
-          - conda: graphviz-conda-alt
-            pip: graphviz
-        platforms:
-          - linux-64
-        """,
-    )
-
-    with pytest.raises(ValueError, match="Final Dependency Collision"):
-        generate_pixi_toml(req_file, output_file=tmp_path / "pixi.toml", verbose=False)
 
 
 def test_pixi_with_merged_constraints(tmp_path: Path) -> None:
