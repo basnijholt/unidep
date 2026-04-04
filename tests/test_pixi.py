@@ -1059,6 +1059,37 @@ def test_pixi_monorepo_preserves_selector_only_platforms_without_declared_platfo
     assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
 
 
+def test_pixi_single_file_preserves_selector_only_platforms_without_declared_platforms(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy  # [linux]
+          - numpy  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-selector-only-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    assert data["dependencies"]["numpy"] == "*"
+    assert "target" not in data
+
+
 def test_pixi_monorepo_optional_group_preserves_selector_only_platforms(
     tmp_path: Path,
 ) -> None:
@@ -1101,6 +1132,37 @@ def test_pixi_monorepo_optional_group_preserves_selector_only_platforms(
     assert "pypi-dependencies" not in project2_dev
     assert project2_dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
     assert project2_dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+def test_pixi_single_file_optional_group_preserves_selector_only_platforms(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        optional_dependencies:
+          dev:
+            - numpy  # [linux]
+            - numpy  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-selector-only-optional-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    assert data["feature"]["dev"]["dependencies"]["numpy"] == "*"
 
 
 @pytest.mark.parametrize(

@@ -18,6 +18,9 @@ from unidep import (
     parse_requirements,
     write_conda_environment_file,
 )
+from unidep import (
+    resolve_conflicts as public_resolve_conflicts,
+)
 from unidep._conda_env import CondaEnvironmentSpec
 from unidep._conflicts import VersionConflictError, resolve_conflicts
 from unidep._setuptools_integration import _path_to_file_uri
@@ -178,6 +181,25 @@ def test_parse_requirements(
     }
 
 
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_parse_requirements_still_supports_4_field_unpacking(
+    toml_or_yaml: Literal["toml", "yaml"],
+    tmp_path: Path,
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text("dependencies:\n  - numpy\n")
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    channels, platforms, parsed, optional = requirements
+
+    assert channels == requirements.channels
+    assert platforms == requirements.platforms
+    assert parsed == requirements.requirements
+    assert optional == requirements.optional_dependencies
+    assert requirements.dependency_entries
+
+
 @pytest.mark.parametrize("verbose", [True, False])
 def test_generate_conda_env_file(
     tmp_path: Path,
@@ -311,13 +333,22 @@ def test_verbose_output(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     assert "Environment file generated successfully." in captured.out
 
 
-def test_create_conda_env_specification_rejects_resolved_dict_input() -> None:
+def test_create_conda_env_specification_accepts_resolved_dict_input_with_warning() -> (
+    None
+):
     resolved: Any = {}
-    with pytest.raises(
-        TypeError,
-        match="now requires dependency entries",
-    ):
-        create_conda_env_specification(resolved, [], [])
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        assert create_conda_env_specification(resolved, [], []) == CondaEnvironmentSpec(
+            channels=[],
+            platforms=[],
+            conda=[],
+            pip=[],
+        )
+
+
+def test_public_resolve_conflicts_wrapper_warns() -> None:
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        assert public_resolve_conflicts({}) == {}
 
 
 def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:
@@ -1212,7 +1243,8 @@ def test_different_pins_on_conda_and_pip(
             ),
         ],
     }
-    resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
+    with pytest.warns(UserWarning, match="Version Pinning Conflict"):
+        resolved = resolve_conflicts(requirements.requirements, requirements.platforms)
     assert resolved == {
         "foo": {
             None: {
@@ -1268,11 +1300,6 @@ def test_pip_pinned_conda_not(
     assert resolved == {
         "foo": {
             None: {
-                "conda": Spec(
-                    name="foo",
-                    which="conda",
-                    identifier="17e5d607",
-                ),
                 "pip": Spec(
                     name="foo",
                     which="pip",
@@ -1325,11 +1352,6 @@ def test_conda_pinned_pip_not(
                     pin=">1",
                     identifier="17e5d607",
                 ),
-                "pip": Spec(
-                    name="foo",
-                    which="pip",
-                    identifier="17e5d607",
-                ),
             },
         },
     }
@@ -1346,7 +1368,7 @@ def test_conda_pinned_pip_not(
         requirements.dependency_entries,
         requirements.platforms,
     )
-    assert python_deps == ["foo"]
+    assert python_deps == []
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
@@ -1373,8 +1395,7 @@ def test_get_python_dependencies_preserves_platform_specific_pip_with_pinned_con
     deps = get_python_dependencies(p, verbose=False)
 
     assert deps.dependencies == [
-        "mypackage; sys_platform == 'linux' and platform_machine == 'x86_64' "
-        "or sys_platform == 'darwin' and platform_machine == 'arm64'",
+        "mypackage; sys_platform == 'darwin' and platform_machine == 'arm64'",
     ]
 
 
@@ -1599,16 +1620,15 @@ def test_platforms_section_in_yaml_similar_platforms(
     )
     p = maybe_as_toml(toml_or_yaml, p)
     requirements = parse_requirements(p, verbose=False)
-    with pytest.raises(
-        ValueError,
-        match="Use selector='comment' instead",
-    ):
-        create_conda_env_specification(
+    with pytest.warns(UserWarning, match="Dependency Conflict on"):
+        env_spec_sel = create_conda_env_specification(
             requirements.dependency_entries,
             requirements.channels,
             requirements.platforms,
             selector="sel",
         )
+    assert env_spec_sel.conda == ["foo", {"sel(linux)": "yolo >1"}]
+    assert env_spec_sel.pip == []
     python_deps = filter_python_dependencies(
         requirements.dependency_entries,
         requirements.platforms,

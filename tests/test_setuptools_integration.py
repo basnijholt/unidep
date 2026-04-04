@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from unidep._setuptools_integration import filter_python_dependencies
+from unidep.platform_definitions import Spec
 from unidep.utils import (
     package_name_from_path,
     package_name_from_pyproject_toml,
@@ -134,9 +135,20 @@ def test_package_name_from_path_does_not_suppress_unexpected_errors(
         package_name_from_path(tmp_path)
 
 
-def test_filter_python_dependencies_rejects_resolved_dict_input() -> None:
-    with pytest.raises(
-        TypeError,
-        match="now requires dependency entries",
-    ):
-        filter_python_dependencies({})  # type: ignore[arg-type]
+def test_filter_python_dependencies_accepts_resolved_dict_input_with_warning() -> None:
+    resolved = {
+        "foo": {
+            None: {
+                "conda": Spec(name="foo", which="conda"),
+            },
+        },
+        "bar": {
+            "linux-64": {
+                "pip": Spec(name="bar", which="pip", selector="linux64"),
+            },
+        },
+    }
+    with pytest.warns(DeprecationWarning, match="deprecated"):
+        assert filter_python_dependencies(resolved) == [
+            "bar; sys_platform == 'linux' and platform_machine == 'x86_64'",
+        ]

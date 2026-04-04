@@ -237,8 +237,6 @@ def _parse_supported_pinning(pinning: str) -> tuple[str, Version]:
         msg = f"Missing operator in supported pinning '{pinning}'"
         raise ValueError(msg)
     version_text = pinning[len(operator) :].strip()
-    if operator == "=":
-        operator = "="
     return operator, Version(version_text)
 
 

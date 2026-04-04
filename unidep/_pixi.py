@@ -695,14 +695,19 @@ def _process_single_file_optional_groups(
         group_feature_entries.extend(
             group_req.optional_dependency_entries.get(group_name, []),
         )
+        group_platforms = _feature_platforms_for_entries(
+            entries=group_feature_entries,
+            declared_platforms=group_req.platforms,
+            global_declared_platforms=set(group_req.platforms),
+            platforms_override=platforms_override,
+        )
         opt_platform_deps = _extract_dependencies(
             group_feature_entries,
-            platforms=platforms_override or list(group_req.platforms) or None,
+            platforms=group_platforms,
             allow_hoist_without_universal_origin=True,
         )
-        discovered_target_platforms.update(
-            platform for platform in opt_platform_deps if platform is not None
-        )
+        if group_platforms:
+            discovered_target_platforms.update(group_platforms)
         feature = _build_feature_dict(opt_platform_deps)
         optional_group_projects: list[Path] = list(
             dep_graph.optional_group_unmanaged_graph.get(root_node, {}).get(
@@ -780,14 +785,19 @@ def _generate_single_file_pixi(
         skip_dependencies=skip_dependencies,
         include_local_dependencies=True,
     )
+    base_feature_platforms = _feature_platforms_for_entries(
+        entries=base_req.dependency_entries,
+        declared_platforms=base_req.platforms,
+        global_declared_platforms=set(base_req.platforms),
+        platforms_override=platforms_override,
+    )
     platform_deps = _extract_dependencies(
         base_req.dependency_entries,
-        platforms=platforms_override or list(base_req.platforms) or None,
+        platforms=base_feature_platforms,
         allow_hoist_without_universal_origin=True,
     )
-    discovered_target_platforms.update(
-        platform for platform in platform_deps if platform is not None
-    )
+    if base_feature_platforms:
+        discovered_target_platforms.update(base_feature_platforms)
 
     # Use channels and platforms from the requirements file
     if base_req.channels:
@@ -1235,7 +1245,13 @@ def _extract_dependencies(  # noqa: PLR0912
             ],
         ] = {platform: ({}, {}) for platform in target_platforms}
         for platform, candidates in selected.items():
-            assert platform is not None
+            if platform is None:  # pragma: no cover
+                msg = (
+                    "Internal error: selector-based pixi extraction produced a "
+                    "universal platform bucket while explicit target platforms were "
+                    f"active: {target_platforms}"
+                )
+                raise ValueError(msg)
             conda_deps, pip_deps = per_platform[platform]
             for candidate in candidates:
                 if candidate.source == "conda":

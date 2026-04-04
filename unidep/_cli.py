@@ -30,17 +30,13 @@ from unidep._dependencies_parsing import (
     parse_local_dependencies,
     parse_requirements,
 )
-from unidep._dependency_selection import (
-    collapse_selected_universals,
-    select_conda_like_requirements,
-)
 from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
     filter_python_dependencies,
     get_python_dependencies,
 )
 from unidep._version import __version__
-from unidep.platform_definitions import Platform
+from unidep.platform_definitions import Platform, platforms_from_selector
 from unidep.utils import (
     add_comment_to_file,
     escape_unicode,
@@ -87,9 +83,13 @@ def _flatten_selected_dependency_entries(
 def _collect_selected_conda_like_platforms(
     entries: list[DependencyEntry],
 ) -> list[Platform]:
-    """Collect target platforms that still matter after conda-like selection."""
-    selected = collapse_selected_universals(select_conda_like_requirements(entries))
-    return sorted(platform for platform in selected if platform is not None)
+    """Collect all platforms referenced directly by dependency selectors."""
+    selector_platforms: set[Platform] = set()
+    for entry in entries:
+        if entry.selector is None:
+            continue
+        selector_platforms.update(platforms_from_selector(entry.selector))
+    return sorted(selector_platforms)
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -1572,8 +1572,8 @@ def _print_versions() -> None:  # pragma: no cover
 
 def _print_with_rich(data: list) -> None:
     """Print data as a table using rich, if it's installed."""
-    from rich.console import Console
-    from rich.table import Table
+    from rich.console import Console  # noqa: PLC0415
+    from rich.table import Table  # noqa: PLC0415
 
     console = Console()
     table = Table(show_header=False)

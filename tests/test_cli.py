@@ -51,6 +51,28 @@ EXAMPLE_PROJECTS = [
 ]
 
 
+def test_collect_selected_conda_like_platforms_uses_selector_intent(
+    tmp_path: Path,
+) -> None:
+    requirements_file = tmp_path / "requirements.yaml"
+    requirements_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - click
+              - pip: click  # [osx]
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(requirements_file)
+
+    assert _collect_selected_conda_like_platforms(requirements.dependency_entries) == [
+        "osx-64",
+        "osx-arm64",
+    ]
+
+
 def current_env_and_prefix() -> tuple[str, Path]:
     """Get the current conda environment name and prefix."""
     try:
@@ -403,7 +425,13 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
 
 
 @pytest.mark.parametrize(
-    ("content", "current_platform", "expected_dependency", "excluded_platform"),
+    (
+        "content",
+        "current_platform",
+        "expected_dependency",
+        "expected_platforms",
+        "excluded_platform",
+    ),
     [
         (
             """\
@@ -413,7 +441,8 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
             """,
             "linux-64",
             "  - click >=8",
-            "  - osx-64",
+            ["  - osx-64", "  - osx-arm64"],
+            "  - linux-64",
         ),
         (
             """\
@@ -423,15 +452,17 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
             """,
             "osx-arm64",
             "    - click ==0.1",
-            "  - linux-64",
+            ["  - linux-64"],
+            "  - osx-arm64",
         ),
     ],
 )
-def test_merge_ignores_selector_platforms_from_losing_alternatives(
+def test_merge_uses_selector_platforms_even_for_losing_alternatives(
     tmp_path: Path,
     content: str,
     current_platform: str,
     expected_dependency: str,
+    expected_platforms: list[str],
     excluded_platform: str,
 ) -> None:
     req_file = tmp_path / "requirements.yaml"
@@ -457,7 +488,8 @@ def test_merge_ignores_selector_platforms_from_losing_alternatives(
     merged = output_file.read_text()
     assert expected_dependency in merged
     assert "platforms:" in merged
-    assert f"  - {current_platform}" in merged
+    for expected_platform in expected_platforms:
+        assert expected_platform in merged
     assert excluded_platform not in merged
 
 
@@ -497,7 +529,7 @@ def test_flatten_selected_dependency_entries_includes_optional_groups(
     ]
 
 
-def test_collect_selected_conda_like_platforms_ignores_losing_selectors(
+def test_collect_selected_conda_like_platforms_preserves_selector_platforms(
     tmp_path: Path,
 ) -> None:
     req_file = tmp_path / "requirements.yaml"
@@ -517,7 +549,10 @@ def test_collect_selected_conda_like_platforms_ignores_losing_selectors(
         requirements.optional_dependency_entries,
     )
 
-    assert _collect_selected_conda_like_platforms(entries) == []
+    assert _collect_selected_conda_like_platforms(entries) == [
+        "osx-64",
+        "osx-arm64",
+    ]
 
 
 def test_unidep_pixi_cli_optional_monorepo_env_includes_base(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 
 from unidep._conflicts import (
@@ -11,6 +13,7 @@ from unidep._conflicts import (
     _is_redundant,
     _is_valid_pinning,
     _parse_pinning,
+    _reconcile_conda_pip_pair,
     combine_version_pinnings,
     extract_version_operator,
 )
@@ -32,6 +35,78 @@ def test_combining_versions() -> None:
             "conda": Spec(name="numpy", which="conda", pin=">1,<2"),
         },
     }
+
+
+@pytest.mark.parametrize(
+    ("case", "expected"),
+    [
+        (
+            (False, False, False, "both"),
+            ("conda", "pip"),
+        ),
+        (
+            (False, False, False, "conda"),
+            ("conda", None),
+        ),
+        (
+            (True, False, False, "both"),
+            ("conda", None),
+        ),
+        (
+            (False, True, False, "both"),
+            (None, "pip"),
+        ),
+        (
+            (True, True, True, "conda"),
+            (None, "pip"),
+        ),
+        (
+            (True, True, False, "both"),
+            ("conda", "pip"),
+        ),
+        (
+            (True, True, False, "pip"),
+            (None, "pip"),
+        ),
+    ],
+)
+def test_reconcile_conda_pip_pair(
+    case: tuple[bool, bool, bool, Literal["conda", "pip", "both"]],
+    expected: tuple[str | None, str | None],
+) -> None:
+    conda_pinned, pip_pinned, pip_has_extras, on_tie = case
+    conda, pip = _reconcile_conda_pip_pair(
+        conda="conda",
+        pip="pip",
+        conda_pinned=conda_pinned,
+        pip_pinned=pip_pinned,
+        pip_has_extras=pip_has_extras,
+        on_tie=on_tie,
+    )
+    assert (conda, pip) == expected
+
+
+@pytest.mark.parametrize(
+    ("conda", "pip", "expected"),
+    [
+        (None, "pip", (None, "pip")),
+        ("conda", None, ("conda", None)),
+    ],
+)
+def test_reconcile_conda_pip_pair_with_missing_source(
+    conda: str | None,
+    pip: str | None,
+    expected: tuple[str | None, str | None],
+) -> None:
+    assert (
+        _reconcile_conda_pip_pair(
+            conda=conda,
+            pip=pip,
+            conda_pinned=False,
+            pip_pinned=False,
+        )
+        == expected
+    )
 
 
 @pytest.mark.parametrize("operator", ["<", "<=", ">", ">=", "="])
@@ -62,9 +137,6 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
         ([">0.0.1", "<2", "=1.0.0"], "=1.0.0"),
         ([">1", "<=3", "<4"], ">1,<=3"),
         ([">1", "<=3"], ">1,<=3"),
-        # TODO #67: !=5 should be removed but this is not yet implemented  # noqa: TD004, FIX002
-        # However, this is not a problem here because !=5 is redundant
-        # as it is outside the range of >1 and <=3
         ([">1", "<=3", "!=5"], ">1,<=3,!=5"),
         ([">1", ">=1", "<3", "<=3", ""], ">1,<3"),
         ([">1"], ">1"),
@@ -73,7 +145,6 @@ def test_is_valid_pinning(operator: str, version: str) -> None:
 )
 def test_combine_version_pinnings(pinnings: list[str], expected: str) -> None:
     assert combine_version_pinnings(pinnings) == expected
-    # Try reversing the order of the pinnings
     if "," not in expected:
         assert combine_version_pinnings(pinnings[::-1]) == expected
     else:
@@ -134,7 +205,6 @@ def test_multiple_exact_pinnings() -> None:
 
 
 def test_general_contradictory_pinnings() -> None:
-    # This test ensures that contradictory non-exact pinnings raise a VersionConflictError
     with pytest.raises(
         VersionConflictError,
         match="Contradictory version pinnings found for `None`: >=2 and <1",
