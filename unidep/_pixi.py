@@ -650,10 +650,10 @@ def _process_single_file_optional_groups(
     *,
     req_file: Path,
     base_req: ParsedRequirements,
+    base_feature_platforms: list[Platform] | None,
     dep_graph: LocalDependencyGraph,
     root_node: PathWithExtras,
     base_local_editable_set: set[Path],
-    platforms_override: list[Platform] | None,
     output_file: str | Path | None,
     verbose: bool,
     ignore_pins: list[str] | None,
@@ -674,6 +674,8 @@ def _process_single_file_optional_groups(
     pixi_data["feature"] = {}
     pixi_data["environments"] = {}
     opt_features = []
+    workspace_platforms: set[Platform] = set(base_feature_platforms or [])
+    parsed_groups: list[tuple[str, ParsedRequirements, list[DependencyEntry]]] = []
 
     for group_name in optional_groups:
         group_req = parse_requirements(
@@ -695,19 +697,19 @@ def _process_single_file_optional_groups(
         group_feature_entries.extend(
             group_req.optional_dependency_entries.get(group_name, []),
         )
-        group_platforms = _feature_platforms_for_entries(
-            entries=group_feature_entries,
-            declared_platforms=group_req.platforms,
-            global_declared_platforms=set(group_req.platforms),
-            platforms_override=platforms_override,
-        )
+        workspace_platforms.update(_selector_platforms_from_entries(group_feature_entries))
+        parsed_groups.append((group_name, group_req, group_feature_entries))
+
+    group_platforms = sorted(workspace_platforms) or None
+    if group_platforms:
+        discovered_target_platforms.update(group_platforms)
+
+    for group_name, _group_req, group_feature_entries in parsed_groups:
         opt_platform_deps = _extract_dependencies(
             group_feature_entries,
             platforms=group_platforms,
             allow_hoist_without_universal_origin=True,
         )
-        if group_platforms:
-            discovered_target_platforms.update(group_platforms)
         feature = _build_feature_dict(opt_platform_deps)
         optional_group_projects: list[Path] = list(
             dep_graph.optional_group_unmanaged_graph.get(root_node, {}).get(
@@ -843,10 +845,10 @@ def _generate_single_file_pixi(
         pixi_data,
         req_file=req_file,
         base_req=base_req,
+        base_feature_platforms=base_feature_platforms,
         dep_graph=dep_graph,
         root_node=root_node,
         base_local_editable_set=base_local_editable_set,
-        platforms_override=platforms_override,
         output_file=output_file,
         verbose=verbose,
         ignore_pins=ignore_pins,

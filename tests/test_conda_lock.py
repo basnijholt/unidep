@@ -553,6 +553,47 @@ def test_conda_lock_subpackage_uses_selected_same_name_pip_winner(
     ]
 
 
+def test_conda_lock_subpackage_strips_pip_extras_for_lookup(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        """\
+        dependencies:
+          - pip: foo[dev] >1
+        """,
+    )
+    lock_spec = LockSpec(
+        packages={
+            ("pip", "linux-64", "foo"): {
+                "name": "foo",
+                "manager": "pip",
+                "platform": "linux-64",
+                "version": "2.0",
+                "dependencies": {},
+            },
+        },
+        dependencies={("pip", "linux-64", "foo"): set()},
+    )
+
+    output = _conda_lock_subpackage(
+        file=req_file,
+        lock_spec=lock_spec,
+        channels=["conda-forge"],
+        platforms=["linux-64"],
+        yaml=YAML(typ="rt"),
+    )
+
+    assert "Missing keys" not in capsys.readouterr().out
+    yaml = YAML(typ="safe")
+    with output.open() as fp:
+        data = yaml.load(fp)
+    assert [(pkg["manager"], pkg["name"]) for pkg in data["package"]] == [
+        ("pip", "foo"),
+    ]
+
+
 def test_conda_lock_subpackage_uses_selected_paired_different_name_pip_winner(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

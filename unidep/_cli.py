@@ -36,7 +36,7 @@ from unidep._setuptools_integration import (
     get_python_dependencies,
 )
 from unidep._version import __version__
-from unidep.platform_definitions import Platform, platforms_from_selector
+from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
     escape_unicode,
@@ -86,9 +86,12 @@ def _collect_selected_conda_like_platforms(
     """Collect all platforms referenced directly by dependency selectors."""
     selector_platforms: set[Platform] = set()
     for entry in entries:
-        if entry.selector is None:
-            continue
-        selector_platforms.update(platforms_from_selector(entry.selector))
+        for spec in (entry.conda, entry.pip):
+            if spec is None or spec.selector is None:
+                continue
+            entry_platforms = spec.platforms()
+            if entry_platforms is not None:
+                selector_platforms.update(entry_platforms)
     return sorted(selector_platforms)
 
 

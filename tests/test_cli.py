@@ -38,7 +38,12 @@ from unidep._cli import (
     _pip_subcommand,
     _print_versions,
 )
-from unidep._dependencies_parsing import DependencyEntry, parse_requirements
+from unidep._dependencies_parsing import (
+    DependencyEntry,
+    DependencyOrigin,
+    parse_requirements,
+)
+from unidep.platform_definitions import Spec
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -68,6 +73,25 @@ def test_collect_selected_conda_like_platforms_uses_selector_intent(
     requirements = parse_requirements(requirements_file)
 
     assert _collect_selected_conda_like_platforms(requirements.dependency_entries) == [
+        "osx-64",
+        "osx-arm64",
+    ]
+
+
+def test_collect_selected_conda_like_platforms_uses_both_source_selectors() -> None:
+    entry = DependencyEntry(
+        identifier="selector-mismatch",
+        selector="linux64",
+        conda=Spec(name="click", which="conda", selector="linux64"),
+        pip=Spec(name="click", which="pip", selector="osx"),
+        origin=DependencyOrigin(
+            source_file=Path("requirements.yaml"),
+            dependency_index=0,
+        ),
+    )
+
+    assert _collect_selected_conda_like_platforms([entry]) == [
+        "linux-64",
         "osx-64",
         "osx-arm64",
     ]

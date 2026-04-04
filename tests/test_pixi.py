@@ -1165,6 +1165,41 @@ def test_pixi_single_file_optional_group_preserves_selector_only_platforms(
     assert data["feature"]["dev"]["dependencies"]["numpy"] == "*"
 
 
+def test_pixi_single_file_optional_group_keeps_platform_specific_dep_targeted(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - click  # [linux]
+        optional_dependencies:
+          dev:
+            - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-optional-platform-hoist",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    dev = data["feature"]["dev"]
+    assert "pypi-dependencies" not in dev
+    assert dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
 @pytest.mark.parametrize(
     ("first_pin", "second_pin"),
     [

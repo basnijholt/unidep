@@ -103,7 +103,7 @@ def _conda_lock_global(
     lockfile: str,
 ) -> Path:
     """Generate a conda-lock file for the global dependencies."""
-    from unidep._cli import _merge_command
+    from unidep._cli import _merge_command  # noqa: PLC0415
 
     if files:
         directory = files[0].parent
@@ -139,6 +139,13 @@ class LockSpec(NamedTuple):
 
     packages: dict[tuple[CondaPip, Platform, str], dict[str, Any]]
     dependencies: dict[tuple[CondaPip, Platform, str], set[str]]
+
+
+def _lock_lookup_name(name: str, which: CondaPip) -> str:
+    """Normalize dependency names for conda-lock package lookup."""
+    if which != "pip":
+        return name
+    return name.split("[", 1)[0]
 
 
 def _parse_conda_lock_packages(
@@ -339,9 +346,10 @@ def _conda_lock_subpackage(
         for candidate in candidates:
             if candidate.spec.name.startswith("__"):  # pragma: no cover
                 continue
+            lookup_name = _lock_lookup_name(candidate.spec.name, candidate.source)
             for candidate_platform in candidate_platforms:
                 add_pkg(
-                    name=candidate.spec.name,
+                    name=lookup_name,
                     which=candidate.source,
                     platform=candidate_platform,
                 )
@@ -370,7 +378,7 @@ def _conda_lock_subpackage(
     yaml.representer.ignore_aliases = lambda *_: True  # Disable anchors
     conda_lock_output = file.parent / "conda-lock.yml"
     metadata = {
-        "content_hash": {p: "unidep-is-awesome" for p in platforms},
+        "content_hash": dict.fromkeys(platforms, "unidep-is-awesome"),
         "channels": [{"url": c, "used_env_vars": []} for c in channels],
         "platforms": platforms,
         "sources": [str(file)],
@@ -395,7 +403,7 @@ def _download_and_get_package_names(
     component: Literal["info", "pkg"] | None = None,
 ) -> list[str] | None:
     try:
-        import conda_package_handling.api
+        import conda_package_handling.api  # noqa: PLC0415
     except ImportError:  # pragma: no cover
         print(
             "❌ Could not import `conda-package-handling` module."
