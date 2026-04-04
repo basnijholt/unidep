@@ -689,9 +689,67 @@ def _restrict_entries_to_source_platforms(
     return restricted_entries
 
 
+def _merge_effective_platforms(
+    current: tuple[Platform, ...] | None,
+    candidate: tuple[Platform, ...] | None,
+) -> tuple[Platform, ...] | None:
+    if current is None or candidate is None:
+        return None
+    return tuple(sorted({*current, *candidate}))
+
+
+def _effective_source_platforms_for_nodes(
+    *,
+    start_nodes: Sequence[tuple[PathWithExtras, tuple[Platform, ...] | None]],
+    dep_graph: LocalDependencyGraph,
+    verbose: bool,
+    ignore_pins: list[str] | None,
+    skip_dependencies: list[str] | None,
+    overwrite_pins: list[str] | None,
+) -> dict[Path, tuple[Platform, ...]]:
+    parsed_by_node: dict[PathWithExtras, ParsedRequirements] = {}
+    effective_by_node: dict[PathWithExtras, tuple[Platform, ...] | None] = {}
+    queue = deque(start_nodes)
+
+    while queue:
+        node, inherited_platforms = queue.popleft()
+        req = parsed_by_node.setdefault(
+            node,
+            _parse_direct_requirements_for_node(
+                node,
+                verbose=verbose,
+                ignore_pins=ignore_pins,
+                skip_dependencies=skip_dependencies,
+                overwrite_pins=overwrite_pins,
+            ),
+        )
+        declared_platforms = tuple(req.platforms) if req.platforms else None
+        candidate_platforms = (
+            declared_platforms
+            if declared_platforms is not None
+            else inherited_platforms
+        )
+        existing_platforms = effective_by_node.get(node)
+        merged_platforms = (
+            candidate_platforms
+            if node not in effective_by_node
+            else _merge_effective_platforms(existing_platforms, candidate_platforms)
+        )
+        if node in effective_by_node and merged_platforms == existing_platforms:
+            continue
+        effective_by_node[node] = merged_platforms
+        for child in dep_graph.graph.get(node, []):
+            queue.append((child, merged_platforms))
+
+    return {
+        node.path.resolve(): platforms
+        for node, platforms in effective_by_node.items()
+        if platforms is not None
+    }
+
+
 def _optional_group_source_platforms(
     *,
-    req_file: Path,
     root_platforms: tuple[Platform, ...] | None,
     root_node: PathWithExtras,
     group_name: str,
@@ -701,34 +759,21 @@ def _optional_group_source_platforms(
     skip_dependencies: list[str] | None,
     overwrite_pins: list[str] | None,
 ) -> tuple[dict[Path, tuple[Platform, ...]], list[PathWithExtras]]:
-    source_platforms: dict[Path, tuple[Platform, ...]] = {}
-    if root_platforms:
-        source_platforms[req_file.resolve()] = root_platforms
-
     optional_local_nodes = dep_graph.optional_group_graph.get(root_node, {}).get(
         group_name,
         [],
     )
-    seen_optional_nodes: set[PathWithExtras] = set()
-    for optional_local_node in optional_local_nodes:
-        for candidate_node in [
-            optional_local_node,
-            *(_collect_transitive_nodes(optional_local_node, dep_graph.graph)),
-        ]:
-            if candidate_node in seen_optional_nodes:
-                continue
-            seen_optional_nodes.add(candidate_node)
-            node_req = _parse_direct_requirements_for_node(
-                candidate_node,
-                verbose=verbose,
-                ignore_pins=ignore_pins,
-                skip_dependencies=skip_dependencies,
-                overwrite_pins=overwrite_pins,
-            )
-            if node_req.platforms:
-                source_platforms[candidate_node.path.resolve()] = tuple(
-                    node_req.platforms,
-                )
+    source_platforms = _effective_source_platforms_for_nodes(
+        start_nodes=[
+            (optional_local_node, root_platforms)
+            for optional_local_node in optional_local_nodes
+        ],
+        dep_graph=dep_graph,
+        verbose=verbose,
+        ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
+    )
     return source_platforms, optional_local_nodes
 
 
@@ -811,7 +856,6 @@ def _process_single_file_optional_groups(
             group_req.optional_dependency_entries.get(group_name, []),
         )
         source_platforms, optional_local_nodes = _optional_group_source_platforms(
-            req_file=req_file,
             root_platforms=root_platforms,
             root_node=root_node,
             group_name=group_name,
@@ -915,6 +959,18 @@ def _generate_single_file_pixi(
     discovered_target_platforms: set[str] = set()
 
     req_file = parse_folder_or_filename(requirements_file).path
+    dep_graph = _discover_local_dependency_graph([requirements_file])
+    root_node = dep_graph.roots[0]
+    root_direct_req = _parse_direct_requirements_for_node(
+        root_node,
+        verbose=verbose,
+        ignore_pins=ignore_pins,
+        skip_dependencies=skip_dependencies,
+        overwrite_pins=overwrite_pins,
+    )
+    root_platforms = (
+        tuple(root_direct_req.platforms) if root_direct_req.platforms else None
+    )
     base_req = parse_requirements(
         requirements_file,
         verbose=verbose,
@@ -923,14 +979,28 @@ def _generate_single_file_pixi(
         skip_dependencies=skip_dependencies,
         include_local_dependencies=True,
     )
+    base_entries = _restrict_entries_to_source_platforms(
+        base_req.dependency_entries,
+        _effective_source_platforms_for_nodes(
+            start_nodes=[
+                (local_node, root_platforms)
+                for local_node in dep_graph.graph.get(root_node, [])
+            ],
+            dep_graph=dep_graph,
+            verbose=verbose,
+            ignore_pins=ignore_pins,
+            skip_dependencies=skip_dependencies,
+            overwrite_pins=overwrite_pins,
+        ),
+    )
     base_feature_platforms = _feature_platforms_for_entries(
-        entries=base_req.dependency_entries,
+        entries=base_entries,
         declared_platforms=base_req.platforms,
         global_declared_platforms=set(base_req.platforms),
         platforms_override=platforms_override,
     )
     platform_deps = _extract_dependencies(
-        base_req.dependency_entries,
+        base_entries,
         platforms=base_feature_platforms,
         allow_hoist_without_universal_origin=True,
     )
@@ -944,9 +1014,6 @@ def _generate_single_file_pixi(
         all_platforms.update(base_req.platforms)
 
     pixi_data.update(_build_feature_dict(platform_deps))
-
-    dep_graph = _discover_local_dependency_graph([requirements_file])
-    root_node = dep_graph.roots[0]
 
     # Collect editable packages from the root project and required local deps
     # only (NOT optional-only local deps, which belong in optional features).

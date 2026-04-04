@@ -669,8 +669,6 @@ def _resolve_family_alias_collisions(
             if len(unique_group) <= 1:
                 continue
             sources = {candidate.source for candidate in unique_group}
-            if len(sources) <= 1:
-                continue
 
             by_source: dict[CondaPip, list[MergedSourceCandidate]] = {}
             for candidate in unique_group:
@@ -683,6 +681,8 @@ def _resolve_family_alias_collisions(
                     identity=_family_identity_text(identity),
                     candidates=unique_group,
                 )
+            if len(sources) <= 1:  # pragma: no cover
+                continue
 
             conda = next(
                 (

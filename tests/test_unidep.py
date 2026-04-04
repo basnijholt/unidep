@@ -2489,6 +2489,42 @@ def test_different_name_pair_does_not_survive_separate_pip_family_winner(
 
 
 @pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
+def test_same_source_family_alias_collision_raises_for_conda_like_outputs(
+    tmp_path: Path,
+    toml_or_yaml: Literal["toml", "yaml"],
+) -> None:
+    p = tmp_path / "requirements.yaml"
+    p.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+                - conda: python-graphviz
+                  pip: graphviz
+                - conda: graphviz-conda-alt
+                  pip: graphviz
+            platforms:
+                - linux-64
+            """,
+        ),
+    )
+    p = maybe_as_toml(toml_or_yaml, p)
+
+    requirements = parse_requirements(p, verbose=False)
+    with pytest.raises(ValueError, match="Final Dependency Collision"):
+        create_conda_env_specification(
+            requirements.dependency_entries,
+            requirements.channels,
+            requirements.platforms,
+        )
+
+    python_deps = filter_python_dependencies(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    assert python_deps == ["graphviz"]
+
+
+@pytest.mark.parametrize("toml_or_yaml", ["toml", "yaml"])
 def test_same_source_final_collisions_merge_pip_extras(
     tmp_path: Path,
     toml_or_yaml: Literal["toml", "yaml"],
