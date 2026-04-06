@@ -36,10 +36,10 @@ jobs:
         shell: bash -el {0}
       - name: Run pytest
         run: |
-          if [[ "${{ matrix.python-version }}" == "3.8" ]]; then
-            pytest --cov-fail-under=0
-          else
+          if [[ "${{ matrix.platform }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
             pytest
+          else
+            pytest --cov-fail-under=0
           fi
         shell: bash -el {0}
       - name: Upload coverage to Codecov
