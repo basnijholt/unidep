@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+from typing import cast
 
 import pytest
 from packaging.version import Version
@@ -37,6 +38,24 @@ def test_origin_to_text_includes_optional_group_and_local_chain() -> None:
         dependency_index=3,
         optional_group="dev",
         local_dependency_chain=(Path("libs/a"), Path("libs/b")),
+    )
+    assert _origin_to_text(origin) == (
+        "requirements.yaml, item 3, group dev, via libs/a -> libs/b"
+    )
+
+
+def test_origin_to_text_normalizes_windows_style_local_chain() -> None:
+    origin = DependencyOrigin(
+        source_file=Path("requirements.yaml"),
+        dependency_index=3,
+        optional_group="dev",
+        local_dependency_chain=cast(
+            tuple[Path, ...],
+            (
+                PureWindowsPath("libs\\a"),
+                PureWindowsPath("libs\\b"),
+            ),
+        ),
     )
     assert _origin_to_text(origin) == (
         "requirements.yaml, item 3, group dev, via libs/a -> libs/b"

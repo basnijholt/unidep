@@ -134,11 +134,11 @@ def _candidate_display_key(
 
 
 def _origin_to_text(origin: DependencyOrigin) -> str:
-    parts = [str(origin.source_file), f"item {origin.dependency_index}"]
+    parts = [origin.source_file.as_posix(), f"item {origin.dependency_index}"]
     if origin.optional_group is not None:
         parts.append(f"group {origin.optional_group}")
     if origin.local_dependency_chain:
-        chain = " -> ".join(str(path) for path in origin.local_dependency_chain)
+        chain = " -> ".join(path.as_posix() for path in origin.local_dependency_chain)
         parts.append(f"via {chain}")
     return ", ".join(parts)
 
