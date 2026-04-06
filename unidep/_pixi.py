@@ -698,7 +698,7 @@ def _process_single_file_optional_groups(
             group_req.optional_dependency_entries.get(group_name, []),
         )
         workspace_platforms.update(
-            _selector_platforms_from_entries(group_feature_entries)
+            _selector_platforms_from_entries(group_feature_entries),
         )
         parsed_groups.append((group_name, group_feature_entries))
 
