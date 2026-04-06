@@ -4,7 +4,6 @@ from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
 )
-from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
     find_requirements_files,
     parse_local_dependencies,
@@ -24,6 +23,5 @@ __all__ = [
     "get_python_dependencies",
     "parse_local_dependencies",
     "parse_requirements",
-    "resolve_conflicts",
     "write_conda_environment_file",
 ]

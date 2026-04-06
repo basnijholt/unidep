@@ -24,7 +24,7 @@ This often leads to confusion and inefficiency, as developers juggle between mul
 - **🔧 `pip-compile` Integration**: Generate fully pinned `requirements.txt` files from `requirements.yaml` or `pyproject.toml` files using `pip-compile`.
 - **🔒 Integration with `conda-lock`**: Generate fully pinned `conda-lock.yml` files from (multiple) `requirements.yaml` or `pyproject.toml` file(s), leveraging `conda-lock`.
 - **🥧 Pixi Support**: Generate `pixi.toml` files from your dependency files, enabling Pixi-based workflows while keeping UniDep as the single source of truth.
-- **🤓 Nerd stats**: written in Python, >99% test coverage, fully-typed, all Ruff's rules enabled, easily extensible, and minimal dependencies
+- **🤓 Nerd stats**: written in Python, 100% test coverage, fully-typed, all Ruff's rules enabled, easily extensible, and minimal dependencies
 
 `unidep` is designed to make dependency management in Python projects as simple and efficient as possible.
 Try it now and streamline your development process!
@@ -260,15 +260,18 @@ See [Build System Integration](#jigsaw-build-system-integration) for more inform
 
 ### Supported Version Pinnings
 
-UniDep supports a range of version pinning operators (the same as Conda):
+UniDep has two relevant pinning layers:
 
-- **Standard Version Constraints**: Specify exact versions or ranges with standard operators like `=`, `>`, `<`, `>=`, `<=`.
-  - Example: `=1.0.0`, `>1.0.0, <2.0.0`.
+- **Dict-based conflict helper (`unidep._conflicts.resolve_conflicts`)**: combines repeated pinnings with the Conda-compatible subset of operators: `=`, `>`, `<`, `>=`, `<=`, `!=`.
+- **CLI-facing pip renderers**: additionally preserve safe pip-only PEP 440 forms such as `==` and `~=` when those constraints can be kept explicitly without ambiguity.
 
-- **Version Exclusions**: Exclude specific versions using `!=`.
-  - Example: `!=1.5.0`.
+Examples:
 
-- **Redundant Pinning Resolution**: Automatically resolves redundant version specifications.
+- Conda-compatible merge: `>1.0.0, <2.0.0`
+- Exact pip pin: `==0.25.2.1`
+- Compatible release pin: `~=1.0`
+
+- **Redundant Pinning Resolution**: Automatically resolves redundant compatible constraints when possible.
   - Example: `>1.0.0, >0.5.0` simplifies to `>1.0.0`.
 
 - **Contradictory Version Detection**: Errors are raised for contradictory pinnings to maintain dependency integrity. See the [Conflict Resolution](#conflict-resolution) section for more information.
@@ -295,11 +298,19 @@ UniDep supports a range of version pinning operators (the same as Conda):
 
 #### How It Works
 
-- **Version Pinning Priority**: `unidep` gives priority to version-pinned packages when the same package is specified multiple times. For instance, if both `foo` and `foo <1` are listed, `foo <1` is selected due to its specific version pin.
+- **Within-source pinning priority**: `unidep` combines repeated entries within the same source (`conda` or `pip`) and gives priority to version-pinned packages. For instance, if both `foo` and `foo <1` are listed for the same source, `foo <1` is selected due to its specific version pin.
+
+- **Entry-based rendering**: CLI-facing outputs now work from `parse_requirements(...).dependency_entries`, preserving each original declaration long enough for the shared selector to choose the final Conda-like or pip-only result.
+
+- **Lower-level metadata helper**: `unidep._conflicts.resolve_conflicts()` still exists for the older dict-based requirements model (`ParsedRequirements.requirements`), but it is no longer the main renderer handoff.
+
+- **Conda-like paired-entry selection**: For explicit dependency entries that provide both `conda:` and `pip:` alternatives, Conda-like outputs use deterministic source selection rules: Pip extras win, otherwise a single pinned side wins, and ties prefer Conda.
+
+- **Pip-only output selection**: Pip-only exports (`unidep pip`, setuptools integration, `get_python_dependencies`) keep the Pip dependency when it exists, even if Conda would win for a Conda-like output.
 
 - **Platform-Specific Version Pinning**: `unidep` resolves platform-specific dependency conflicts by preferring the version with the narrowest platform scope. For instance, given `foo <3 # [linux64]` and `foo >1`, it installs `foo >1,<3` exclusively on Linux-64 and `foo >1` on all other platforms.
 
-- **Intractable Conflicts**: When conflicts are irreconcilable (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
+- **Intractable Conflicts**: When conflicts are irreconcilable within a source (e.g., `foo >1` vs. `foo <1`), `unidep` raises an exception.
 
 ### Platform Selectors
 
@@ -1059,7 +1070,7 @@ When the same package appears from both conda and pip, UniDep applies determinis
 1. If pip has extras (`foo[bar]`), pip wins.
 2. If only one side is pinned, pinned wins.
 3. On ties (both pinned or both unpinned), conda wins.
-4. For **universal conda vs target-specific pip** where both are pinned, target-specific pip intent is preserved on that target; the demoted universal entry is restored to other platforms as explicit target deps.
+4. When both sides are pinned and one declaration is narrower in platform scope, the narrower target-specific intent wins on that target. Other platforms continue through the same shared selection rules independently.
 
 Version pins from repeated entries are merged when possible (for example `>=1.7,<2` + `<1.16` → `>=1.7,<1.16`).
 

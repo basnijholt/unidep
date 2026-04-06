@@ -24,8 +24,8 @@ from unidep._conda_env import (
     write_conda_environment_file,
 )
 from unidep._conda_lock import conda_lock_command
-from unidep._conflicts import resolve_conflicts
 from unidep._dependencies_parsing import (
+    DependencyEntry,
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
@@ -39,7 +39,6 @@ from unidep._version import __version__
 from unidep.platform_definitions import Platform
 from unidep.utils import (
     add_comment_to_file,
-    collect_selector_platforms,
     escape_unicode,
     get_package_version,
     identify_current_platform,
@@ -69,6 +68,31 @@ except ImportError:  # pragma: no cover
 
 _DEP_FILES = "`requirements.yaml` or `pyproject.toml`"
 CondaExecutable = Literal["conda", "mamba", "micromamba"]
+
+
+def _flatten_selected_dependency_entries(
+    dependency_entries: list[DependencyEntry],
+    optional_dependency_entries: dict[str, list[DependencyEntry]],
+) -> list[DependencyEntry]:
+    entries = list(dependency_entries)
+    for group_entries in optional_dependency_entries.values():
+        entries.extend(group_entries)
+    return entries
+
+
+def _collect_selected_conda_like_platforms(
+    entries: list[DependencyEntry],
+) -> list[Platform]:
+    """Collect all platforms referenced directly by dependency selectors."""
+    selector_platforms: set[Platform] = set()
+    for entry in entries:
+        for spec in (entry.conda, entry.pip):
+            if spec is None or spec.selector is None:
+                continue
+            entry_platforms = spec.platforms()
+            if entry_platforms is not None:
+                selector_platforms.update(entry_platforms)
+    return sorted(selector_platforms)
 
 
 def _add_common_args(  # noqa: PLR0912, C901
@@ -1021,13 +1045,12 @@ def _install_command(  # noqa: PLR0912, PLR0915
         extras=[f.extras for f in paths_with_extras],
     )
     platforms = [identify_current_platform()]
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms,
-        optional_dependencies=requirements.optional_dependencies,
+    env_entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
     )
     env_spec = create_conda_env_specification(
-        resolved,
+        env_entries,
         requirements.channels,
         platforms=platforms,
     )
@@ -1359,21 +1382,17 @@ def _merge_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
+    env_entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
     platforms = resolve_platforms(
         requested_platforms=platforms,
         declared_platforms=requirements.platforms,
-        selector_platforms=collect_selector_platforms(
-            requirements.requirements,
-            requirements.optional_dependencies,
-        ),
-    )
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        platforms,
-        optional_dependencies=requirements.optional_dependencies,
+        selector_platforms=_collect_selected_conda_like_platforms(env_entries),
     )
     env_spec = create_conda_env_specification(
-        resolved,
+        env_entries,
         requirements.channels,
         platforms,
         selector=selector,
@@ -1471,12 +1490,11 @@ def _pip_compile_command(
         skip_dependencies=skip_dependencies,
         verbose=verbose,
     )
-    resolved = resolve_conflicts(
-        requirements.requirements,
-        [platform],
-        optional_dependencies=requirements.optional_dependencies,
+    pip_entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
     )
-    python_deps = filter_python_dependencies(resolved)
+    python_deps = filter_python_dependencies(pip_entries, [platform])
     requirements_in = directory / "requirements.in"
     with requirements_in.open("w") as f:
         f.write("\n".join(python_deps))
@@ -1639,13 +1657,12 @@ def main() -> None:  # noqa: PLR0912
             overwrite_pins=args.overwrite_pin,
             verbose=args.verbose,
         )
-        resolved = resolve_conflicts(
-            requirements.requirements,
-            platforms,
-            optional_dependencies=requirements.optional_dependencies,
+        env_entries = _flatten_selected_dependency_entries(
+            requirements.dependency_entries,
+            requirements.optional_dependency_entries,
         )
         env_spec = create_conda_env_specification(
-            resolved,
+            env_entries,
             requirements.channels,
             platforms=platforms,
         )
