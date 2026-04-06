@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path, PureWindowsPath
-from typing import cast
+from typing import Tuple, cast
 
 import pytest
 from packaging.version import Version
@@ -50,7 +50,7 @@ def test_origin_to_text_normalizes_windows_style_local_chain() -> None:
         dependency_index=3,
         optional_group="dev",
         local_dependency_chain=cast(
-            tuple[Path, ...],
+            Tuple[Path, ...],
             (
                 PureWindowsPath("libs\\a"),
                 PureWindowsPath("libs\\b"),
