@@ -11,8 +11,7 @@ import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
-from types import ModuleType
-from typing import Any, ClassVar, Generator, cast
+from typing import Any, Generator
 from unittest.mock import patch
 
 import pytest
@@ -40,14 +39,8 @@ from unidep._cli import (
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
-    _print_with_rich,
 )
-from unidep._dependencies_parsing import (
-    DependencyEntry,
-    DependencyOrigin,
-    parse_requirements,
-)
-from unidep.platform_definitions import Spec
+from unidep._dependencies_parsing import parse_requirements
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -502,7 +495,7 @@ def test_flatten_selected_dependency_entries_includes_optional_groups(
         requirements.optional_dependency_entries,
     )
 
-    def entry_name(entry: DependencyEntry) -> str:
+    def entry_name(entry: Any) -> str:
         conda = entry.conda
         pip = entry.pip
         if conda is not None:
@@ -516,19 +509,27 @@ def test_flatten_selected_dependency_entries_includes_optional_groups(
     ]
 
 
-def test_collect_selected_conda_like_platforms_uses_both_source_selectors() -> None:
-    entry = DependencyEntry(
-        identifier="selector-mismatch",
-        selector="linux64",
-        conda=Spec(name="click", which="conda", selector="linux64"),
-        pip=Spec(name="click", which="pip", selector="osx"),
-        origin=DependencyOrigin(
-            source_file=Path("requirements.yaml"),
-            dependency_index=0,
+def test_collect_selected_conda_like_platforms_uses_both_source_selectors(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - conda: click  # [linux64]
+                pip: click  # [osx]
+            """,
         ),
     )
 
-    assert _collect_selected_conda_like_platforms([entry]) == [
+    requirements = parse_requirements(req_file)
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    assert _collect_selected_conda_like_platforms(entries) == [
         "linux-64",
         "osx-64",
         "osx-arm64",
@@ -828,85 +829,70 @@ def test_conda_env_list() -> None:
     _conda_env_list(conda_executable)
 
 
-def test_conda_info_uses_json_helper() -> None:
+def test_conda_root_prefix_uses_conda_info_when_env_vars_are_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _conda_info.cache_clear()
+    monkeypatch.delenv("MAMBA_ROOT_PREFIX", raising=False)
+    monkeypatch.delenv("CONDA_ROOT", raising=False)
     try:
         with patch(
             "unidep._cli._conda_cli_command_json",
-            return_value={"root_prefix": "/opt/conda"},
+            return_value={"root_prefix": "/opt/conda", "conda_prefix": "/fallback"},
         ) as conda_cli_command_json:
-            assert _conda_info("conda") == {"root_prefix": "/opt/conda"}
+            assert _conda_root_prefix("conda") == Path("/opt/conda")
+
         conda_cli_command_json.assert_called_once_with("conda", "info")
     finally:
         _conda_info.cache_clear()
 
 
-def test_version_uses_rich_when_installed() -> None:
-    with patch("importlib.util.find_spec", return_value=object()), patch(
-        "unidep._cli._print_with_rich",
-    ) as print_with_rich:
-        _print_versions()
+def test_unidep_version_uses_rich_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    rich_dir = tmp_path / "rich"
+    rich_dir.mkdir()
+    (rich_dir / "__init__.py").write_text("")
+    (rich_dir / "console.py").write_text(
+        textwrap.dedent(
+            """\
+            class Console:
+                def print(self, table):
+                    print(f"RICH:{table.columns}|{table.rows}")
+            """,
+        ),
+    )
+    (rich_dir / "table.py").write_text(
+        textwrap.dedent(
+            """\
+            class Table:
+                def __init__(self, *, show_header):
+                    self.show_header = show_header
+                    self.columns = []
+                    self.rows = []
 
-    print_with_rich.assert_called_once()
-    rendered = print_with_rich.call_args.args[0]
-    assert any(line.startswith("unidep version: ") for line in rendered)
-    assert any(line.startswith("packaging version: ") for line in rendered)
+                def add_column(self, name, *, style):
+                    self.columns.append((name, style))
 
+                def add_row(self, prop, value):
+                    self.rows.append((prop, value))
+            """,
+        ),
+    )
 
-def test_print_with_rich_formats_table() -> None:
-    fake_rich = ModuleType("rich")
-    fake_rich.__path__ = []
-    fake_console_module = ModuleType("rich.console")
-    fake_table_module = ModuleType("rich.table")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "rich", raising=False)
+    monkeypatch.delitem(sys.modules, "rich.console", raising=False)
+    monkeypatch.delitem(sys.modules, "rich.table", raising=False)
 
-    class FakeConsole:
-        printed: ClassVar[list[object]] = []
+    _print_versions()
 
-        def print(self, table: object) -> None:
-            self.printed.append(table)
-
-    class FakeTable:
-        instances: ClassVar[list[FakeTable]] = []
-
-        def __init__(self, *, show_header: bool) -> None:
-            self.show_header = show_header
-            self.columns: list[tuple[str, str]] = []
-            self.rows: list[tuple[str, str]] = []
-            self.instances.append(self)
-
-        def add_column(self, name: str, *, style: str) -> None:
-            self.columns.append((name, style))
-
-        def add_row(self, prop: str, value: str) -> None:
-            self.rows.append((prop, value))
-
-    fake_console_module_any = cast(Any, fake_console_module)
-    fake_table_module_any = cast(Any, fake_table_module)
-    fake_console_module_any.Console = FakeConsole
-    fake_table_module_any.Table = FakeTable
-
-    with patch.dict(
-        sys.modules,
-        {
-            "rich": fake_rich,
-            "rich.console": fake_console_module,
-            "rich.table": fake_table_module,
-        },
-    ):
-        _print_with_rich(["unidep version: 1.0", "packaging version: 2.0"])
-
-    assert len(FakeTable.instances) == 1
-    table = FakeTable.instances[0]
-    assert table.show_header is False
-    assert table.columns == [
-        ("Property", "cyan"),
-        ("Value", "magenta"),
-    ]
-    assert table.rows == [
-        ("unidep version", "1.0"),
-        ("packaging version", "2.0"),
-    ]
-    assert FakeConsole.printed == [table]
+    output = capsys.readouterr().out
+    assert "RICH:[('Property', 'cyan'), ('Value', 'magenta')]" in output
+    assert "('unidep version'," in output
+    assert "('packaging version'," in output
 
 
 def test_pip_optional(tmp_path: Path) -> None:

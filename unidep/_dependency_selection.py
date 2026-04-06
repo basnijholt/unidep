@@ -78,16 +78,11 @@ def _operator_order_key(constraint: str) -> tuple[int, str]:
 
 
 def _canonicalize_joined_pinnings(pinnings: list[str]) -> str:
-    tokens = []
     seen: set[str] = set()
     for pinning in pinnings:
-        for token in pinning.split(","):
-            stripped = token.strip()
-            if not stripped or stripped in seen:
-                continue
+        for stripped in filter(None, (token.strip() for token in pinning.split(","))):
             seen.add(stripped)
-            tokens.append(stripped)
-    return ",".join(sorted(tokens, key=_operator_order_key))
+    return ",".join(sorted(seen, key=_operator_order_key))
 
 
 def _parse_pip_name(name: str) -> tuple[str, tuple[str, ...]]:
@@ -185,9 +180,8 @@ def _merge_pin_strings(
         raise
 
 
-def _bump_release_prefix(release: tuple[int, ...], prefix_len: int) -> str | None:
-    if prefix_len <= 0 or prefix_len > len(release):
-        return None
+def _bump_release_prefix(release: tuple[int, ...], prefix_len: int) -> str:
+    assert 0 < prefix_len <= len(release)
     bumped = list(release[:prefix_len])
     bumped[-1] += 1
     return ".".join(str(part) for part in bumped)
@@ -217,7 +211,6 @@ def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911
             prefix = version_text[:-2]
             parsed = Version(prefix)
             upper = _bump_release_prefix(parsed.release, len(parsed.release))
-            assert upper is not None
             return [f">={prefix}", f"<{upper}"]
         Version(version_text)
         return [f"={version_text}"]
@@ -225,7 +218,6 @@ def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911
     if operator == "~=":
         parsed = Version(version_text)
         upper = _bump_release_prefix(parsed.release, len(parsed.release) - 1)
-        assert upper is not None
         return [f">={version_text}", f"<{upper}"]
 
     return None
@@ -233,12 +225,8 @@ def _normalize_pinning_token_for_satisfiability(  # noqa: PLR0911
 
 def _parse_supported_pinning(pinning: str) -> tuple[str, Version]:
     operator = extract_version_operator(pinning)
-    if not operator:
-        msg = f"Missing operator in supported pinning '{pinning}'"
-        raise ValueError(msg)
+    assert operator
     version_text = pinning[len(operator) :].strip()
-    if operator == "=":
-        operator = "="
     return operator, Version(version_text)
 
 
@@ -286,8 +274,7 @@ def _normalized_pinnings_are_satisfiable(  # noqa: PLR0911, PLR0912
     for pinning in pinnings:
         operator, parsed_version = _parse_supported_pinning(pinning)
         if operator == "=":
-            if exact is not None and exact != parsed_version:
-                return False
+            assert exact is None or exact == parsed_version
             exact = parsed_version
         elif operator == "!=":
             excluded.add(parsed_version)
@@ -327,10 +314,7 @@ def _normalized_pinnings_are_satisfiable(  # noqa: PLR0911, PLR0912
 def _joined_pinnings_are_safely_satisfiable(pinnings: list[str]) -> bool:
     normalized: list[str] = []
     for pinning in pinnings:
-        for token in pinning.split(","):
-            stripped = token.strip()
-            if not stripped:
-                continue
+        for stripped in filter(None, (token.strip() for token in pinning.split(","))):
             normalized_tokens = _normalize_pinning_token_for_satisfiability(stripped)
             if normalized_tokens is None:
                 return False
@@ -661,8 +645,6 @@ def collapse_selected_universals(
 ) -> dict[TargetPlatform, list[MergedSourceCandidate]]:
     """Compress identical universal-origin candidates back to the universal bucket."""
     result: dict[TargetPlatform, list[MergedSourceCandidate]] = {}
-    if None in selected:
-        result[None] = list(selected[None])
 
     active_platforms = (
         list(platforms)

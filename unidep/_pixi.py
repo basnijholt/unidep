@@ -20,11 +20,6 @@ from typing import (
 
 from ruamel.yaml import YAML
 
-try:
-    import tomli_w
-except ImportError:  # pragma: no cover
-    tomli_w = None
-
 from unidep._dependencies_parsing import (
     DependencyEntry,
     _apply_local_dependency_override,
@@ -1374,7 +1369,9 @@ def _write_pixi_toml(
     verbose: bool = False,
 ) -> None:
     """Write the pixi data structure to a TOML file."""
-    if tomli_w is None:  # pragma: no cover
+    try:
+        import tomli_w
+    except ImportError:  # pragma: no cover
         msg = (
             "❌ `tomli_w` is required to write TOML files. "
             "Install it with `pip install tomli_w`."

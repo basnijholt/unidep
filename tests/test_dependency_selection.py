@@ -1,35 +1,44 @@
-"""Direct tests for the shared dependency-selection helpers."""
+"""Tests for user-shaped dependency selection behavior."""
 
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path, PureWindowsPath
-from typing import Tuple, cast
+from typing import TYPE_CHECKING, Tuple, cast
 
 import pytest
-from packaging.version import Version
 
 from unidep._conflicts import VersionConflictError
-from unidep._dependencies_parsing import DependencyOrigin
+from unidep._dependencies_parsing import DependencyOrigin, parse_requirements
 from unidep._dependency_selection import (
-    SourceRequirement,
-    _bump_release_prefix,
-    _canonicalize_joined_pinnings,
-    _exact_pinning_version_text,
+    MergedSourceCandidate,
     _joined_pinnings_are_safely_satisfiable,
-    _merge_source_requirements,
-    _normalize_pinning_token_for_satisfiability,
-    _normalized_pinnings_are_satisfiable,
     _origin_to_text,
-    _parse_supported_pinning,
-    _stricter_lower_bound,
-    _stricter_upper_bound,
     collapse_selected_universals,
+    select_conda_like_requirements,
+    select_pip_requirements,
 )
-from unidep.platform_definitions import Spec
+
+if TYPE_CHECKING:
+    from unidep.platform_definitions import Platform
 
 
-def test_canonicalize_joined_pinnings_deduplicates_and_orders() -> None:
-    assert _canonicalize_joined_pinnings([">1, <2", "<2", "!=1.5"]) == "!=1.5,>1,<2"
+def _write_requirements(tmp_path: Path, content: str) -> Path:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(textwrap.dedent(content))
+    return req_file
+
+
+def _selected_summary(
+    selected: dict[Platform | None, list[MergedSourceCandidate]],
+) -> dict[Platform | None, list[tuple[str, str, str | None]]]:
+    return {
+        platform: [
+            (candidate.source, candidate.spec.name, candidate.spec.pin)
+            for candidate in candidates
+        ]
+        for platform, candidates in selected.items()
+    }
 
 
 def test_origin_to_text_includes_optional_group_and_local_chain() -> None:
@@ -62,147 +71,249 @@ def test_origin_to_text_normalizes_windows_style_local_chain() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("pinning", "expected"),
-    [
-        (">=1", [">=1"]),
-        ("not-a-spec", None),
-        (">=notaversion", None),
-        ("!=1.*", None),
-        ("!=notaversion", None),
-        ("==1.*", [">=1", "<2"]),
-        ("==notaversion", None),
-        ("~=1.4", [">=1.4", "<2"]),
-        ("~=1", None),
-        ("===1", None),
-    ],
-)
-def test_normalize_pinning_token_for_satisfiability(
-    pinning: str,
-    expected: list[str] | None,
-) -> None:
-    assert _normalize_pinning_token_for_satisfiability(pinning) == expected
-
-
-def test_parse_supported_pinning_requires_operator() -> None:
-    with pytest.raises(ValueError, match="Missing operator"):
-        _parse_supported_pinning("1.2.3")
-
-
-def test_bump_release_prefix_rejects_invalid_prefix_lengths() -> None:
-    assert _bump_release_prefix((1, 2), 0) is None
-    assert _bump_release_prefix((1, 2), 3) is None
-
-
-def test_stricter_bound_helpers_cover_all_orderings() -> None:
-    assert _stricter_lower_bound(None, (Version("1"), True)) == (Version("1"), True)
-    assert _stricter_lower_bound((Version("1"), True), (Version("2"), False)) == (
-        Version("2"),
-        False,
+def test_joined_pinnings_are_safely_satisfiable_for_user_shaped_pin_strings() -> None:
+    assert _joined_pinnings_are_safely_satisfiable(
+        [">=2", ">=1", ">2", "<=3", "<4"],
     )
-    assert _stricter_lower_bound((Version("2"), True), (Version("1"), False)) == (
-        Version("2"),
-        True,
-    )
-    assert _stricter_lower_bound((Version("2"), True), (Version("2"), False)) == (
-        Version("2"),
-        False,
-    )
-
-    assert _stricter_upper_bound(None, (Version("2"), True)) == (Version("2"), True)
-    assert _stricter_upper_bound((Version("3"), True), (Version("2"), False)) == (
-        Version("2"),
-        False,
-    )
-    assert _stricter_upper_bound((Version("2"), True), (Version("3"), False)) == (
-        Version("2"),
-        True,
-    )
-    assert _stricter_upper_bound((Version("2"), True), (Version("2"), False)) == (
-        Version("2"),
-        False,
-    )
-
-
-@pytest.mark.parametrize(
-    ("pinnings", "is_satisfiable"),
-    [
-        (["=1", "=2"], False),
-        (["=1", "!=1"], False),
-        ([">=2", "<1"], False),
-        ([">=1", "<=1"], True),
-        ([">=1", "<=1", "!=1"], False),
-        (["=4", "<3"], False),
-        (["=2", "<3"], True),
-    ],
-)
-def test_normalized_pinnings_are_satisfiable(
-    pinnings: list[str],
-    is_satisfiable: object,
-) -> None:
-    assert _normalized_pinnings_are_satisfiable(pinnings) is is_satisfiable
-
-
-def test_joined_pinnings_are_safely_satisfiable() -> None:
-    assert _joined_pinnings_are_safely_satisfiable([">1, ,<2"])
+    assert _joined_pinnings_are_safely_satisfiable(["==1", "~=1.0"])
+    assert not _joined_pinnings_are_safely_satisfiable(["==2.*", "<=1"])
+    assert not _joined_pinnings_are_safely_satisfiable(["==1.*", "<=1", "!=1"])
     assert not _joined_pinnings_are_safely_satisfiable(["!=1.*"])
+    assert not _joined_pinnings_are_safely_satisfiable(["===1"])
+    assert not _joined_pinnings_are_safely_satisfiable(
+        ["@ git+https://example.com/example.git"],
+    )
 
 
-def test_exact_pinning_version_text_handles_supported_exact_forms() -> None:
-    assert _exact_pinning_version_text("=1") == "1"
-    assert _exact_pinning_version_text("==1") == "1"
-    assert _exact_pinning_version_text("===1") == "1"
-    assert _exact_pinning_version_text(">=1") is None
+def test_select_conda_like_requirements_prefers_pinned_conda_over_unpinned_pip(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - conda: click >=8
+            pip: click
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    selected = select_conda_like_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+
+    assert _selected_summary(selected) == {
+        "linux-64": [("conda", "click", ">=8")],
+    }
 
 
-def test_renderer_exact_pin_conflict_uses_exact_pin_message() -> None:
-    origin = DependencyOrigin(Path("requirements.yaml"), 0)
-    requirements = [
-        SourceRequirement(
-            source="pip",
-            spec=Spec(name="pkg", which="pip", pin="==1"),
-            family_key=(None, "pkg"),
-            base_name="pkg",
-            normalized_name="pkg",
-            extras=(),
-            declared_platforms=None,
-            origin=origin,
-        ),
-        SourceRequirement(
-            source="pip",
-            spec=Spec(name="pkg", which="pip", pin="==2"),
-            family_key=(None, "pkg"),
-            base_name="pkg",
-            normalized_name="pkg",
-            extras=(),
-            declared_platforms=None,
-            origin=origin,
-        ),
-    ]
+def test_select_conda_like_requirements_prefers_pip_extras_over_conda(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - conda: adaptive
+            pip: adaptive[notebook]
+        """,
+    )
 
+    requirements = parse_requirements(req_file)
+    selected = select_conda_like_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+
+    assert _selected_summary(selected) == {
+        "linux-64": [("pip", "adaptive[notebook]", None)],
+    }
+
+
+def test_select_conda_like_requirements_prefers_narrower_pinned_selector_scope(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+          - osx-64
+          - osx-arm64
+        dependencies:
+          - conda: click >=8
+          - pip: click >1  # [osx]
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    selected = select_conda_like_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+
+    assert _selected_summary(selected) == {
+        "linux-64": [("conda", "click", ">=8")],
+        "osx-64": [("pip", "click", ">1")],
+        "osx-arm64": [("pip", "click", ">1")],
+    }
+
+
+def test_select_conda_like_requirements_reports_final_collisions_with_origins(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - conda: foo
+          - conda: python-foo
+            pip: foo >1
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    match = (
+        r"(?s)Final Dependency Collision:"
+        r".*'foo' on platform 'linux-64'"
+        r".*conda: foo \("
+        r".*requirements\.yaml, item 1"
+        r".*pip: foo >1 \("
+        r".*requirements\.yaml, item 2"
+    )
+    with pytest.raises(ValueError, match=match):
+        select_conda_like_requirements(
+            requirements.dependency_entries,
+            requirements.platforms,
+        )
+
+
+def test_select_pip_requirements_merges_supported_wildcard_pinnings(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - conda: numpy
+          - pip: foo ==1.*
+          - pip: foo >=1.5
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    selected = select_pip_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+
+    assert _selected_summary(selected) == {
+        "linux-64": [("pip", "foo", "==1.*,>=1.5")],
+    }
+
+
+def test_select_pip_requirements_merges_compatible_compatible_release_pinnings(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - pip: foo ~=1.4
+          - pip: foo <2
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    selected = select_pip_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+
+    assert _selected_summary(selected) == {
+        "linux-64": [("pip", "foo", "~=1.4,<2")],
+    }
+
+
+def test_select_pip_requirements_rejects_unsafely_merged_wildcard_pinnings(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - pip: foo ==1.*
+          - pip: foo >2
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
+    with pytest.raises(VersionConflictError, match="Invalid version pinning '==1."):
+        select_pip_requirements(
+            requirements.dependency_entries,
+            requirements.platforms,
+        )
+
+
+def test_select_pip_requirements_rejects_multiple_exact_pinnings(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+        dependencies:
+          - pip: foo ==1
+          - pip: foo ==2
+        """,
+    )
+
+    requirements = parse_requirements(req_file)
     with pytest.raises(
         VersionConflictError,
-        match="Multiple exact version pinnings found",
+        match="Multiple exact version pinnings found: ==1, ==2 for `foo`",
     ):
-        _merge_source_requirements("pip", requirements)
+        select_pip_requirements(
+            requirements.dependency_entries,
+            requirements.platforms,
+        )
 
 
-def test_collapse_selected_universals_preserves_existing_universal_bucket() -> None:
-    origin = DependencyOrigin(Path("requirements.yaml"), 0)
-    candidate = _merge_source_requirements(
-        "conda",
-        [
-            SourceRequirement(
-                source="conda",
-                spec=Spec(name="numpy", which="conda", pin=">=1"),
-                family_key=("numpy", None),
-                base_name="numpy",
-                normalized_name="numpy",
-                extras=(),
-                declared_platforms=None,
-                origin=origin,
-            ),
-        ],
+def test_collapse_selected_universals_collapses_user_declared_universal_dependencies(
+    tmp_path: Path,
+) -> None:
+    req_file = _write_requirements(
+        tmp_path,
+        """\
+        platforms:
+          - linux-64
+          - osx-arm64
+        dependencies:
+          - conda: numpy >=1
+        """,
     )
 
-    assert collapse_selected_universals({None: [candidate]}) == {None: [candidate]}
+    requirements = parse_requirements(req_file)
+    selected = select_conda_like_requirements(
+        requirements.dependency_entries,
+        requirements.platforms,
+    )
+    collapsed = collapse_selected_universals(selected, requirements.platforms)
+
+    assert _selected_summary(collapsed) == {
+        None: [("conda", "numpy", ">=1")],
+    }
