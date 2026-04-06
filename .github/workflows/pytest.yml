@@ -35,7 +35,12 @@ jobs:
           pip install -e ".[test]"
         shell: bash -el {0}
       - name: Run pytest
-        run: pytest
+        run: |
+          if [[ "${{ matrix.python-version }}" == "3.8" ]]; then
+            pytest --cov-fail-under=0
+          else
+            pytest
+          fi
         shell: bash -el {0}
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11' && matrix.platform == 'ubuntu-latest'

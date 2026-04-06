@@ -842,10 +842,9 @@ def test_conda_info_uses_json_helper() -> None:
 
 
 def test_version_uses_rich_when_installed() -> None:
-    with (
-        patch("importlib.util.find_spec", return_value=object()),
-        patch("unidep._cli._print_with_rich") as print_with_rich,
-    ):
+    with patch("importlib.util.find_spec", return_value=object()), patch(
+        "unidep._cli._print_with_rich",
+    ) as print_with_rich:
         _print_versions()
 
     print_with_rich.assert_called_once()
