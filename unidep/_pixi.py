@@ -697,7 +697,9 @@ def _process_single_file_optional_groups(
         group_feature_entries.extend(
             group_req.optional_dependency_entries.get(group_name, []),
         )
-        workspace_platforms.update(_selector_platforms_from_entries(group_feature_entries))
+        workspace_platforms.update(
+            _selector_platforms_from_entries(group_feature_entries)
+        )
         parsed_groups.append((group_name, group_feature_entries))
 
     group_platforms = sorted(workspace_platforms) or None

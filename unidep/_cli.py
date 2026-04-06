@@ -1575,8 +1575,8 @@ def _print_versions() -> None:  # pragma: no cover
 
 def _print_with_rich(data: list) -> None:
     """Print data as a table using rich, if it's installed."""
-    from rich.console import Console  # noqa: PLC0415
-    from rich.table import Table  # noqa: PLC0415
+    from rich.console import Console
+    from rich.table import Table
 
     console = Console()
     table = Table(show_header=False)
