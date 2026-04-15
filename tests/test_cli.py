@@ -30,6 +30,7 @@ from unidep._cli import (
     _conda_root_prefix,
     _find_windows_path,
     _flatten_selected_dependency_entries,
+    _get_conda_executable,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
@@ -142,6 +143,37 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-deps {pkgs}`" in captured.out
+
+
+def test_install_command_deduplicates_shared_local_dependencies(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    fixture_root = REPO_ROOT / "tests" / "shared_local_install_monorepo"
+    monorepo = tmp_path / fixture_root.name
+    shutil.copytree(fixture_root, monorepo)
+    shared = monorepo / "shared"
+    project1 = monorepo / "project1"
+    project2 = monorepo / "project2"
+
+    _install_command(
+        project1,
+        project2,
+        conda_executable="",  # type: ignore[arg-type]
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=True,
+        no_dependencies=True,
+        no_uv=True,
+        verbose=False,
+    )
+
+    captured = capsys.readouterr()
+    pkgs = " ".join([f"-e {p}" for p in sorted((project1, project2, shared))])
+    assert f"pip install --no-deps {pkgs}`" in captured.out
+    assert captured.out.count(f"-e {shared}") == 1
 
 
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
@@ -845,6 +877,21 @@ def test_conda_root_prefix_uses_conda_info_when_env_vars_are_unset(
         conda_cli_command_json.assert_called_once_with("conda", "info")
     finally:
         _conda_info.cache_clear()
+
+
+@pytest.mark.parametrize(
+    ("which", "env_var"),
+    [("conda", "CONDA_EXE"), ("micromamba", "MAMBA_EXE")],
+)
+def test_get_conda_executable_uses_env_var_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    which: CondaExecutable,
+    env_var: str,
+) -> None:
+    exe = f"/tmp/{which}"
+    monkeypatch.setenv(env_var, exe)
+    with patch("shutil.which", return_value=None):
+        assert _get_conda_executable(which) == exe
 
 
 def test_unidep_version_uses_rich_when_available(
