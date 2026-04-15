@@ -884,11 +884,12 @@ def test_conda_root_prefix_uses_conda_info_when_env_vars_are_unset(
     [("conda", "CONDA_EXE"), ("micromamba", "MAMBA_EXE")],
 )
 def test_get_conda_executable_uses_env_var_fallback(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     which: CondaExecutable,
     env_var: str,
 ) -> None:
-    exe = f"/tmp/{which}"
+    exe = str(tmp_path / which)
     monkeypatch.setenv(env_var, exe)
     with patch("shutil.which", return_value=None):
         assert _get_conda_executable(which) == exe

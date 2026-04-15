@@ -1015,7 +1015,7 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)
 
 
-def _install_command(  # noqa: PLR0912, PLR0915
+def _install_command(  # noqa: C901, PLR0912, PLR0915
     *files: Path,
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
