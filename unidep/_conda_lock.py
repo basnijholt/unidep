@@ -120,6 +120,8 @@ def _conda_lock_global(
         stdout=False,
         selector="comment",
         platforms=platforms,
+        optional_dependencies=[],
+        all_optional_dependencies=False,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,

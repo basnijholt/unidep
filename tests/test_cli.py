@@ -11,7 +11,7 @@ import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, ClassVar, Generator
 from unittest.mock import patch
 
 import pytest
@@ -657,7 +657,9 @@ def test_collect_available_optional_dependency_groups_skips_local_dependency_wal
         assert kwargs["include_local_dependencies"] is False
 
         class _Requirements:
-            optional_dependencies = {"docs": {}}
+            optional_dependencies: ClassVar[dict[str, dict[str, object]]] = {
+                "docs": {},
+            }
 
         return _Requirements()
 
