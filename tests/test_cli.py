@@ -1495,7 +1495,7 @@ def test_unidep_merge_cli_optional_dependencies(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
-        [  # noqa: S607
+        [
             sys.executable,
             "-c",
             "from unidep._cli import main; main()",
@@ -1542,7 +1542,7 @@ def test_unidep_merge_cli_all_optional_dependencies(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
-        [  # noqa: S607
+        [
             sys.executable,
             "-c",
             "from unidep._cli import main; main()",
@@ -1586,7 +1586,7 @@ def test_unidep_merge_cli_rejects_unknown_optional_dependency_group(
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
-        [  # noqa: S607
+        [
             sys.executable,
             "-c",
             "from unidep._cli import main; main()",
@@ -1602,6 +1602,7 @@ def test_unidep_merge_cli_rejects_unknown_optional_dependency_group(
         text=True,
         encoding="utf-8",
         env=env,
+        check=False,
     )
 
     assert result.returncode == 1
@@ -1626,7 +1627,7 @@ def test_unidep_merge_cli_rejects_mutually_exclusive_optional_flags(
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
-        [  # noqa: S607
+        [
             sys.executable,
             "-c",
             "from unidep._cli import main; main()",
@@ -1643,6 +1644,7 @@ def test_unidep_merge_cli_rejects_mutually_exclusive_optional_flags(
         text=True,
         encoding="utf-8",
         env=env,
+        check=False,
     )
 
     assert result.returncode == 2
@@ -1684,7 +1686,7 @@ def test_unidep_merge_cli_optional_dependencies_across_multiple_files(
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
     result = subprocess.run(
-        [  # noqa: S607
+        [
             sys.executable,
             "-c",
             "from unidep._cli import main; main()",

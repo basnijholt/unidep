@@ -130,9 +130,7 @@ def _merge_optional_dependency_extras(
     if missing_groups:
         missing = ", ".join(f"`{group_name}`" for group_name in missing_groups)
         if available_groups:
-            available = ", ".join(
-                f"`{group_name}`" for group_name in available_groups
-            )
+            available = ", ".join(f"`{group_name}`" for group_name in available_groups)
             print(
                 "❌ Unknown optional dependency group(s): "
                 f"{missing}. Valid groups: {available}.",
