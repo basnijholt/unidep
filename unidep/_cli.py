@@ -1015,7 +1015,7 @@ def _pip_install_local(
         subprocess.run(pip_command, check=True)
 
 
-def _install_command(  # noqa: PLR0912, PLR0915
+def _install_command(  # noqa: C901, PLR0912, PLR0915
     *files: Path,
     conda_executable: CondaExecutable | None,
     conda_env_name: str | None,
@@ -1146,12 +1146,13 @@ def _install_command(  # noqa: PLR0912, PLR0915
         names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
         print(f"📝 Found local dependencies: {names}\n")
         installable_set = {p.resolve() for p in installable}
-        installable += [
-            dep
-            for deps in local_dependencies.values()
-            for dep in deps
-            if dep.resolve() not in installable_set
-        ]
+        for deps in local_dependencies.values():
+            for dep in deps:
+                resolved_dep = dep.resolve()
+                if resolved_dep in installable_set:
+                    continue
+                installable_set.add(resolved_dep)
+                installable.append(dep)
         if installable:
             pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
             if verbose:
