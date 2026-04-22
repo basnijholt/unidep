@@ -20,14 +20,8 @@ from typing import (
 
 from ruamel.yaml import YAML
 
-from unidep._conflicts import (
-    ALL_VERSION_OPERATORS,
-    VersionConflictError,
-    _reconcile_conda_pip_pair,
-    combine_version_pinnings,
-    extract_version_operator,
-)
 from unidep._dependencies_parsing import (
+    DependencyEntry,
     _apply_local_dependency_override,
     _effective_local_dependencies,
     _load,
@@ -36,7 +30,8 @@ from unidep._dependencies_parsing import (
     _try_parse_local_dependency_requirement_file,
     parse_requirements,
 )
-from unidep.platform_definitions import Spec, platforms_from_selector
+from unidep._dependency_selection import select_conda_like_requirements
+from unidep.platform_definitions import Platform
 from unidep.utils import (
     LocalDependency,
     PathWithExtras,
@@ -51,6 +46,7 @@ if TYPE_CHECKING:
     from typing import Dict, Optional, Tuple, Union
 
     from unidep._dependencies_parsing import ParsedRequirements
+    from unidep.platform_definitions import Spec
 
     if sys.version_info >= (3, 10):
         from typing import TypeAlias
@@ -68,9 +64,6 @@ if TYPE_CHECKING:
         Optional[str],
         Tuple[Dict[str, VersionSpec], Dict[str, VersionSpec]],
     ]
-
-
-_OPERATOR_ORDER: dict[str, int] = {op: i for i, op in enumerate(ALL_VERSION_OPERATORS)}
 
 
 def _parse_version_build(pin: str | None) -> str | dict[str, str]:
@@ -146,112 +139,6 @@ def _make_pip_version_spec(
         return {"version": version, "extras": extras}
     # version is already a dict (has build string), add extras
     return {**version, "extras": extras}
-
-
-def _canonicalize_version_spec(version_spec: str) -> str:
-    """Normalize comma-separated version constraints to a stable order."""
-    if "," not in version_spec:
-        return version_spec
-
-    def _constraint_key(constraint: str) -> tuple[int, str]:
-        token = constraint.strip()
-        op = extract_version_operator(token)
-        return (_OPERATOR_ORDER.get(op, len(ALL_VERSION_OPERATORS)), token)
-
-    parts = [part.strip() for part in version_spec.split(",") if part.strip()]
-    return ",".join(sorted(parts, key=_constraint_key))
-
-
-def _merge_version_specs(
-    existing: str | dict[str, Any] | None,
-    new: str | dict[str, Any],
-    pkg_name: str,
-) -> str | dict[str, Any]:
-    """Merge two version specs, combining version constraints.
-
-    Uses combine_version_pinnings from _conflicts.py to properly merge
-    constraints like ">=1.7,<2" + "<1.16" -> ">=1.7,<1.16".
-
-    If either spec has a build string, we can't merge and prefer the new one
-    if it has a pin, otherwise keep existing.
-
-    """
-    if existing is None:
-        return new
-
-    # If either is a dict with build string, we can't merge version constraints
-    existing_has_build = isinstance(existing, dict) and "build" in existing
-    new_has_build = isinstance(new, dict) and "build" in new
-
-    if existing_has_build or new_has_build:
-        # Can't merge build strings - prefer the one with build, or new if both have
-        if new_has_build:
-            return new
-        return existing
-
-    # Extract version strings
-    existing_version = existing["version"] if isinstance(existing, dict) else existing
-    new_version = new["version"] if isinstance(new, dict) else new
-
-    # Handle "*" (no constraint)
-    if existing_version == "*":
-        merged_version = new_version
-    elif new_version == "*":
-        merged_version = existing_version
-    else:
-        # Merge constraints in a deterministic order.
-        constraint_pair = sorted([existing_version, new_version])
-        try:
-            merged_version = combine_version_pinnings(constraint_pair, name=pkg_name)
-        except VersionConflictError:
-            # Keep both constraints (deterministically ordered) so the manifest
-            # stays explicit and downstream solvers can report unsatisfiable specs.
-            merged_version = ",".join(constraint_pair)
-        merged_version = _canonicalize_version_spec(merged_version)
-
-    # Handle extras (for pip packages)
-    existing_extras = existing.get("extras", []) if isinstance(existing, dict) else []
-    new_extras = new.get("extras", []) if isinstance(new, dict) else []
-    merged_extras = sorted(set(existing_extras) | set(new_extras))
-
-    if merged_extras:
-        return {"version": merged_version, "extras": merged_extras}
-    return merged_version
-
-
-def _version_spec_is_pinned(version_spec: VersionSpec) -> bool:
-    """Return True if the version spec has a concrete pin."""
-    if isinstance(version_spec, dict):
-        version = version_spec.get("version", "*")
-        if version != "*":
-            return True
-        return "build" in version_spec
-    return version_spec != "*"
-
-
-def _resolve_conda_pip_conflict(
-    conda_deps: dict[str, VersionSpec],
-    pip_deps: dict[str, VersionSpec],
-    base_name: str,
-) -> None:
-    """Resolve conflicts between conda and pip specs for the same package."""
-    conda_spec = conda_deps.get(base_name)
-    pip_spec = pip_deps.get(base_name)
-    if conda_spec is None or pip_spec is None:
-        return
-
-    conda_kept, pip_kept = _reconcile_conda_pip_pair(
-        conda=conda_spec,
-        pip=pip_spec,
-        conda_pinned=_version_spec_is_pinned(conda_spec),
-        pip_pinned=_version_spec_is_pinned(pip_spec),
-        pip_has_extras=bool(isinstance(pip_spec, dict) and pip_spec.get("extras")),
-        on_tie="conda",
-    )
-    if pip_kept is None:
-        pip_deps.pop(base_name, None)
-    elif conda_kept is None:
-        conda_deps.pop(base_name, None)
 
 
 def _get_package_name(project_dir: Path) -> str:
@@ -595,6 +482,7 @@ def _parse_direct_requirements_for_node(
     merged_requirements = {
         name: list(specs) for name, specs in req.requirements.items()
     }
+    merged_entries = list(req.dependency_entries)
     if "*" in node.extras:
         selected_groups = list(req.optional_dependencies.keys())
     else:
@@ -608,10 +496,13 @@ def _parse_direct_requirements_for_node(
     for group_name in selected_groups:
         for dep_name, specs in req.optional_dependencies[group_name].items():
             merged_requirements.setdefault(dep_name, []).extend(specs)
+        merged_entries.extend(req.optional_dependency_entries.get(group_name, []))
 
     return req._replace(
         requirements=merged_requirements,
         optional_dependencies={},
+        dependency_entries=merged_entries,
+        optional_dependency_entries={},
     )
 
 
@@ -712,30 +603,31 @@ def _spec_key(spec: Spec) -> tuple[str, str, str | None, str | None]:
     return (spec.name, spec.which, spec.pin, spec.selector)
 
 
-def _subtract_requirements(
-    full_requirements: dict[str, list[Spec]],
-    base_requirements: dict[str, list[Spec]],
-) -> dict[str, list[Spec]]:
-    """Return specs present in full_requirements but not in base_requirements.
+def _entry_key(
+    entry: DependencyEntry,
+) -> tuple[
+    tuple[str, str, str | None, str | None] | None,
+    tuple[str, str, str | None, str | None] | None,
+]:
+    """Return the stable identity of a dependency entry."""
+    conda = _spec_key(entry.conda) if entry.conda is not None else None
+    pip = _spec_key(entry.pip) if entry.pip is not None else None
+    return (conda, pip)
 
-    Comparison uses stable Spec fields (name, which, pin, selector) so that
-    parse-time identifier differences between separate parse_requirements calls
-    don't cause false mismatches.
-    """
-    diff: dict[str, list[Spec]] = {}
-    for package_name, specs in full_requirements.items():
-        remaining = Counter(
-            _spec_key(s) for s in base_requirements.get(package_name, [])
-        )
-        package_diff: list[Spec] = []
-        for spec in specs:
-            key = _spec_key(spec)
-            if remaining[key] > 0:
-                remaining[key] -= 1
-            else:
-                package_diff.append(spec)
-        if package_diff:
-            diff[package_name] = package_diff
+
+def _subtract_entries(
+    full_entries: list[DependencyEntry],
+    base_entries: list[DependencyEntry],
+) -> list[DependencyEntry]:
+    """Return entries present in full_entries but not in base_entries."""
+    remaining = Counter(_entry_key(entry) for entry in base_entries)
+    diff: list[DependencyEntry] = []
+    for entry in full_entries:
+        key = _entry_key(entry)
+        if remaining[key] > 0:
+            remaining[key] -= 1
+        else:
+            diff.append(entry)
     return diff
 
 
@@ -746,8 +638,6 @@ class _PixiGenerationResult(NamedTuple):
     all_channels: set[str]
     all_platforms: set[str]
     discovered_target_platforms: set[str]
-    root_demoted: dict[str, tuple[str, VersionSpec]]
-    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]]
 
 
 def _process_single_file_optional_groups(
@@ -755,6 +645,7 @@ def _process_single_file_optional_groups(
     *,
     req_file: Path,
     base_req: ParsedRequirements,
+    base_feature_platforms: list[Platform] | None,
     dep_graph: LocalDependencyGraph,
     root_node: PathWithExtras,
     base_local_editable_set: set[Path],
@@ -763,22 +654,23 @@ def _process_single_file_optional_groups(
     ignore_pins: list[str] | None,
     skip_dependencies: list[str] | None,
     overwrite_pins: list[str] | None,
-) -> tuple[set[str], dict[str, dict[str, tuple[str, VersionSpec]]]]:
+) -> set[str]:
     """Process optional dependency groups for single-file pixi generation.
 
-    Returns discovered target platforms and feature demoted map.
+    Returns discovered target platforms.
     """
     discovered_target_platforms: set[str] = set()
-    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
 
     optional_data = _load(req_file, YAML(typ="rt")).get("optional_dependencies", {})
     optional_groups = list(optional_data) if isinstance(optional_data, Mapping) else []
     if not optional_groups:
-        return discovered_target_platforms, feature_demoted_map
+        return discovered_target_platforms
 
     pixi_data["feature"] = {}
     pixi_data["environments"] = {}
     opt_features = []
+    workspace_platforms: set[Platform] = set(base_feature_platforms or [])
+    parsed_groups: list[tuple[str, list[DependencyEntry]]] = []
 
     for group_name in optional_groups:
         group_req = parse_requirements(
@@ -793,20 +685,27 @@ def _process_single_file_optional_groups(
         # A group parse contains the base requirements plus group-selected
         # optional local dependencies. Keep only the delta to preserve
         # optional semantics.
-        group_feature_requirements = _subtract_requirements(
-            group_req.requirements,
-            base_req.requirements,
+        group_feature_entries = _subtract_entries(
+            group_req.dependency_entries,
+            base_req.dependency_entries,
         )
-        for dep_name, specs in group_req.optional_dependencies.get(
-            group_name,
-            {},
-        ).items():
-            group_feature_requirements.setdefault(dep_name, []).extend(specs)
-        opt_platform_deps, opt_demoted = _extract_dependencies(
-            group_feature_requirements,
+        group_feature_entries.extend(
+            group_req.optional_dependency_entries.get(group_name, []),
         )
-        discovered_target_platforms.update(
-            platform for platform in opt_platform_deps if platform is not None
+        workspace_platforms.update(
+            _selector_platforms_from_entries(group_feature_entries),
+        )
+        parsed_groups.append((group_name, group_feature_entries))
+
+    group_platforms = sorted(workspace_platforms) or None
+    if group_platforms:
+        discovered_target_platforms.update(group_platforms)
+
+    for group_name, group_feature_entries in parsed_groups:
+        opt_platform_deps = _extract_dependencies(
+            group_feature_entries,
+            platforms=group_platforms,
+            allow_hoist_without_universal_origin=True,
         )
         feature = _build_feature_dict(opt_platform_deps)
         optional_group_projects: list[Path] = list(
@@ -853,19 +752,17 @@ def _process_single_file_optional_groups(
         if feature:
             pixi_data["feature"][group_name] = feature
             opt_features.append(group_name)
-        if opt_demoted:
-            feature_demoted_map[group_name] = opt_demoted
 
     # Create environments for optional dependencies
     _add_single_file_optional_environments(pixi_data, opt_features)
 
-    return discovered_target_platforms, feature_demoted_map
+    return discovered_target_platforms
 
 
 def _generate_single_file_pixi(
     requirements_file: Path,
     *,
-    use_platforms_override: bool,
+    platforms_override: list[Platform] | None,
     output_file: str | Path | None,
     verbose: bool,
     ignore_pins: list[str] | None,
@@ -887,15 +784,24 @@ def _generate_single_file_pixi(
         skip_dependencies=skip_dependencies,
         include_local_dependencies=True,
     )
-    platform_deps, root_demoted = _extract_dependencies(base_req.requirements)
-    discovered_target_platforms.update(
-        platform for platform in platform_deps if platform is not None
+    base_feature_platforms = _feature_platforms_for_entries(
+        entries=base_req.dependency_entries,
+        declared_platforms=base_req.platforms,
+        global_declared_platforms=set(base_req.platforms),
+        platforms_override=platforms_override,
     )
+    platform_deps = _extract_dependencies(
+        base_req.dependency_entries,
+        platforms=base_feature_platforms,
+        allow_hoist_without_universal_origin=True,
+    )
+    if base_feature_platforms:
+        discovered_target_platforms.update(base_feature_platforms)
 
     # Use channels and platforms from the requirements file
     if base_req.channels:
         all_channels.update(base_req.channels)
-    if base_req.platforms and not use_platforms_override:
+    if base_req.platforms and not platforms_override:
         all_platforms.update(base_req.platforms)
 
     pixi_data.update(_build_feature_dict(platform_deps))
@@ -932,10 +838,11 @@ def _generate_single_file_pixi(
     }
 
     # Handle optional dependencies as features
-    opt_target_platforms, feature_demoted_map = _process_single_file_optional_groups(
+    opt_target_platforms = _process_single_file_optional_groups(
         pixi_data,
         req_file=req_file,
         base_req=base_req,
+        base_feature_platforms=base_feature_platforms,
         dep_graph=dep_graph,
         root_node=root_node,
         base_local_editable_set=base_local_editable_set,
@@ -952,15 +859,13 @@ def _generate_single_file_pixi(
         all_channels=all_channels,
         all_platforms=all_platforms,
         discovered_target_platforms=discovered_target_platforms,
-        root_demoted=root_demoted,
-        feature_demoted_map=feature_demoted_map,
     )
 
 
 def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
     requirements_files: Sequence[Path],
     *,
-    use_platforms_override: bool,
+    platforms_override: list[Platform] | None,
     output_file: str | Path | None,
     verbose: bool,
     ignore_pins: list[str] | None,
@@ -972,8 +877,6 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
     all_channels: set[str] = set()
     all_platforms: set[str] = set()
     discovered_target_platforms: set[str] = set()
-    feature_demoted_map: dict[str, dict[str, tuple[str, VersionSpec]]] = {}
-
     dep_graph = _discover_local_dependency_graph(requirements_files)
     feature_names = _derive_feature_names(
         [node.path for node in dep_graph.discovered],
@@ -981,6 +884,8 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
     feature_name_by_node = dict(zip(dep_graph.discovered, feature_names))
     taken_optional_feature_names: set[str] = set(feature_names)
     root_nodes_set = set(dep_graph.roots)
+    parsed_by_node: dict[PathWithExtras, ParsedRequirements] = {}
+    global_declared_platforms: set[Platform] = set()
     base_feature_nodes: dict[str, PathWithExtras] = {}
     optional_feature_parents: dict[str, str] = {}
     optional_feature_has_feature: dict[str, bool] = {}
@@ -995,7 +900,24 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
             overwrite_pins=overwrite_pins,
             include_all_optional_groups=node in root_nodes_set,
         )
-        platform_deps, node_demoted = _extract_dependencies(req.requirements)
+        parsed_by_node[node] = req
+        if req.platforms and not platforms_override:
+            global_declared_platforms.update(req.platforms)
+
+    for node in dep_graph.discovered:
+        req = parsed_by_node[node]
+        feature_platforms = _feature_platforms_for_entries(
+            entries=req.dependency_entries,
+            declared_platforms=req.platforms,
+            global_declared_platforms=global_declared_platforms,
+            platforms_override=platforms_override,
+        )
+        platform_deps = _extract_dependencies(
+            req.dependency_entries,
+            platforms=feature_platforms,
+            allow_hoist_without_universal_origin=platforms_override is not None
+            or not req.platforms,
+        )
         discovered_target_platforms.update(
             platform for platform in platform_deps if platform is not None
         )
@@ -1004,8 +926,8 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         # Collect channels and platforms
         if req.channels:
             all_channels.update(req.channels)
-        if req.platforms and not use_platforms_override:
-            all_platforms.update(req.platforms)
+        if not platforms_override and feature_platforms:
+            all_platforms.update(feature_platforms)
 
         # Build the feature dict from platform deps
         feature = _build_feature_dict(platform_deps)
@@ -1031,8 +953,6 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         # Always track the node so transitive deps are computed even when
         # the root itself has no direct dependencies (aggregator pattern).
         base_feature_nodes[feature_name] = node
-        if node_demoted:
-            feature_demoted_map[feature_name] = node_demoted
 
         if node not in root_nodes_set:
             continue
@@ -1058,11 +978,24 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
             if group_name not in req.optional_dependencies
         ]
         for group_name in all_group_names:
-            group_specs = req.optional_dependencies.get(group_name, {})
-            group_platform_deps, group_demoted = _extract_dependencies(group_specs)
+            group_entries = req.optional_dependency_entries.get(group_name, [])
+            group_platforms = _feature_platforms_for_entries(
+                entries=group_entries,
+                declared_platforms=req.platforms,
+                global_declared_platforms=global_declared_platforms,
+                platforms_override=platforms_override,
+            )
+            group_platform_deps = _extract_dependencies(
+                group_entries,
+                platforms=group_platforms,
+                allow_hoist_without_universal_origin=platforms_override is not None
+                or not req.platforms,
+            )
             discovered_target_platforms.update(
                 platform for platform in group_platform_deps if platform is not None
             )
+            if not platforms_override and group_platforms:
+                all_platforms.update(group_platforms)
             opt_feature = _build_feature_dict(group_platform_deps)
             opt_feature_name = _unique_optional_feature_name(
                 parent_feature=feature_name,
@@ -1104,8 +1037,6 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
                 optional_feature_has_feature[opt_feature_name] = False
             optional_feature_parents[opt_feature_name] = feature_name
             optional_feature_local_nodes[opt_feature_name] = optional_local_nodes
-            if group_demoted:
-                feature_demoted_map[opt_feature_name] = group_demoted
 
     # Create environments
     if pixi_data["feature"]:
@@ -1159,9 +1090,37 @@ def _generate_multi_file_pixi(  # noqa: PLR0912, C901, PLR0915
         all_channels=all_channels,
         all_platforms=all_platforms,
         discovered_target_platforms=discovered_target_platforms,
-        root_demoted={},
-        feature_demoted_map=feature_demoted_map,
     )
+
+
+def _selector_platforms_from_entries(
+    entries: Sequence[DependencyEntry],
+) -> list[Platform]:
+    selector_platforms: set[Platform] = set()
+    for entry in entries:
+        for spec in (entry.conda, entry.pip):
+            if spec is None or spec.selector is None:
+                continue
+            entry_platforms = spec.platforms()
+            if entry_platforms is not None:
+                selector_platforms.update(entry_platforms)
+    return sorted(selector_platforms)
+
+
+def _feature_platforms_for_entries(
+    *,
+    entries: Sequence[DependencyEntry],
+    declared_platforms: Sequence[Platform],
+    global_declared_platforms: set[Platform],
+    platforms_override: list[Platform] | None,
+) -> list[Platform] | None:
+    if platforms_override:
+        return list(platforms_override)
+    if declared_platforms:
+        return list(declared_platforms)
+    inferred_platforms = set(global_declared_platforms)
+    inferred_platforms.update(_selector_platforms_from_entries(entries))
+    return sorted(inferred_platforms) or None
 
 
 def generate_pixi_toml(
@@ -1210,12 +1169,10 @@ def generate_pixi_toml(
         requirements_files = (Path.cwd(),)
     if platforms is not None and not platforms:
         platforms = None
-    use_platforms_override = platforms is not None
-
     if len(requirements_files) == 1:
         result = _generate_single_file_pixi(
             requirements_files[0],
-            use_platforms_override=use_platforms_override,
+            platforms_override=platforms,
             output_file=output_file,
             verbose=verbose,
             ignore_pins=ignore_pins,
@@ -1225,7 +1182,7 @@ def generate_pixi_toml(
     else:
         result = _generate_multi_file_pixi(
             requirements_files,
-            use_platforms_override=use_platforms_override,
+            platforms_override=platforms,
             output_file=output_file,
             verbose=verbose,
             ignore_pins=ignore_pins,
@@ -1257,210 +1214,95 @@ def generate_pixi_toml(
     # Filter target sections to only include platforms in the project's platforms list
     _filter_targets_by_platforms(pixi_data, set(final_platforms))
 
-    # Restore demoted universal entries as explicit targets for uncovered platforms
-    if result.root_demoted:
-        _restore_demoted_universals(pixi_data, result.root_demoted, final_platforms)
-    for feat_name, feat_demoted in result.feature_demoted_map.items():
-        if feat_name in pixi_data.get("feature", {}):
-            _restore_demoted_universals(
-                pixi_data["feature"][feat_name],
-                feat_demoted,
-                final_platforms,
-            )
-
     # Write the pixi.toml file
     _write_pixi_toml(pixi_data, output_file, verbose=verbose)
 
 
-def _add_dep(
-    conda_deps: dict[str, VersionSpec],
-    pip_deps: dict[str, VersionSpec],
-    spec_which: str,
-    pkg_name: str,
-    base_name: str,
-    version: VersionSpec,
-    pip_version: VersionSpec,
-) -> None:
-    """Add a dependency to the appropriate dict, merging version constraints."""
-    if spec_which == "conda":
-        conda_deps[pkg_name] = _merge_version_specs(
-            conda_deps.get(pkg_name),
-            version,
-            pkg_name,
-        )
-        _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
-    elif spec_which == "pip":
-        pip_deps[base_name] = _merge_version_specs(
-            pip_deps.get(base_name),
-            pip_version,
-            base_name,
-        )
-        _resolve_conda_pip_conflict(conda_deps, pip_deps, base_name)
-
-
-def _record_demoted_universal(
-    demoted: dict[str, tuple[str, VersionSpec]] | None,
+def _extract_dependencies(  # noqa: PLR0912
+    entries: list[DependencyEntry],
     *,
-    base_name: str,
-    dep_type: Literal["conda", "pip"],
-    spec: VersionSpec,
-) -> None:
-    """Record a demoted universal dependency, merging repeated constraints."""
-    if demoted is None:
-        return
+    platforms: list[Platform] | None = None,
+    allow_hoist_without_universal_origin: bool = False,
+) -> PlatformDeps:
+    """Extract conda and pip dependencies from dependency entries.
 
-    spec_copy = copy.deepcopy(spec)
-    existing = demoted.get(base_name)
-    if existing is None:
-        demoted[base_name] = (dep_type, spec_copy)
-        return
-
-    existing_type, existing_spec = existing
-    if existing_type != dep_type:
-        # Dependency source changed; keep the latest demoted source/spec.
-        demoted[base_name] = (dep_type, spec_copy)
-        return
-
-    merged = _merge_version_specs(existing_spec, spec_copy, base_name)
-    demoted[base_name] = (dep_type, merged)
-
-
-def _reconcile_with_universal_deps(
-    platform_deps: PlatformDeps,
-    *,
-    platform: Platform | None,
-    base_name: str,
-    demoted: dict[str, tuple[str, VersionSpec]] | None = None,
-) -> None:
-    """Resolve conflicts between a platform bucket and universal dependencies.
-
-    When a universal entry is removed because of a target-specific conflict,
-    the original spec is recorded in *demoted* so that callers can later
-    promote it to explicit target entries for platforms that don't override it.
-    """
-    if platform is None:
-        for specific_platform in [p for p in platform_deps if p is not None]:
-            _reconcile_with_universal_deps(
-                platform_deps,
-                platform=cast("Platform", specific_platform),
-                base_name=base_name,
-                demoted=demoted,
-            )
-        return
-
-    universal_conda, universal_pip = platform_deps.get(None, ({}, {}))
-    platform_conda, platform_pip = platform_deps.get(platform, ({}, {}))
-
-    for conda_scope, pip_scope in (
-        (universal_conda, platform_pip),
-        (platform_conda, universal_pip),
-    ):
-        if base_name not in conda_scope or base_name not in pip_scope:
-            continue
-        # For universal-vs-target conflicts, preserve target-specific intent
-        # when both sides are pinned.
-        if (
-            conda_scope is universal_conda
-            and pip_scope is platform_pip
-            and _version_spec_is_pinned(conda_scope[base_name])
-            and _version_spec_is_pinned(pip_scope[base_name])
-        ):
-            _record_demoted_universal(
-                demoted,
-                base_name=base_name,
-                dep_type="conda",
-                spec=conda_scope[base_name],
-            )
-            conda_scope.pop(base_name, None)
-            continue
-        conda_probe = {base_name: conda_scope[base_name]}
-        pip_probe = {base_name: pip_scope[base_name]}
-        _resolve_conda_pip_conflict(conda_probe, pip_probe, base_name)
-        if base_name not in conda_probe:
-            if conda_scope is universal_conda:
-                _record_demoted_universal(
-                    demoted,
-                    base_name=base_name,
-                    dep_type="conda",
-                    spec=conda_scope[base_name],
-                )
-            conda_scope.pop(base_name, None)
-        if base_name not in pip_probe:
-            if pip_scope is universal_pip:
-                _record_demoted_universal(
-                    demoted,
-                    base_name=base_name,
-                    dep_type="pip",
-                    spec=pip_scope[base_name],
-                )
-            pip_scope.pop(base_name, None)
-
-
-def _extract_dependencies(
-    specs_dict: dict[str, list[Spec]],
-) -> tuple[PlatformDeps, dict[str, tuple[str, VersionSpec]]]:
-    """Extract conda and pip dependencies from a dict of package specs.
-
-    Returns a tuple of:
-        - A dict mapping platform (or None for universal) to (conda_deps, pip_deps).
-        - A dict of demoted universal entries (pkg_name -> (dep_type, spec)) that
-          were removed from universal during cross-platform reconciliation and may
-          need to be restored as explicit target entries for other platforms.
-
-    Platform-specific dependencies are mapped to their respective platforms.
-    Version constraints are merged using combine_version_pinnings to ensure
-    consistency with pip package metadata generated by unidep's setuptools hook.
-
+    Returns a dict mapping platform (or None for universal) to
+    ``(conda_deps, pip_deps)``.
     """
     platform_deps: PlatformDeps = {None: ({}, {})}
-    demoted: dict[str, tuple[str, VersionSpec]] = {}
+    selected = select_conda_like_requirements(entries, platforms)
+    target_platforms = platforms or sorted(
+        platform for platform in selected if platform is not None
+    )
 
-    for pkg_name, specs in specs_dict.items():
-        for spec in specs:
-            normalized_pin = spec.pin
-            if spec.which == "pip":
-                # Reuse Spec pin-normalization logic (`=` -> `==`) used elsewhere.
-                normalized = spec.name_with_pin(is_pip=True)
-                normalized_pin = normalized[len(spec.name) :].strip() or None
+    if target_platforms:
+        per_platform: dict[
+            Platform,
+            tuple[
+                dict[str, VersionSpec],
+                dict[str, VersionSpec],
+            ],
+        ] = {platform: ({}, {}) for platform in target_platforms}
+        for platform, candidates in selected.items():
+            assert platform is not None
+            conda_deps, pip_deps = per_platform[platform]
+            for candidate in candidates:
+                if candidate.source == "conda":
+                    conda_deps[candidate.spec.name] = _parse_version_build(
+                        candidate.spec.pin,
+                    )
+                else:
+                    base_name, extras = _parse_package_extras(candidate.spec.name)
+                    normalized = candidate.spec.name_with_pin(is_pip=True)
+                    normalized_pin = (
+                        normalized[len(candidate.spec.name) :].strip() or None
+                    )
+                    version = _parse_version_build(normalized_pin)
+                    pip_deps[base_name] = _make_pip_version_spec(version, extras)
 
-            version = _parse_version_build(normalized_pin)
+        universal_conda, universal_pip = platform_deps[None]
+        conda_names = {
+            name
+            for conda_deps, _pip_deps in per_platform.values()
+            for name in conda_deps
+        }
+        pip_names = {
+            name for _conda_deps, pip_deps in per_platform.values() for name in pip_deps
+        }
 
-            # For pip packages, parse extras from package name
-            if spec.which == "pip":
-                base_name, extras = _parse_package_extras(pkg_name)
-                pip_version = _make_pip_version_spec(version, extras)
-            else:
-                base_name = pkg_name
-                pip_version = version
+        for name in sorted(conda_names):
+            present = {
+                platform: deps[0][name]
+                for platform, deps in per_platform.items()
+                if name in deps[0]
+            }
+            if len(present) == len(target_platforms):
+                first_spec = next(iter(present.values()))
+                specs_match = all(spec == first_spec for spec in present.values())
+                hoist_is_safe = allow_hoist_without_universal_origin
+                if specs_match and hoist_is_safe:
+                    universal_conda[name] = first_spec
+                    continue
+            for platform, spec in present.items():
+                platform_deps.setdefault(platform, ({}, {}))[0][name] = spec
 
-            # Get target platforms (list of one platform, or [None] for universal)
-            targets: Sequence[Platform | None]
-            if spec.selector:
-                targets = platforms_from_selector(spec.selector)
-            else:
-                targets = [None]
+        for name in sorted(pip_names):
+            present = {
+                platform: deps[1][name]
+                for platform, deps in per_platform.items()
+                if name in deps[1]
+            }
+            if len(present) == len(target_platforms):
+                first_spec = next(iter(present.values()))
+                specs_match = all(spec == first_spec for spec in present.values())
+                hoist_is_safe = allow_hoist_without_universal_origin
+                if specs_match and hoist_is_safe:
+                    universal_pip[name] = first_spec
+                    continue
+            for platform, spec in present.items():
+                platform_deps.setdefault(platform, ({}, {}))[1][name] = spec
 
-            for platform in targets:
-                if platform not in platform_deps:
-                    platform_deps[platform] = ({}, {})
-                conda_deps, pip_deps = platform_deps[platform]
-                _add_dep(
-                    conda_deps,
-                    pip_deps,
-                    spec.which,
-                    pkg_name,
-                    base_name,
-                    version,
-                    pip_version,
-                )
-                _reconcile_with_universal_deps(
-                    platform_deps,
-                    platform=platform,
-                    base_name=base_name,
-                    demoted=demoted,
-                )
-
-    return platform_deps, demoted
+    return platform_deps
 
 
 def _build_feature_dict(platform_deps: PlatformDeps) -> dict[str, Any]:
@@ -1518,80 +1360,6 @@ def _filter_targets_by_platforms(
     _filter_section_targets(pixi_data, valid_platforms)
     for feature_data in pixi_data.get("feature", {}).values():
         _filter_section_targets(feature_data, valid_platforms)
-
-
-def _restore_demoted_universals(
-    section: dict[str, Any],
-    demoted: dict[str, tuple[str, VersionSpec]],
-    final_platforms: Sequence[str],
-) -> None:
-    """Add explicit target entries for platforms missing demoted universal deps.
-
-    During conda/pip reconciliation, a universal entry may be removed when it
-    conflicts with a target-specific entry on one platform.  Without this
-    fixup, the dependency disappears for *all other* platforms.  This function
-    promotes the original universal spec to an explicit target entry for every
-    final platform that doesn't already carry a stronger target-specific override.
-
-    If a platform already has the package in the opposite dependency section,
-    this function re-runs _resolve_conda_pip_conflict with the demoted spec and
-    the existing target spec to preserve conflict precedence rules
-    (pins/extras/default conda preference), except for the existing
-    universal-conda-vs-target-pip pinned/pinned case where target-specific pip
-    intent is intentionally preserved.
-    """
-    for pkg, (dep_type, spec) in demoted.items():
-        dep_key = "dependencies" if dep_type == "conda" else "pypi-dependencies"
-        other_key = "pypi-dependencies" if dep_type == "conda" else "dependencies"
-        # If the package is (still) in universal deps, all platforms are covered.
-        if pkg in section.get("dependencies", {}):
-            continue
-        if pkg in section.get("pypi-dependencies", {}):
-            continue
-        for platform in final_platforms:
-            target = section.get("target", {}).get(platform, {})
-            existing_same = target.get(dep_key, {}).get(pkg)
-            existing_other = target.get(other_key, {}).get(pkg)
-
-            if existing_same is not None:
-                # Same dep type already present — skip (it's a real override).
-                continue
-            if existing_other is not None:
-                if (
-                    dep_type == "conda"
-                    and other_key == "pypi-dependencies"
-                    and _version_spec_is_pinned(spec)
-                    and _version_spec_is_pinned(existing_other)
-                ):
-                    # Mirror _reconcile_with_universal_deps behavior:
-                    # universal pinned conda should not overwrite a pinned
-                    # target-specific pip override.
-                    continue
-                # Re-apply conda/pip conflict policy against the existing
-                # target entry instead of treating any existing key as a hard
-                # override.
-                conda_probe: dict[str, VersionSpec] = {}
-                pip_probe: dict[str, VersionSpec] = {}
-                if dep_type == "conda":
-                    conda_probe[pkg] = copy.deepcopy(spec)
-                    pip_probe[pkg] = copy.deepcopy(existing_other)
-                else:
-                    conda_probe[pkg] = copy.deepcopy(existing_other)
-                    pip_probe[pkg] = copy.deepcopy(spec)
-                _resolve_conda_pip_conflict(conda_probe, pip_probe, pkg)
-                demoted_wins = (
-                    pkg in conda_probe if dep_type == "conda" else pkg in pip_probe
-                )
-                if not demoted_wins:
-                    continue
-                target[other_key].pop(pkg)
-                if not target[other_key]:
-                    del target[other_key]
-            # This platform needs the demoted package.
-            section.setdefault("target", {}).setdefault(
-                platform,
-                {},
-            ).setdefault(dep_key, {})[pkg] = copy.deepcopy(spec)
 
 
 def _write_pixi_toml(

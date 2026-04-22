@@ -134,6 +134,25 @@ def _parse_dependency(
     return [Spec(name, which, pin, identifier_hash, selector)]
 
 
+class DependencyOrigin(NamedTuple):
+    """Origin information for a parsed dependency entry."""
+
+    source_file: Path
+    dependency_index: int
+    optional_group: str | None = None
+    local_dependency_chain: tuple[Path, ...] = ()
+
+
+class DependencyEntry(NamedTuple):
+    """One original dependency declaration with optional conda/pip alternatives."""
+
+    identifier: str
+    selector: str | None
+    conda: Spec | None
+    pip: Spec | None
+    origin: DependencyOrigin
+
+
 class ParsedRequirements(NamedTuple):
     """Requirements with comments."""
 
@@ -142,6 +161,8 @@ class ParsedRequirements(NamedTuple):
     requirements: dict[str, list[Spec]]
     optional_dependencies: dict[str, dict[str, list[Spec]]]
     pip_repositories: tuple[str, ...] = ()
+    dependency_entries: list[DependencyEntry]
+    optional_dependency_entries: dict[str, list[DependencyEntry]]
 
 
 class Requirements(NamedTuple):
@@ -151,6 +172,12 @@ class Requirements(NamedTuple):
     channels: list[str]  # actually a CommentedSeq[str]
     conda: list[str]  # actually a CommentedSeq[str]
     pip: list[str]  # actually a CommentedSeq[str]
+
+
+class _LoadedRequirementData(NamedTuple):
+    data: dict[str, Any]
+    path_with_extras: PathWithExtras
+    local_dependency_chain: tuple[Path, ...]
 
 
 def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
@@ -283,19 +310,26 @@ def _to_path_with_extras(
 def _update_data_structures(
     *,
     path_with_extras: PathWithExtras,
-    datas: list[dict[str, Any]],  # modified in place
+    loaded_data: list[_LoadedRequirementData],  # modified in place
     all_extras: list[list[str]],  # modified in place
     seen: set[PathWithExtras],  # modified in place
     yaml: YAML,
     is_nested: bool,
     local_dependency_overrides: dict[Path, LocalDependency],
+    local_dependency_chain: tuple[Path, ...] = (),
     include_local_dependencies: bool = True,
     verbose: bool = False,
 ) -> None:
     if verbose:
         print(f"📄 Parsing `{path_with_extras.path_with_extras}`")
     data = _load(path_with_extras.path, yaml)
-    datas.append(data)
+    loaded_data.append(
+        _LoadedRequirementData(
+            data=data,
+            path_with_extras=path_with_extras,
+            local_dependency_chain=local_dependency_chain,
+        ),
+    )
     _move_local_optional_dependencies_to_local_dependencies(
         data=data,  # modified in place
         path_with_extras=path_with_extras,
@@ -338,11 +372,15 @@ def _update_data_structures(
         _add_local_dependencies(
             local_dependency=effective_local_dep.local,
             path_with_extras=path_with_extras,
-            datas=datas,  # modified in place
+            loaded_data=loaded_data,  # modified in place
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
             local_dependency_overrides=local_dependency_overrides,
+            local_dependency_chain=(
+                *local_dependency_chain,
+                path_with_extras.path.resolve(),
+            ),
             include_local_dependencies=include_local_dependencies,
             verbose=verbose,
         )
@@ -499,11 +537,12 @@ def _add_local_dependencies(
     *,
     local_dependency: str,
     path_with_extras: PathWithExtras,
-    datas: list[dict[str, Any]],
+    loaded_data: list[_LoadedRequirementData],
     all_extras: list[list[str]],
     seen: set[PathWithExtras],
     yaml: YAML,
     local_dependency_overrides: dict[Path, LocalDependency],
+    local_dependency_chain: tuple[Path, ...] = (),
     include_local_dependencies: bool = True,
     verbose: bool = False,
 ) -> None:
@@ -528,13 +567,14 @@ def _add_local_dependencies(
         print(f"📄 Parsing `{local_dependency}` from `local_dependencies`")
     _update_data_structures(
         path_with_extras=requirements_dep_file,
-        datas=datas,  # modified in place
+        loaded_data=loaded_data,  # modified in place
         all_extras=all_extras,  # modified in place
         seen=seen,  # modified in place
         yaml=yaml,
         verbose=verbose,
         is_nested=True,
         local_dependency_overrides=local_dependency_overrides,
+        local_dependency_chain=local_dependency_chain,
         include_local_dependencies=include_local_dependencies,
     )
 
@@ -579,8 +619,8 @@ def parse_requirements(
     skip_dependencies = skip_dependencies or []
     overwrite_pins_map = _parse_overwrite_pins(overwrite_pins or [])
 
-    # `data` and `all_extras` are lists of the same length
-    datas: list[dict[str, Any]] = []
+    # `loaded_data` and `all_extras` are lists of the same length
+    loaded_data: list[_LoadedRequirementData] = []
     all_extras: list[list[str]] = []
     seen: set[PathWithExtras] = set()
     local_dependency_overrides: dict[Path, LocalDependency] = {}
@@ -588,7 +628,7 @@ def parse_requirements(
     for path_with_extras in paths_with_extras:
         _update_data_structures(
             path_with_extras=path_with_extras,
-            datas=datas,  # modified in place
+            loaded_data=loaded_data,  # modified in place
             all_extras=all_extras,  # modified in place
             seen=seen,  # modified in place
             yaml=yaml,
@@ -598,19 +638,22 @@ def parse_requirements(
             include_local_dependencies=include_local_dependencies,
         )
 
-    assert len(datas) == len(all_extras)
+    assert len(loaded_data) == len(all_extras)
 
     # Parse the requirements from loaded data
     requirements: dict[str, list[Spec]] = defaultdict(list)
     optional_dependencies: dict[str, dict[str, list[Spec]]] = defaultdict(
         lambda: defaultdict(list),
     )
+    dependency_entries: list[DependencyEntry] = []
+    optional_dependency_entries: dict[str, list[DependencyEntry]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
     pip_repositories: list[str] = []
 
     identifier = -1
-    for data, _extras in zip(datas, all_extras):
+    for loaded, _extras in zip(loaded_data, all_extras):
+        data = loaded.data
         channels.update(data.get("channels", []))
         platforms.update(data.get("platforms", []))
         for url in (
@@ -624,21 +667,28 @@ def parse_requirements(
             identifier = _add_dependencies(
                 data["dependencies"],
                 requirements,  # modified in place
+                dependency_entries,  # modified in place
                 identifier,
                 ignore_pins,
                 overwrite_pins_map,
                 skip_dependencies,
+                source_file=loaded.path_with_extras.path,
+                local_dependency_chain=loaded.local_dependency_chain,
             )
         for opt_name, opt_deps in data.get("optional_dependencies", {}).items():
             if opt_name in _extras or "*" in _extras:
                 identifier = _add_dependencies(
                     opt_deps,
                     optional_dependencies[opt_name],  # modified in place
+                    optional_dependency_entries[opt_name],  # modified in place
                     identifier,
                     ignore_pins,
                     overwrite_pins_map,
                     skip_dependencies,
                     is_optional=True,
+                    optional_group=opt_name,
+                    source_file=loaded.path_with_extras.path,
+                    local_dependency_chain=loaded.local_dependency_chain,
                 )
 
     return ParsedRequirements(
@@ -647,6 +697,8 @@ def parse_requirements(
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
         tuple(pip_repositories),
+        dependency_entries,
+        defaultdict_to_dict(optional_dependency_entries),
     )
 
 
@@ -670,15 +722,25 @@ def _check_allowed_local_dependency(name: str, is_optional: bool) -> None:  # no
 def _add_dependencies(
     dependencies: list[str],
     requirements: dict[str, list[Spec]],  # modified in place
+    dependency_entries: list[DependencyEntry],  # modified in place
     identifier: int,
     ignore_pins: list[str],
     overwrite_pins_map: dict[str, str | None],
     skip_dependencies: list[str],
     *,
     is_optional: bool = False,
+    optional_group: str | None = None,
+    source_file: Path,
+    local_dependency_chain: tuple[Path, ...] = (),
 ) -> int:
     for i, dep in enumerate(dependencies):
         identifier += 1
+        origin = DependencyOrigin(
+            source_file=source_file,
+            dependency_index=i + 1,
+            optional_group=optional_group,
+            local_dependency_chain=local_dependency_chain,
+        )
         if isinstance(dep, str):
             specs = _parse_dependency(
                 dep,
@@ -690,11 +752,25 @@ def _add_dependencies(
                 overwrite_pins_map,
                 skip_dependencies,
             )
+            if not specs:
+                continue
             for spec in specs:
                 _check_allowed_local_dependency(spec.name, is_optional)
                 requirements[spec.name].append(spec)
+            dependency_entries.append(
+                DependencyEntry(
+                    identifier=specs[0].identifier
+                    or _identifier(identifier, specs[0].selector),
+                    selector=specs[0].selector,
+                    conda=next((spec for spec in specs if spec.which == "conda"), None),
+                    pip=next((spec for spec in specs if spec.which == "pip"), None),
+                    origin=origin,
+                ),
+            )
             continue
         assert isinstance(dep, dict)
+        conda_spec: Spec | None = None
+        pip_spec: Spec | None = None
         for which in ["conda", "pip"]:
             if which in dep:
                 specs = _parse_dependency(
@@ -707,9 +783,35 @@ def _add_dependencies(
                     overwrite_pins_map,
                     skip_dependencies,
                 )
+                if not specs:
+                    continue
                 for spec in specs:
                     _check_allowed_local_dependency(spec.name, is_optional)
                     requirements[spec.name].append(spec)
+                    if spec.which == "conda":
+                        conda_spec = spec
+                    else:
+                        pip_spec = spec
+        if conda_spec is not None or pip_spec is not None:
+            identifier_hash = (
+                conda_spec.identifier if conda_spec is not None else pip_spec.identifier  # type: ignore[union-attr]
+            )
+            selector = (
+                conda_spec.selector
+                if conda_spec is not None and conda_spec.selector is not None
+                else pip_spec.selector
+                if pip_spec is not None
+                else None
+            )
+            dependency_entries.append(
+                DependencyEntry(
+                    identifier=identifier_hash or _identifier(identifier, selector),
+                    selector=selector,
+                    conda=conda_spec,
+                    pip=pip_spec,
+                    origin=origin,
+                ),
+            )
     return identifier
 
 

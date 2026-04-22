@@ -1,0 +1,3 @@
+name: project2
+local_dependencies:
+  - ../shared

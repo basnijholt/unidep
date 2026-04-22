@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from unidep.utils import (
     collect_selector_platforms,
     escape_unicode,
     extract_matching_platforms,
+    get_package_version,
     identify_current_platform,
     parse_package_str,
     resolve_platforms,
@@ -57,6 +59,19 @@ def test_build_pep508_environment_marker() -> None:
         build_pep508_environment_marker(["linux-64", "unknown-platform"])  # type: ignore[list-item]
         == "sys_platform == 'linux' and platform_machine == 'x86_64'"
     )
+
+
+def test_spec_rendering_helpers() -> None:
+    spec = Spec(
+        name="numpy",
+        which="conda",
+        pin="=1.26,>=1.20",
+        identifier="abc",
+        selector="linux64",
+    )
+    assert spec.pprint() == "numpy =1.26,>=1.20 # [linux64]"
+    assert spec.name_with_pin() == "numpy =1.26,>=1.20"
+    assert spec.name_with_pin(is_pip=True) == "numpy ==1.26,>=1.20"
 
 
 def test_detect_platform() -> None:
@@ -220,6 +235,20 @@ def test_parse_package_str() -> None:
     # Test with invalid input
     with pytest.raises(ValueError, match="Invalid package string"):
         parse_package_str(">=1.20.0 numpy")
+
+
+def test_path_with_extras_eq_handles_non_matching_object() -> None:
+    path_with_extras = PathWithExtras(Path("requirements.yaml"), ["dev"])
+    assert path_with_extras.__eq__(object()) is NotImplemented
+
+
+def test_get_package_version_missing_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        importlib.metadata,
+        "version",
+        lambda _name: (_ for _ in ()).throw(importlib.metadata.PackageNotFoundError),
+    )
+    assert get_package_version("definitely-not-installed") is None
 
 
 def test_parse_package_str_with_selector() -> None:

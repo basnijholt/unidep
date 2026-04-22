@@ -7,10 +7,11 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 from unittest.mock import patch
 
 import pytest
@@ -23,9 +24,13 @@ except ImportError:  # pragma: no cover
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _collect_selected_conda_like_platforms,
     _conda_env_list,
+    _conda_info,
     _conda_root_prefix,
     _find_windows_path,
+    _flatten_selected_dependency_entries,
+    _get_conda_executable,
     _identify_conda_executable,
     _install_all_command,
     _install_command,
@@ -36,6 +41,7 @@ from unidep._cli import (
     _pip_subcommand,
     _print_versions,
 )
+from unidep._dependencies_parsing import parse_requirements
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -137,6 +143,37 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     projects = [REPO_ROOT / "example" / p for p in EXAMPLE_PROJECTS]
     pkgs = " ".join([f"-e {p}" for p in sorted(projects)])
     assert f"pip install --no-deps {pkgs}`" in captured.out
+
+
+def test_install_command_deduplicates_shared_local_dependencies(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    fixture_root = REPO_ROOT / "tests" / "shared_local_install_monorepo"
+    monorepo = tmp_path / fixture_root.name
+    shutil.copytree(fixture_root, monorepo)
+    shared = monorepo / "shared"
+    project1 = monorepo / "project1"
+    project2 = monorepo / "project2"
+
+    _install_command(
+        project1,
+        project2,
+        conda_executable="",  # type: ignore[arg-type]
+        conda_env_name=None,
+        conda_env_prefix=None,
+        conda_lock_file=None,
+        dry_run=True,
+        editable=True,
+        no_dependencies=True,
+        no_uv=True,
+        verbose=False,
+    )
+
+    captured = capsys.readouterr()
+    pkgs = " ".join([f"-e {p}" for p in sorted((project1, project2, shared))])
+    assert f"pip install --no-deps {pkgs}`" in captured.out
+    assert captured.out.count(f"-e {shared}") == 1
 
 
 def mock_uv_env(tmp_path: Path) -> dict[str, str]:
@@ -399,6 +436,164 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
     assert "  - osx-arm64" not in content
 
 
+@pytest.mark.parametrize(
+    (
+        "content",
+        "current_platform",
+        "expected_dependency",
+        "expected_platforms",
+        "excluded_platform",
+    ),
+    [
+        (
+            """\
+            dependencies:
+              - conda: click >=8
+              - pip: click  # [osx]
+            """,
+            "linux-64",
+            "  - click >=8",
+            ["  - osx-64", "  - osx-arm64"],
+            "  - linux-64",
+        ),
+        (
+            """\
+            dependencies:
+              - pip: click ==0.1
+              - conda: click  # [linux64]
+            """,
+            "osx-arm64",
+            "    - click ==0.1",
+            ["  - linux-64"],
+            "  - osx-arm64",
+        ),
+    ],
+)
+def test_merge_uses_selector_platforms_even_for_losing_alternatives(
+    tmp_path: Path,
+    content: str,
+    current_platform: str,
+    expected_dependency: str,
+    expected_platforms: list[str],
+    excluded_platform: str,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(textwrap.dedent(content))
+    output_file = tmp_path / "environment.yaml"
+
+    with patch("unidep.utils.identify_current_platform", return_value=current_platform):
+        _merge_command(
+            depth=1,
+            directory=tmp_path,
+            files=[req_file],
+            name="myenv",
+            output=output_file,
+            stdout=False,
+            selector="comment",
+            platforms=[],
+            ignore_pins=[],
+            skip_dependencies=[],
+            overwrite_pins=[],
+            verbose=False,
+        )
+
+    merged = output_file.read_text()
+    assert expected_dependency in merged
+    assert "platforms:" in merged
+    for expected_platform in expected_platforms:
+        assert expected_platform in merged
+    assert excluded_platform not in merged
+
+
+def test_flatten_selected_dependency_entries_includes_optional_groups(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              dev:
+                - pytest
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(req_file, extras=[["*"]])
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    def entry_name(entry: Any) -> str:
+        conda = entry.conda
+        pip = entry.pip
+        if conda is not None:
+            return conda.name
+        assert pip is not None
+        return pip.name
+
+    assert [entry_name(entry) for entry in entries] == [
+        "numpy",
+        "pytest",
+    ]
+
+
+def test_collect_selected_conda_like_platforms_uses_both_source_selectors(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - conda: click  # [linux64]
+                pip: click  # [osx]
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(req_file)
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    assert _collect_selected_conda_like_platforms(entries) == [
+        "linux-64",
+        "osx-64",
+        "osx-arm64",
+    ]
+
+
+def test_collect_selected_conda_like_platforms_preserves_selector_platforms(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - conda: click >=8
+              - pip: click  # [osx]
+            """,
+        ),
+    )
+
+    requirements = parse_requirements(req_file)
+    entries = _flatten_selected_dependency_entries(
+        requirements.dependency_entries,
+        requirements.optional_dependency_entries,
+    )
+
+    assert _collect_selected_conda_like_platforms(entries) == [
+        "osx-64",
+        "osx-arm64",
+    ]
+
+
 def test_unidep_pixi_cli_optional_monorepo_env_includes_base(
     tmp_path: Path,
 ) -> None:
@@ -620,7 +815,7 @@ def test_pip_compile_command(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 
 def test_install_non_existing_file() -> None:
-    with pytest.raises(FileNotFoundError, match="File `does_not_exist` not found."):
+    with pytest.raises(FileNotFoundError, match=r"File `does_not_exist` not found\."):
         _install_command(
             Path("does_not_exist"),
             conda_executable="",  # type: ignore[arg-type]
@@ -664,6 +859,88 @@ def test_version(capsys: pytest.CaptureFixture) -> None:
 def test_conda_env_list() -> None:
     conda_executable = _identify_conda_executable()
     _conda_env_list(conda_executable)
+
+
+def test_conda_root_prefix_uses_conda_info_when_env_vars_are_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _conda_info.cache_clear()
+    monkeypatch.delenv("MAMBA_ROOT_PREFIX", raising=False)
+    monkeypatch.delenv("CONDA_ROOT", raising=False)
+    try:
+        with patch(
+            "unidep._cli._conda_cli_command_json",
+            return_value={"root_prefix": "/opt/conda", "conda_prefix": "/fallback"},
+        ) as conda_cli_command_json:
+            assert _conda_root_prefix("conda") == Path("/opt/conda")
+
+        conda_cli_command_json.assert_called_once_with("conda", "info")
+    finally:
+        _conda_info.cache_clear()
+
+
+@pytest.mark.parametrize(
+    ("which", "env_var"),
+    [("conda", "CONDA_EXE"), ("micromamba", "MAMBA_EXE")],
+)
+def test_get_conda_executable_uses_env_var_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    which: CondaExecutable,
+    env_var: str,
+) -> None:
+    exe = str(tmp_path / which)
+    monkeypatch.setenv(env_var, exe)
+    with patch("shutil.which", return_value=None):
+        assert _get_conda_executable(which) == exe
+
+
+def test_unidep_version_uses_rich_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    rich_dir = tmp_path / "rich"
+    rich_dir.mkdir()
+    (rich_dir / "__init__.py").write_text("")
+    (rich_dir / "console.py").write_text(
+        textwrap.dedent(
+            """\
+            class Console:
+                def print(self, table):
+                    print(f"RICH:{table.columns}|{table.rows}")
+            """,
+        ),
+    )
+    (rich_dir / "table.py").write_text(
+        textwrap.dedent(
+            """\
+            class Table:
+                def __init__(self, *, show_header):
+                    self.show_header = show_header
+                    self.columns = []
+                    self.rows = []
+
+                def add_column(self, name, *, style):
+                    self.columns.append((name, style))
+
+                def add_row(self, prop, value):
+                    self.rows.append((prop, value))
+            """,
+        ),
+    )
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "rich", raising=False)
+    monkeypatch.delitem(sys.modules, "rich.console", raising=False)
+    monkeypatch.delitem(sys.modules, "rich.table", raising=False)
+
+    _print_versions()
+
+    output = capsys.readouterr().out
+    assert "RICH:[('Property', 'cyan'), ('Value', 'magenta')]" in output
+    assert "('unidep version'," in output
+    assert "('packaging version'," in output
 
 
 def test_pip_optional(tmp_path: Path) -> None:
@@ -717,7 +994,7 @@ def test_find_conda_windows() -> None:
     """Tests whether the function searches the expected paths."""
     with pytest.raises(
         FileNotFoundError,
-        match="Could not find conda.",
+        match=r"Could not find conda\.",
     ) as excinfo:
         _find_windows_path("conda")
     # This Windows hell... 🤦‍♂️
@@ -835,6 +1112,28 @@ def test_find_conda_windows() -> None:
         assert path in excinfo.value.args[0]
 
 
+def test_find_windows_path_returns_existing_mamba_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "os.path.exists",
+        lambda path: "mambaforge" in path and str(path).endswith("mamba.exe"),
+    )
+    found = _find_windows_path("mamba")
+    assert found.endswith(r"mambaforge\condabin\mamba.exe")
+
+
+def test_find_windows_path_returns_existing_micromamba_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "os.path.exists",
+        lambda path: "micromamba" in path and str(path).endswith("micromamba.exe"),
+    )
+    found = _find_windows_path("micromamba")
+    assert found.endswith(r"Micromamba\condabin\micromamba.exe")
+
+
 @contextmanager
 def set_env_var(key: str, value: str) -> Generator[None, None, None]:
     original_value = os.environ.get(key)
@@ -865,6 +1164,18 @@ def test_maybe_conda_run() -> None:
     with set_env_var("MAMBA_EXE", "mamba"):
         result = _maybe_conda_run("mamba", "my_env", None)
         assert result == ["mamba", "run", "--name", "my_env"]
+
+
+def test_maybe_conda_run_without_executable_returns_empty() -> None:
+    assert _maybe_conda_run(None, "my_env", None) == []
+
+
+def test_maybe_conda_run_without_active_environment_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.delenv("MAMBA_ROOT_PREFIX", raising=False)
+    assert _maybe_conda_run("conda", None, None) == []
 
 
 def test_maybe_create_conda_env_args_creates_env(
@@ -938,3 +1249,53 @@ def test_maybe_create_conda_env_args_creates_env(
     # Optionally, verify that our fake function printed the expected message.
     output = capsys.readouterr().out
     assert "Fake create called with" in output
+
+
+def test_install_command_with_conda_lock_skips_dependency_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - numpy
+            """,
+        ),
+    )
+    created: list[tuple[Path, str]] = []
+
+    def fake_create_env_from_lock(
+        conda_lock_file: Path,
+        conda_executable: str,
+        **_: object,
+    ) -> None:
+        created.append((conda_lock_file, conda_executable))
+
+    def fake_python_executable(*_args: object) -> str:
+        return "python"
+
+    monkeypatch.setattr("unidep._cli._create_env_from_lock", fake_create_env_from_lock)
+    monkeypatch.setattr("unidep._cli.identify_current_platform", lambda: "linux-64")
+    monkeypatch.setattr("unidep._cli._python_executable", fake_python_executable)
+
+    _install_command(
+        req_file,
+        conda_executable="conda",
+        conda_env_name="test-env",
+        conda_env_prefix=None,
+        conda_lock_file=Path("conda-lock.yml"),
+        dry_run=True,
+        editable=False,
+        skip_local=True,
+        verbose=False,
+    )
+
+    assert created == [(Path("conda-lock.yml"), "conda")]
+    output = capsys.readouterr().out
+    assert "Installing conda dependencies" not in output
+    assert "Installing pip dependencies" not in output

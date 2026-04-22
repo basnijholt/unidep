@@ -15,8 +15,8 @@ from unidep import (
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
-    resolve_conflicts,
 )
+from unidep._conflicts import resolve_conflicts
 
 from .helpers import maybe_as_toml
 
@@ -257,7 +257,7 @@ def test_nonexistent_local_dependencies(
         ),
     )
     r1 = maybe_as_toml(toml_or_yaml, r1)
-    with pytest.raises(FileNotFoundError, match="not found."):
+    with pytest.raises(FileNotFoundError, match=r"not found\."):
         parse_local_dependencies(r1, verbose=False, check_pip_installable=False)
 
 
@@ -520,7 +520,7 @@ def test_parse_local_dependencies_missing(
             """,
         ),
     )
-    with pytest.raises(FileNotFoundError, match="not found."):
+    with pytest.raises(FileNotFoundError, match=r"not found\."):
         parse_local_dependencies(r1, verbose=True, raise_if_missing=True)
 
     local_dependencies = parse_local_dependencies(

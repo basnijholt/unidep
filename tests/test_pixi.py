@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import copy
 import os
 import textwrap
 from itertools import permutations
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,29 +15,27 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from unidep._conflicts import VersionConflictError
+from unidep._dependencies_parsing import DependencyEntry, DependencyOrigin
 from unidep._pixi import (
+    _add_single_file_optional_environments,
     _collect_transitive_nodes,
     _derive_feature_names,
     _discover_local_dependency_graph,
     _editable_dependency_path,
+    _extract_dependencies,
+    _feature_platforms_for_entries,
+    _filter_targets_by_platforms,
     _make_pip_version_spec,
-    _merge_version_specs,
     _parse_direct_requirements_for_node,
     _parse_version_build,
-    _reconcile_with_universal_deps,
-    _resolve_conda_pip_conflict,
-    _restore_demoted_universals,
     _unique_env_name,
     _unique_optional_feature_name,
-    _version_spec_is_pinned,
     _with_unique_order_paths,
     generate_pixi_toml,
 )
+from unidep.platform_definitions import Spec
 from unidep.utils import PathWithExtras
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
 
 _UNSET = object()
 
@@ -495,9 +493,9 @@ def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> N
             - pip: click ==0.1 # [linux64]
             """,
             None,
-            None,
-            None,
             "==0.1",
+            None,
+            None,
             id="universal-conda-target-pip",
         ),
         pytest.param(
@@ -506,9 +504,9 @@ def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> N
             - pip: click ==0.1 # [linux64]
             """,
             None,
-            None,
-            None,
             "==0.1",
+            None,
+            None,
             id="universal-pinned-conda-target-pinned-pip-prefers-target",
         ),
         pytest.param(
@@ -520,18 +518,18 @@ def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> N
             None,
             None,
             None,
-            id="universal-conda-target-unpinned-pip-prefers-conda",
+            id="universal-pinned-conda-beats-target-unpinned-pip",
         ),
         pytest.param(
             """\
             - pip: click
             - conda: click >=8 # [linux64]
             """,
-            None,
-            None,
             ">=8",
             None,
-            id="universal-pip-target-conda-prefers-conda-when-pinned",
+            None,
+            None,
+            id="universal-pip-target-conda-prefers-narrower-conda",
         ),
         pytest.param(
             """\
@@ -542,7 +540,7 @@ def test_pixi_prefers_conda_for_equally_pinned_both_sources(tmp_path: Path) -> N
             "==0.1",
             None,
             None,
-            id="universal-pip-target-conda-prefers-pip-when-pinned",
+            id="universal-pinned-pip-beats-target-unpinned-conda",
         ),
     ],
 )
@@ -554,7 +552,7 @@ def test_pixi_reconciles_single_platform_conflict(
     in_target_deps: str | None,
     in_target_pypi: str | None,
 ) -> None:
-    """Reconciliation of universal/target conda/pip conflicts on a single platform."""
+    """Single-platform pixi output compresses the winner into the universal section."""
     deps_block = textwrap.indent(textwrap.dedent(deps_yaml), "  ")
     yaml_content = (
         "channels:\n"
@@ -627,7 +625,8 @@ def test_pixi_reconcile_is_order_independent_for_universal_and_target_conflicts(
 
     assert data1 == data2
     assert "click" not in data1.get("dependencies", {})
-    assert data1["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
+    assert data1["pypi-dependencies"]["click"] == "==0.1"
+    assert "target" not in data1
 
 
 def test_pixi_demoted_reconciliation_is_order_independent_with_repeated_universals(
@@ -1007,13 +1006,226 @@ def test_pixi_monorepo_with_platform_selectors(tmp_path: Path) -> None:
     project1 = data["feature"]["project1"]
     project2 = data["feature"]["project2"]
 
-    assert project1["dependencies"]["numpy"] == "*"
-    assert "cuda-toolkit" not in project1["dependencies"]
+    assert "dependencies" not in project1
+    assert project1["target"]["linux-64"]["dependencies"]["numpy"] == "*"
+    assert project1["target"]["osx-arm64"]["dependencies"]["numpy"] == "*"
     assert project1["target"]["linux-64"]["dependencies"]["cuda-toolkit"] == "*"
 
     assert project2["dependencies"]["pandas"] == "*"
     assert "pyobjc" not in project2.get("pypi-dependencies", {})
     assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+def test_pixi_monorepo_preserves_selector_only_platforms_without_declared_platforms(
+    tmp_path: Path,
+) -> None:
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = _write_file(
+        project1_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        platforms:
+          - linux-64
+        dependencies:
+          - numpy
+        """,
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = _write_file(
+        project2_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req1,
+        req2,
+        project_name="monorepo-selector-only-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == ["linux-64", "osx-64", "osx-arm64"]
+    project2 = data["feature"]["project2"]
+    assert "pypi-dependencies" not in project2
+    assert project2["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert project2["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+def test_pixi_single_file_preserves_selector_only_platforms_without_declared_platforms(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - numpy  # [linux]
+          - numpy  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-selector-only-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    assert data["dependencies"]["numpy"] == "*"
+    assert "target" not in data
+
+
+def test_pixi_monorepo_optional_group_preserves_selector_only_platforms(
+    tmp_path: Path,
+) -> None:
+    project1_dir = tmp_path / "project1"
+    project1_dir.mkdir()
+    req1 = _write_file(
+        project1_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        platforms:
+          - linux-64
+        dependencies:
+          - numpy
+        """,
+    )
+
+    project2_dir = tmp_path / "project2"
+    project2_dir.mkdir()
+    req2 = _write_file(
+        project2_dir / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        optional_dependencies:
+          dev:
+            - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req1,
+        req2,
+        project_name="monorepo-selector-only-optional-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == ["linux-64", "osx-64", "osx-arm64"]
+    project2_dev = data["feature"]["project2-dev"]
+    assert "pypi-dependencies" not in project2_dev
+    assert project2_dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert project2_dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+def test_pixi_single_file_optional_group_preserves_selector_only_platforms(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        optional_dependencies:
+          dev:
+            - numpy  # [linux]
+            - numpy  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-selector-only-optional-platforms",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    assert data["feature"]["dev"]["dependencies"]["numpy"] == "*"
+
+
+def test_pixi_single_file_optional_group_keeps_platform_specific_dep_targeted(
+    tmp_path: Path,
+) -> None:
+    req = _write_file(
+        tmp_path / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - click  # [linux]
+        optional_dependencies:
+          dev:
+            - pip: pyobjc  # [osx]
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        req,
+        project_name="single-file-optional-platform-hoist",
+    )
+
+    assert data["workspace"]["platforms"] == [
+        "linux-64",
+        "linux-aarch64",
+        "linux-ppc64le",
+        "osx-64",
+        "osx-arm64",
+    ]
+    dev = data["feature"]["dev"]
+    assert "pypi-dependencies" not in dev
+    assert dev["target"]["osx-64"]["pypi-dependencies"]["pyobjc"] == "*"
+    assert dev["target"]["osx-arm64"]["pypi-dependencies"]["pyobjc"] == "*"
+
+
+@pytest.mark.parametrize(
+    ("first_pin", "second_pin"),
+    [
+        (">1", "<1"),
+        ("~=1.0", "<1"),
+        ("==1", "!=1"),
+    ],
+)
+def test_pixi_rejects_contradictory_pip_constraints(
+    tmp_path: Path,
+    first_pin: str,
+    second_pin: str,
+) -> None:
+    req_file = _write_file(
+        tmp_path / "requirements.yaml",
+        f"""\
+        channels:
+          - conda-forge
+        dependencies:
+          - pip: pkg {first_pin}
+          - pip: pkg {second_pin}
+        """,
+    )
+
+    with pytest.raises(VersionConflictError, match="pkg"):
+        generate_pixi_toml(req_file, output_file=tmp_path / "pixi.toml", verbose=False)
 
 
 def test_pixi_monorepo_with_local_packages(tmp_path: Path) -> None:
@@ -1773,8 +1985,8 @@ def test_pixi_monorepo_filtering_removes_empty_feature_targets(tmp_path: Path) -
 
     content = output_file.read_text()
     assert "cuda-toolkit" not in content
-    assert "[feature.project1.dependencies]" in content
-    assert "[feature.project1.target" not in content
+    assert "[feature.project1.target.osx-arm64.dependencies]" in content
+    assert "[feature.project1.target.linux-64.dependencies]" not in content
 
 
 def test_pixi_default_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2009,14 +2221,14 @@ def test_pixi_optional_dependencies_monorepo(tmp_path: Path) -> None:
 
     content = output_file.read_text()
 
-    assert "[feature.project1.dependencies]" in content
+    assert "[feature.project1.target.linux-64.dependencies]" in content
     assert 'numpy = "*"' in content
-    assert "[feature.project2.dependencies]" in content
+    assert "[feature.project2.target.linux-64.dependencies]" in content
     assert 'pandas = "*"' in content
 
-    assert "[feature.project1-test.dependencies]" in content
+    assert "[feature.project1-test.target.linux-64.dependencies]" in content
     assert 'pytest = "*"' in content
-    assert "[feature.project2-lint.dependencies]" in content
+    assert "[feature.project2-lint.target.linux-64.dependencies]" in content
     assert 'black = "*"' in content
 
 
@@ -2266,20 +2478,6 @@ def test_pixi_monorepo_skips_empty_optional_feature_group(tmp_path: Path) -> Non
     assert "project1-docs" not in data["feature"]
 
 
-# Tests for build string parsing
-
-
-def test_resolve_conda_pip_conflict_prefers_pip_with_extras() -> None:
-    """Pip extras cannot be represented via conda, so keep pip and drop conda."""
-    conda_deps: dict[str, str | dict[str, object]] = {"foo": "*"}
-    pip_deps: dict[str, str | dict[str, object]] = {
-        "foo": {"version": "*", "extras": ["dev"]},
-    }
-    _resolve_conda_pip_conflict(conda_deps, pip_deps, "foo")
-    assert "foo" not in conda_deps
-    assert "foo" in pip_deps
-
-
 def test_derive_feature_names_handles_commonpath_valueerror(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2485,7 +2683,7 @@ def test_pixi_with_build_string(tmp_path: Path) -> None:
 
     content = output_file.read_text()
 
-    assert "[target.linux-64.dependencies.qsimcirq]" in content
+    assert "[dependencies.qsimcirq]" in content
     assert 'version = ">=0.21.0"' in content
     assert 'build = "cuda*"' in content
     assert 'gcc = "=11"' in content
@@ -2519,73 +2717,6 @@ def test_pixi_with_pip_extras(tmp_path: Path) -> None:
     assert 'version = ">=1.0"' in content
     assert '"dev"' in content
     assert '"test"' in content
-
-
-# --- Parametrized _merge_version_specs tests ---
-
-
-@pytest.mark.parametrize(
-    ("existing", "new", "pkg", "expected"),
-    [
-        # Simple merges
-        pytest.param(
-            ">=1.7,<2",
-            "<1.16",
-            "scipy",
-            ">=1.7,<1.16",
-            id="merge-tighter-upper",
-        ),
-        pytest.param(">=1.0", "<2.0", "pkg", ">=1.0,<2.0", id="merge-lower-upper"),
-        pytest.param(">=1.0", ">=2.0", "pkg", ">=2.0", id="merge-tighter-lower"),
-        # Build strings
-        pytest.param(
-            {"version": ">=1.0", "build": "cuda*"},
-            ">=2.0",
-            "pkg",
-            {"version": ">=1.0", "build": "cuda*"},
-            id="keep-existing-with-build",
-        ),
-        pytest.param(
-            ">=1.0",
-            {"version": ">=2.0", "build": "py310*"},
-            "pkg",
-            {"version": ">=2.0", "build": "py310*"},
-            id="use-new-with-build",
-        ),
-        # Extras
-        pytest.param(
-            {"version": ">=1.0", "extras": ["dev"]},
-            {"version": "<2.0", "extras": ["test"]},
-            "pkg",
-            {"version": ">=1.0,<2.0", "extras": ["dev", "test"]},
-            id="merge-extras",
-        ),
-        # Conflicts
-        pytest.param(">=2.0", "<1.0", "pkg", ">=2.0,<1.0", id="conflict-fallback"),
-        pytest.param("<1.0", ">=2.0", "pkg", ">=2.0,<1.0", id="conflict-reverse-order"),
-        pytest.param("==1.0", ">=2.0", "pkg", "==1.0,>=2.0", id="exact-pin-conflict"),
-        pytest.param(">=2.0", "*", "pkg", ">=2.0", id="new-is-star"),
-        # Existing star
-        pytest.param("*", ">=1.0", "pkg", ">=1.0", id="existing-star"),
-    ],
-)
-def test_merge_version_specs(
-    existing: str | dict[str, Any],
-    new: str | dict[str, Any],
-    pkg: str,
-    expected: str | dict[str, Any],
-) -> None:
-    """Test _merge_version_specs handles various merge scenarios."""
-    result = _merge_version_specs(existing, new, pkg)
-    if isinstance(expected, dict):
-        assert isinstance(result, dict)
-        assert result["version"] == expected["version"]
-        if "extras" in expected:
-            assert result["extras"] == expected["extras"]
-        if "build" in expected:
-            assert result["build"] == expected["build"]
-    else:
-        assert result == expected
 
 
 def test_pixi_with_merged_constraints(tmp_path: Path) -> None:
@@ -2680,7 +2811,7 @@ def test_pixi_optional_local_dep_does_not_leak_base_local_deps(
             """,
             "dependencies",
             ">=8",
-            id="pinned-demoted-replaces-weak-target",
+            id="pinned-narrower-pip-beats-universal-conda",
         ),
         pytest.param(
             """\
@@ -2690,7 +2821,7 @@ def test_pixi_optional_local_dep_does_not_leak_base_local_deps(
             """,
             "dependencies",
             "*",
-            id="unpinned-demoted-reapplies-conflict-policy",
+            id="unpinned-universal-conda-beats-unpinned-target-pip",
         ),
     ],
 )
@@ -2721,7 +2852,10 @@ def test_pixi_demoted_universal_weak_target(
 
     osx = data["target"]["osx-64"]
     assert osx[osx_dep_section]["click"] == osx_click_val
-    assert "click" not in osx.get("pypi-dependencies", {})
+    if osx_dep_section == "pypi-dependencies":
+        assert "click" not in osx.get("dependencies", {})
+    else:
+        assert "click" not in osx.get("pypi-dependencies", {})
 
 
 def test_pixi_demoted_universal_uses_latest_merged_constraint(
@@ -2779,15 +2913,13 @@ def test_pixi_demoted_universal_merges_constraints_across_demotions(
     data = _generate_and_load(tmp_path / "pixi.toml", req_file)
 
     assert data["target"]["linux-64"]["pypi-dependencies"]["click"] == "==0.1"
-    expected = _merge_version_specs(">=8", "<=10", "click")
-    assert isinstance(expected, str)
-    assert data["target"]["osx-64"]["dependencies"]["click"] == expected
+    assert data["target"]["osx-64"]["dependencies"]["click"] == ">=8,<=10"
 
 
-def test_pixi_demoted_universal_switches_source_when_conflict_direction_flips(
+def test_pixi_raises_when_losing_pip_alternative_is_internally_contradictory(
     tmp_path: Path,
 ) -> None:
-    """Later demotion of same package from the other source should replace source type."""
+    """Contradictory pip alternatives should fail even if conda would otherwise win."""
     req_file = _write_file(
         tmp_path / "requirements.yaml",
         """\
@@ -2804,30 +2936,8 @@ def test_pixi_demoted_universal_switches_source_when_conflict_direction_flips(
         """,
     )
 
-    data = _generate_and_load(tmp_path / "pixi.toml", req_file)
-
-    # linux keeps the stronger target-specific conda override
-    assert data["target"]["linux-64"]["dependencies"]["click"] == ">=9"
-    # osx restores the latest demoted universal pip spec
-    assert data["target"]["osx-64"]["pypi-dependencies"]["click"] == ">=8"
-    assert "click" not in data["target"]["osx-64"].get("dependencies", {})
-
-
-def test_reconcile_with_universal_deps_without_demotion_tracking() -> None:
-    """Reconciliation should work even when demotion tracking is disabled."""
-    platform_deps: Any = {
-        None: ({"click": ">=8"}, {}),
-        "linux-64": ({}, {"click": "==0.1"}),
-    }
-
-    _reconcile_with_universal_deps(
-        platform_deps,
-        platform=None,
-        base_name="click",
-    )
-
-    assert "click" not in platform_deps[None][0]
-    assert platform_deps["linux-64"][1]["click"] == "==0.1"
+    with pytest.raises(VersionConflictError, match="click"):
+        _generate_and_load(tmp_path / "pixi.toml", req_file)
 
 
 def test_parse_version_build_whitespace_only() -> None:
@@ -2837,10 +2947,6 @@ def test_parse_version_build_whitespace_only() -> None:
 def test_make_pip_version_spec_dict_with_extras() -> None:
     result = _make_pip_version_spec({"version": ">=1.0", "build": "py3*"}, ["extra1"])
     assert result == {"version": ">=1.0", "build": "py3*", "extras": ["extra1"]}
-
-
-def test_version_spec_is_pinned_dict_with_version() -> None:
-    assert _version_spec_is_pinned({"version": ">=1.0"}) is True
 
 
 def test_with_unique_order_paths_deduplicates(tmp_path: Path) -> None:
@@ -2864,6 +2970,81 @@ def test_unique_optional_feature_name_double_collision() -> None:
 def test_unique_env_name_triple_collision() -> None:
     taken: set[str] = {"foo-bar", "foo-bar-2"}
     assert _unique_env_name("foo_bar", taken) == "foo-bar-3"
+
+
+def test_add_single_file_optional_environments_noop_without_features() -> None:
+    pixi_data: dict[str, Any] = {"environments": {}}
+    _add_single_file_optional_environments(pixi_data, [])
+    assert pixi_data == {"environments": {}}
+
+
+def test_feature_platforms_for_entries_prefers_override() -> None:
+    origin = DependencyOrigin(Path("requirements.yaml"), 0)
+    entries = [
+        DependencyEntry(
+            identifier="numpy",
+            selector=None,
+            conda=Spec(name="numpy", which="conda"),
+            pip=None,
+            origin=origin,
+        ),
+    ]
+
+    assert _feature_platforms_for_entries(
+        entries=entries,
+        declared_platforms=["linux-64"],
+        global_declared_platforms={"osx-arm64"},
+        platforms_override=["win-64"],
+    ) == ["win-64"]
+
+
+def test_extract_dependencies_handles_universal_pip_and_mixed_buckets() -> None:
+    origin = DependencyOrigin(Path("requirements.yaml"), 0)
+    entries = [
+        DependencyEntry(
+            identifier="numpy",
+            selector=None,
+            conda=Spec(name="numpy", which="conda"),
+            pip=None,
+            origin=origin,
+        ),
+        DependencyEntry(
+            identifier="click",
+            selector="linux64",
+            conda=None,
+            pip=Spec(name="click", which="pip", selector="linux64"),
+            origin=origin,
+        ),
+    ]
+
+    deps = _extract_dependencies(
+        entries,
+        platforms=["linux-64", "osx-64"],
+        allow_hoist_without_universal_origin=True,
+    )
+    assert deps[None][0]["numpy"] == "*"
+    assert deps["linux-64"][1]["click"] == "*"
+    assert "osx-64" not in deps or "click" not in deps["osx-64"][1]
+
+
+def test_filter_targets_by_platforms_removes_empty_sections() -> None:
+    pixi_data: dict[str, Any] = {
+        "target": {
+            "osx-64": {"dependencies": {"numpy": "*"}},
+        },
+        "feature": {
+            "dev": {
+                "target": {
+                    "linux-64": {"dependencies": {"pytest": "*"}},
+                },
+            },
+        },
+    }
+
+    _filter_targets_by_platforms(pixi_data, {"osx-arm64"})
+
+    assert "target" not in pixi_data
+    assert "target" not in pixi_data["feature"]["dev"]
 
 
 def test_pixi_single_file_optional_local_dep_transitive_dedup(
@@ -3062,7 +3243,52 @@ def test_pixi_monorepo_demotion(
     )
     assert universal_pkg not in feature.get("dependencies", {})
     assert universal_pkg not in feature.get("pypi-dependencies", {})
-    assert "pandas" in data["feature"]["proj2"]["dependencies"]
+    assert (
+        data["feature"]["proj2"]["target"]["linux-64"]["dependencies"]["pandas"] == "*"
+    )
+
+
+def test_pixi_monorepo_feature_subset_does_not_leak_universal_deps(
+    tmp_path: Path,
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _write_file(
+        proj / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - pandas
+        platforms:
+          - osx-arm64
+        """,
+    )
+
+    proj2 = tmp_path / "proj2"
+    proj2.mkdir()
+    _write_file(
+        proj2 / "requirements.yaml",
+        """\
+        channels:
+          - conda-forge
+        dependencies:
+          - click
+        platforms:
+          - linux-64
+        """,
+    )
+
+    data = _generate_and_load(
+        tmp_path / "pixi.toml",
+        proj / "requirements.yaml",
+        proj2 / "requirements.yaml",
+    )
+
+    feature = data["feature"]["proj"]
+    assert "pandas" not in feature.get("dependencies", {})
+    assert feature["target"]["osx-arm64"]["dependencies"]["pandas"] == "*"
+    assert "linux-64" not in feature.get("target", {})
 
 
 def test_pixi_single_file_env_name_collision(tmp_path: Path) -> None:
@@ -3256,51 +3482,6 @@ def test_pixi_monorepo_optional_local_feature_not_in_pixi_data(
     )
     for env_features in data.get("environments", {}).values():
         assert "empty" not in env_features
-
-
-# --- Parametrized _restore_demoted_universals unit tests ---
-
-
-@pytest.mark.parametrize(
-    ("section", "demoted", "platforms", "expected_behavior"),
-    [
-        pytest.param(
-            {"dependencies": {"click": "*"}},
-            {"click": ("conda", ">=1.0")},
-            ["linux-64"],
-            "no-target",
-            id="skip-still-in-conda-universal",
-        ),
-        pytest.param(
-            {"pypi-dependencies": {"click": "*"}},
-            {"click": ("pip", ">=1.0")},
-            ["linux-64"],
-            "no-target",
-            id="skip-still-in-pip-universal",
-        ),
-        pytest.param(
-            {"target": {"linux-64": {"dependencies": {"click": ">=2.0"}}}},
-            {"click": ("conda", ">=1.0")},
-            ["linux-64"],
-            "not-overwritten",
-            id="skip-same-dep-type-in-target",
-        ),
-    ],
-)
-def test_restore_demoted_universals(
-    section: dict[str, Any],
-    demoted: dict[str, tuple[str, str | dict[str, Any]]],
-    platforms: list[str],
-    expected_behavior: str,
-) -> None:
-    """Cover _restore_demoted_universals skip conditions."""
-    original_section = copy.deepcopy(section)
-    _restore_demoted_universals(section, demoted, platforms)
-    if expected_behavior == "no-target" and "target" not in original_section:
-        assert "target" not in section
-    elif expected_behavior == "not-overwritten":
-        # For the target case, verify click was not overwritten
-        assert section["target"]["linux-64"]["dependencies"]["click"] == ">=2.0"
 
 
 def test_pixi_single_file_installable_optional_local_dep_not_in_root(
