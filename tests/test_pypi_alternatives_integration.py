@@ -6,6 +6,7 @@ import shutil
 import textwrap
 from typing import TYPE_CHECKING
 
+from unidep._hatch_integration import UnidepRequirementsMetadataHook
 from unidep._setuptools_integration import get_python_dependencies
 
 if TYPE_CHECKING:
@@ -223,6 +224,153 @@ def test_use_skip_entries_are_ignored(tmp_path: Path) -> None:
     assert "numpy" in deps.dependencies
     assert not any("skip-dep" in dep for dep in deps.dependencies)
     assert not any("file://" in dep for dep in deps.dependencies)
+
+
+def test_hatch_hook_skip_local_dependencies_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hatch hook config can omit local direct references from metadata."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    dep = tmp_path / "dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="my-dep", version="0.1.0")',
+    )
+
+    (project / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["hatchling", "unidep"]
+            build-backend = "hatchling.build"
+
+            [project]
+            name = "main-project"
+            version = "0.1.0"
+            dynamic = ["dependencies"]
+
+            [tool.hatch.metadata]
+            allow-direct-references = true
+
+            [tool.hatch.metadata.hooks.unidep]
+            skip-local-dependencies = true
+
+            [tool.unidep]
+            dependencies = ["numpy"]
+            local_dependencies = ["../dep"]
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(project)
+    metadata = {"dynamic": ["dependencies"]}
+    UnidepRequirementsMetadataHook(
+        str(project),
+        {"skip-local-dependencies": True},
+    ).update(metadata)
+
+    assert metadata["dependencies"] == ["numpy"]
+
+
+def test_hatch_hook_skip_local_dependencies_uses_pypi_alternative(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Skipped local deps still fall back to PyPI alternatives in metadata."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    dep = tmp_path / "dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="my-dep", version="0.1.0")',
+    )
+
+    (project / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["hatchling", "unidep"]
+            build-backend = "hatchling.build"
+
+            [project]
+            name = "main-project"
+            version = "0.1.0"
+            dynamic = ["dependencies"]
+
+            [tool.hatch.metadata]
+            allow-direct-references = true
+
+            [tool.hatch.metadata.hooks.unidep]
+            skip_local_dependencies = true
+
+            [tool.unidep]
+            dependencies = ["numpy"]
+            local_dependencies = [
+                { local = "../dep", pypi = "company-my-dep==1.0.0" }
+            ]
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(project)
+    metadata = {"dynamic": ["dependencies"]}
+    UnidepRequirementsMetadataHook(
+        str(project),
+        {"skip_local_dependencies": True},
+    ).update(metadata)
+
+    assert metadata["dependencies"] == ["numpy", "company-my-dep==1.0.0"]
+
+
+def test_hatch_hook_preserves_skip_local_deps_env_var(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unset Hatch config should preserve UNIDEP_SKIP_LOCAL_DEPS behavior."""
+    project = tmp_path / "project"
+    project.mkdir(exist_ok=True)
+
+    dep = tmp_path / "dep"
+    dep.mkdir(exist_ok=True)
+    (dep / "setup.py").write_text(
+        'from setuptools import setup; setup(name="my-dep", version="0.1.0")',
+    )
+
+    (project / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """\
+            [build-system]
+            requires = ["hatchling", "unidep"]
+            build-backend = "hatchling.build"
+
+            [project]
+            name = "main-project"
+            version = "0.1.0"
+            dynamic = ["dependencies"]
+
+            [tool.hatch.metadata]
+            allow-direct-references = true
+
+            [tool.unidep]
+            dependencies = ["numpy"]
+            local_dependencies = ["../dep"]
+            """,
+        ),
+    )
+
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("UNIDEP_SKIP_LOCAL_DEPS", "1")
+    metadata = {"dynamic": ["dependencies"]}
+
+    UnidepRequirementsMetadataHook(str(project), {}).update(metadata)
+
+    assert metadata["dependencies"] == ["numpy"]
+    assert not any("my-dep" in dep for dep in metadata["dependencies"])
+    assert not any("file://" in dep for dep in metadata["dependencies"])
 
 
 def test_use_pypi_entries_not_readded(tmp_path: Path) -> None:

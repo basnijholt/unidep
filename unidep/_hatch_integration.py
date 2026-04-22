@@ -23,6 +23,14 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
 
     PLUGIN_NAME = "unidep"
 
+    def _skip_local_dependencies(self) -> bool | None:
+        """Return whether local direct references should be omitted from metadata."""
+        for key in ("skip-local-dependencies", "skip_local_dependencies"):
+            value = self.config.get(key)
+            if value is not None:
+                return bool(value)
+        return None
+
     def update(self, metadata: dict) -> None:
         """Update the project table's metadata."""
         if "dependencies" not in metadata.get("dynamic", []):
@@ -41,7 +49,15 @@ class UnidepRequirementsMetadataHook(MetadataHookInterface):
             )
             raise RuntimeError(error_msg)
 
-        deps = _deps(requirements_file)
+        skip_local_dependencies = self._skip_local_dependencies()
+        include_local_dependencies = None
+        if skip_local_dependencies is not None:
+            include_local_dependencies = not skip_local_dependencies
+
+        deps = _deps(
+            requirements_file,
+            include_local_dependencies=include_local_dependencies,
+        )
         metadata["dependencies"] = deps.dependencies
         if "optional-dependencies" not in metadata.get("dynamic", []):
             return

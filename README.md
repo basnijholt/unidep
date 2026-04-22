@@ -619,6 +619,7 @@ dynamic = ["dependencies"]
 
 [tool.hatch.metadata.hooks.unidep]
 # Enable the unidep plugin
+# skip-local-dependencies = true  # Optional, useful for `unidep pixi`
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -626,6 +627,20 @@ allow-direct-references = true
 [tool.unidep]
 # Your dependencies configuration
 ```
+
+When using `unidep pixi` in a monorepo, local projects are already added to
+`pixi.toml` as editable path dependencies. In that setup, Hatch metadata often does
+not need to emit local `file://` references again. You can persistently disable them
+with:
+
+```toml
+[tool.hatch.metadata.hooks.unidep]
+skip-local-dependencies = true
+```
+
+This is especially useful when the same package name is reachable from multiple local
+paths, for example a nested vendor copy that is skipped in `pixi.toml` but would still
+appear in transitive package metadata.
 
 ## :desktop_computer: As a CLI
 
@@ -1075,6 +1090,16 @@ pixi run <cmd>
   `project_name`, `channels`, and `platforms` still win over `pixi.workspace`.
 
 In monorepo mode (multiple input files), UniDep builds feature sections per discovered project and composes environments from those features.
+
+If your editable local packages also use the UniDep Hatch hook, consider setting:
+
+```toml
+[tool.hatch.metadata.hooks.unidep]
+skip-local-dependencies = true
+```
+
+in those packages. `pixi.toml` already carries the editable paths, so this avoids
+reintroducing conflicting local `file://` references from transitive Hatch metadata.
 
 #### Dependency reconciliation rules (important)
 
