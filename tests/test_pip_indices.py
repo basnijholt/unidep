@@ -6,10 +6,12 @@ import os
 from pathlib import Path  # noqa: TC003
 from textwrap import dedent
 
+import pytest
 import yaml
 
 from unidep._conda_env import CondaEnvironmentSpec, write_conda_environment_file
 from unidep._dependencies_parsing import (
+    _collect_pip_indices,
     parse_requirements,
 )
 
@@ -37,10 +39,10 @@ class TestPipIndicesParsing:
         )
 
         parsed = parse_requirements(requirements_file)
-        assert parsed.pip_indices == [
+        assert parsed.pip_indices == (
             "https://pypi.org/simple/",
             "https://private.company.com/simple/",
-        ]
+        )
 
     def test_parse_pip_indices_from_toml(self, tmp_path: Path) -> None:
         """Test parsing pip_indices from pyproject.toml."""
@@ -63,10 +65,10 @@ class TestPipIndicesParsing:
         )
 
         parsed = parse_requirements(pyproject_file)
-        assert parsed.pip_indices == [
+        assert parsed.pip_indices == (
             "https://pypi.org/simple/",
             "https://test.pypi.org/simple/",
-        ]
+        )
 
     def test_parse_empty_pip_indices(self, tmp_path: Path) -> None:
         """Test that missing pip_indices defaults to empty list."""
@@ -84,7 +86,7 @@ class TestPipIndicesParsing:
         )
 
         parsed = parse_requirements(requirements_file)
-        assert parsed.pip_indices == []
+        assert parsed.pip_indices == ()
 
     def test_parse_pip_indices_with_env_vars(self, tmp_path: Path) -> None:
         """Test parsing pip_indices with environment variables."""
@@ -103,10 +105,10 @@ class TestPipIndicesParsing:
         )
 
         parsed = parse_requirements(requirements_file)
-        assert parsed.pip_indices == [
+        assert parsed.pip_indices == (
             "https://${PIP_USER}:${PIP_PASSWORD}@private.company.com/simple/",
             "https://pypi.org/simple/",
-        ]
+        )
 
     def test_merge_pip_indices_from_multiple_files(self, tmp_path: Path) -> None:
         """Test merging pip_indices from multiple requirements files."""
@@ -146,14 +148,14 @@ class TestPipIndicesParsing:
 
         # In real implementation, we'd have a merge function
         # For now, test that both parse correctly
-        assert parsed1.pip_indices == [
+        assert parsed1.pip_indices == (
             "https://pypi.org/simple/",
             "https://index1.com/simple/",
-        ]
-        assert parsed2.pip_indices == [
+        )
+        assert parsed2.pip_indices == (
             "https://index2.com/simple/",
             "https://pypi.org/simple/",
-        ]
+        )
 
     def test_pip_indices_ordering_preserved(self, tmp_path: Path) -> None:
         """Test that pip_indices order is preserved (first is primary)."""
@@ -178,16 +180,42 @@ class TestPipIndicesParsing:
         )
 
         parsed = parse_requirements(requirements_file)
-        assert parsed.pip_indices == indices
+        assert parsed.pip_indices == tuple(indices)
         # First index should be treated as primary (--index-url)
         assert parsed.pip_indices[0] == indices[0]
+
+    def test_collect_pip_indices_supports_single_string(self) -> None:
+        """Test the string form of pip_indices."""
+        indices = _collect_pip_indices(
+            {"pip_indices": "https://pypi.org/simple/"},
+        )
+
+        assert indices == ["https://pypi.org/simple/"]
+
+    def test_collect_pip_indices_rejects_invalid_value_type(self) -> None:
+        """Test invalid top-level pip index values."""
+        with pytest.raises(
+            TypeError,
+            match="`pip_indices` must be a string or a list of strings.",
+        ):
+            _collect_pip_indices({"pip_indices": 123})
+
+    def test_collect_pip_indices_rejects_non_string_entries(self) -> None:
+        """Test invalid pip index list entries."""
+        with pytest.raises(
+            TypeError,
+            match="`pip_indices` entries must be strings.",
+        ):
+            _collect_pip_indices(
+                {"pip_indices": ["https://pypi.org/simple/", 123]},
+            )
 
 
 class TestEnvironmentGeneration:
     """Test generation of environment.yaml with pip_indices."""
 
     def test_environment_yaml_with_pip_indices(self, tmp_path: Path) -> None:
-        """Test that pip_indices are included as pip_repositories in environment.yaml."""
+        """Test that pip_indices are included as pip-repositories in environment.yaml."""
         env_spec = CondaEnvironmentSpec(
             channels=["conda-forge"],
             pip_indices=[
@@ -205,9 +233,9 @@ class TestEnvironmentGeneration:
         with env_file.open() as f:
             env_dict = yaml.safe_load(f)
 
-        # Check that pip_repositories is included
-        assert "pip_repositories" in env_dict
-        assert env_dict["pip_repositories"] == [
+        # Check that pip-repositories is included
+        assert "pip-repositories" in env_dict
+        assert env_dict["pip-repositories"] == [
             "https://pypi.org/simple/",
             "https://private.company.com/simple/",
         ]
@@ -243,8 +271,8 @@ class TestEnvironmentGeneration:
         with env_file.open() as f:
             env_dict = yaml.safe_load(f)
 
-        # pip_repositories should not be included if empty
-        assert "pip_repositories" not in env_dict
+        # pip-repositories should not be included if empty
+        assert "pip-repositories" not in env_dict
 
     def test_environment_yaml_with_env_vars_in_indices(self, tmp_path: Path) -> None:
         """Test that environment variables in pip_indices are preserved."""
@@ -268,7 +296,7 @@ class TestEnvironmentGeneration:
 
         # Environment variables should be preserved
         assert (
-            env_dict["pip_repositories"][0]
+            env_dict["pip-repositories"][0]
             == "https://${USER}:${PASS}@private.com/simple/"
         )
 
@@ -358,10 +386,10 @@ class TestEdgeCases:
         parsed = parse_requirements(requirements_file)
         # The implementation deduplicates indices
         assert len(parsed.pip_indices) == 2
-        assert parsed.pip_indices == [
+        assert parsed.pip_indices == (
             "https://pypi.org/simple/",
             "https://private.com/simple/",
-        ]
+        )
 
     def test_empty_string_in_indices(self, tmp_path: Path) -> None:
         """Test handling of empty strings in pip_indices."""

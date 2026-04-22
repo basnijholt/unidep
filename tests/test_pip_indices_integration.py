@@ -221,7 +221,7 @@ class TestUnidepCondaLockIntegration:
         return monorepo
 
     def test_conda_lock_generates_pip_repositories(self, mock_monorepo: Path) -> None:
-        """Test that conda-lock generates environment.yaml with pip_repositories."""
+        """Test that conda-lock generates environment.yaml with `pip-repositories`."""
         _ = mock_monorepo  # Used to ensure fixture is called
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
@@ -230,7 +230,7 @@ class TestUnidepCondaLockIntegration:
             expected_env = {
                 "name": "myenv",
                 "channels": ["conda-forge"],
-                "pip_repositories": [
+                "pip-repositories": [
                     "https://pypi.org/simple/",
                     "https://private1.com/simple/",
                     "https://private2.com/simple/",
@@ -243,8 +243,8 @@ class TestUnidepCondaLockIntegration:
             }
 
             # Verify the structure
-            assert "pip_repositories" in expected_env
-            assert len(expected_env["pip_repositories"]) == 3
+            assert "pip-repositories" in expected_env
+            assert len(expected_env["pip-repositories"]) == 3
 
     def test_conda_lock_with_merged_indices(self, mock_monorepo: Path) -> None:  # noqa: ARG002
         """Test that conda-lock merges pip_indices from multiple projects."""
@@ -269,7 +269,7 @@ class TestUnidepCondaLockIntegration:
             assert deduplicated == expected_indices
 
     def test_conda_lock_creates_valid_lockfile(self, tmp_path: Path) -> None:
-        """Test that conda-lock creates a valid lock file with pip_repositories."""
+        """Test that conda-lock creates a valid lock file with pip-repositories."""
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
 
@@ -296,12 +296,12 @@ class TestUnidepCondaLockIntegration:
             # Second call runs conda-lock
             mock_run.return_value = MagicMock(returncode=0)
 
-            # Verify that the generated environment.yaml includes pip_repositories
+            # Verify that the generated environment.yaml includes pip-repositories
 
             env_content = {
                 "name": "test_project",
                 "channels": ["conda-forge"],
-                "pip_repositories": [
+                "pip-repositories": [
                     "https://pypi.org/simple/",
                     "https://custom.pypi.org/simple/",
                 ],
@@ -312,8 +312,8 @@ class TestUnidepCondaLockIntegration:
             }
 
             # Verify structure for conda-lock compatibility
-            assert "pip_repositories" in env_content
-            assert isinstance(env_content["pip_repositories"], list)
+            assert "pip-repositories" in env_content
+            assert isinstance(env_content["pip-repositories"], list)
 
 
 class TestErrorHandling:

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from unidep._conda_env import (
     create_conda_env_specification,
@@ -53,6 +54,9 @@ if sys.version_info >= (3, 8):
     from typing import Literal, get_args
 else:  # pragma: no cover
     from typing_extensions import Literal, get_args
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 try:  # pragma: no cover
     from rich_argparse import RichHelpFormatter
@@ -972,7 +976,7 @@ def _use_uv(no_uv: bool) -> bool:  # noqa: FBT001
     return shutil.which("uv") is not None
 
 
-def _build_pip_index_arguments(pip_indices: list[str]) -> list[str]:
+def _build_pip_index_arguments(pip_indices: Sequence[str]) -> list[str]:
     """Build pip/uv index arguments from pip_indices list.
 
     First index becomes --index-url (primary),
@@ -1001,7 +1005,7 @@ def _pip_install_local(
     python_executable: str,
     conda_run: list[str],
     no_uv: bool,
-    pip_indices: list[str] | None = None,
+    pip_indices: Sequence[str] | None = None,
     flags: list[str] | None = None,
 ) -> None:  # pragma: no cover
     index_args = _build_pip_index_arguments(pip_indices or [])

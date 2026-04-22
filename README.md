@@ -388,7 +388,7 @@ It is also used for creating environment and lock files that are portable across
 
 ### Custom Pip Index URLs
 
-The `pip_indices` field allows you to specify additional pip index URLs for installing packages from private or alternative package repositories. This is particularly useful for:
+The `pip_indices` field allows you to specify additional pip index URLs for installing packages from private or alternative package repositories. It may be given as a single string or a list of strings. This is particularly useful for:
 
 - **Private Company Packages**: Access internal packages hosted on private PyPI servers
 - **Alternative Package Repositories**: Use mirrors or alternative package sources
@@ -425,14 +425,14 @@ pip_indices = [
 
 #### Generated Output
 
-When generating `environment.yaml` files, `pip_indices` are included as `pip_repositories`:
+When generating `environment.yaml` files, `pip_indices` are included as `pip-repositories`:
 
 ```yaml
 # Generated environment.yaml
 name: myproject
 channels:
   - conda-forge
-pip_repositories:
+pip-repositories:
   - https://pypi.org/simple/
   - https://private.company.com/simple/
 dependencies:

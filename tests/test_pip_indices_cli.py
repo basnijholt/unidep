@@ -6,7 +6,10 @@ import os
 from pathlib import Path  # noqa: TC003
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from unidep._cli import _build_pip_index_arguments
+from unidep._conda_env import create_conda_env_specification
 
 
 class TestBuildPipIndexArguments:
@@ -174,10 +177,10 @@ class TestPipInstallLocalWithIndices:
 
 
 class TestCondaEnvWithPipRepositories:
-    """Test conda environment generation with pip_repositories."""
+    """Test conda environment generation with pip-repositories."""
 
     def test_write_env_with_pip_repositories(self, tmp_path: Path) -> None:
-        """Test that pip_repositories are written to environment.yaml."""
+        """Test that `pip-repositories` is written to environment.yaml."""
         from unidep._conda_env import CondaEnvironmentSpec, write_conda_environment_file
 
         env_spec = CondaEnvironmentSpec(
@@ -195,7 +198,7 @@ class TestCondaEnvWithPipRepositories:
         write_conda_environment_file(env_spec, env_file, name="test_env")
 
         content = env_file.read_text()
-        assert "pip_repositories:" in content
+        assert "pip-repositories:" in content
         assert "https://pypi.org/simple/" in content
         assert "https://private.company.com/simple/" in content
 
@@ -208,7 +211,7 @@ class TestCondaEnvWithPipRepositories:
         assert "private.company.com" in repo_lines[1]
 
     def test_write_env_without_pip_repositories(self, tmp_path: Path) -> None:
-        """Test environment.yaml without pip_repositories when list is empty."""
+        """Test environment.yaml without `pip-repositories` when the list is empty."""
         from unidep._conda_env import CondaEnvironmentSpec, write_conda_environment_file
 
         env_spec = CondaEnvironmentSpec(
@@ -223,7 +226,122 @@ class TestCondaEnvWithPipRepositories:
         write_conda_environment_file(env_spec, env_file, name="test_env")
 
         content = env_file.read_text()
-        assert "pip_repositories:" not in content
+        assert "pip-repositories:" not in content
+
+
+class TestCreateCondaEnvSpecificationCompatibility:
+    """Test compatibility paths in create_conda_env_specification."""
+
+    def test_accepts_string_keyword_pip_indices(self) -> None:
+        """Test pip_indices passed as a single string keyword."""
+        env_spec = create_conda_env_specification(
+            [],
+            [],
+            platforms=["linux-64"],
+            pip_indices="https://pypi.org/simple/",
+        )
+
+        assert env_spec.platforms == ["linux-64"]
+        assert env_spec.pip_indices == ("https://pypi.org/simple/",)
+
+    def test_accepts_legacy_positional_selector(self) -> None:
+        """Test the older positional selector calling convention."""
+        env_spec = create_conda_env_specification([], [], ["linux-64"], "comment")
+
+        assert env_spec.platforms == ["linux-64"]
+        assert env_spec.pip_indices == ()
+
+    def test_accepts_legacy_positional_pip_indices_and_selector(self) -> None:
+        """Test the fully positional legacy calling convention."""
+        env_spec = create_conda_env_specification(
+            [],
+            [],
+            ["https://pypi.org/simple/"],
+            ["linux-64"],
+            "comment",
+        )
+
+        assert env_spec.platforms == ["linux-64"]
+        assert env_spec.pip_indices == ("https://pypi.org/simple/",)
+
+    def test_rejects_missing_platforms_argument(self) -> None:
+        """Test that platforms remain required."""
+        with pytest.raises(TypeError, match="Missing required `platforms` argument."):
+            create_conda_env_specification([], [])
+
+    def test_rejects_too_many_positionals_with_platforms_keyword(self) -> None:
+        """Test too many positional arguments when platforms is keyword-only."""
+        with pytest.raises(
+            TypeError,
+            match="Too many positional arguments",
+        ):
+            create_conda_env_specification(
+                [],
+                [],
+                ["https://pypi.org/simple/"],
+                "comment",
+                platforms=["linux-64"],
+            )
+
+    def test_rejects_duplicate_pip_indices_with_platforms_keyword(self) -> None:
+        """Test duplicate positional and keyword pip_indices."""
+        with pytest.raises(
+            TypeError,
+            match="`pip_indices` was provided both positionally and by keyword.",
+        ):
+            create_conda_env_specification(
+                [],
+                [],
+                ["https://pypi.org/simple/"],
+                platforms=["linux-64"],
+                pip_indices=["https://test.pypi.org/simple/"],
+            )
+
+    def test_rejects_duplicate_pip_indices_in_legacy_two_argument_form(self) -> None:
+        """Test duplicate pip_indices in the legacy two-argument form."""
+        with pytest.raises(
+            TypeError,
+            match="`pip_indices` was provided both positionally and by keyword.",
+        ):
+            create_conda_env_specification(
+                [],
+                [],
+                ["https://pypi.org/simple/"],
+                ["linux-64"],
+                pip_indices=["https://test.pypi.org/simple/"],
+            )
+
+    def test_rejects_duplicate_pip_indices_in_legacy_three_argument_form(
+        self,
+    ) -> None:
+        """Test duplicate pip_indices in the legacy three-argument form."""
+        with pytest.raises(
+            TypeError,
+            match="`pip_indices` was provided both positionally and by keyword.",
+        ):
+            create_conda_env_specification(
+                [],
+                [],
+                ["https://pypi.org/simple/"],
+                ["linux-64"],
+                "comment",
+                pip_indices=["https://test.pypi.org/simple/"],
+            )
+
+    def test_rejects_too_many_legacy_positional_arguments(self) -> None:
+        """Test too many positional arguments in the legacy form."""
+        with pytest.raises(
+            TypeError,
+            match="Too many positional arguments",
+        ):
+            create_conda_env_specification(
+                [],
+                [],
+                ["https://pypi.org/simple/"],
+                ["linux-64"],
+                "comment",
+                "extra",
+            )
 
 
 class TestInstallCommandWithIndices:
@@ -357,7 +475,6 @@ class TestPipIndicesIntegration:
             create_conda_env_specification,
             write_conda_environment_file,
         )
-        from unidep._conflicts import resolve_conflicts
         from unidep._dependencies_parsing import parse_requirements
 
         # Create a requirements file with pip_indices
@@ -384,15 +501,12 @@ platforms:
         assert parsed.pip_indices[0] == "https://pypi.org/simple/"
         assert parsed.pip_indices[1] == "https://test.pypi.org/simple/"
 
-        # Resolve conflicts
-        resolved = resolve_conflicts(parsed.requirements, parsed.platforms)
-
         # Create conda env specification
         env_spec = create_conda_env_specification(
-            resolved,
+            parsed.dependency_entries,
             parsed.channels,
-            parsed.pip_indices,
             parsed.platforms,
+            pip_indices=parsed.pip_indices,
         )
 
         assert env_spec.pip_indices == parsed.pip_indices
@@ -403,7 +517,7 @@ platforms:
 
         # Verify the output
         content = env_file.read_text()
-        assert "pip_repositories:" in content
+        assert "pip-repositories:" in content
         assert "- https://pypi.org/simple/" in content
         assert "- https://test.pypi.org/simple/" in content
 
@@ -486,5 +600,5 @@ dependencies:
         # Check output file
         assert output_file.exists()
         content = output_file.read_text()
-        assert "pip_repositories:" in content
+        assert "pip-repositories:" in content
         assert "https://private.com/simple/" in content

@@ -19,7 +19,11 @@ from unidep import (
     write_conda_environment_file,
 )
 from unidep._conda_env import CondaEnvironmentSpec
-from unidep._conflicts import VersionConflictError, resolve_conflicts
+from unidep._conflicts import (
+    VersionConflictError,
+    _pop_unused_platforms_and_maybe_expand_none,
+    resolve_conflicts,
+)
 from unidep._setuptools_integration import _path_to_file_uri
 from unidep.platform_definitions import Platform, Spec
 from unidep.utils import is_pip_installable
@@ -28,6 +32,8 @@ from .helpers import maybe_as_toml
 
 if TYPE_CHECKING:
     import sys
+
+    from unidep.platform_definitions import CondaPip
 
     if sys.version_info >= (3, 8):
         from typing import Literal
@@ -329,6 +335,19 @@ def test_create_conda_env_specification_rejects_resolved_dict_input() -> None:
         match="now requires dependency entries",
     ):
         create_conda_env_specification(resolved, [], [])
+
+
+def test_pop_unused_platforms_removes_non_requested_platform() -> None:
+    linux_spec = Spec(name="foo", which="conda", identifier="linux")
+    osx_spec = Spec(name="foo", which="conda", identifier="osx")
+    platform_data: dict[Platform | None, dict[CondaPip, list[Spec]]] = {
+        "linux-64": {"conda": [linux_spec]},
+        "osx-arm64": {"conda": [osx_spec]},
+    }
+
+    _pop_unused_platforms_and_maybe_expand_none(platform_data, ["osx-arm64"])
+
+    assert platform_data == {"osx-arm64": {"conda": [osx_spec]}}
 
 
 def test_extract_python_requires(setup_test_files: tuple[Path, Path]) -> None:

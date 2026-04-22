@@ -48,10 +48,10 @@ class CondaEnvironmentSpec(NamedTuple):
     """A conda environment."""
 
     channels: list[str]
-    pip_indices: list[str]
     platforms: list[Platform]
     conda: list[str | dict[str, str]]  # actually a CommentedSeq[str | dict[str, str]]
     pip: list[str]
+    pip_indices: Sequence[str] = ()
 
 
 def _conda_sel(sel: str) -> CondaPlatform:
@@ -59,6 +59,8 @@ def _conda_sel(sel: str) -> CondaPlatform:
     _platform = sel.split("-", 1)[0]
     assert _platform in get_args(CondaPlatform), f"Invalid platform: {_platform}"
     return cast("CondaPlatform", _platform)
+
+
 def _as_dependency_entries(
     entries: Sequence[DependencyEntry],
 ) -> list[DependencyEntry]:
@@ -70,6 +72,16 @@ def _as_dependency_entries(
         )
         raise TypeError(msg)
     return list(entries)
+
+
+def _normalize_pip_indices(
+    pip_indices: Sequence[str] | None,
+) -> tuple[str, ...]:
+    if pip_indices is None:
+        return ()
+    if isinstance(pip_indices, str):
+        return (pip_indices,)
+    return tuple(pip_indices)
 
 
 def _extract_conda_pip_dependencies(
@@ -130,20 +142,75 @@ def _add_comment(commment_seq: CommentedSeq, platform: Platform) -> None:
     commment_seq.yaml_add_eol_comment(comment, len(commment_seq) - 1)
 
 
-def create_conda_env_specification(  # noqa: PLR0912
+_LEGACY_SELECTOR_ARG_COUNT = 2
+_LEGACY_FULL_ARG_COUNT = 3
+
+
+def create_conda_env_specification(  # noqa: C901, PLR0912, PLR0915
     entries: Sequence[DependencyEntry],
     channels: list[str],
-    pip_indices: list[str],
-    platforms: list[Platform],
+    *args: object,
+    platforms: Sequence[Platform] | None = None,
     selector: Literal["sel", "comment"] = "sel",
+    pip_indices: Sequence[str] | None = None,
 ) -> CondaEnvironmentSpec:
-    """Create a conda environment specification from dependency entries."""
+    """Create a conda environment specification from dependency entries.
+
+    Preferred calling convention:
+    `create_conda_env_specification(entries, channels, platforms, pip_indices=...)`
+
+    For compatibility, the older positional style used during the original
+    `pip_indices` branch development is also accepted:
+    `create_conda_env_specification(entries, channels, pip_indices, platforms)`
+    """
+    if platforms is not None:
+        if len(args) > 1:
+            msg = (
+                "Too many positional arguments for `create_conda_env_specification()`."
+            )
+            raise TypeError(msg)
+        if args:
+            if pip_indices is not None:
+                msg = "`pip_indices` was provided both positionally and by keyword."
+                raise TypeError(msg)
+            pip_indices = cast("Sequence[str]", args[0])
+        resolved_platforms = list(platforms)
+    else:
+        if not args:
+            msg = "Missing required `platforms` argument."
+            raise TypeError(msg)
+        if len(args) == 1:
+            resolved_platforms = list(cast("Sequence[Platform]", args[0]))
+        elif len(args) == _LEGACY_SELECTOR_ARG_COUNT:
+            if args[1] in ("sel", "comment"):
+                resolved_platforms = list(cast("Sequence[Platform]", args[0]))
+                selector = cast("Literal['sel', 'comment']", args[1])
+            else:
+                if pip_indices is not None:
+                    msg = "`pip_indices` was provided both positionally and by keyword."
+                    raise TypeError(msg)
+                pip_indices = cast("Sequence[str]", args[0])
+                resolved_platforms = list(cast("Sequence[Platform]", args[1]))
+        elif len(args) == _LEGACY_FULL_ARG_COUNT:
+            if pip_indices is not None:
+                msg = "`pip_indices` was provided both positionally and by keyword."
+                raise TypeError(msg)
+            pip_indices = cast("Sequence[str]", args[0])
+            resolved_platforms = list(cast("Sequence[Platform]", args[1]))
+            selector = cast("Literal['sel', 'comment']", args[2])
+        else:
+            msg = (
+                "Too many positional arguments for `create_conda_env_specification()`."
+            )
+            raise TypeError(msg)
+
     if selector not in ("sel", "comment"):  # pragma: no cover
         msg = f"Invalid selector: {selector}, must be one of ['sel', 'comment']"
         raise ValueError(msg)
 
     entries = _as_dependency_entries(entries)
-    conda, pip = _extract_conda_pip_dependencies(entries, platforms)
+    conda, pip = _extract_conda_pip_dependencies(entries, resolved_platforms)
+    normalized_pip_indices = _normalize_pip_indices(pip_indices)
 
     conda_deps: list[str | dict[str, str]] = CommentedSeq()
     pip_deps: list[str] = CommentedSeq()
@@ -152,7 +219,7 @@ def create_conda_env_specification(  # noqa: PLR0912
             _ensure_sel_representable(platform_to_spec)
         for _platform, spec in sorted(platform_to_spec.items()):
             dep_str = spec.name_with_pin()
-            if len(platforms) != 1 and _platform is not None:
+            if len(resolved_platforms) != 1 and _platform is not None:
                 if selector == "sel":
                     sel = _conda_sel(_platform)
                     dep_str = {f"sel({sel})": dep_str}  # type: ignore[assignment]
@@ -169,7 +236,7 @@ def create_conda_env_specification(  # noqa: PLR0912
 
         for spec, _platforms in spec_to_platforms.items():
             dep_str = spec.name_with_pin(is_pip=True)
-            if _platforms != [None] and len(platforms) != 1:
+            if _platforms != [None] and len(resolved_platforms) != 1:
                 if selector == "sel":
                     marker = build_pep508_environment_marker(_platforms)  # type: ignore[arg-type]
                     dep_str = f"{dep_str}; {marker}"
@@ -186,7 +253,13 @@ def create_conda_env_specification(  # noqa: PLR0912
             else:
                 pip_deps.append(dep_str)
 
-    return CondaEnvironmentSpec(channels, pip_indices, platforms, conda_deps, pip_deps)
+    return CondaEnvironmentSpec(
+        channels,
+        resolved_platforms,
+        conda_deps,
+        pip_deps,
+        normalized_pip_indices,
+    )
 
 
 def write_conda_environment_file(
@@ -203,9 +276,8 @@ def write_conda_environment_file(
     env_data = CommentedMap({"name": name})
     if env_spec.channels:
         env_data["channels"] = env_spec.channels
-    # Add pip_repositories for conda-lock compatibility
     if env_spec.pip_indices:
-        env_data["pip_repositories"] = env_spec.pip_indices
+        env_data["pip-repositories"] = list(env_spec.pip_indices)
     if resolved_dependencies:
         env_data["dependencies"] = resolved_dependencies
     if env_spec.platforms:
