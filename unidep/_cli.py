@@ -1053,6 +1053,7 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         env_entries,
         requirements.channels,
         platforms=platforms,
+        pip_repositories=requirements.pip_repositories,
     )
     if not conda_executable:  # None or empty string
         conda_executable = _maybe_conda_executable()
@@ -1397,6 +1398,7 @@ def _merge_command(
         requirements.channels,
         platforms,
         selector=selector,
+        pip_repositories=requirements.pip_repositories,
     )
     output_file = None if stdout else output
     write_conda_environment_file(env_spec, output_file, name, verbose=verbose)
@@ -1666,6 +1668,7 @@ def main() -> None:  # noqa: PLR0912
             env_entries,
             requirements.channels,
             platforms=platforms,
+            pip_repositories=requirements.pip_repositories,
         )
 
         if any(parse_folder_or_filename(f).extras for f in files):

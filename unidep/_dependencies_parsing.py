@@ -160,6 +160,7 @@ class ParsedRequirements(NamedTuple):
     platforms: list[Platform]
     requirements: dict[str, list[Spec]]
     optional_dependencies: dict[str, dict[str, list[Spec]]]
+    pip_repositories: tuple[str, ...] = ()
     dependency_entries: list[DependencyEntry]
     optional_dependency_entries: dict[str, list[DependencyEntry]]
 
@@ -648,12 +649,20 @@ def parse_requirements(
     optional_dependency_entries: dict[str, list[DependencyEntry]] = defaultdict(list)
     channels: set[str] = set()
     platforms: set[Platform] = set()
+    pip_repositories: list[str] = []
 
     identifier = -1
     for loaded, _extras in zip(loaded_data, all_extras):
         data = loaded.data
         channels.update(data.get("channels", []))
         platforms.update(data.get("platforms", []))
+        for url in (
+            data.get("extra-index-url", [])
+            if isinstance(data.get("extra-index-url"), list)
+            else ([data["extra-index-url"]] if "extra-index-url" in data else [])
+        ):
+            if url not in pip_repositories:
+                pip_repositories.append(url)
         if "dependencies" in data:
             identifier = _add_dependencies(
                 data["dependencies"],
@@ -687,6 +696,7 @@ def parse_requirements(
         sorted(platforms),
         dict(requirements),
         defaultdict_to_dict(optional_dependencies),
+        tuple(pip_repositories),
         dependency_entries,
         defaultdict_to_dict(optional_dependency_entries),
     )
