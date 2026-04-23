@@ -19,6 +19,8 @@ import sys
 import time
 from pathlib import Path
 
+from ruamel.yaml import YAML
+
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -26,6 +28,7 @@ from unidep._conda_env import (
 from unidep._conda_lock import conda_lock_command
 from unidep._dependencies_parsing import (
     DependencyEntry,
+    _load,
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
@@ -82,22 +85,14 @@ def _flatten_selected_dependency_entries(
 
 def _collect_available_optional_dependency_groups(
     found_files: list[Path],
-    *,
-    ignore_pins: list[str],
-    overwrite_pins: list[str],
-    skip_dependencies: list[str],
-    verbose: bool,
 ) -> list[str]:
-    requirements = parse_requirements(
-        *found_files,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
-        extras="*",
-        include_local_dependencies=False,
-    )
-    return sorted(requirements.optional_dependencies)
+    # Inspect only the top-level files so local-only groups remain visible
+    # without traversing local dependencies.
+    yaml = YAML(typ="rt")
+    groups: set[str] = set()
+    for found_file in found_files:
+        groups.update(_load(found_file, yaml).get("optional_dependencies", {}))
+    return sorted(groups)
 
 
 def _merge_optional_dependency_extras(
@@ -105,10 +100,6 @@ def _merge_optional_dependency_extras(
     found_files: list[Path],
     optional_dependencies: list[str],
     all_optional_dependencies: bool,
-    ignore_pins: list[str],
-    overwrite_pins: list[str],
-    skip_dependencies: list[str],
-    verbose: bool,
 ) -> list[list[str]] | Literal["*"] | None:
     if all_optional_dependencies:
         return "*"
@@ -117,10 +108,6 @@ def _merge_optional_dependency_extras(
 
     available_groups = _collect_available_optional_dependency_groups(
         found_files,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
     )
     missing_groups = [
         group_name
@@ -1462,10 +1449,6 @@ def _merge_command(
         found_files=found_files,
         optional_dependencies=optional_dependencies,
         all_optional_dependencies=all_optional_dependencies,
-        ignore_pins=ignore_pins,
-        overwrite_pins=overwrite_pins,
-        skip_dependencies=skip_dependencies,
-        verbose=verbose,
     )
     requirements = parse_requirements(
         *found_files,

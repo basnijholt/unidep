@@ -11,7 +11,7 @@ import sys
 import textwrap
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, ClassVar, Generator
+from typing import Any, Generator
 from unittest.mock import patch
 
 import pytest
@@ -563,6 +563,59 @@ def test_merge_command_includes_all_optional_dependencies(
     assert "  - pytest" in merged
 
 
+def test_merge_command_includes_local_only_optional_dependencies(
+    tmp_path: Path,
+) -> None:
+    local_project = tmp_path / "local-project"
+    local_project.mkdir()
+    (local_project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - adaptive
+            optional_dependencies:
+              test:
+                - pytest
+            """,
+        ),
+    )
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              local:
+                - ./local-project[test]
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    _merge_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],
+        name="myenv",
+        output=output_file,
+        stdout=False,
+        selector="comment",
+        platforms=[],
+        optional_dependencies=["local"],
+        all_optional_dependencies=False,
+        ignore_pins=[],
+        skip_dependencies=[],
+        overwrite_pins=[],
+        verbose=False,
+    )
+
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - adaptive" in merged
+    assert "  - pytest" in merged
+
+
 def test_merge_optional_dependency_extras_rejects_unknown_group(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -585,10 +638,6 @@ def test_merge_optional_dependency_extras_rejects_unknown_group(
             found_files=[req_file],
             optional_dependencies=["dev"],
             all_optional_dependencies=False,
-            ignore_pins=[],
-            overwrite_pins=[],
-            skip_dependencies=[],
-            verbose=False,
         )
 
     captured = capsys.readouterr()
@@ -628,18 +677,13 @@ def test_merge_optional_dependency_extras_validates_across_all_files(
         found_files=[req1, req2],
         optional_dependencies=["test"],
         all_optional_dependencies=False,
-        ignore_pins=[],
-        overwrite_pins=[],
-        skip_dependencies=[],
-        verbose=False,
     )
 
     assert extras == [["test"], ["test"]]
 
 
-def test_collect_available_optional_dependency_groups_skips_local_dependency_walk(
+def test_collect_available_optional_dependency_groups_preserves_local_only_groups(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     req_file = tmp_path / "requirements.yaml"
     req_file.write_text(
@@ -648,32 +692,15 @@ def test_collect_available_optional_dependency_groups_skips_local_dependency_wal
             optional_dependencies:
               docs:
                 - sphinx
+              local:
+                - ../missing-project[test]
             """,
         ),
     )
 
-    def fake_parse_requirements(*_args: object, **kwargs: object) -> Any:
-        assert kwargs["extras"] == "*"
-        assert kwargs["include_local_dependencies"] is False
+    groups = _collect_available_optional_dependency_groups([req_file])
 
-        class _Requirements:
-            optional_dependencies: ClassVar[dict[str, dict[str, object]]] = {
-                "docs": {},
-            }
-
-        return _Requirements()
-
-    monkeypatch.setattr("unidep._cli.parse_requirements", fake_parse_requirements)
-
-    groups = _collect_available_optional_dependency_groups(
-        [req_file],
-        ignore_pins=[],
-        overwrite_pins=[],
-        skip_dependencies=[],
-        verbose=False,
-    )
-
-    assert groups == ["docs"]
+    assert groups == ["docs", "local"]
 
 
 def test_merge_optional_dependency_extras_reports_when_no_groups_exist(
@@ -688,10 +715,6 @@ def test_merge_optional_dependency_extras_reports_when_no_groups_exist(
             found_files=[req_file],
             optional_dependencies=["dev"],
             all_optional_dependencies=False,
-            ignore_pins=[],
-            overwrite_pins=[],
-            skip_dependencies=[],
-            verbose=False,
         )
 
     captured = capsys.readouterr()
