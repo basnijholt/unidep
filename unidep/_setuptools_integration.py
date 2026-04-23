@@ -196,11 +196,7 @@ def get_python_dependencies(  # noqa: PLR0912
     return Dependencies(dependencies=dependencies, extras=extras)
 
 
-def _deps(
-    requirements_file: Path,
-    *,
-    include_local_dependencies: bool | None = None,
-) -> Dependencies:  # pragma: no cover
+def _deps(requirements_file: Path) -> Dependencies:  # pragma: no cover
     try:
         platforms = [identify_current_platform()]
     except UnsupportedPlatformError:
@@ -217,14 +213,12 @@ def _deps(
 
     skip_local_dependencies = bool(os.getenv("UNIDEP_SKIP_LOCAL_DEPS"))
     verbose = bool(os.getenv("UNIDEP_VERBOSE"))
-    if include_local_dependencies is None:
-        include_local_dependencies = not skip_local_dependencies
     return get_python_dependencies(
         requirements_file,
         platforms=platforms,
         raises_if_missing=False,
         verbose=verbose,
-        include_local_dependencies=include_local_dependencies,
+        include_local_dependencies=not skip_local_dependencies,
     )
 
 
