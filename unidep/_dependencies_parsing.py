@@ -162,6 +162,7 @@ class ParsedRequirements(NamedTuple):
     optional_dependencies: dict[str, dict[str, list[Spec]]]
     dependency_entries: list[DependencyEntry]
     optional_dependency_entries: dict[str, list[DependencyEntry]]
+    pip_indices: tuple[str, ...] = ()
 
 
 class Requirements(NamedTuple):
@@ -186,6 +187,28 @@ def _parse_overwrite_pins(overwrite_pins: list[str]) -> dict[str, str | None]:
         pkg = parse_package_str(overwrite_pin)
         result[pkg.name] = pkg.pin
     return result
+
+
+def _collect_pip_indices(data: dict[str, Any]) -> list[str]:
+    """Collect pip index URLs from the unidep config."""
+    indices: list[str] = []
+    if "pip_indices" not in data:
+        return indices
+    value = data["pip_indices"]
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list):
+        values = value
+    else:
+        msg = "`pip_indices` must be a string or a list of strings."
+        raise TypeError(msg)
+    for index in values:
+        if not isinstance(index, str):
+            msg = "`pip_indices` entries must be strings."
+            raise TypeError(msg)
+        if index and index not in indices:
+            indices.append(index)
+    return indices
 
 
 @functools.lru_cache
@@ -647,12 +670,17 @@ def parse_requirements(
     dependency_entries: list[DependencyEntry] = []
     optional_dependency_entries: dict[str, list[DependencyEntry]] = defaultdict(list)
     channels: set[str] = set()
+    pip_indices: list[str] = []  # Preserve order, first is primary
     platforms: set[Platform] = set()
 
     identifier = -1
     for loaded, _extras in zip(loaded_data, all_extras):
         data = loaded.data
         channels.update(data.get("channels", []))
+        # Collect pip_indices, maintaining order and avoiding duplicates.
+        for index in _collect_pip_indices(data):
+            if index and index not in pip_indices:
+                pip_indices.append(index)
         platforms.update(data.get("platforms", []))
         if "dependencies" in data:
             identifier = _add_dependencies(
@@ -689,6 +717,7 @@ def parse_requirements(
         defaultdict_to_dict(optional_dependencies),
         dependency_entries,
         defaultdict_to_dict(optional_dependency_entries),
+        tuple(pip_indices),
     )
 
 
