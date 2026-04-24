@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _collect_available_optional_dependency_groups,
     _collect_selected_conda_like_platforms,
     _conda_env_list,
     _conda_info,
@@ -37,6 +38,7 @@ from unidep._cli import (
     _maybe_conda_run,
     _maybe_create_conda_env_args,
     _merge_command,
+    _merge_optional_dependency_extras,
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
@@ -424,6 +426,8 @@ def test_merge_uses_selector_platforms_when_no_platforms_declared(
             stdout=False,
             selector="comment",
             platforms=[],
+            optional_dependencies=[],
+            all_optional_dependencies=False,
             ignore_pins=[],
             skip_dependencies=[],
             overwrite_pins=[],
@@ -491,6 +495,8 @@ def test_merge_uses_selector_platforms_even_for_losing_alternatives(
             stdout=False,
             selector="comment",
             platforms=[],
+            optional_dependencies=[],
+            all_optional_dependencies=False,
             ignore_pins=[],
             skip_dependencies=[],
             overwrite_pins=[],
@@ -503,6 +509,249 @@ def test_merge_uses_selector_platforms_even_for_losing_alternatives(
     for expected_platform in expected_platforms:
         assert expected_platform in merged
     assert excluded_platform not in merged
+
+
+def test_merge_command_includes_selected_optional_dependencies(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - sphinx
+              test:
+                - pytest
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    _merge_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],
+        name="myenv",
+        output=output_file,
+        stdout=False,
+        selector="comment",
+        platforms=[],
+        optional_dependencies=["docs", "test"],
+        all_optional_dependencies=False,
+        ignore_pins=[],
+        skip_dependencies=[],
+        overwrite_pins=[],
+        verbose=False,
+    )
+
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - sphinx" in merged
+    assert "  - pytest" in merged
+
+
+def test_merge_command_includes_all_optional_dependencies(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - sphinx
+              test:
+                - pytest
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    _merge_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],
+        name="myenv",
+        output=output_file,
+        stdout=False,
+        selector="comment",
+        platforms=[],
+        optional_dependencies=[],
+        all_optional_dependencies=True,
+        ignore_pins=[],
+        skip_dependencies=[],
+        overwrite_pins=[],
+        verbose=False,
+    )
+
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - sphinx" in merged
+    assert "  - pytest" in merged
+
+
+def test_merge_command_includes_local_only_optional_dependencies(
+    tmp_path: Path,
+) -> None:
+    local_project = tmp_path / "local-project"
+    local_project.mkdir()
+    (local_project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - adaptive
+            optional_dependencies:
+              test:
+                - pytest
+            """,
+        ),
+    )
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              local:
+                - ./local-project[test]
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    _merge_command(
+        depth=1,
+        directory=tmp_path,
+        files=[req_file],
+        name="myenv",
+        output=output_file,
+        stdout=False,
+        selector="comment",
+        platforms=[],
+        optional_dependencies=["local"],
+        all_optional_dependencies=False,
+        ignore_pins=[],
+        skip_dependencies=[],
+        overwrite_pins=[],
+        verbose=False,
+    )
+
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - adaptive" in merged
+    assert "  - pytest" in merged
+
+
+def test_merge_optional_dependency_extras_rejects_unknown_group(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              docs:
+                - sphinx
+              test:
+                - pytest
+            """,
+        ),
+    )
+
+    with pytest.raises(SystemExit, match="1"):
+        _merge_optional_dependency_extras(
+            found_files=[req_file],
+            optional_dependencies=["dev"],
+            all_optional_dependencies=False,
+        )
+
+    captured = capsys.readouterr()
+    assert "Unknown optional dependency group(s): `dev`" in captured.out
+    assert "Valid groups: `docs`, `test`." in captured.out
+
+
+def test_merge_optional_dependency_extras_validates_across_all_files(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir()
+    req1 = project1 / "pyproject.toml"
+    req1.write_text(
+        textwrap.dedent(
+            """\
+            [tool.unidep]
+            [tool.unidep.optional_dependencies]
+            docs = ["sphinx"]
+            """,
+        ),
+    )
+    project2 = tmp_path / "project2"
+    project2.mkdir()
+    req2 = project2 / "requirements.yaml"
+    req2.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              test:
+                - pytest
+            """,
+        ),
+    )
+
+    extras = _merge_optional_dependency_extras(
+        found_files=[req1, req2],
+        optional_dependencies=["test"],
+        all_optional_dependencies=False,
+    )
+
+    assert extras == [["test"], ["test"]]
+
+
+def test_collect_available_optional_dependency_groups_preserves_local_only_groups(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              docs:
+                - sphinx
+              local:
+                - ../missing-project[test]
+            """,
+        ),
+    )
+
+    groups = _collect_available_optional_dependency_groups([req_file])
+
+    assert groups == ["docs", "local"]
+
+
+def test_merge_optional_dependency_extras_reports_when_no_groups_exist(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text("dependencies:\n  - numpy\n")
+
+    with pytest.raises(SystemExit, match="1"):
+        _merge_optional_dependency_extras(
+            found_files=[req_file],
+            optional_dependencies=["dev"],
+            all_optional_dependencies=False,
+        )
+
+    captured = capsys.readouterr()
+    assert "Unknown optional dependency group(s): `dev`" in captured.out
+    assert "No optional dependency groups were found." in captured.out
 
 
 def test_flatten_selected_dependency_entries_includes_optional_groups(
@@ -1299,3 +1548,241 @@ def test_install_command_with_conda_lock_skips_dependency_install(
     output = capsys.readouterr().out
     assert "Installing conda dependencies" not in output
     assert "Installing pip dependencies" not in output
+
+
+def test_unidep_merge_cli_optional_dependencies(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from unidep._cli import main; main()",
+            "merge",
+            "--directory",
+            str(tmp_path),
+            "--depth",
+            "0",
+            "--output",
+            str(output_file),
+            "--optional-dependencies",
+            "docs",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+    )
+
+    assert result.returncode == 0
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - sphinx" in merged
+
+
+def test_unidep_merge_cli_all_optional_dependencies(tmp_path: Path) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - sphinx
+              test:
+                - pytest
+            """,
+        ),
+    )
+    output_file = tmp_path / "environment.yaml"
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from unidep._cli import main; main()",
+            "merge",
+            "--directory",
+            str(tmp_path),
+            "--depth",
+            "0",
+            "--output",
+            str(output_file),
+            "--all-optional-dependencies",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+    )
+
+    assert result.returncode == 0
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - sphinx" in merged
+    assert "  - pytest" in merged
+
+
+def test_unidep_merge_cli_rejects_unknown_optional_dependency_group(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from unidep._cli import main; main()",
+            "merge",
+            "--directory",
+            str(tmp_path),
+            "--depth",
+            "0",
+            "--optional-dependencies",
+            "dev",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "Unknown optional dependency group(s): `dev`" in result.stdout
+    assert "Valid groups: `docs`." in result.stdout
+
+
+def test_unidep_merge_cli_rejects_mutually_exclusive_optional_flags(
+    tmp_path: Path,
+) -> None:
+    req_file = tmp_path / "requirements.yaml"
+    req_file.write_text(
+        textwrap.dedent(
+            """\
+            optional_dependencies:
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from unidep._cli import main; main()",
+            "merge",
+            "--directory",
+            str(tmp_path),
+            "--depth",
+            "0",
+            "--optional-dependencies",
+            "docs",
+            "--all-optional-dependencies",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "not allowed with argument" in result.stderr
+
+
+def test_unidep_merge_cli_optional_dependencies_across_multiple_files(
+    tmp_path: Path,
+) -> None:
+    project1 = tmp_path / "project1"
+    project1.mkdir()
+    (project1 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - numpy
+            optional_dependencies:
+              docs:
+                - sphinx
+            """,
+        ),
+    )
+
+    project2 = tmp_path / "project2"
+    project2.mkdir()
+    (project2 / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            dependencies:
+              - pandas
+            optional_dependencies:
+              test:
+                - pytest
+            """,
+        ),
+    )
+
+    output_file = tmp_path / "environment.yaml"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from unidep._cli import main; main()",
+            "merge",
+            "--directory",
+            str(tmp_path),
+            "--depth",
+            "1",
+            "--output",
+            str(output_file),
+            "--optional-dependencies",
+            "test",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+    )
+
+    assert result.returncode == 0
+    merged = output_file.read_text()
+    assert "  - numpy" in merged
+    assert "  - pandas" in merged
+    assert "  - pytest" in merged
+    assert "  - sphinx" not in merged

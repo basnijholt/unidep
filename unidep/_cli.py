@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ruamel.yaml import YAML
+
 from unidep._conda_env import (
     create_conda_env_specification,
     write_conda_environment_file,
@@ -27,6 +29,7 @@ from unidep._conda_env import (
 from unidep._conda_lock import conda_lock_command
 from unidep._dependencies_parsing import (
     DependencyEntry,
+    _load,
     find_requirements_files,
     parse_local_dependencies,
     parse_requirements,
@@ -82,6 +85,56 @@ def _flatten_selected_dependency_entries(
     for group_entries in optional_dependency_entries.values():
         entries.extend(group_entries)
     return entries
+
+
+def _collect_available_optional_dependency_groups(
+    found_files: list[Path],
+) -> list[str]:
+    # Inspect only the top-level files so local-only groups remain visible
+    # without traversing local dependencies.
+    yaml = YAML(typ="rt")
+    groups: set[str] = set()
+    for found_file in found_files:
+        groups.update(_load(found_file, yaml).get("optional_dependencies", {}))
+    return sorted(groups)
+
+
+def _merge_optional_dependency_extras(
+    *,
+    found_files: list[Path],
+    optional_dependencies: list[str],
+    all_optional_dependencies: bool,
+) -> list[list[str]] | Literal["*"] | None:
+    if all_optional_dependencies:
+        return "*"
+    if not optional_dependencies:
+        return None
+
+    available_groups = _collect_available_optional_dependency_groups(
+        found_files,
+    )
+    missing_groups = [
+        group_name
+        for group_name in dict.fromkeys(optional_dependencies)
+        if group_name not in available_groups
+    ]
+    if missing_groups:
+        missing = ", ".join(f"`{group_name}`" for group_name in missing_groups)
+        if available_groups:
+            available = ", ".join(f"`{group_name}`" for group_name in available_groups)
+            print(
+                "❌ Unknown optional dependency group(s): "
+                f"{missing}. Valid groups: {available}.",
+            )
+        else:
+            print(
+                "❌ Unknown optional dependency group(s): "
+                f"{missing}. No optional dependency groups were found.",
+            )
+        sys.exit(1)
+
+    selected_groups = list(dict.fromkeys(optional_dependencies))
+    return [selected_groups.copy() for _ in found_files]
 
 
 def _collect_selected_conda_like_platforms(
@@ -359,6 +412,21 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         help="The selector to use for the environment markers, if `sel` then"
         " `- numpy # [linux]` becomes `sel(linux): numpy`, if `comment` then"
         " it remains `- numpy # [linux]`, by default `sel`",
+    )
+    merge_optional_group = parser_merge.add_mutually_exclusive_group()
+    merge_optional_group.add_argument(
+        "--optional-dependencies",
+        nargs="+",
+        metavar="GROUP",
+        default=[],
+        help="Include the named optional dependency group(s) from the discovered"
+        " requirements files.",
+    )
+    merge_optional_group.add_argument(
+        "--all-optional-dependencies",
+        action="store_true",
+        help="Include all optional dependency groups from the discovered"
+        " requirements files.",
     )
     _add_common_args(
         parser_merge,
@@ -1399,6 +1467,8 @@ def _merge_command(
     skip_dependencies: list[str],
     overwrite_pins: list[str],
     verbose: bool,
+    optional_dependencies: list[str] | None = None,
+    all_optional_dependencies: bool = False,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
@@ -1417,12 +1487,18 @@ def _merge_command(
             print(f"❌ No {_DEP_FILES} files found in {directory}")
             sys.exit(1)
 
+    extras = _merge_optional_dependency_extras(
+        found_files=found_files,
+        optional_dependencies=optional_dependencies or [],
+        all_optional_dependencies=all_optional_dependencies,
+    )
     requirements = parse_requirements(
         *found_files,
         ignore_pins=ignore_pins,
         overwrite_pins=overwrite_pins,
         skip_dependencies=skip_dependencies,
         verbose=verbose,
+        extras=extras,
     )
     env_entries = _flatten_selected_dependency_entries(
         requirements.dependency_entries,
@@ -1673,6 +1749,8 @@ def main() -> None:  # noqa: PLR0912
             stdout=args.stdout,
             selector=args.selector,
             platforms=args.platform,
+            optional_dependencies=args.optional_dependencies,
+            all_optional_dependencies=args.all_optional_dependencies,
             ignore_pins=args.ignore_pin,
             skip_dependencies=args.skip_dependency,
             overwrite_pins=args.overwrite_pin,

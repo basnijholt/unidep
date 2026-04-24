@@ -91,3 +91,4 @@ ENV/
 # other
 .pixi
 .DS_Store
+*.code-workspace
