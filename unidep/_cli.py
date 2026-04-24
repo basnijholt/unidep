@@ -1421,12 +1421,12 @@ def _merge_command(
     stdout: bool,
     selector: Literal["sel", "comment"],
     platforms: list[Platform],
-    optional_dependencies: list[str],
-    all_optional_dependencies: bool,
     ignore_pins: list[str],
     skip_dependencies: list[str],
     overwrite_pins: list[str],
     verbose: bool,
+    optional_dependencies: list[str] | None = None,
+    all_optional_dependencies: bool = False,
 ) -> None:  # pragma: no cover
     # When using stdout, suppress verbose output
     verbose = verbose and not stdout
@@ -1447,7 +1447,7 @@ def _merge_command(
 
     extras = _merge_optional_dependency_extras(
         found_files=found_files,
-        optional_dependencies=optional_dependencies,
+        optional_dependencies=optional_dependencies or [],
         all_optional_dependencies=all_optional_dependencies,
     )
     requirements = parse_requirements(
