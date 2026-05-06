@@ -1,4 +1,4 @@
-# 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
+# UniDep - Unified Conda and Pip Dependency Management
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
