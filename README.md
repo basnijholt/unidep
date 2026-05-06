@@ -1,6 +1,4 @@
-# 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
-
-![UniDep logo](https://media.githubusercontent.com/media/basnijholt/nijho.lt/main/content/project/unidep/featured.png)
+# UniDep - Unified Conda and Pip Dependency Management
 
 [![PyPI](https://img.shields.io/pypi/v/unidep.svg)](https://pypi.python.org/pypi/unidep)
 [![Build Status](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml/badge.svg)](https://github.com/basnijholt/unidep/actions/workflows/pytest.yml)
@@ -8,6 +6,8 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/basnijholt/unidep)](https://github.com/basnijholt/unidep)
 [![Documentation](https://readthedocs.org/projects/unidep/badge/?version=latest)](https://unidep.readthedocs.io/)
 [![Python Bytes](https://img.shields.io/badge/Python_Bytes-366-D7F9FF?logo=applepodcasts&labelColor=blue)](https://www.youtube.com/live/PRaTs3PnJvI?si=UrVozo81Pj8WcyXh&t=489)
+
+<img src="docs/source/logo.svg" alt="UniDep logo" align="right" width="240" />
 
 > UniDep streamlines Python project dependency management by unifying Conda and Pip packages in a single system.
 > [Learn when to use UniDep](#q-when-to-use-unidep) in our [FAQ](#-faq).
