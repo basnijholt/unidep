@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ruamel.yaml import YAML
 
@@ -1177,7 +1177,44 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         skip_pip = True
         skip_conda = True
 
-    if env_spec.conda and not skip_conda:
+    installable: list[Path] = []
+    if not skip_local:
+        for file in paths_with_extras:
+            if is_pip_installable(file.path.parent):
+                installable.append(file.path.parent)
+            else:  # pragma: no cover
+                print(
+                    f"⚠️  Project {file.path.parent} is not pip installable. "
+                    "Could not find setup.py or [build-system] in pyproject.toml.",
+                )
+
+        # Install local dependencies (if any) included via `local_dependencies:`
+        local_dependencies = parse_local_dependencies(
+            *[p.path_with_extras for p in paths_with_extras],
+            check_pip_installable=True,
+            verbose=verbose,
+        )
+        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
+        print(f"📝 Found local dependencies: {names}\n")
+        installable_set = {p.resolve() for p in installable}
+        for deps in local_dependencies.values():
+            for dep in deps:
+                resolved_dep = dep.resolve()
+                if resolved_dep in installable_set:
+                    continue
+                installable_set.add(resolved_dep)
+                installable.append(dep)
+
+    conda_dependencies = cast("list[str]", list(env_spec.conda))
+    needs_pip = (bool(env_spec.pip) and not skip_pip) or bool(installable)
+    if needs_pip and not skip_conda and conda_executable:
+        has_pip = any(
+            parse_package_str(pkg).name == "pip" for pkg in conda_dependencies
+        )
+        if not has_pip:
+            conda_dependencies.append("pip")
+
+    if conda_dependencies and not skip_conda:
         assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
@@ -1196,11 +1233,11 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         ]
         # When running the command in terminal, we need to wrap the pin in quotes
         # so what we print is what the user would type (copy-paste).
-        to_print = [_format_inline_conda_package(pkg) for pkg in env_spec.conda]  # type: ignore[arg-type]
+        to_print = [_format_inline_conda_package(pkg) for pkg in conda_dependencies]
         conda_command_str = " ".join((*conda_command, *to_print))
-        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
+        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")
         if not dry_run:  # pragma: no cover
-            subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
+            subprocess.run((*conda_command, *conda_dependencies), check=True)
     python_executable = _python_executable(
         conda_executable,
         conda_env_name,
@@ -1234,52 +1271,25 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         if not dry_run:  # pragma: no cover
             subprocess.run(pip_command, check=True)
 
-    installable = []
-    if not skip_local:
-        for file in paths_with_extras:
-            if is_pip_installable(file.path.parent):
-                installable.append(file.path.parent)
-            else:  # pragma: no cover
-                print(
-                    f"⚠️  Project {file.path.parent} is not pip installable. "
-                    "Could not find setup.py or [build-system] in pyproject.toml.",
-                )
-
-        # Install local dependencies (if any) included via `local_dependencies:`
-        local_dependencies = parse_local_dependencies(
-            *[p.path_with_extras for p in paths_with_extras],
-            check_pip_installable=True,
-            verbose=verbose,
+    if installable:
+        pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
+        if verbose:
+            pip_flags.append("--verbose")
+        conda_run = _maybe_conda_run(
+            conda_executable,
+            conda_env_name,
+            conda_env_prefix,
         )
-        names = {k.name: [dep.name for dep in v] for k, v in local_dependencies.items()}
-        print(f"📝 Found local dependencies: {names}\n")
-        installable_set = {p.resolve() for p in installable}
-        for deps in local_dependencies.values():
-            for dep in deps:
-                resolved_dep = dep.resolve()
-                if resolved_dep in installable_set:
-                    continue
-                installable_set.add(resolved_dep)
-                installable.append(dep)
-        if installable:
-            pip_flags = ["--no-deps"]  # we just ran pip/conda install, so skip
-            if verbose:
-                pip_flags.append("--verbose")
-            conda_run = _maybe_conda_run(
-                conda_executable,
-                conda_env_name,
-                conda_env_prefix,
-            )
-            _pip_install_local(
-                *sorted(installable),
-                editable=editable,
-                dry_run=dry_run,
-                python_executable=python_executable,
-                flags=pip_flags,
-                no_uv=no_uv,
-                pip_indices=env_spec.pip_indices,
-                conda_run=conda_run,
-            )
+        _pip_install_local(
+            *sorted(installable),
+            editable=editable,
+            dry_run=dry_run,
+            python_executable=python_executable,
+            flags=pip_flags,
+            no_uv=no_uv,
+            pip_indices=env_spec.pip_indices,
+            conda_run=conda_run,
+        )
 
     if not dry_run:  # pragma: no cover
         total_time = time.time() - start_time
