@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this script with:
-#   "${SHELL}" <(curl -LsSf raw.githubusercontent.com/basnijholt/unidep/main/bootstrap.sh)
+#   "${SHELL}" <(curl -LsSf raw.githubusercontent.com/conda-incubator/unidep/main/bootstrap.sh)
 #
 # 🚀 UniDep - Unified Conda and Pip Dependency Management 🚀
 #
@@ -11,7 +11,7 @@
 #
 # UniDep streamlines Python project dependency management by combining both Conda
 # and Pip dependencies into a single system. For more information, visit:
-# https://github.com/basnijholt/unidep
+# https://github.com/conda-incubator/unidep
 #
 # If you prefer to run the commands manually, you can execute each section one by one.
 # Otherwise, piping this script directly to your default shell ensures everything is installed in one go.
