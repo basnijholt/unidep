@@ -26,6 +26,7 @@ from unidep._cli import (
     _capitalize_dir,
     _collect_available_optional_dependency_groups,
     _collect_selected_conda_like_platforms,
+    _conda_dependencies_with_required_pip,
     _conda_env_list,
     _conda_info,
     _conda_root_prefix,
@@ -242,6 +243,67 @@ def test_install_command_does_not_install_pip_without_pip_operations(
     )
     assert "Installing pip dependencies" not in output
     assert "Installing project with" not in output
+
+
+def test_install_command_installs_pip_when_local_project_needs_pip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "setup.py").write_text("from setuptools import setup\nsetup()\n")
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - conda: zlib
+            """,
+        ),
+    )
+
+    with patch("unidep._cli._get_conda_executable", return_value="micromamba"), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        return_value=["--name", "new-env"],
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value="/opt/micromamba/envs/new-env/bin/python",
+    ):
+        _install_command(
+            project,
+            conda_executable="micromamba",
+            conda_env_name="new-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            no_uv=True,
+            verbose=False,
+        )
+
+    output = capsys.readouterr().out
+    assert re.search(
+        r"Installing conda dependencies with `.*install --yes --override-channels "
+        r"--channel conda-forge --name new-env zlib pip`",
+        output,
+    )
+    assert re.search(
+        r"Installing project with `.*run --name new-env "
+        r"/opt/micromamba/envs/new-env/bin/python -m pip install --no-deps "
+        rf"{re.escape(str(project))}`",
+        output,
+    )
+
+
+def test_conda_dependencies_with_required_pip_handles_selector_dependencies() -> None:
+    assert _conda_dependencies_with_required_pip(
+        [{"sel(linux)": "zlib"}, "pip >=25"],
+        has_pip_dependencies=True,
+        has_local_install_targets=False,
+        skip_conda=False,
+        conda_executable="micromamba",
+    ) == [{"sel(linux)": "zlib"}, "pip >=25"]
 
 
 def test_install_command_deduplicates_shared_local_dependencies(
