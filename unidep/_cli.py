@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ruamel.yaml import YAML
 
@@ -1177,7 +1177,16 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         skip_pip = True
         skip_conda = True
 
-    if env_spec.conda and not skip_conda:
+    conda_dependencies = cast("list[str]", list(env_spec.conda))
+    needs_pip = (bool(env_spec.pip) and not skip_pip) or not skip_local
+    if needs_pip and not skip_conda and conda_executable:
+        has_pip = any(
+            parse_package_str(pkg).name == "pip" for pkg in conda_dependencies
+        )
+        if not has_pip:
+            conda_dependencies.append("pip")
+
+    if conda_dependencies and not skip_conda:
         assert conda_executable is not None
         channel_args = ["--override-channels"] if env_spec.channels else []
         for channel in env_spec.channels:
@@ -1196,11 +1205,11 @@ def _install_command(  # noqa: C901, PLR0912, PLR0915
         ]
         # When running the command in terminal, we need to wrap the pin in quotes
         # so what we print is what the user would type (copy-paste).
-        to_print = [_format_inline_conda_package(pkg) for pkg in env_spec.conda]  # type: ignore[arg-type]
+        to_print = [_format_inline_conda_package(pkg) for pkg in conda_dependencies]
         conda_command_str = " ".join((*conda_command, *to_print))
-        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")  # type: ignore[arg-type]
+        print(f"📦 Installing conda dependencies with `{conda_command_str}`\n")
         if not dry_run:  # pragma: no cover
-            subprocess.run((*conda_command, *env_spec.conda), check=True)  # type: ignore[arg-type]
+            subprocess.run((*conda_command, *conda_dependencies), check=True)
     python_executable = _python_executable(
         conda_executable,
         conda_env_name,
