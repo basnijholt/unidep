@@ -44,6 +44,6 @@ jobs:
         shell: bash -el {0}
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11' && matrix.platform == 'ubuntu-latest'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
