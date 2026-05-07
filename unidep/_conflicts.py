@@ -39,7 +39,7 @@ ALL_VERSION_OPERATORS: tuple[str, ...] = (
 # Subset used for conflict resolution (excludes PEP 440-only operators)
 VALID_OPERATORS = [op for op in ALL_VERSION_OPERATORS if op not in ("===", "==", "~=")]
 
-_REPO_URL = "https://github.com/basnijholt/unidep"
+_REPO_URL = "https://github.com/conda-incubator/unidep"
 
 
 def extract_version_operator(constraint: str) -> str:

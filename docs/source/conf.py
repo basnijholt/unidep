@@ -157,7 +157,7 @@ def replace_example_links(input_file: Path, output_file: Path) -> None:
         content = infile.read()
     new_content = content.replace(
         "(example/",
-        "(https://github.com/basnijholt/unidep/tree/main/example/",
+        "(https://github.com/conda-incubator/unidep/tree/main/example/",
     )
     with output_file.open("w") as outfile:
         outfile.write(new_content)

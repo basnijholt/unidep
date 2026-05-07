@@ -46,7 +46,7 @@ def add_comment_to_file(
         command_line_args = " ".join(sys.argv[1:])
         txt = [
             f"# This file is created and managed by `unidep` {__version__}.",
-            "# For details see https://github.com/basnijholt/unidep",
+            "# For details see https://github.com/conda-incubator/unidep",
             f"# File generated with: `unidep {command_line_args}`",
             *extra_lines,
         ]

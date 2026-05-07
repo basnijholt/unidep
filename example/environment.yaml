@@ -1,5 +1,5 @@
 # This file is created and managed by `unidep` 3.2.1.
-# For details see https://github.com/basnijholt/unidep
+# For details see https://github.com/conda-incubator/unidep
 # File generated with: `unidep merge --name myenv --verbose`
 
 name: myenv
