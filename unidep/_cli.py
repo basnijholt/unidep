@@ -1167,7 +1167,10 @@ def _conda_dependencies_with_required_pip(
     dependencies = cast("list[str]", list(conda_dependencies))
     needs_pip = has_pip_dependencies or has_local_install_targets
     if needs_pip and not skip_conda and conda_executable:
-        has_pip = any(parse_package_str(pkg).name == "pip" for pkg in dependencies)
+        has_pip = any(
+            isinstance(pkg, str) and parse_package_str(pkg).name == "pip"
+            for pkg in dependencies
+        )
         if not has_pip:
             dependencies.append("pip")
     return dependencies
