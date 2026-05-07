@@ -185,16 +185,17 @@ def test_install_command_installs_pip_when_target_env_needs_pip(
         )
 
     output = capsys.readouterr().out
-    assert (
-        "Installing conda dependencies with "
-        "`micromamba install --yes --override-channels --channel conda-forge "
-        "--name new-env pip`"
-    ) in output
-    assert (
-        "Installing pip dependencies with "
-        "`micromamba run --name new-env /opt/micromamba/envs/new-env/bin/python "
-        "-m pip install markdown-code-runner`"
-    ) in output
+    assert re.search(
+        r"Installing conda dependencies with `.*install --yes --override-channels "
+        r"--channel conda-forge --name new-env pip`",
+        output,
+    )
+    assert re.search(
+        r"Installing pip dependencies with `.*run --name new-env "
+        r"/opt/micromamba/envs/new-env/bin/python -m pip install "
+        r"markdown-code-runner`",
+        output,
+    )
 
 
 def test_install_command_deduplicates_shared_local_dependencies(
