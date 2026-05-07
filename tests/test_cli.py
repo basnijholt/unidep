@@ -147,6 +147,56 @@ def test_install_all_command(capsys: pytest.CaptureFixture) -> None:
     assert f"pip install --no-deps {pkgs}`" in captured.out
 
 
+def test_install_command_installs_pip_when_target_env_needs_pip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            channels:
+              - conda-forge
+            dependencies:
+              - pip: markdown-code-runner
+            """,
+        ),
+    )
+
+    with patch("unidep._cli._get_conda_executable", return_value="micromamba"), patch(
+        "unidep._cli._maybe_create_conda_env_args",
+        return_value=["--name", "new-env"],
+    ), patch(
+        "unidep._cli._python_executable",
+        return_value="/opt/micromamba/envs/new-env/bin/python",
+    ):
+        _install_command(
+            project,
+            conda_executable="micromamba",
+            conda_env_name="new-env",
+            conda_env_prefix=None,
+            conda_lock_file=None,
+            dry_run=True,
+            editable=False,
+            skip_local=True,
+            no_uv=True,
+            verbose=True,
+        )
+
+    output = capsys.readouterr().out
+    assert (
+        "Installing conda dependencies with "
+        "`micromamba install --yes --override-channels --channel conda-forge "
+        "--name new-env pip`"
+    ) in output
+    assert (
+        "Installing pip dependencies with "
+        "`micromamba run --name new-env /opt/micromamba/envs/new-env/bin/python "
+        "-m pip install markdown-code-runner`"
+    ) in output
+
+
 def test_install_command_deduplicates_shared_local_dependencies(
     tmp_path: Path,
     capsys: pytest.CaptureFixture,
