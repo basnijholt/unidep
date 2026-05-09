@@ -1503,8 +1503,9 @@ See `unidep doctor -h` for more information:
 usage: unidep doctor [-h] [--json] [--strict]
 
 Run read-only diagnostics for common Python and Conda environment issues,
-including stacked environments, shell startup conflicts, interpreter/environment
-mismatches, Homebrew Python inside Conda environments, and PATH shadowing.
+including stacked environments, shell startup conflicts,
+interpreter/environment mismatches, Homebrew Python inside Conda environments,
+and PATH shadowing.
 
 options:
   -h, --help  show this help message and exit
