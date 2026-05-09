@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import os
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Mapping
 
@@ -43,7 +45,21 @@ PYTHON_ENVIRONMENT_VARIABLES = (
 )
 
 VIRTUALENV_WRAPPER_MARKERS = ("POETRY_ACTIVE", "PIPENV_ACTIVE")
-SHADOWED_EXECUTABLES = ("python", "python3", "pip", "pip3", "conda", "mamba")
+SHADOWED_EXECUTABLES = (
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "conda",
+    "mamba",
+    "micromamba",
+)
+CONDA_ROOT_PATTERN = re.compile(
+    r"(?P<root>(?:~|\$HOME|\$\{HOME\}|/)[^\"':;$()]*?)"
+    r"(?:/etc/profile\.d/conda\.sh|/bin/(?:conda|mamba|micromamba)\b"
+    r"|/bin(?=[:\"' )]|$))",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -70,19 +86,52 @@ class DoctorReport:
                 return finding
         return None
 
+    def summary(self) -> dict[str, int]:
+        """Return finding counts by level."""
+        return {
+            level: sum(1 for finding in self.findings if finding.level == level)
+            for level in ("error", "info", "warning")
+        }
+
+    def exit_code(self, *, strict: bool = False) -> int:
+        """Return the recommended command exit code for this report."""
+        if any(finding.level == "error" for finding in self.findings):
+            return 1
+        if strict and any(finding.level == "warning" for finding in self.findings):
+            return 1
+        return 0
+
 
 @dataclass(frozen=True)
 class _CondaInitializer:
     distribution: str
     profile: Path
     line_number: int
+    root: str | None = None
+    normalized_root: str | None = None
+
+    def format_location(self, home: Path, *, include_root: bool = False) -> str:
+        try:
+            profile = self.profile.relative_to(home)
+        except ValueError:  # pragma: no cover
+            profile = self.profile
+        details = self.distribution
+        if include_root and self.root:
+            details = f"{details}, {self.root}"
+        return f"{profile}:{self.line_number} ({details})"
+
+
+@dataclass(frozen=True)
+class _ShellProfileReadError:
+    profile: Path
+    error: OSError
 
     def format_location(self, home: Path) -> str:
         try:
             profile = self.profile.relative_to(home)
         except ValueError:  # pragma: no cover
             profile = self.profile
-        return f"{profile}:{self.line_number} ({self.distribution})"
+        return f"{profile}: {self.error}"
 
 
 def run_doctor_command(
@@ -91,6 +140,8 @@ def run_doctor_command(
     env: Mapping[str, str] | None = None,
     path_env: str | None = None,
     python_executable: str | None = None,
+    output_format: str = "text",
+    strict: bool = False,
 ) -> int:
     """Run doctor diagnostics, print a report, and return an exit code."""
     report = run_doctor_checks(
@@ -99,8 +150,11 @@ def run_doctor_command(
         path_env=path_env,
         python_executable=python_executable,
     )
-    print_doctor_report(report)
-    return 0
+    if output_format == "json":
+        print(format_doctor_report_json(report))
+    else:
+        print_doctor_report(report)
+    return report.exit_code(strict=strict)
 
 
 def run_doctor_checks(
@@ -148,6 +202,15 @@ def format_doctor_report(report: DoctorReport) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_doctor_report_json(report: DoctorReport) -> str:
+    """Format a doctor report as JSON."""
+    payload = {
+        "findings": [asdict(finding) for finding in report.findings],
+        "summary": report.summary(),
+    }
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
 def print_doctor_report(report: DoctorReport) -> None:
     """Print a doctor report, using rich when it is available."""
     if importlib.util.find_spec("rich") is None:
@@ -192,49 +255,102 @@ def _finding_level_style(finding: DoctorFinding) -> str:
 
 
 def _check_shell_profiles(home: Path) -> list[DoctorFinding]:
-    initializers = _find_conda_initializers(home)
+    initializers, read_errors = _find_conda_initializers(home)
     distributions = {initializer.distribution for initializer in initializers}
-    if len(distributions) <= 1:
-        return []
-
-    details = "; ".join(
-        initializer.format_location(home) for initializer in initializers
-    )
-    return [
-        DoctorFinding(
-            code="multiple-conda-initializers",
-            level="warning",
-            title="Multiple Conda-like initializers were found in shell profiles.",
-            details=details,
-            recommendation=(
-                "Keep one Conda, Mamba, or Micromamba initializer in your shell "
-                "startup files and remove stale initialization blocks."
+    findings = []
+    if len(distributions) > 1:
+        details = "; ".join(
+            initializer.format_location(home) for initializer in initializers
+        )
+        findings.append(
+            DoctorFinding(
+                code="multiple-conda-initializers",
+                level="warning",
+                title="Multiple Conda-like initializers were found in shell profiles.",
+                details=details,
+                recommendation=(
+                    "Keep one Conda, Mamba, or Micromamba initializer in your shell "
+                    "startup files and remove stale initialization blocks."
+                ),
             ),
-        ),
-    ]
+        )
+    initializer_roots = {
+        initializer.normalized_root
+        for initializer in initializers
+        if initializer.normalized_root is not None
+    }
+    if len(initializer_roots) > 1:
+        details = "; ".join(
+            initializer.format_location(home, include_root=True)
+            for initializer in initializers
+            if initializer.normalized_root is not None
+        )
+        findings.append(
+            DoctorFinding(
+                code="multiple-conda-initializer-roots",
+                level="warning",
+                title=(
+                    "Multiple Conda-like installation roots were found in shell "
+                    "profiles."
+                ),
+                details=details,
+                recommendation=(
+                    "Keep shell startup initialization for only the Conda, Mamba, "
+                    "or Micromamba installation you intend to use and remove stale "
+                    "initialization lines."
+                ),
+            ),
+        )
+    findings.extend(
+        DoctorFinding(
+            code="unreadable-shell-profile",
+            level="warning",
+            title="A shell profile could not be read.",
+            details=read_error.format_location(home),
+            recommendation=(
+                "Check the file permissions, or inspect that profile manually "
+                "for Conda, Mamba, or Micromamba initialization blocks."
+            ),
+        )
+        for read_error in read_errors
+    )
+    return findings
 
 
-def _find_conda_initializers(home: Path) -> list[_CondaInitializer]:
+def _find_conda_initializers(
+    home: Path,
+) -> tuple[list[_CondaInitializer], list[_ShellProfileReadError]]:
     initializers: list[_CondaInitializer] = []
+    read_errors: list[_ShellProfileReadError] = []
     for profile_name in SHELL_PROFILE_FILES:
         profile = home / profile_name
         if not profile.is_file():
             continue
-        content = profile.read_text(encoding="utf-8", errors="replace")
+        try:
+            content = profile.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            read_errors.append(_ShellProfileReadError(profile=profile, error=error))
+            continue
         for line_number, line in enumerate(content.splitlines(), start=1):
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
             distributions = _line_conda_distributions(stripped)
+            root = _line_conda_root(stripped)
+            normalized_root = (
+                _normalize_conda_root(root, home) if root is not None else None
+            )
             initializers.extend(
                 _CondaInitializer(
                     distribution=distribution,
                     profile=profile,
                     line_number=line_number,
+                    root=root,
+                    normalized_root=normalized_root,
                 )
                 for distribution in distributions
             )
-    return initializers
+    return initializers, read_errors
 
 
 def _line_conda_distributions(line: str) -> list[str]:
@@ -246,11 +362,28 @@ def _line_conda_distributions(line: str) -> list[str]:
         for distribution, markers in CONDA_DISTRIBUTIONS.items()
         if any(marker in lowered for marker in markers)
     ]
-    if "micromamba" in distributions or "mambaforge" in distributions:
+    if "mamba" in distributions and len(distributions) > 1:
         distributions = [
             distribution for distribution in distributions if distribution != "mamba"
         ]
     return distributions
+
+
+def _line_conda_root(line: str) -> str | None:
+    match = CONDA_ROOT_PATTERN.search(line)
+    if match is None:
+        return None
+    return match.group("root").rstrip("/")
+
+
+def _normalize_conda_root(root: str, home: Path) -> str:
+    expanded_root = root
+    home_string = os.fspath(home.expanduser().absolute())
+    for marker in ("$HOME", "${HOME}", "~"):
+        if expanded_root == marker or expanded_root.startswith(f"{marker}/"):
+            expanded_root = f"{home_string}{expanded_root[len(marker) :]}"
+            break
+    return os.path.normcase(os.path.normpath(expanded_root))
 
 
 def _check_active_environment(env: Mapping[str, str]) -> list[DoctorFinding]:
@@ -350,7 +483,17 @@ def _check_path(
     python_executable: str,
 ) -> list[DoctorFinding]:
     findings = []
-    if env.get("CONDA_PREFIX") and _is_homebrew_python(Path(python_executable)):
+    python_path = Path(python_executable)
+    findings.extend(_check_active_env_python_mismatch(env, python_path))
+    findings.extend(
+        _check_path_python_mismatch(
+            path_env=path_env,
+            path_extensions=env.get("PATHEXT"),
+            python_executable=python_path,
+        ),
+    )
+
+    if env.get("CONDA_PREFIX") and _is_homebrew_python(python_path):
         findings.append(
             DoctorFinding(
                 code="homebrew-python-in-conda-env",
@@ -382,9 +525,113 @@ def _check_path(
     return findings
 
 
+def _check_active_env_python_mismatch(
+    env: Mapping[str, str],
+    python_executable: Path,
+) -> list[DoctorFinding]:
+    findings = []
+    for env_var, code, title in (
+        (
+            "CONDA_PREFIX",
+            "conda-prefix-python-mismatch",
+            "Python executable is outside the active Conda environment.",
+        ),
+        (
+            "VIRTUAL_ENV",
+            "virtual-env-python-mismatch",
+            "Python executable is outside the active virtual environment.",
+        ),
+    ):
+        prefix = env.get(env_var)
+        if prefix and not _path_is_inside(python_executable, Path(prefix)):
+            findings.append(
+                DoctorFinding(
+                    code=code,
+                    level="warning",
+                    title=title,
+                    details=(
+                        f"{env_var}={prefix}; python executable: {python_executable}"
+                    ),
+                    recommendation=(
+                        "Run UniDep with the Python executable from the active "
+                        "environment, or reactivate the intended environment."
+                    ),
+                ),
+            )
+    return findings
+
+
+def _check_path_python_mismatch(
+    *,
+    path_env: str,
+    path_extensions: str | None,
+    python_executable: Path,
+) -> list[DoctorFinding]:
+    findings = []
+    for executable in ("python", "python3"):
+        matches = _which_all(
+            executable,
+            path_env,
+            path_extensions=path_extensions,
+        )
+        if matches and not _same_python_environment(matches[0], python_executable):
+            findings.append(
+                DoctorFinding(
+                    code=f"path-{executable}-mismatch",
+                    level="warning",
+                    title=(
+                        f"`{executable}` on PATH differs from the running Python "
+                        "executable."
+                    ),
+                    details=(
+                        f"{executable} on PATH: {matches[0]}; "
+                        f"running Python: {python_executable}"
+                    ),
+                    recommendation=(
+                        "Check PATH ordering and run UniDep with the Python "
+                        "executable from the environment you intend to modify."
+                    ),
+                ),
+            )
+    return findings
+
+
 def _is_homebrew_python(path: Path) -> bool:
     normalized = path.resolve(strict=False).as_posix().lower()
     return "/homebrew/" in normalized or "/cellar/python" in normalized
+
+
+def _path_is_inside(path: Path, prefix: Path) -> bool:
+    try:
+        path_string = os.path.normcase(os.fspath(path.expanduser().absolute()))
+        prefix_string = os.path.normcase(os.fspath(prefix.expanduser().absolute()))
+        return os.path.commonpath([path_string, prefix_string]) == prefix_string
+    except ValueError:  # pragma: no cover
+        return False
+
+
+def _same_path(first: Path, second: Path) -> bool:
+    first_path = os.path.normcase(os.fspath(first.expanduser().absolute()))
+    second_path = os.path.normcase(os.fspath(second.expanduser().absolute()))
+    return first_path == second_path
+
+
+def _same_python_environment(first: Path, second: Path) -> bool:
+    if _same_path(first, second):
+        return True
+    if not (
+        _normalized_executable_name(first).startswith("python")
+        and _normalized_executable_name(second).startswith("python")
+    ):
+        return False
+    return _same_path(first.parent, second.parent)
+
+
+def _normalized_executable_name(path: Path) -> str:
+    name = path.name.lower()
+    if name.endswith(".exe"):
+        return name[:-4]
+    return name
 
 
 def _which_all(
