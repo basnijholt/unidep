@@ -1208,7 +1208,21 @@ def test_doctor_cli_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
     with patch("unidep._cli.run_doctor_command", return_value=0) as doctor:
         main()
 
-    doctor.assert_called_once_with()
+    doctor.assert_called_once_with(output_format="text", strict=False)
+
+
+def test_doctor_cli_dispatches_options_and_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["unidep", "doctor", "--json", "--strict"])
+    with (
+        patch("unidep._cli.run_doctor_command", return_value=5) as doctor,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        main()
+
+    assert excinfo.value.code == 5
+    doctor.assert_called_once_with(output_format="json", strict=True)
 
 
 def test_conda_env_list() -> None:
