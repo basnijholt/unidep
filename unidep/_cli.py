@@ -747,7 +747,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         description=(
             "Run read-only diagnostics for common Python and Conda environment "
             "issues, including stacked environments, shell startup conflicts, "
-            "Homebrew Python inside Conda environments, and PATH shadowing."
+            "interpreter/environment mismatches, Homebrew Python inside Conda "
+            "environments, and PATH shadowing."
         ),
         formatter_class=_HelpFormatter,
     )

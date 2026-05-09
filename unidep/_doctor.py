@@ -421,7 +421,17 @@ def _check_path(
     python_executable: str,
 ) -> list[DoctorFinding]:
     findings = []
-    if env.get("CONDA_PREFIX") and _is_homebrew_python(Path(python_executable)):
+    python_path = Path(python_executable)
+    findings.extend(_check_active_env_python_mismatch(env, python_path))
+    findings.extend(
+        _check_path_python_mismatch(
+            path_env=path_env,
+            path_extensions=env.get("PATHEXT"),
+            python_executable=python_path,
+        ),
+    )
+
+    if env.get("CONDA_PREFIX") and _is_homebrew_python(python_path):
         findings.append(
             DoctorFinding(
                 code="homebrew-python-in-conda-env",
@@ -453,9 +463,95 @@ def _check_path(
     return findings
 
 
+def _check_active_env_python_mismatch(
+    env: Mapping[str, str],
+    python_executable: Path,
+) -> list[DoctorFinding]:
+    findings = []
+    for env_var, code, title in (
+        (
+            "CONDA_PREFIX",
+            "conda-prefix-python-mismatch",
+            "Python executable is outside the active Conda environment.",
+        ),
+        (
+            "VIRTUAL_ENV",
+            "virtual-env-python-mismatch",
+            "Python executable is outside the active virtual environment.",
+        ),
+    ):
+        prefix = env.get(env_var)
+        if prefix and not _path_is_inside(python_executable, Path(prefix)):
+            findings.append(
+                DoctorFinding(
+                    code=code,
+                    level="warning",
+                    title=title,
+                    details=(
+                        f"{env_var}={prefix}; python executable: {python_executable}"
+                    ),
+                    recommendation=(
+                        "Run UniDep with the Python executable from the active "
+                        "environment, or reactivate the intended environment."
+                    ),
+                ),
+            )
+    return findings
+
+
+def _check_path_python_mismatch(
+    *,
+    path_env: str,
+    path_extensions: str | None,
+    python_executable: Path,
+) -> list[DoctorFinding]:
+    findings = []
+    for executable in ("python", "python3"):
+        matches = _which_all(
+            executable,
+            path_env,
+            path_extensions=path_extensions,
+        )
+        if matches and not _same_resolved_path(matches[0], python_executable):
+            findings.append(
+                DoctorFinding(
+                    code=f"path-{executable}-mismatch",
+                    level="warning",
+                    title=(
+                        f"`{executable}` on PATH differs from the running Python "
+                        "executable."
+                    ),
+                    details=(
+                        f"{executable} on PATH: {matches[0]}; "
+                        f"running Python: {python_executable}"
+                    ),
+                    recommendation=(
+                        "Check PATH ordering and run UniDep with the Python "
+                        "executable from the environment you intend to modify."
+                    ),
+                ),
+            )
+    return findings
+
+
 def _is_homebrew_python(path: Path) -> bool:
     normalized = path.resolve(strict=False).as_posix().lower()
     return "/homebrew/" in normalized or "/cellar/python" in normalized
+
+
+def _path_is_inside(path: Path, prefix: Path) -> bool:
+    try:
+        path_string = os.path.normcase(os.fspath(path.expanduser().absolute()))
+        prefix_string = os.path.normcase(os.fspath(prefix.expanduser().absolute()))
+        return os.path.commonpath([path_string, prefix_string]) == prefix_string
+    except ValueError:  # pragma: no cover
+        return False
+
+
+def _same_resolved_path(first: Path, second: Path) -> bool:
+    return os.path.normcase(os.fspath(first.resolve(strict=False))) == os.path.normcase(
+        os.fspath(second.resolve(strict=False)),
+    )
 
 
 def _which_all(

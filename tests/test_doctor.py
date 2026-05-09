@@ -208,15 +208,20 @@ def test_environment_scan_reports_stacked_conda_envs(tmp_path: Path) -> None:
 def test_environment_scan_reports_mixed_active_environment_managers(
     tmp_path: Path,
 ) -> None:
+    prefix = tmp_path / "envs" / "analysis"
+    python = prefix / "bin" / "python"
+    _make_executable(python)
+
     report = run_doctor_checks(
         home=tmp_path,
         env={
-            "CONDA_PREFIX": "/opt/miniconda3/envs/analysis",
-            "VIRTUAL_ENV": "/work/project/.venv",
+            "CONDA_PREFIX": str(prefix),
+            "VIRTUAL_ENV": str(prefix),
             "PYENV_VERSION": "3.12.3",
             "POETRY_ACTIVE": "1",
         },
         path_env="",
+        python_executable=str(python),
     )
 
     assert [finding.code for finding in report.findings] == [
@@ -283,6 +288,102 @@ def test_path_scan_resolves_homebrew_python_symlinks_inside_conda_env(
     finding = report.finding_by_code("homebrew-python-in-conda-env")
     assert finding is not None
     assert str(python_link) in finding.details
+
+
+def test_path_scan_reports_conda_prefix_python_mismatch(tmp_path: Path) -> None:
+    conda_prefix = tmp_path / "envs" / "analysis"
+    python = tmp_path / "outside" / "bin" / "python"
+    _make_executable(python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={"CONDA_PREFIX": str(conda_prefix)},
+        path_env="",
+        python_executable=str(python),
+    )
+
+    finding = report.finding_by_code("conda-prefix-python-mismatch")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(conda_prefix) in finding.details
+    assert str(python) in finding.details
+
+
+def test_path_scan_reports_virtualenv_python_mismatch(tmp_path: Path) -> None:
+    virtual_env = tmp_path / ".venv"
+    python = tmp_path / "outside" / "bin" / "python"
+    _make_executable(python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={"VIRTUAL_ENV": str(virtual_env)},
+        path_env="",
+        python_executable=str(python),
+    )
+
+    finding = report.finding_by_code("virtual-env-python-mismatch")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(virtual_env) in finding.details
+    assert str(python) in finding.details
+
+
+def test_path_scan_skips_prefix_mismatch_when_python_is_inside_env(
+    tmp_path: Path,
+) -> None:
+    conda_prefix = tmp_path / "envs" / "analysis"
+    python = conda_prefix / "bin" / "python"
+    _make_executable(python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={"CONDA_PREFIX": str(conda_prefix), "VIRTUAL_ENV": str(conda_prefix)},
+        path_env="",
+        python_executable=str(python),
+    )
+
+    assert report.finding_by_code("conda-prefix-python-mismatch") is None
+    assert report.finding_by_code("virtual-env-python-mismatch") is None
+
+
+def test_path_scan_reports_path_python_mismatch(tmp_path: Path) -> None:
+    running_python = tmp_path / "env" / "bin" / "python"
+    path_python = tmp_path / "system" / "bin" / "python"
+    _make_executable(running_python)
+    _make_executable(path_python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(path_python.parent),
+        python_executable=str(running_python),
+    )
+
+    finding = report.finding_by_code("path-python-mismatch")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(path_python) in finding.details
+    assert str(running_python) in finding.details
+
+
+def test_path_scan_reports_path_python3_mismatch(tmp_path: Path) -> None:
+    running_python = tmp_path / "env" / "bin" / "python"
+    path_python3 = tmp_path / "system" / "bin" / "python3"
+    _make_executable(running_python)
+    _make_executable(path_python3)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(path_python3.parent),
+        python_executable=str(running_python),
+    )
+
+    finding = report.finding_by_code("path-python3-mismatch")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(path_python3) in finding.details
+    assert str(running_python) in finding.details
 
 
 def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
@@ -391,13 +492,18 @@ def test_run_doctor_command_can_print_json(
     tmp_path: Path,
     capsys: pytest.CaptureFixture,
 ) -> None:
+    prefix = tmp_path / "envs" / "analysis"
+    python = prefix / "bin" / "python"
+    _make_executable(python)
+
     exit_code = run_doctor_command(
         home=tmp_path,
         env={
-            "CONDA_PREFIX": "/opt/miniconda3/envs/analysis",
-            "VIRTUAL_ENV": "/work/project/.venv",
+            "CONDA_PREFIX": str(prefix),
+            "VIRTUAL_ENV": str(prefix),
         },
         path_env="",
+        python_executable=str(python),
         output_format="json",
     )
 
@@ -410,10 +516,7 @@ def test_run_doctor_command_can_print_json(
                 "code": "mixed-active-python-envs",
                 "level": "warning",
                 "title": "Multiple Python environment managers appear active.",
-                "details": (
-                    "CONDA_PREFIX=/opt/miniconda3/envs/analysis; "
-                    "VIRTUAL_ENV=/work/project/.venv"
-                ),
+                "details": f"CONDA_PREFIX={prefix}; VIRTUAL_ENV={prefix}",
                 "recommendation": (
                     "Activate only the environment manager you intend to use before "
                     "running `unidep install`."
