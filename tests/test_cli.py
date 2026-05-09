@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
 from unidep._cli import (
     CondaExecutable,
     _capitalize_dir,
+    _check_conda_prefix,
     _collect_available_optional_dependency_groups,
     _collect_selected_conda_like_platforms,
     _conda_env_list,
@@ -1246,6 +1247,69 @@ def test_conda_root_prefix_uses_conda_info_when_env_vars_are_unset(
         conda_cli_command_json.assert_called_once_with("conda", "info")
     finally:
         _conda_info.cache_clear()
+
+
+def test_check_conda_prefix_allows_missing_conda_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.setattr(sys, "executable", "/opt/python/bin/python")
+
+    _check_conda_prefix()
+
+
+def test_check_conda_prefix_allows_python_inside_conda_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prefix = tmp_path / "env"
+    python = prefix / "bin" / "python"
+    monkeypatch.setenv("CONDA_PREFIX", str(prefix))
+    monkeypatch.setattr(sys, "executable", str(python))
+
+    _check_conda_prefix()
+
+
+def test_check_conda_prefix_rejects_sibling_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prefix = tmp_path / "env"
+    python = tmp_path / "env-old" / "bin" / "python"
+    monkeypatch.setenv("CONDA_PREFIX", str(prefix))
+    monkeypatch.setattr(sys, "executable", str(python))
+
+    with (
+        pytest.warns(UserWarning, match="not in the active Conda environment"),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        _check_conda_prefix()
+
+    assert excinfo.value.code == 1
+
+
+def test_check_conda_prefix_rejects_uncomparable_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prefix = tmp_path / "env"
+    python = tmp_path / "outside" / "bin" / "python"
+    monkeypatch.setenv("CONDA_PREFIX", str(prefix))
+    monkeypatch.setattr(sys, "executable", str(python))
+
+    def commonpath(_paths: list[str]) -> str:
+        msg = "paths are on different drives"
+        raise ValueError(msg)
+
+    monkeypatch.setattr("unidep._cli.os.path.commonpath", commonpath)
+
+    with (
+        pytest.warns(UserWarning, match="not in the active Conda environment"),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        _check_conda_prefix()
+
+    assert excinfo.value.code == 1
 
 
 @pytest.mark.parametrize(

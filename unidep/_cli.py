@@ -1707,12 +1707,19 @@ def _pip_compile_command(
     print(f"✅ Generated `{output_file}`.")
 
 
-def _check_conda_prefix() -> None:  # pragma: no cover
+def _check_conda_prefix() -> None:
     """Check if sys.executable is in the $CONDA_PREFIX."""
     if "CONDA_PREFIX" not in os.environ:
         return
-    conda_prefix = os.environ["CONDA_PREFIX"]
-    if sys.executable.startswith(str(conda_prefix)):
+    conda_prefix = Path(os.environ["CONDA_PREFIX"])
+    python_executable = Path(sys.executable)
+    prefix = os.path.normcase(os.fspath(conda_prefix.expanduser().absolute()))
+    executable = os.path.normcase(os.fspath(python_executable.expanduser().absolute()))
+    try:
+        python_is_inside_prefix = os.path.commonpath([prefix, executable]) == prefix
+    except ValueError:
+        python_is_inside_prefix = False
+    if python_is_inside_prefix:
         return
     msg = (
         "UniDep should be run from the current Conda environment for correct"
