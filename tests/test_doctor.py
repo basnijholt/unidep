@@ -366,6 +366,32 @@ def test_path_scan_reports_path_python_mismatch(tmp_path: Path) -> None:
     assert str(running_python) in finding.details
 
 
+def test_path_scan_reports_symlinked_virtualenv_python_mismatch(
+    tmp_path: Path,
+) -> None:
+    base_python = tmp_path / "cpython" / "bin" / "python"
+    running_python = tmp_path / "env-a" / "bin" / "python"
+    path_python = tmp_path / "env-b" / "bin" / "python"
+    _make_executable(base_python)
+    running_python.parent.mkdir(parents=True)
+    path_python.parent.mkdir(parents=True)
+    running_python.symlink_to(base_python)
+    path_python.symlink_to(base_python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(path_python.parent),
+        python_executable=str(running_python),
+    )
+
+    finding = report.finding_by_code("path-python-mismatch")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(path_python) in finding.details
+    assert str(running_python) in finding.details
+
+
 def test_path_scan_reports_path_python3_mismatch(tmp_path: Path) -> None:
     running_python = tmp_path / "env" / "bin" / "python"
     path_python3 = tmp_path / "system" / "bin" / "python3"

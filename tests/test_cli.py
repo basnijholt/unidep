@@ -1215,10 +1215,10 @@ def test_doctor_cli_dispatches_options_and_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(sys, "argv", ["unidep", "doctor", "--json", "--strict"])
-    with (
-        patch("unidep._cli.run_doctor_command", return_value=5) as doctor,
-        pytest.raises(SystemExit) as excinfo,
-    ):
+    with patch(
+        "unidep._cli.run_doctor_command",
+        return_value=5,
+    ) as doctor, pytest.raises(SystemExit) as excinfo:
         main()
 
     assert excinfo.value.code == 5

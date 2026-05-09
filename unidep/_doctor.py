@@ -512,7 +512,7 @@ def _check_path_python_mismatch(
             path_env,
             path_extensions=path_extensions,
         )
-        if matches and not _same_resolved_path(matches[0], python_executable):
+        if matches and not _same_path(matches[0], python_executable):
             findings.append(
                 DoctorFinding(
                     code=f"path-{executable}-mismatch",
@@ -548,10 +548,10 @@ def _path_is_inside(path: Path, prefix: Path) -> bool:
         return False
 
 
-def _same_resolved_path(first: Path, second: Path) -> bool:
-    return os.path.normcase(os.fspath(first.resolve(strict=False))) == os.path.normcase(
-        os.fspath(second.resolve(strict=False)),
-    )
+def _same_path(first: Path, second: Path) -> bool:
+    first_path = os.path.normcase(os.fspath(first.expanduser().absolute()))
+    second_path = os.path.normcase(os.fspath(second.expanduser().absolute()))
+    return first_path == second_path
 
 
 def _which_all(
