@@ -42,6 +42,7 @@ from unidep._cli import (
     _pip_compile_command,
     _pip_subcommand,
     _print_versions,
+    main,
 )
 from unidep._dependencies_parsing import parse_requirements
 
@@ -1200,6 +1201,14 @@ def test_version(capsys: pytest.CaptureFixture) -> None:
     assert "unidep location" in captured.out
     assert "unidep version" in captured.out
     assert "packaging" in captured.out
+
+
+def test_doctor_cli_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["unidep", "doctor"])
+    with patch("unidep._cli.run_doctor_command", return_value=0) as doctor:
+        main()
+
+    doctor.assert_called_once_with()
 
 
 def test_conda_env_list() -> None:
