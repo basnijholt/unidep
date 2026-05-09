@@ -131,6 +131,51 @@ def test_shell_profile_scan_reports_multiple_conda_initializers(
     assert ".zshrc:2" in finding.details
 
 
+def test_shell_profile_scan_reports_multiple_conda_initializer_roots(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text(
+        'source "$HOME/miniconda3/etc/profile.d/conda.sh"\n'
+        'source "/opt/miniconda3/etc/profile.d/conda.sh"',
+    )
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("multiple-conda-initializer-roots")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "$HOME/miniconda3" in finding.details
+    assert "/opt/miniconda3" in finding.details
+    assert ".zshrc:1" in finding.details
+    assert ".zshrc:2" in finding.details
+
+
+def test_shell_profile_scan_allows_repeated_conda_initializer_root(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text(
+        'source "$HOME/miniconda3/etc/profile.d/conda.sh"\n'
+        f'eval "$({tmp_path}/miniconda3/bin/mamba shell hook -s zsh)"',
+    )
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    assert report.finding_by_code("multiple-conda-initializer-roots") is None
+
+
+def test_shell_profile_scan_allows_initializer_without_parseable_root(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text("mamba shell hook --shell zsh\n")
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    assert report.findings == ()
+
+
 def test_shell_profile_scan_ignores_commented_conda_initializers(
     tmp_path: Path,
 ) -> None:
@@ -409,6 +454,62 @@ def test_path_scan_reports_path_python3_mismatch(tmp_path: Path) -> None:
     assert finding is not None
     assert finding.level == "warning"
     assert str(path_python3) in finding.details
+    assert str(running_python) in finding.details
+
+
+def test_path_scan_allows_python3_from_same_environment(tmp_path: Path) -> None:
+    running_python = tmp_path / "env" / "bin" / "python"
+    path_python3 = tmp_path / "env" / "bin" / "python3"
+    _make_executable(running_python)
+    _make_executable(path_python3)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(path_python3.parent),
+        python_executable=str(running_python),
+    )
+
+    assert report.finding_by_code("path-python3-mismatch") is None
+
+
+def test_path_scan_allows_windows_python3_from_same_environment(
+    tmp_path: Path,
+) -> None:
+    scripts = tmp_path / "env" / "Scripts"
+    running_python = scripts / "python.exe"
+    path_python3 = scripts / "python3.EXE"
+    _make_executable(running_python)
+    _make_executable(path_python3)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={"PATHEXT": ".EXE"},
+        path_env=str(scripts),
+        python_executable=str(running_python),
+    )
+
+    assert report.finding_by_code("path-python3-mismatch") is None
+
+
+def test_path_scan_reports_non_python_interpreter_name_mismatch(
+    tmp_path: Path,
+) -> None:
+    running_python = tmp_path / "env" / "bin" / "pypy3"
+    path_python = tmp_path / "env" / "bin" / "python"
+    _make_executable(running_python)
+    _make_executable(path_python)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(path_python.parent),
+        python_executable=str(running_python),
+    )
+
+    finding = report.finding_by_code("path-python-mismatch")
+    assert finding is not None
+    assert str(path_python) in finding.details
     assert str(running_python) in finding.details
 
 
