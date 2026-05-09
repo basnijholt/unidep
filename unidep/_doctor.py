@@ -55,9 +55,10 @@ SHADOWED_EXECUTABLES = (
     "micromamba",
 )
 CONDA_ROOT_PATTERN = re.compile(
-    r"(?P<root>(?:~|\$HOME|\$\{HOME\}|/)[^\"':;$()]*?)"
-    r"(?:/etc/profile\.d/conda\.sh|/bin/(?:conda|mamba|micromamba)\b"
-    r"|/(?:bin|condabin)(?=[:\"' )]|$))",
+    r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
+    r"(?:[/\\]etc[/\\]profile\.d[/\\]conda\.sh"
+    r"|[/\\]bin[/\\](?:conda|mamba|micromamba)\b"
+    r"|[/\\](?:bin|condabin)(?=[:;\"' )]|$))",
     re.IGNORECASE,
 )
 

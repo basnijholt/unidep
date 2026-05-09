@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unidep._doctor import (
     DoctorFinding,
     DoctorReport,
+    _line_conda_roots,
     format_doctor_report,
     print_doctor_report,
     run_doctor_checks,
@@ -185,6 +186,16 @@ def test_shell_profile_scan_reports_multiple_conda_roots_on_one_path_line(
     assert "$HOME/miniconda3" in finding.details
     assert "/opt/miniconda3" in finding.details
     assert ".zshrc:1" in finding.details
+
+
+def test_shell_profile_scan_parses_windows_style_conda_root() -> None:
+    roots = _line_conda_roots(
+        r'eval "$(C:\Users\runneradmin\AppData\Local\Temp\case/miniconda3/bin/mamba shell hook -s zsh)"',
+    )
+
+    assert roots == [
+        r"C:\Users\runneradmin\AppData\Local\Temp\case/miniconda3",
+    ]
 
 
 def test_shell_profile_scan_allows_repeated_conda_initializer_root(

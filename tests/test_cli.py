@@ -1279,10 +1279,10 @@ def test_check_conda_prefix_rejects_sibling_prefix(
     monkeypatch.setenv("CONDA_PREFIX", str(prefix))
     monkeypatch.setattr(sys, "executable", str(python))
 
-    with (
-        pytest.warns(UserWarning, match="not in the active Conda environment"),
-        pytest.raises(SystemExit) as excinfo,
-    ):
+    with pytest.warns(
+        UserWarning,
+        match="not in the active Conda environment",
+    ), pytest.raises(SystemExit) as excinfo:
         _check_conda_prefix()
 
     assert excinfo.value.code == 1
@@ -1303,10 +1303,10 @@ def test_check_conda_prefix_rejects_uncomparable_paths(
 
     monkeypatch.setattr("unidep._cli.os.path.commonpath", commonpath)
 
-    with (
-        pytest.warns(UserWarning, match="not in the active Conda environment"),
-        pytest.raises(SystemExit) as excinfo,
-    ):
+    with pytest.warns(
+        UserWarning,
+        match="not in the active Conda environment",
+    ), pytest.raises(SystemExit) as excinfo:
         _check_conda_prefix()
 
     assert excinfo.value.code == 1
