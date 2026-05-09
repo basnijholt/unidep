@@ -34,6 +34,7 @@ from unidep._dependencies_parsing import (
     parse_local_dependencies,
     parse_requirements,
 )
+from unidep._doctor import run_doctor_command
 from unidep._pixi import generate_pixi_toml
 from unidep._setuptools_integration import (
     filter_python_dependencies,
@@ -739,8 +740,20 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
             help="The separator between the dependencies, by default ` `",
         )
 
+    # Subparser for the 'doctor' command
+    subparsers.add_parser(
+        "doctor",
+        help="Diagnose common Python and Conda environment issues.",
+        description=(
+            "Run read-only diagnostics for common Python and Conda environment "
+            "issues, including stacked environments, shell startup conflicts, "
+            "Homebrew Python inside Conda environments, and PATH shadowing."
+        ),
+        formatter_class=_HelpFormatter,
+    )
+
     # Subparser for the 'version' command
-    parser_merge = subparsers.add_parser(
+    subparsers.add_parser(
         "version",
         help="Print version information of unidep.",
         formatter_class=_HelpFormatter,
@@ -1926,5 +1939,7 @@ def main() -> None:  # noqa: PLR0912
             extra_flags=args.extra_flags,
             output_file=args.output_file,
         )
+    elif args.command == "doctor":  # pragma: no cover
+        run_doctor_command()
     elif args.command == "version":  # pragma: no cover
         _print_versions()
