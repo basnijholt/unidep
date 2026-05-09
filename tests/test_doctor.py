@@ -151,6 +151,42 @@ def test_shell_profile_scan_reports_multiple_conda_initializer_roots(
     assert ".zshrc:2" in finding.details
 
 
+def test_shell_profile_scan_reports_multiple_condabin_initializer_roots(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text(
+        'export PATH="$HOME/miniconda3/condabin:$PATH"\n'
+        'export PATH="/opt/miniconda3/condabin:$PATH"',
+    )
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("multiple-conda-initializer-roots")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "$HOME/miniconda3" in finding.details
+    assert "/opt/miniconda3" in finding.details
+    assert ".zshrc:1" in finding.details
+    assert ".zshrc:2" in finding.details
+
+
+def test_shell_profile_scan_reports_multiple_conda_roots_on_one_path_line(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text('export PATH="$HOME/miniconda3/bin:/opt/miniconda3/bin:$PATH"')
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("multiple-conda-initializer-roots")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "$HOME/miniconda3" in finding.details
+    assert "/opt/miniconda3" in finding.details
+    assert ".zshrc:1" in finding.details
+
+
 def test_shell_profile_scan_allows_repeated_conda_initializer_root(
     tmp_path: Path,
 ) -> None:

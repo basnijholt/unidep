@@ -57,7 +57,7 @@ SHADOWED_EXECUTABLES = (
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|/)[^\"':;$()]*?)"
     r"(?:/etc/profile\.d/conda\.sh|/bin/(?:conda|mamba|micromamba)\b"
-    r"|/bin(?=[:\"' )]|$))",
+    r"|/(?:bin|condabin)(?=[:\"' )]|$))",
     re.IGNORECASE,
 )
 
@@ -335,18 +335,26 @@ def _find_conda_initializers(
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
+            roots = _line_conda_roots(stripped)
+            if roots:
+                fallback_distributions = _line_conda_distributions(stripped)
+                for root in roots:
+                    initializer = _conda_root_initializer(
+                        root=root,
+                        fallback_distributions=fallback_distributions,
+                        home=home,
+                        profile=profile,
+                        line_number=line_number,
+                    )
+                    if initializer is not None:
+                        initializers.append(initializer)
+                continue
             distributions = _line_conda_distributions(stripped)
-            root = _line_conda_root(stripped)
-            normalized_root = (
-                _normalize_conda_root(root, home) if root is not None else None
-            )
             initializers.extend(
                 _CondaInitializer(
                     distribution=distribution,
                     profile=profile,
                     line_number=line_number,
-                    root=root,
-                    normalized_root=normalized_root,
                 )
                 for distribution in distributions
             )
@@ -369,11 +377,39 @@ def _line_conda_distributions(line: str) -> list[str]:
     return distributions
 
 
-def _line_conda_root(line: str) -> str | None:
-    match = CONDA_ROOT_PATTERN.search(line)
-    if match is None:
+def _line_conda_roots(line: str) -> list[str]:
+    return [
+        match.group("root").rstrip("/") for match in CONDA_ROOT_PATTERN.finditer(line)
+    ]
+
+
+def _conda_root_initializer(
+    *,
+    root: str,
+    fallback_distributions: list[str],
+    home: Path,
+    profile: Path,
+    line_number: int,
+) -> _CondaInitializer | None:
+    distribution = _conda_root_distribution(root)
+    if distribution is None:
+        if not fallback_distributions:
+            return None
+        distribution = fallback_distributions[0]
+    return _CondaInitializer(
+        distribution=distribution,
+        profile=profile,
+        line_number=line_number,
+        root=root,
+        normalized_root=_normalize_conda_root(root, home),
+    )
+
+
+def _conda_root_distribution(root: str) -> str | None:
+    distributions = _line_conda_distributions(root)
+    if not distributions:
         return None
-    return match.group("root").rstrip("/")
+    return distributions[0]
 
 
 def _normalize_conda_root(root: str, home: Path) -> str:
