@@ -188,6 +188,36 @@ def test_shell_profile_scan_reports_multiple_conda_roots_on_one_path_line(
     assert ".zshrc:1" in finding.details
 
 
+def test_shell_profile_scan_ignores_non_conda_path_entries_on_conda_line(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text('export PATH="/usr/local/bin:$HOME/miniconda3/bin:$PATH"')
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    assert _line_conda_roots(zshrc.read_text()) == ["$HOME/miniconda3"]
+    assert report.finding_by_code("multiple-conda-initializer-roots") is None
+
+
+def test_shell_profile_scan_reports_generic_conda_sh_initializer_root(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text(
+        "source /opt/conda/etc/profile.d/conda.sh\n"
+        'source "$HOME/miniconda3/etc/profile.d/conda.sh"',
+    )
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("multiple-conda-initializer-roots")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "/opt/conda" in finding.details
+    assert "$HOME/miniconda3" in finding.details
+
+
 def test_shell_profile_scan_parses_windows_style_conda_root() -> None:
     roots = _line_conda_roots(
         r'eval "$(C:\Users\runneradmin\AppData\Local\Temp\case/miniconda3/bin/mamba shell hook -s zsh)"',

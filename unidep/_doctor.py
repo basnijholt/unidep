@@ -56,11 +56,15 @@ SHADOWED_EXECUTABLES = (
 )
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
-    r"(?:[/\\]etc[/\\]profile\.d[/\\]conda\.sh"
+    r"(?P<terminator>[/\\]etc[/\\]profile\.d[/\\]conda\.sh"
     r"|[/\\]bin[/\\](?:conda|mamba|micromamba)\b"
     r"|[/\\](?:bin|condabin)(?=[:;\"' )]|$))",
     re.IGNORECASE,
 )
+CONDA_ROOT_NAMES = {
+    "conda",
+    *(marker for markers in CONDA_DISTRIBUTIONS.values() for marker in markers),
+}
 
 
 @dataclass(frozen=True)
@@ -380,8 +384,33 @@ def _line_conda_distributions(line: str) -> list[str]:
 
 def _line_conda_roots(line: str) -> list[str]:
     return [
-        match.group("root").rstrip("/") for match in CONDA_ROOT_PATTERN.finditer(line)
+        match.group("root").rstrip("/")
+        for match in CONDA_ROOT_PATTERN.finditer(line)
+        if _is_conda_root_match(
+            match.group("root"),
+            match.group("terminator"),
+        )
     ]
+
+
+def _is_conda_root_match(root: str, terminator: str) -> bool:
+    if _terminator_is_explicit_conda(terminator):
+        return True
+    return _root_looks_conda_like(root)
+
+
+def _terminator_is_explicit_conda(terminator: str) -> bool:
+    normalized = terminator.replace("\\", "/").casefold()
+    return normalized.endswith("/etc/profile.d/conda.sh") or bool(
+        re.search(r"/bin/(?:conda|mamba|micromamba)\b", normalized),
+    )
+
+
+def _root_looks_conda_like(root: str) -> bool:
+    parts = [
+        part.casefold() for part in re.split(r"[/\\]+", root.rstrip("/\\")) if part
+    ]
+    return any(part in CONDA_ROOT_NAMES for part in parts)
 
 
 def _conda_root_initializer(
@@ -394,9 +423,7 @@ def _conda_root_initializer(
 ) -> _CondaInitializer | None:
     distribution = _conda_root_distribution(root)
     if distribution is None:
-        if not fallback_distributions:
-            return None
-        distribution = fallback_distributions[0]
+        distribution = fallback_distributions[0] if fallback_distributions else "conda"
     return _CondaInitializer(
         distribution=distribution,
         profile=profile,
