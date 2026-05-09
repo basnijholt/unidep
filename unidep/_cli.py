@@ -741,7 +741,7 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
         )
 
     # Subparser for the 'doctor' command
-    subparsers.add_parser(
+    parser_doctor = subparsers.add_parser(
         "doctor",
         help="Diagnose common Python and Conda environment issues.",
         description=(
@@ -750,6 +750,16 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
             "Homebrew Python inside Conda environments, and PATH shadowing."
         ),
         formatter_class=_HelpFormatter,
+    )
+    parser_doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON instead of terminal-formatted text.",
+    )
+    parser_doctor.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit with status 1 when warnings are found.",
     )
 
     # Subparser for the 'version' command
@@ -1940,6 +1950,11 @@ def main() -> None:  # noqa: PLR0912
             output_file=args.output_file,
         )
     elif args.command == "doctor":  # pragma: no cover
-        run_doctor_command()
+        exit_code = run_doctor_command(
+            output_format="json" if args.json else "text",
+            strict=args.strict,
+        )
+        if exit_code:
+            sys.exit(exit_code)
     elif args.command == "version":  # pragma: no cover
         _print_versions()

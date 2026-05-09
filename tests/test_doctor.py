@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import textwrap
@@ -144,6 +145,47 @@ def test_shell_profile_scan_ignores_commented_conda_initializers(
     assert report.finding_by_code("multiple-conda-initializers") is None
 
 
+def test_shell_profile_scan_treats_mamba_hook_inside_conda_as_one_initializer(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    for distribution in ("anaconda3", "miniconda3", "miniforge3"):
+        zshrc.write_text(f'eval "$(/opt/{distribution}/bin/mamba shell hook -s zsh)"\n')
+
+        report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+        assert report.finding_by_code("multiple-conda-initializers") is None
+
+
+def test_shell_profile_scan_reports_unreadable_profiles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text('source "$HOME/miniconda3/etc/profile.d/conda.sh"\n')
+    original_read_text = type(zshrc).read_text
+
+    def read_text(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == zshrc:
+            error_message = "permission denied"
+            raise OSError(error_message)
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(type(zshrc), "read_text", read_text)
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("unreadable-shell-profile")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert ".zshrc" in finding.details
+    assert "permission denied" in finding.details
+
+
 def test_environment_scan_reports_stacked_conda_envs(tmp_path: Path) -> None:
     report = run_doctor_checks(
         home=tmp_path,
@@ -263,6 +305,26 @@ def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
     assert str(second_bin / "python") in finding.details
 
 
+def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
+    first_bin = tmp_path / "first" / "bin"
+    second_bin = tmp_path / "second" / "bin"
+    _make_executable(first_bin / "micromamba")
+    _make_executable(second_bin / "micromamba")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{first_bin}{os.pathsep}{second_bin}",
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("shadowed-micromamba")
+    assert finding is not None
+    assert finding.level == "info"
+    assert str(first_bin / "micromamba") in finding.details
+    assert str(second_bin / "micromamba") in finding.details
+
+
 def test_path_scan_honors_pathext_for_shadowing(
     tmp_path: Path,
 ) -> None:
@@ -323,6 +385,67 @@ def test_run_doctor_command_prints_findings(
     )
     assert "Code: mixed-active-python-envs" in captured.out
     assert "Recommendation:" in captured.out
+
+
+def test_run_doctor_command_can_print_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    exit_code = run_doctor_command(
+        home=tmp_path,
+        env={
+            "CONDA_PREFIX": "/opt/miniconda3/envs/analysis",
+            "VIRTUAL_ENV": "/work/project/.venv",
+        },
+        path_env="",
+        output_format="json",
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert exit_code == 0
+    assert payload == {
+        "findings": [
+            {
+                "code": "mixed-active-python-envs",
+                "level": "warning",
+                "title": "Multiple Python environment managers appear active.",
+                "details": (
+                    "CONDA_PREFIX=/opt/miniconda3/envs/analysis; "
+                    "VIRTUAL_ENV=/work/project/.venv"
+                ),
+                "recommendation": (
+                    "Activate only the environment manager you intend to use before "
+                    "running `unidep install`."
+                ),
+            },
+        ],
+        "summary": {"error": 0, "info": 0, "warning": 1},
+    }
+
+
+def test_run_doctor_command_strict_returns_nonzero_for_warnings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    _disable_rich(monkeypatch)
+
+    exit_code = run_doctor_command(
+        home=tmp_path,
+        env={
+            "CONDA_PREFIX": "/opt/miniconda3/envs/analysis",
+            "VIRTUAL_ENV": "/work/project/.venv",
+        },
+        path_env="",
+        strict=True,
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert (
+        "WARNING: Multiple Python environment managers appear active." in captured.out
+    )
 
 
 def test_run_doctor_command_uses_rich_when_available(
@@ -424,6 +547,22 @@ def test_report_helpers_handle_missing_codes_and_findings(tmp_path: Path) -> Non
     report = run_doctor_checks(home=tmp_path, env={}, path_env="")
 
     assert report.finding_by_code("missing") is None
+
+
+def test_report_exit_code_returns_nonzero_for_errors() -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="broken",
+                level="error",
+                title="An error finding.",
+                details="first detail",
+                recommendation="fix the error",
+            ),
+        ),
+    )
+
+    assert report.exit_code() == 1
 
 
 def test_ignores_unrelated_profile_lines_and_invalid_conda_shlvl(
