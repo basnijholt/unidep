@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Mapping
 
@@ -43,7 +44,15 @@ PYTHON_ENVIRONMENT_VARIABLES = (
 )
 
 VIRTUALENV_WRAPPER_MARKERS = ("POETRY_ACTIVE", "PIPENV_ACTIVE")
-SHADOWED_EXECUTABLES = ("python", "python3", "pip", "pip3", "conda", "mamba")
+SHADOWED_EXECUTABLES = (
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "conda",
+    "mamba",
+    "micromamba",
+)
 
 
 @dataclass(frozen=True)
@@ -70,6 +79,21 @@ class DoctorReport:
                 return finding
         return None
 
+    def summary(self) -> dict[str, int]:
+        """Return finding counts by level."""
+        return {
+            level: sum(1 for finding in self.findings if finding.level == level)
+            for level in ("error", "info", "warning")
+        }
+
+    def exit_code(self, *, strict: bool = False) -> int:
+        """Return the recommended command exit code for this report."""
+        if any(finding.level == "error" for finding in self.findings):
+            return 1
+        if strict and any(finding.level == "warning" for finding in self.findings):
+            return 1
+        return 0
+
 
 @dataclass(frozen=True)
 class _CondaInitializer:
@@ -85,12 +109,27 @@ class _CondaInitializer:
         return f"{profile}:{self.line_number} ({self.distribution})"
 
 
+@dataclass(frozen=True)
+class _ShellProfileReadError:
+    profile: Path
+    error: OSError
+
+    def format_location(self, home: Path) -> str:
+        try:
+            profile = self.profile.relative_to(home)
+        except ValueError:  # pragma: no cover
+            profile = self.profile
+        return f"{profile}: {self.error}"
+
+
 def run_doctor_command(
     *,
     home: Path | None = None,
     env: Mapping[str, str] | None = None,
     path_env: str | None = None,
     python_executable: str | None = None,
+    output_format: str = "text",
+    strict: bool = False,
 ) -> int:
     """Run doctor diagnostics, print a report, and return an exit code."""
     report = run_doctor_checks(
@@ -99,8 +138,11 @@ def run_doctor_command(
         path_env=path_env,
         python_executable=python_executable,
     )
-    print_doctor_report(report)
-    return 0
+    if output_format == "json":
+        print(format_doctor_report_json(report))
+    else:
+        print_doctor_report(report)
+    return report.exit_code(strict=strict)
 
 
 def run_doctor_checks(
@@ -148,6 +190,15 @@ def format_doctor_report(report: DoctorReport) -> str:
     return "\n".join(lines).rstrip()
 
 
+def format_doctor_report_json(report: DoctorReport) -> str:
+    """Format a doctor report as JSON."""
+    payload = {
+        "findings": [asdict(finding) for finding in report.findings],
+        "summary": report.summary(),
+    }
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
 def print_doctor_report(report: DoctorReport) -> None:
     """Print a doctor report, using rich when it is available."""
     if importlib.util.find_spec("rich") is None:
@@ -192,35 +243,55 @@ def _finding_level_style(finding: DoctorFinding) -> str:
 
 
 def _check_shell_profiles(home: Path) -> list[DoctorFinding]:
-    initializers = _find_conda_initializers(home)
+    initializers, read_errors = _find_conda_initializers(home)
     distributions = {initializer.distribution for initializer in initializers}
-    if len(distributions) <= 1:
-        return []
-
-    details = "; ".join(
-        initializer.format_location(home) for initializer in initializers
-    )
-    return [
-        DoctorFinding(
-            code="multiple-conda-initializers",
-            level="warning",
-            title="Multiple Conda-like initializers were found in shell profiles.",
-            details=details,
-            recommendation=(
-                "Keep one Conda, Mamba, or Micromamba initializer in your shell "
-                "startup files and remove stale initialization blocks."
+    findings = []
+    if len(distributions) > 1:
+        details = "; ".join(
+            initializer.format_location(home) for initializer in initializers
+        )
+        findings.append(
+            DoctorFinding(
+                code="multiple-conda-initializers",
+                level="warning",
+                title="Multiple Conda-like initializers were found in shell profiles.",
+                details=details,
+                recommendation=(
+                    "Keep one Conda, Mamba, or Micromamba initializer in your shell "
+                    "startup files and remove stale initialization blocks."
+                ),
             ),
-        ),
-    ]
+        )
+    findings.extend(
+        DoctorFinding(
+            code="unreadable-shell-profile",
+            level="warning",
+            title="A shell profile could not be read.",
+            details=read_error.format_location(home),
+            recommendation=(
+                "Check the file permissions, or inspect that profile manually "
+                "for Conda, Mamba, or Micromamba initialization blocks."
+            ),
+        )
+        for read_error in read_errors
+    )
+    return findings
 
 
-def _find_conda_initializers(home: Path) -> list[_CondaInitializer]:
+def _find_conda_initializers(
+    home: Path,
+) -> tuple[list[_CondaInitializer], list[_ShellProfileReadError]]:
     initializers: list[_CondaInitializer] = []
+    read_errors: list[_ShellProfileReadError] = []
     for profile_name in SHELL_PROFILE_FILES:
         profile = home / profile_name
         if not profile.is_file():
             continue
-        content = profile.read_text(encoding="utf-8", errors="replace")
+        try:
+            content = profile.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            read_errors.append(_ShellProfileReadError(profile=profile, error=error))
+            continue
         for line_number, line in enumerate(content.splitlines(), start=1):
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
@@ -234,7 +305,7 @@ def _find_conda_initializers(home: Path) -> list[_CondaInitializer]:
                 )
                 for distribution in distributions
             )
-    return initializers
+    return initializers, read_errors
 
 
 def _line_conda_distributions(line: str) -> list[str]:
@@ -246,7 +317,7 @@ def _line_conda_distributions(line: str) -> list[str]:
         for distribution, markers in CONDA_DISTRIBUTIONS.items()
         if any(marker in lowered for marker in markers)
     ]
-    if "micromamba" in distributions or "mambaforge" in distributions:
+    if "mamba" in distributions and len(distributions) > 1:
         distributions = [
             distribution for distribution in distributions if distribution != "mamba"
         ]
