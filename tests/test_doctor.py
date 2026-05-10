@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import textwrap
 from typing import TYPE_CHECKING
@@ -12,6 +13,7 @@ from unidep._doctor import (
     DoctorFinding,
     DoctorReport,
     _line_conda_roots,
+    _shadowed_version_spans,
     format_doctor_report,
     print_doctor_report,
     run_doctor_checks,
@@ -25,9 +27,9 @@ if TYPE_CHECKING:
     import pytest
 
 
-def _make_executable(path: Path) -> None:
+def _make_executable(path: Path, content: str = "#!/bin/sh\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("#!/bin/sh\n")
+    path.write_text(content)
     path.chmod(0o755)
 
 
@@ -71,7 +73,7 @@ def _install_fake_rich(
                 def append(self, value, *, style=None):
                     self.parts.append(value)
                     if style is not None:
-                        self.styles.append(style)
+                        self.styles.append((value, style))
 
                 def __str__(self):
                     return "".join(self.parts)
@@ -671,7 +673,7 @@ def test_path_scan_reports_non_python_interpreter_name_mismatch(
     assert str(running_python) in finding.details
 
 
-def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
+def test_path_scan_ignores_python_shadowing(tmp_path: Path) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"
     _make_executable(first_bin / "python")
@@ -684,11 +686,30 @@ def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
         python_executable=str(first_bin / "python"),
     )
 
-    finding = report.finding_by_code("shadowed-python")
-    assert finding is not None
-    assert finding.level == "info"
-    assert str(first_bin / "python") in finding.details
-    assert str(second_bin / "python") in finding.details
+    assert report.finding_by_code("shadowed-python") is None
+
+
+def test_path_scan_ignores_expected_python_shadowing_from_running_env(
+    tmp_path: Path,
+) -> None:
+    env_bin = tmp_path / "env" / "bin"
+    system_bin = tmp_path / "system" / "bin"
+    _make_executable(env_bin / "python")
+    _make_executable(env_bin / "python3")
+    _make_executable(system_bin / "python")
+    _make_executable(system_bin / "python3")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{env_bin}{os.pathsep}{system_bin}",
+        python_executable=str(env_bin / "python"),
+    )
+
+    assert report.finding_by_code("path-python-mismatch") is None
+    assert report.finding_by_code("path-python3-mismatch") is None
+    assert report.finding_by_code("shadowed-python") is None
+    assert report.finding_by_code("shadowed-python3") is None
 
 
 def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
@@ -711,26 +732,118 @@ def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
     assert str(second_bin / "micromamba") in finding.details
 
 
+def test_path_scan_reports_uv_shadowing_with_versions(tmp_path: Path) -> None:
+    first_bin = tmp_path / "first" / "bin"
+    second_bin = tmp_path / "second" / "bin"
+    _make_executable(first_bin / "uv", "#!/bin/sh\necho 'uv 0.8.1'\n")
+    _make_executable(second_bin / "uv", "#!/bin/sh\necho 'uv 0.4.0'\n")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{first_bin}{os.pathsep}{second_bin}",
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("shadowed-uv")
+    assert finding is not None
+    assert finding.level == "info"
+    assert f"{first_bin / 'uv'} (uv 0.8.1)" in finding.details
+    assert f"{second_bin / 'uv'} (uv 0.4.0)" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_fails(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(
+        bin_dir / "uv",
+        "#!/bin/sh\necho 'broken uv' >&2\nexit 2\n",
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(bin_dir / "uv") in finding.details
+    assert "exit code 2" in finding.details
+    assert "broken uv" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(bin_dir / "uv")
+
+    def run(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="uv --version", timeout=2)
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert "timed out after 2 seconds" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_cannot_execute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(bin_dir / "uv")
+
+    def run(*_args: object, **_kwargs: object) -> None:
+        error_message = "exec format error"
+        raise OSError(error_message)
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert str(bin_dir / "uv") in finding.details
+    assert "exec format error" in finding.details
+
+
 def test_path_scan_honors_pathext_for_shadowing(
     tmp_path: Path,
 ) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"
-    _make_executable(first_bin / "python.exe")
-    _make_executable(second_bin / "python.EXE")
+    _make_executable(first_bin / "pip.exe")
+    _make_executable(second_bin / "pip.EXE")
 
     report = run_doctor_checks(
         home=tmp_path,
         env={"PATHEXT": ".COM;.EXE;.BAT"},
         path_env=f"{first_bin}{os.pathsep}{second_bin}",
-        python_executable=str(first_bin / "python.exe"),
+        python_executable=sys.executable,
     )
 
-    finding = report.finding_by_code("shadowed-python")
+    finding = report.finding_by_code("shadowed-pip")
     assert finding is not None
     details = finding.details.casefold()
-    assert str(first_bin / "python.exe").casefold() in details
-    assert str(second_bin / "python.EXE").casefold() in details
+    assert str(first_bin / "pip.exe").casefold() in details
+    assert str(second_bin / "pip.EXE").casefold() in details
 
 
 def test_run_doctor_command_prints_summary(
@@ -893,6 +1006,40 @@ def test_run_doctor_command_uses_rich_for_summary_when_available(
     assert "No environment issues found" in captured.out
 
 
+def test_rich_report_styles_shadowed_tool_versions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="shadowed-uv",
+                level="info",
+                title="Multiple `uv` executables are on PATH.",
+                details="/first/uv (uv 0.8.1), /second/uv (uv 0.4.0)",
+                recommendation="Check PATH ordering.",
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "('(uv 0.8.1)', 'bold cyan')" in captured.out
+    assert "('(uv 0.4.0)', 'bold cyan')" in captured.out
+
+
+def test_shadowed_version_spans_ignores_unclosed_version() -> None:
+    assert _shadowed_version_spans("/first/uv (uv 0.8.1") == []
+
+
 def test_rich_report_styles_multiple_finding_levels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -908,7 +1055,7 @@ def test_rich_report_styles_multiple_finding_levels(
                 recommendation="fix the error",
             ),
             DoctorFinding(
-                code="shadowed-python",
+                code="shadowed-pip",
                 level="info",
                 title="An info finding.",
                 details="second detail",

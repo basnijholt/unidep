@@ -7,10 +7,11 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 CONDA_DISTRIBUTIONS = {
     "anaconda": ("anaconda3", "anaconda"),
@@ -46,14 +47,15 @@ PYTHON_ENVIRONMENT_VARIABLES = (
 
 VIRTUALENV_WRAPPER_MARKERS = ("POETRY_ACTIVE", "PIPENV_ACTIVE")
 SHADOWED_EXECUTABLES = (
-    "python",
-    "python3",
     "pip",
     "pip3",
     "conda",
     "mamba",
     "micromamba",
+    "uv",
 )
+SHADOWED_VERSION_STYLE = "bold cyan"
+VERSION_PROBE_TIMEOUT_SECONDS = 2
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
     r"(?P<terminator>[/\\]etc[/\\]profile\.d[/\\]conda\.sh"
@@ -139,6 +141,18 @@ class _ShellProfileReadError:
         except ValueError:  # pragma: no cover
             profile = self.profile
         return f"{profile}: {self.error}"
+
+
+@dataclass(frozen=True)
+class _ExecutableVersion:
+    path: Path
+    version: str | None = None
+    error: str | None = None
+
+    def format_details(self) -> str:
+        if self.version:
+            return f"{self.path} ({self.version})"
+        return str(self.path)
 
 
 def run_doctor_command(
@@ -247,10 +261,63 @@ def _print_doctor_report_with_rich(report: DoctorReport) -> None:
             text.append("  Code:", style="bold cyan")
             text.append(f" {finding.code}\n")
             text.append("  Details:", style="bold")
-            text.append(f" {finding.details}\n")
+            _append_rich_details(text, finding)
             text.append("  Recommendation:", style="bold green")
             text.append(f" {finding.recommendation}")
     console.print(text)
+
+
+def _append_rich_details(text: Any, finding: DoctorFinding) -> None:
+    text.append(" ")
+    if not finding.code.startswith("shadowed-"):
+        text.append(f"{finding.details}\n")
+        return
+
+    position = 0
+    for start, end in _shadowed_version_spans(finding.details):
+        if start > position:
+            text.append(finding.details[position:start])
+        text.append(finding.details[start:end], style=SHADOWED_VERSION_STYLE)
+        position = end
+    text.append(f"{finding.details[position:]}\n")
+
+
+def _shadowed_version_spans(details: str) -> list[tuple[int, int]]:
+    spans = []
+    position = 0
+    while True:
+        open_index = details.find(" (", position)
+        if open_index == -1:
+            break
+        start = open_index + 1
+        end = _matching_closing_parenthesis(details, start)
+        if end is None:
+            position = start + 1
+            continue
+        version_text = details[start + 1 : end]
+        if _looks_like_tool_version(version_text):
+            spans.append((start, end + 1))
+        position = end + 1
+    return spans
+
+
+def _matching_closing_parenthesis(text: str, start: int) -> int | None:
+    depth = 0
+    for index, character in enumerate(text[start:], start=start):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def _looks_like_tool_version(text: str) -> bool:
+    normalized = text.casefold()
+    return any(
+        normalized.startswith(f"{executable} ") for executable in SHADOWED_EXECUTABLES
+    )
 
 
 def _finding_level_style(finding: DoctorFinding) -> str:
@@ -604,13 +671,15 @@ def _check_path(
 
     for executable in SHADOWED_EXECUTABLES:
         matches = _which_all(executable, path_env, path_extensions=env.get("PATHEXT"))
+        versions = [_probe_executable_version(match) for match in matches]
+        findings.extend(_version_probe_findings(executable, versions))
         if len(matches) > 1:
             findings.append(
                 DoctorFinding(
                     code=f"shadowed-{executable}",
                     level="info",
                     title=f"Multiple `{executable}` executables are on PATH.",
-                    details=", ".join(str(match) for match in matches),
+                    details=", ".join(version.format_details() for version in versions),
                     recommendation=(
                         "Check PATH ordering if this command resolves to an "
                         "unexpected environment."
@@ -618,6 +687,61 @@ def _check_path(
                 ),
             )
     return findings
+
+
+def _probe_executable_version(path: Path) -> _ExecutableVersion:
+    try:
+        completed = subprocess.run(
+            [os.fspath(path), "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=VERSION_PROBE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return _ExecutableVersion(
+            path=path,
+            error=f"timed out after {VERSION_PROBE_TIMEOUT_SECONDS} seconds",
+        )
+    except OSError as error:
+        return _ExecutableVersion(path=path, error=str(error))
+
+    output = _first_nonempty_line(completed.stdout) or _first_nonempty_line(
+        completed.stderr,
+    )
+    if completed.returncode:
+        details = output or "no version output"
+        return _ExecutableVersion(
+            path=path,
+            error=f"exit code {completed.returncode}: {details}",
+        )
+    return _ExecutableVersion(path=path, version=output)
+
+
+def _first_nonempty_line(output: str | None) -> str | None:
+    if not output:
+        return None
+    return next((line.strip() for line in output.splitlines() if line.strip()), None)
+
+
+def _version_probe_findings(
+    executable: str,
+    versions: list[_ExecutableVersion],
+) -> list[DoctorFinding]:
+    return [
+        DoctorFinding(
+            code=f"{executable}-version-probe-failed",
+            level="warning",
+            title=f"Could not read `{executable}` version.",
+            details=f"{version.path}: {version.error}",
+            recommendation=(
+                f"Run `{version.path} --version` manually and remove or fix this "
+                "executable if it is stale or broken."
+            ),
+        )
+        for version in versions
+        if version.error
+    ]
 
 
 def _check_active_env_python_mismatch(
