@@ -13,6 +13,7 @@ from unidep._doctor import (
     DoctorFinding,
     DoctorReport,
     _line_conda_roots,
+    _shadowed_version_spans,
     format_doctor_report,
     print_doctor_report,
     run_doctor_checks,
@@ -72,7 +73,7 @@ def _install_fake_rich(
                 def append(self, value, *, style=None):
                     self.parts.append(value)
                     if style is not None:
-                        self.styles.append(style)
+                        self.styles.append((value, style))
 
                 def __str__(self):
                     return "".join(self.parts)
@@ -984,6 +985,40 @@ def test_run_doctor_command_uses_rich_for_summary_when_available(
     assert exit_code == 0
     assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
     assert "No environment issues found" in captured.out
+
+
+def test_rich_report_styles_shadowed_tool_versions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="shadowed-uv",
+                level="info",
+                title="Multiple `uv` executables are on PATH.",
+                details="/first/uv (uv 0.8.1), /second/uv (uv 0.4.0)",
+                recommendation="Check PATH ordering.",
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "('(uv 0.8.1)', 'bold cyan')" in captured.out
+    assert "('(uv 0.4.0)', 'bold cyan')" in captured.out
+
+
+def test_shadowed_version_spans_ignores_unclosed_version() -> None:
+    assert _shadowed_version_spans("/first/uv (uv 0.8.1") == []
 
 
 def test_rich_report_styles_multiple_finding_levels(

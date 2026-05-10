@@ -11,7 +11,7 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 CONDA_DISTRIBUTIONS = {
     "anaconda": ("anaconda3", "anaconda"),
@@ -56,6 +56,7 @@ SHADOWED_EXECUTABLES = (
     "micromamba",
     "uv",
 )
+SHADOWED_VERSION_STYLE = "bold cyan"
 VERSION_PROBE_TIMEOUT_SECONDS = 2
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
@@ -262,10 +263,63 @@ def _print_doctor_report_with_rich(report: DoctorReport) -> None:
             text.append("  Code:", style="bold cyan")
             text.append(f" {finding.code}\n")
             text.append("  Details:", style="bold")
-            text.append(f" {finding.details}\n")
+            _append_rich_details(text, finding)
             text.append("  Recommendation:", style="bold green")
             text.append(f" {finding.recommendation}")
     console.print(text)
+
+
+def _append_rich_details(text: Any, finding: DoctorFinding) -> None:
+    text.append(" ")
+    if not finding.code.startswith("shadowed-"):
+        text.append(f"{finding.details}\n")
+        return
+
+    position = 0
+    for start, end in _shadowed_version_spans(finding.details):
+        if start > position:
+            text.append(finding.details[position:start])
+        text.append(finding.details[start:end], style=SHADOWED_VERSION_STYLE)
+        position = end
+    text.append(f"{finding.details[position:]}\n")
+
+
+def _shadowed_version_spans(details: str) -> list[tuple[int, int]]:
+    spans = []
+    position = 0
+    while True:
+        open_index = details.find(" (", position)
+        if open_index == -1:
+            break
+        start = open_index + 1
+        end = _matching_closing_parenthesis(details, start)
+        if end is None:
+            position = start + 1
+            continue
+        version_text = details[start + 1 : end]
+        if _looks_like_tool_version(version_text):
+            spans.append((start, end + 1))
+        position = end + 1
+    return spans
+
+
+def _matching_closing_parenthesis(text: str, start: int) -> int | None:
+    depth = 0
+    for index, character in enumerate(text[start:], start=start):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def _looks_like_tool_version(text: str) -> bool:
+    normalized = text.casefold()
+    return any(
+        normalized.startswith(f"{executable} ") for executable in SHADOWED_EXECUTABLES
+    )
 
 
 def _finding_level_style(finding: DoctorFinding) -> str:
