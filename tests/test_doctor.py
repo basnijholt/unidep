@@ -172,6 +172,24 @@ def test_shell_profile_scan_reports_multiple_condabin_initializer_roots(
     assert ".zshrc:2" in finding.details
 
 
+def test_shell_profile_scan_reports_custom_condabin_initializer_root(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    zshrc.write_text(
+        'export PATH="/opt/toolchain/condabin:$HOME/miniconda3/condabin:$PATH"',
+    )
+
+    report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+    finding = report.finding_by_code("multiple-conda-initializer-roots")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "/opt/toolchain" in finding.details
+    assert "$HOME/miniconda3" in finding.details
+    assert ".zshrc:1" in finding.details
+
+
 def test_shell_profile_scan_reports_multiple_conda_roots_on_one_path_line(
     tmp_path: Path,
 ) -> None:
@@ -249,6 +267,22 @@ def test_shell_profile_scan_allows_mamba_hook_inside_generic_conda_root(
 
     assert report.finding_by_code("multiple-conda-initializers") is None
     assert report.finding_by_code("multiple-conda-initializer-roots") is None
+
+
+def test_shell_profile_scan_allows_mamba_hook_inside_custom_conda_root(
+    tmp_path: Path,
+) -> None:
+    zshrc = tmp_path / ".zshrc"
+    for root in ("/opt/toolchain", "/srv/conda-24"):
+        zshrc.write_text(
+            f"source {root}/etc/profile.d/conda.sh\n"
+            f'eval "$({root}/bin/mamba shell hook -s zsh)"',
+        )
+
+        report = run_doctor_checks(home=tmp_path, env={}, path_env="")
+
+        assert report.finding_by_code("multiple-conda-initializers") is None
+        assert report.finding_by_code("multiple-conda-initializer-roots") is None
 
 
 def test_shell_profile_scan_ignores_env_bin_inside_generic_conda_root(

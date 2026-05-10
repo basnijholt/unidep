@@ -265,7 +265,7 @@ def _check_shell_profiles(home: Path) -> list[DoctorFinding]:
     initializers, read_errors = _find_conda_initializers(home)
     distributions = {initializer.distribution for initializer in initializers}
     findings = []
-    if len(distributions) > 1:
+    if len(distributions) > 1 and not _all_initializers_share_one_root(initializers):
         details = "; ".join(
             initializer.format_location(home) for initializer in initializers
         )
@@ -403,8 +403,12 @@ def _is_conda_root_match(root: str, terminator: str) -> bool:
 
 def _terminator_is_explicit_conda(terminator: str) -> bool:
     normalized = terminator.replace("\\", "/").casefold()
-    return normalized.endswith("/etc/profile.d/conda.sh") or bool(
-        re.search(r"/bin/(?:conda|mamba|micromamba)\b", normalized),
+    return (
+        normalized == "/condabin"
+        or normalized.endswith("/etc/profile.d/conda.sh")
+        or bool(
+            re.search(r"/bin/(?:conda|mamba|micromamba)\b", normalized),
+        )
     )
 
 
@@ -444,6 +448,17 @@ def _conda_root_initializer(
         line_number=line_number,
         root=root,
         normalized_root=_normalize_conda_root(root, home),
+    )
+
+
+def _all_initializers_share_one_root(initializers: list[_CondaInitializer]) -> bool:
+    roots = {
+        initializer.normalized_root
+        for initializer in initializers
+        if initializer.normalized_root is not None
+    }
+    return len(roots) == 1 and all(
+        initializer.normalized_root is not None for initializer in initializers
     )
 
 
