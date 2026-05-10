@@ -754,11 +754,27 @@ def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
     assert str(second_bin / "micromamba") in finding.details
 
 
-def test_path_scan_reports_uv_shadowing_with_versions(tmp_path: Path) -> None:
+def test_path_scan_reports_uv_shadowing_with_versions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"
-    _make_executable(first_bin / "uv", "#!/bin/sh\necho 'uv 0.8.1'\n")
-    _make_executable(second_bin / "uv", "#!/bin/sh\necho 'uv 0.4.0'\n")
+    _make_executable(first_bin / "uv")
+    _make_executable(second_bin / "uv")
+
+    def run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        root_name = command[0].replace("\\", "/").split("/")[-3]
+        version = {
+            "first": "uv 0.8.1",
+            "second": "uv 0.4.0",
+        }[root_name]
+        return subprocess.CompletedProcess(command, 0, stdout=f"{version}\n")
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
 
     report = run_doctor_checks(
         home=tmp_path,
@@ -774,12 +790,20 @@ def test_path_scan_reports_uv_shadowing_with_versions(tmp_path: Path) -> None:
     assert f"{second_bin / 'uv'} (uv 0.4.0)" in finding.details
 
 
-def test_path_scan_warns_when_tool_version_probe_fails(tmp_path: Path) -> None:
+def test_path_scan_warns_when_tool_version_probe_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     bin_dir = tmp_path / "bin"
-    _make_executable(
-        bin_dir / "uv",
-        "#!/bin/sh\necho 'broken uv' >&2\nexit 2\n",
-    )
+    _make_executable(bin_dir / "uv")
+
+    def run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 2, stderr="broken uv\n")
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
 
     report = run_doctor_checks(
         home=tmp_path,
