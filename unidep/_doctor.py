@@ -65,6 +65,8 @@ CONDA_ROOT_NAMES = {
     "conda",
     *(marker for markers in CONDA_DISTRIBUTIONS.values() for marker in markers),
 }
+SUFFIXED_CONDA_ROOT_NAMES = CONDA_ROOT_NAMES - {"conda", "mamba"}
+CONDA_ROOT_SUFFIX_SEPARATORS = ("-", "_", ".")
 
 
 @dataclass(frozen=True)
@@ -407,10 +409,22 @@ def _terminator_is_explicit_conda(terminator: str) -> bool:
 
 
 def _root_looks_conda_like(root: str) -> bool:
-    parts = [
-        part.casefold() for part in re.split(r"[/\\]+", root.rstrip("/\\")) if part
-    ]
-    return any(part in CONDA_ROOT_NAMES for part in parts)
+    parts = _conda_root_parts(root)
+    return bool(parts) and _root_part_looks_conda_like(parts[-1])
+
+
+def _root_part_looks_conda_like(part: str) -> bool:
+    if part in CONDA_ROOT_NAMES:
+        return True
+    return any(
+        part.startswith(f"{root_name}{separator}")
+        for root_name in SUFFIXED_CONDA_ROOT_NAMES
+        for separator in CONDA_ROOT_SUFFIX_SEPARATORS
+    )
+
+
+def _conda_root_parts(root: str) -> list[str]:
+    return [part.casefold() for part in re.split(r"[/\\]+", root.rstrip("/\\")) if part]
 
 
 def _conda_root_initializer(
@@ -435,9 +449,11 @@ def _conda_root_initializer(
 
 def _conda_root_distribution(root: str) -> str | None:
     distributions = _line_conda_distributions(root)
-    if not distributions:
-        return None
-    return distributions[0]
+    if distributions:
+        return distributions[0]
+    if "conda" in _conda_root_parts(root):
+        return "conda"
+    return None
 
 
 def _normalize_conda_root(root: str, home: Path) -> str:
