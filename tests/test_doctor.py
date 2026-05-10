@@ -712,6 +712,28 @@ def test_path_scan_ignores_expected_python_shadowing_from_running_env(
     assert report.finding_by_code("shadowed-python3") is None
 
 
+def test_path_scan_ignores_expected_pip_shadowing_from_running_env(
+    tmp_path: Path,
+) -> None:
+    env_bin = tmp_path / "env" / "bin"
+    system_bin = tmp_path / "system" / "bin"
+    _make_executable(env_bin / "python")
+    _make_executable(env_bin / "pip")
+    _make_executable(env_bin / "pip3")
+    _make_executable(system_bin / "pip")
+    _make_executable(system_bin / "pip3")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{env_bin}{os.pathsep}{system_bin}",
+        python_executable=str(env_bin / "python"),
+    )
+
+    assert report.finding_by_code("shadowed-pip") is None
+    assert report.finding_by_code("shadowed-pip3") is None
+
+
 def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"

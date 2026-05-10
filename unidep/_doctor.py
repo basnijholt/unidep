@@ -673,7 +673,11 @@ def _check_path(
         matches = _which_all(executable, path_env, path_extensions=env.get("PATHEXT"))
         versions = [_probe_executable_version(match) for match in matches]
         findings.extend(_version_probe_findings(executable, versions))
-        if len(matches) > 1:
+        if len(matches) > 1 and not _first_match_is_expected_pip(
+            executable,
+            matches[0],
+            python_path,
+        ):
             findings.append(
                 DoctorFinding(
                     code=f"shadowed-{executable}",
@@ -687,6 +691,17 @@ def _check_path(
                 ),
             )
     return findings
+
+
+def _first_match_is_expected_pip(
+    executable: str,
+    match: Path,
+    python_executable: Path,
+) -> bool:
+    return executable in {"pip", "pip3"} and _same_path(
+        match.parent,
+        python_executable.parent,
+    )
 
 
 def _probe_executable_version(path: Path) -> _ExecutableVersion:
