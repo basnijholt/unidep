@@ -1489,7 +1489,7 @@ options:
 ### `unidep doctor`
 
 Use `unidep doctor` to run read-only diagnostics for common Python and Conda environment issues.
-It checks shell startup files, stale Conda/Mamba install roots, active environment variables, interpreter/environment mismatches, Homebrew Python inside Conda environments, and PATH shadowing with tool version context.
+It checks shell startup files, stale Conda/Mamba install roots, active environment variables, interpreter/environment mismatches, Homebrew Python inside Conda environments, and PATH shadowing for environment tools with version context.
 See `unidep doctor -h` for more information:
 
 <!-- CODE:BASH:START -->
@@ -1505,7 +1505,8 @@ usage: unidep doctor [-h] [--json] [--strict]
 Run read-only diagnostics for common Python and Conda environment issues,
 including stacked environments, shell startup conflicts such as stale
 Conda/Mamba install roots, interpreter/environment mismatches, Homebrew Python
-inside Conda environments, and PATH shadowing with tool version context.
+inside Conda environments, and PATH shadowing for environment tools with version
+context.
 
 options:
   -h, --help  show this help message and exit

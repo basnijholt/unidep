@@ -673,7 +673,7 @@ def test_path_scan_reports_non_python_interpreter_name_mismatch(
     assert str(running_python) in finding.details
 
 
-def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
+def test_path_scan_ignores_python_shadowing(tmp_path: Path) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"
     _make_executable(first_bin / "python")
@@ -686,11 +686,30 @@ def test_path_scan_reports_python_shadowing(tmp_path: Path) -> None:
         python_executable=str(first_bin / "python"),
     )
 
-    finding = report.finding_by_code("shadowed-python")
-    assert finding is not None
-    assert finding.level == "info"
-    assert str(first_bin / "python") in finding.details
-    assert str(second_bin / "python") in finding.details
+    assert report.finding_by_code("shadowed-python") is None
+
+
+def test_path_scan_ignores_expected_python_shadowing_from_running_env(
+    tmp_path: Path,
+) -> None:
+    env_bin = tmp_path / "env" / "bin"
+    system_bin = tmp_path / "system" / "bin"
+    _make_executable(env_bin / "python")
+    _make_executable(env_bin / "python3")
+    _make_executable(system_bin / "python")
+    _make_executable(system_bin / "python3")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{env_bin}{os.pathsep}{system_bin}",
+        python_executable=str(env_bin / "python"),
+    )
+
+    assert report.finding_by_code("path-python-mismatch") is None
+    assert report.finding_by_code("path-python3-mismatch") is None
+    assert report.finding_by_code("shadowed-python") is None
+    assert report.finding_by_code("shadowed-python3") is None
 
 
 def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
@@ -810,21 +829,21 @@ def test_path_scan_honors_pathext_for_shadowing(
 ) -> None:
     first_bin = tmp_path / "first" / "bin"
     second_bin = tmp_path / "second" / "bin"
-    _make_executable(first_bin / "python.exe")
-    _make_executable(second_bin / "python.EXE")
+    _make_executable(first_bin / "pip.exe")
+    _make_executable(second_bin / "pip.EXE")
 
     report = run_doctor_checks(
         home=tmp_path,
         env={"PATHEXT": ".COM;.EXE;.BAT"},
         path_env=f"{first_bin}{os.pathsep}{second_bin}",
-        python_executable=str(first_bin / "python.exe"),
+        python_executable=sys.executable,
     )
 
-    finding = report.finding_by_code("shadowed-python")
+    finding = report.finding_by_code("shadowed-pip")
     assert finding is not None
     details = finding.details.casefold()
-    assert str(first_bin / "python.exe").casefold() in details
-    assert str(second_bin / "python.EXE").casefold() in details
+    assert str(first_bin / "pip.exe").casefold() in details
+    assert str(second_bin / "pip.EXE").casefold() in details
 
 
 def test_run_doctor_command_prints_summary(
@@ -1036,7 +1055,7 @@ def test_rich_report_styles_multiple_finding_levels(
                 recommendation="fix the error",
             ),
             DoctorFinding(
-                code="shadowed-python",
+                code="shadowed-pip",
                 level="info",
                 title="An info finding.",
                 details="second detail",

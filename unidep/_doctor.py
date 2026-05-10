@@ -47,8 +47,6 @@ PYTHON_ENVIRONMENT_VARIABLES = (
 
 VIRTUALENV_WRAPPER_MARKERS = ("POETRY_ACTIVE", "PIPENV_ACTIVE")
 SHADOWED_EXECUTABLES = (
-    "python",
-    "python3",
     "pip",
     "pip3",
     "conda",
