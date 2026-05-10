@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -53,7 +54,9 @@ SHADOWED_EXECUTABLES = (
     "conda",
     "mamba",
     "micromamba",
+    "uv",
 )
+VERSION_PROBE_TIMEOUT_SECONDS = 2
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
     r"(?P<terminator>[/\\]etc[/\\]profile\.d[/\\]conda\.sh"
@@ -139,6 +142,18 @@ class _ShellProfileReadError:
         except ValueError:  # pragma: no cover
             profile = self.profile
         return f"{profile}: {self.error}"
+
+
+@dataclass(frozen=True)
+class _ExecutableVersion:
+    path: Path
+    version: str | None = None
+    error: str | None = None
+
+    def format_details(self) -> str:
+        if self.version:
+            return f"{self.path} ({self.version})"
+        return str(self.path)
 
 
 def run_doctor_command(
@@ -604,13 +619,15 @@ def _check_path(
 
     for executable in SHADOWED_EXECUTABLES:
         matches = _which_all(executable, path_env, path_extensions=env.get("PATHEXT"))
+        versions = [_probe_executable_version(match) for match in matches]
+        findings.extend(_version_probe_findings(executable, versions))
         if len(matches) > 1:
             findings.append(
                 DoctorFinding(
                     code=f"shadowed-{executable}",
                     level="info",
                     title=f"Multiple `{executable}` executables are on PATH.",
-                    details=", ".join(str(match) for match in matches),
+                    details=", ".join(version.format_details() for version in versions),
                     recommendation=(
                         "Check PATH ordering if this command resolves to an "
                         "unexpected environment."
@@ -618,6 +635,61 @@ def _check_path(
                 ),
             )
     return findings
+
+
+def _probe_executable_version(path: Path) -> _ExecutableVersion:
+    try:
+        completed = subprocess.run(
+            [os.fspath(path), "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=VERSION_PROBE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return _ExecutableVersion(
+            path=path,
+            error=f"timed out after {VERSION_PROBE_TIMEOUT_SECONDS} seconds",
+        )
+    except OSError as error:
+        return _ExecutableVersion(path=path, error=str(error))
+
+    output = _first_nonempty_line(completed.stdout) or _first_nonempty_line(
+        completed.stderr,
+    )
+    if completed.returncode:
+        details = output or "no version output"
+        return _ExecutableVersion(
+            path=path,
+            error=f"exit code {completed.returncode}: {details}",
+        )
+    return _ExecutableVersion(path=path, version=output)
+
+
+def _first_nonempty_line(output: str | None) -> str | None:
+    if not output:
+        return None
+    return next((line.strip() for line in output.splitlines() if line.strip()), None)
+
+
+def _version_probe_findings(
+    executable: str,
+    versions: list[_ExecutableVersion],
+) -> list[DoctorFinding]:
+    return [
+        DoctorFinding(
+            code=f"{executable}-version-probe-failed",
+            level="warning",
+            title=f"Could not read `{executable}` version.",
+            details=f"{version.path}: {version.error}",
+            recommendation=(
+                f"Run `{version.path} --version` manually and remove or fix this "
+                "executable if it is stale or broken."
+            ),
+        )
+        for version in versions
+        if version.error
+    ]
 
 
 def _check_active_env_python_mismatch(

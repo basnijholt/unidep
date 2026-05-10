@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import textwrap
 from typing import TYPE_CHECKING
@@ -25,9 +26,9 @@ if TYPE_CHECKING:
     import pytest
 
 
-def _make_executable(path: Path) -> None:
+def _make_executable(path: Path, content: str = "#!/bin/sh\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("#!/bin/sh\n")
+    path.write_text(content)
     path.chmod(0o755)
 
 
@@ -709,6 +710,98 @@ def test_path_scan_reports_micromamba_shadowing(tmp_path: Path) -> None:
     assert finding.level == "info"
     assert str(first_bin / "micromamba") in finding.details
     assert str(second_bin / "micromamba") in finding.details
+
+
+def test_path_scan_reports_uv_shadowing_with_versions(tmp_path: Path) -> None:
+    first_bin = tmp_path / "first" / "bin"
+    second_bin = tmp_path / "second" / "bin"
+    _make_executable(first_bin / "uv", "#!/bin/sh\necho 'uv 0.8.1'\n")
+    _make_executable(second_bin / "uv", "#!/bin/sh\necho 'uv 0.4.0'\n")
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=f"{first_bin}{os.pathsep}{second_bin}",
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("shadowed-uv")
+    assert finding is not None
+    assert finding.level == "info"
+    assert f"{first_bin / 'uv'} (uv 0.8.1)" in finding.details
+    assert f"{second_bin / 'uv'} (uv 0.4.0)" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_fails(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(
+        bin_dir / "uv",
+        "#!/bin/sh\necho 'broken uv' >&2\nexit 2\n",
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert str(bin_dir / "uv") in finding.details
+    assert "exit code 2" in finding.details
+    assert "broken uv" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(bin_dir / "uv")
+
+    def run(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="uv --version", timeout=2)
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert "timed out after 2 seconds" in finding.details
+
+
+def test_path_scan_warns_when_tool_version_probe_cannot_execute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    _make_executable(bin_dir / "uv")
+
+    def run(*_args: object, **_kwargs: object) -> None:
+        error_message = "exec format error"
+        raise OSError(error_message)
+
+    monkeypatch.setattr("unidep._doctor.subprocess.run", run)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env=str(bin_dir),
+        python_executable=sys.executable,
+    )
+
+    finding = report.finding_by_code("uv-version-probe-failed")
+    assert finding is not None
+    assert str(bin_dir / "uv") in finding.details
+    assert "exec format error" in finding.details
 
 
 def test_path_scan_honors_pathext_for_shadowing(
