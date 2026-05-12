@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 import textwrap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from unidep._doctor import (
     DoctorFinding,
@@ -1082,6 +1082,70 @@ def test_rich_report_styles_shadowed_tool_versions(
     assert "('(uv 0.4.0)', 'bold cyan')" in captured.out
 
 
+def test_rich_report_styles_recommendation_inline_commands(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="uninitialized-local-git-submodule",
+                level="error",
+                title="A local dependency appears to be an uninitialized Git submodule.",
+                details="requirements.yaml: ./vendor -> /project/vendor",
+                recommendation=(
+                    "Fetch the submodule with "
+                    "`git submodule update --init --recursive`, then rerun "
+                    "`unidep doctor`."
+                ),
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "('git submodule update --init --recursive', 'bold cyan')" in captured.out
+    assert "('unidep doctor', 'bold cyan')" in captured.out
+    assert "('`, then rerun `', 'bold cyan')" not in captured.out
+
+
+def test_rich_report_leaves_unclosed_recommendation_backtick_unstyled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="example",
+                level="warning",
+                title="A warning finding.",
+                details="details",
+                recommendation="Inspect `unterminated command manually.",
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "unterminated command" not in captured.out.split("STYLES:", maxsplit=1)[1]
+
+
 def test_shadowed_version_spans_ignores_unclosed_version() -> None:
     assert _shadowed_version_spans("/first/uv (uv 0.8.1") == []
 
@@ -1172,3 +1236,196 @@ def test_path_scan_ignores_duplicate_resolved_executables(tmp_path: Path) -> Non
     )
 
     assert report.finding_by_code("shadowed-python") is None
+
+
+def test_doctor_reports_local_dependency_git_submodule(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    vendor = project / "vendor"
+    vendor.mkdir()
+    (project / ".gitmodules").write_text(
+        textwrap.dedent(
+            """\
+            [submodule "vendor"]
+                path = vendor
+                url = https://example.invalid/vendor.git
+            """,
+        ),
+    )
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - ./vendor
+            """,
+        ),
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    finding = report.finding_by_code("uninitialized-local-git-submodule")
+    assert finding is not None
+    assert finding.level == "error"
+    assert "requirements.yaml" in finding.details
+    assert "./vendor" in finding.details
+    assert "git submodule update --init --recursive" in finding.recommendation
+
+
+def test_doctor_reports_missing_registered_local_dependency_submodule(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".gitmodules").write_text(
+        textwrap.dedent(
+            """\
+            [submodule "vendor"]
+                path = vendor
+                url = https://example.invalid/vendor.git
+            """,
+        ),
+    )
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - ./vendor
+            """,
+        ),
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    assert report.finding_by_code("uninitialized-local-git-submodule") is not None
+
+
+def test_doctor_reports_git_file_only_local_dependency_submodule(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    vendor = project / "vendor"
+    vendor.mkdir()
+    (vendor / ".git").write_text("gitdir: ../.git/modules/vendor")
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - ./vendor
+            """,
+        ),
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    assert report.finding_by_code("uninitialized-local-git-submodule") is not None
+
+
+def test_doctor_ignores_healthy_and_nonlocal_local_dependencies(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    vendor = project / "vendor"
+    vendor.mkdir()
+    (vendor / "pyproject.toml").write_text("[build-system]\nrequires = []\n")
+    local_file = project / "local.txt"
+    local_file.write_text("not a directory")
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - ./vendor
+              - ./local.txt
+              - local: ./vendor
+                pypi: vendor-package
+                use: pypi
+            """,
+        ),
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    assert report.finding_by_code("uninitialized-local-git-submodule") is None
+
+
+def test_doctor_warns_when_local_dependency_scan_fails(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - 42
+            """,
+        ),
+    )
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    finding = report.finding_by_code("project-local-dependency-scan-failed")
+    assert finding is not None
+    assert finding.level == "warning"
+    assert "Invalid local dependency format" in finding.details
+
+
+def test_doctor_ignores_unreadable_gitmodules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    vendor = project / "vendor"
+    vendor.mkdir()
+    gitmodules = project / ".gitmodules"
+    gitmodules.write_text("path = vendor\n")
+    (project / "requirements.yaml").write_text(
+        textwrap.dedent(
+            """\
+            local_dependencies:
+              - ./vendor
+            """,
+        ),
+    )
+    original_read_text = type(project).read_text
+
+    def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == gitmodules:
+            raise OSError
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(type(project), "read_text", read_text)
+
+    report = run_doctor_checks(
+        home=tmp_path,
+        env={},
+        path_env="",
+        project_dir=project,
+    )
+
+    assert report.finding_by_code("uninitialized-local-git-submodule") is None
