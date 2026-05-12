@@ -1082,6 +1082,40 @@ def test_rich_report_styles_shadowed_tool_versions(
     assert "('(uv 0.4.0)', 'bold cyan')" in captured.out
 
 
+def test_rich_report_styles_recommendation_inline_commands(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="uninitialized-local-git-submodule",
+                level="error",
+                title="A local dependency appears to be an uninitialized Git submodule.",
+                details="requirements.yaml: ./vendor -> /project/vendor",
+                recommendation=(
+                    "Fetch the submodule with "
+                    "`git submodule update --init --recursive`, then rerun "
+                    "`unidep doctor`."
+                ),
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "('git submodule update --init --recursive', 'bold cyan')" in captured.out
+    assert "('unidep doctor', 'bold cyan')" in captured.out
+
+
 def test_shadowed_version_spans_ignores_unclosed_version() -> None:
     assert _shadowed_version_spans("/first/uv (uv 0.8.1") == []
 

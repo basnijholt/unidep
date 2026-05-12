@@ -64,6 +64,7 @@ SHADOWED_EXECUTABLES = (
     "uv",
 )
 SHADOWED_VERSION_STYLE = "bold cyan"
+INLINE_COMMAND_STYLE = "bold cyan"
 VERSION_PROBE_TIMEOUT_SECONDS = 2
 CONDA_ROOT_PATTERN = re.compile(
     r"(?P<root>(?:~|\$HOME|\$\{HOME\}|[A-Za-z]:[/\\]|[/\\])[^\"':;$()]*?)"
@@ -276,7 +277,7 @@ def _print_doctor_report_with_rich(report: DoctorReport) -> None:
             text.append("  Details:", style="bold")
             _append_rich_details(text, finding)
             text.append("  Recommendation:", style="bold green")
-            text.append(f" {finding.recommendation}")
+            _append_rich_inline_commands(text, f" {finding.recommendation}")
     console.print(text)
 
 
@@ -293,6 +294,22 @@ def _append_rich_details(text: Any, finding: DoctorFinding) -> None:
         text.append(finding.details[start:end], style=SHADOWED_VERSION_STYLE)
         position = end
     text.append(f"{finding.details[position:]}\n")
+
+
+def _append_rich_inline_commands(text: Any, value: str) -> None:
+    position = 0
+    while True:
+        start = value.find("`", position)
+        if start == -1:
+            text.append(value[position:])
+            return
+        end = value.find("`", start + 1)
+        if end == -1:
+            text.append(value[position:])
+            return
+        text.append(value[position : start + 1])
+        text.append(value[start + 1 : end], style=INLINE_COMMAND_STYLE)
+        position = end
 
 
 def _shadowed_version_spans(details: str) -> list[tuple[int, int]]:
