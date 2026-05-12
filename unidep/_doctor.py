@@ -13,6 +13,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from ruamel.yaml import YAML
+
+from unidep._dependencies_parsing import (
+    _load,
+    find_requirements_files,
+    get_local_dependencies,
+)
+from unidep.utils import split_path_and_extras
+
 CONDA_DISTRIBUTIONS = {
     "anaconda": ("anaconda3", "anaconda"),
     "miniconda": ("miniconda3", "miniconda"),
@@ -161,6 +170,7 @@ def run_doctor_command(
     env: Mapping[str, str] | None = None,
     path_env: str | None = None,
     python_executable: str | None = None,
+    project_dir: Path | None = None,
     output_format: str = "text",
     strict: bool = False,
 ) -> int:
@@ -170,6 +180,7 @@ def run_doctor_command(
         env=env,
         path_env=path_env,
         python_executable=python_executable,
+        project_dir=Path.cwd() if project_dir is None else project_dir,
     )
     if output_format == "json":
         print(format_doctor_report_json(report))
@@ -184,6 +195,7 @@ def run_doctor_checks(
     env: Mapping[str, str] | None = None,
     path_env: str | None = None,
     python_executable: str | None = None,
+    project_dir: Path | None = None,
 ) -> DoctorReport:
     """Collect read-only diagnostics for the current Python environment."""
     resolved_home = Path.home() if home is None else home
@@ -199,6 +211,7 @@ def run_doctor_checks(
             path_env=resolved_path,
             python_executable=resolved_python,
         ),
+        *(_check_project_local_dependencies(project_dir) if project_dir else []),
     ]
     return DoctorReport(tuple(findings))
 
@@ -691,6 +704,97 @@ def _check_path(
                 ),
             )
     return findings
+
+
+def _check_project_local_dependencies(project_dir: Path) -> list[DoctorFinding]:
+    findings = []
+    project_path = project_dir.resolve()
+    gitmodule_paths = _gitmodule_paths(project_path)
+    yaml = YAML(typ="safe")
+    for requirements_file in find_requirements_files(project_path, depth=1):
+        try:
+            data = _load(requirements_file, yaml)
+            local_dependencies = get_local_dependencies(data)
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            findings.append(
+                DoctorFinding(
+                    code="project-local-dependency-scan-failed",
+                    level="warning",
+                    title="A UniDep dependency file could not be checked.",
+                    details=f"{requirements_file}: {error}",
+                    recommendation=(
+                        "Inspect the dependency file manually or run the relevant "
+                        "`unidep` command for the full parser error."
+                    ),
+                ),
+            )
+            continue
+
+        for local_dependency in local_dependencies:
+            if local_dependency.use != "local":
+                continue
+            local_path, _extras = split_path_and_extras(local_dependency.local)
+            dependency_path = (requirements_file.parent / local_path).resolve()
+            if not _local_dependency_is_uninitialized_submodule(
+                dependency_path,
+                gitmodule_paths,
+            ):
+                continue
+            findings.append(
+                DoctorFinding(
+                    code="uninitialized-local-git-submodule",
+                    level="error",
+                    title=(
+                        "A local dependency appears to be an uninitialized "
+                        "Git submodule."
+                    ),
+                    details=(
+                        f"{requirements_file}: {local_dependency.local} -> "
+                        f"{dependency_path}"
+                    ),
+                    recommendation=(
+                        "Fetch the submodule with "
+                        "`git submodule update --init --recursive`, then rerun "
+                        "`unidep doctor`."
+                    ),
+                ),
+            )
+    return findings
+
+
+def _gitmodule_paths(project_dir: Path) -> set[Path]:
+    gitmodules = project_dir / ".gitmodules"
+    if not gitmodules.is_file():
+        return set()
+    paths: set[Path] = set()
+    try:
+        lines = gitmodules.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return paths
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "path":
+            paths.add((project_dir / value.strip()).resolve())
+    return paths
+
+
+def _local_dependency_is_uninitialized_submodule(
+    dependency_path: Path,
+    gitmodule_paths: set[Path],
+) -> bool:
+    is_registered_submodule = dependency_path in gitmodule_paths
+    if not dependency_path.exists():
+        return is_registered_submodule
+    if not dependency_path.is_dir():
+        return False
+    if _is_empty_git_submodule_checkout(dependency_path):
+        return True
+    return is_registered_submodule and not any(dependency_path.iterdir())
+
+
+def _is_empty_git_submodule_checkout(path: Path) -> bool:
+    git_file = path / ".git"
+    return git_file.is_file() and len(list(path.iterdir())) == 1
 
 
 def _first_match_is_expected_pip(

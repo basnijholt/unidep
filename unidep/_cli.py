@@ -749,7 +749,8 @@ def _parse_args() -> argparse.Namespace:  # noqa: PLR0915
             "issues, including stacked environments, shell startup conflicts "
             "such as stale Conda/Mamba install roots, interpreter/environment "
             "mismatches, Homebrew Python inside Conda environments, and PATH "
-            "shadowing for environment tools with version context."
+            "shadowing for environment tools with version context. Also check "
+            "project local dependencies for uninitialized Git submodules."
         ),
         formatter_class=_HelpFormatter,
     )
