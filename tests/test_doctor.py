@@ -1114,6 +1114,36 @@ def test_rich_report_styles_recommendation_inline_commands(
     assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
     assert "('git submodule update --init --recursive', 'bold cyan')" in captured.out
     assert "('unidep doctor', 'bold cyan')" in captured.out
+    assert "('`, then rerun `', 'bold cyan')" not in captured.out
+
+
+def test_rich_report_leaves_unclosed_recommendation_backtick_unstyled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = DoctorReport(
+        (
+            DoctorFinding(
+                code="example",
+                level="warning",
+                title="A warning finding.",
+                details="details",
+                recommendation="Inspect `unterminated command manually.",
+            ),
+        ),
+    )
+    expected_report = format_doctor_report(report)
+    saved_modules = _install_fake_rich(tmp_path, monkeypatch)
+    try:
+        print_doctor_report(report)
+
+        captured = capsys.readouterr()
+    finally:
+        _restore_rich_modules(saved_modules)
+
+    assert captured.out.startswith(f"RICH:{expected_report}\nSTYLES:")
+    assert "unterminated command" not in captured.out.split("STYLES:", maxsplit=1)[1]
 
 
 def test_shadowed_version_spans_ignores_unclosed_version() -> None:

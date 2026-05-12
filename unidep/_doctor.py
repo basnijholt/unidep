@@ -309,7 +309,8 @@ def _append_rich_inline_commands(text: Any, value: str) -> None:
             return
         text.append(value[position : start + 1])
         text.append(value[start + 1 : end], style=INLINE_COMMAND_STYLE)
-        position = end
+        text.append("`")
+        position = end + 1
 
 
 def _shadowed_version_spans(details: str) -> list[tuple[int, int]]:
