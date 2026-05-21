@@ -59,7 +59,7 @@ def test_origin_to_text_normalizes_windows_style_local_chain() -> None:
         dependency_index=3,
         optional_group="dev",
         local_dependency_chain=cast(
-            Tuple[Path, ...],
+            "Tuple[Path, ...]",
             (
                 PureWindowsPath("libs\\a"),
                 PureWindowsPath("libs\\b"),
